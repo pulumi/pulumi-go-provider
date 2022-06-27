@@ -11,6 +11,8 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
+type URN = string
+
 type Server struct {
 	version semver.Version
 	Host    *provider.HostClient
