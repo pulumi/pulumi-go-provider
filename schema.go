@@ -1,6 +1,7 @@
-package main
+package provider
 
 import (
+	"encoding/json"
 	"reflect"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -10,13 +11,26 @@ type PropertyDescriptor struct {
 	t reflect.Type
 }
 
-type Resource interface {
+func serialize(opts options) ([]byte, error) {
+	var pkgSpec schema.PackageSpec = serializeSchema(opts)
+
+	schemaJSON, err := json.Marshal(pkgSpec)
+	if err != nil {
+		return nil, err
+	}
+	return schemaJSON, nil
 }
 
-type Type interface {
-}
-
-type Function interface {
+func serializeSchema(opts options) schema.PackageSpec {
+	spec := schema.PackageSpec{}
+	spec.Resources = make(map[string]schema.ResourceSpec)
+	for i := 0; i < len(opts.Resources); i++ {
+		resource := opts.Resources[i]
+		//where to fetch name?
+		token, resourceSpec := serializeResource(opts.Name, "foobar", resource)
+		spec.Resources[token] = resourceSpec
+	}
+	return spec
 }
 
 func serializeResource(pkgname string, resourcename string, resource interface{}) (string, schema.ResourceSpec) {
@@ -73,9 +87,9 @@ func getReference(t reflect.Type, name string, packagename string) string {
 	isType := false
 	isFunction := false
 
-	resourceType := reflect.TypeOf((*Resource)(nil)).Elem()
-	typeType := reflect.TypeOf((*Type)(nil)).Elem()
-	functionType := reflect.TypeOf((*Function)(nil)).Elem()
+	resourceType := reflect.TypeOf((*Resource)(nil))
+	typeType := reflect.TypeOf((*Type)(nil))
+	functionType := reflect.TypeOf((*Function)(nil))
 
 	for i := 0; i < t.NumField(); i++ {
 		if t.Field(i).Name == "Resource" && t.Field(i).Type == resourceType {
