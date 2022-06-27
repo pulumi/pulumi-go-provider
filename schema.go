@@ -4,15 +4,13 @@ import (
 	"encoding/json"
 	"reflect"
 
+	"github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
-type PropertyDescriptor struct {
-	t reflect.Type
-}
-
+// Serialize a package to JSON Schema.
 func serialize(opts options) ([]byte, error) {
-	var pkgSpec schema.PackageSpec = serializeSchema(opts)
+	pkgSpec := serializeSchema(opts)
 
 	schemaJSON, err := json.Marshal(pkgSpec)
 	if err != nil {
@@ -21,6 +19,7 @@ func serialize(opts options) ([]byte, error) {
 	return schemaJSON, nil
 }
 
+// Get the packagespec given resources, etc.
 func serializeSchema(opts options) schema.PackageSpec {
 	spec := schema.PackageSpec{}
 	spec.Resources = make(map[string]schema.ResourceSpec)
@@ -33,11 +32,12 @@ func serializeSchema(opts options) schema.PackageSpec {
 	return spec
 }
 
+// Get the resourceSpec for a single resource
 func serializeResource(pkgname string, resourcename string, resource interface{}) (string, schema.ResourceSpec) {
 	t := reflect.TypeOf(resource)
 	var properties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	for i := 0; i < t.NumField(); i++ {
-		properties[t.Field(i).Name] = serializeProperty(PropertyDescriptor{t: t.Field(i).Type})
+		properties[t.Field(i).Name] = serializeProperty(t.Field(i).Type)
 	}
 
 	token := pkgname + ":index:" + resourcename
@@ -46,9 +46,34 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 	return token, spec
 }
 
-func serializeProperty(spec PropertyDescriptor) schema.PropertySpec {
+//Get the propertySpec for a single property
+func serializeProperty(t reflect.Type) schema.PropertySpec {
+	typeName := getTypeName(t)
+
+	if typeName == "unknown" {
+		panic("Unsupported non-generic type " + t.Kind().String())
+	} else {
+		if typeName == "array" {
+			return schema.PropertySpec{
+				TypeSpec: schema.TypeSpec{
+					Type:  typeName,
+					Items: serializeType(t.Elem()),
+				},
+			}
+		} else {
+			return schema.PropertySpec{
+				TypeSpec: schema.TypeSpec{
+					Type: typeName,
+				},
+			}
+		}
+	}
+}
+
+//Get the typeSpec for a single type
+func getTypeName(t reflect.Type) string {
 	var typeName string
-	switch spec.t.Kind() {
+	switch t.Kind() {
 	case reflect.String:
 		typeName = "string"
 	case reflect.Bool:
@@ -57,51 +82,44 @@ func serializeProperty(spec PropertyDescriptor) schema.PropertySpec {
 		typeName = "integer"
 	case reflect.Float64:
 		typeName = "number"
-	case reflect.Slice:
+	case reflect.Array, reflect.Slice:
 		typeName = "array"
 	case reflect.Map:
 		typeName = "object"
 	default:
 		typeName = "unknown"
 	}
+	return typeName
+}
 
+func serializeType(t reflect.Type) *schema.TypeSpec {
+	typeName := getTypeName(t)
 	if typeName == "unknown" {
-		reference := getReference(spec.t, spec.t.Name(), "pkgname")
-		return schema.PropertySpec{
-			TypeSpec: schema.TypeSpec{
-				Ref: reference,
-			},
-		}
-
+		panic("Unsupported non-generic type " + t.Kind().String())
 	} else {
-		return schema.PropertySpec{
-			TypeSpec: schema.TypeSpec{
+		if typeName == "array" {
+			return &schema.TypeSpec{
+				Type:  typeName,
+				Items: serializeType(t.Elem()),
+			}
+		} else {
+			return &schema.TypeSpec{
 				Type: typeName,
-			},
+			}
 		}
 	}
 }
 
-func getReference(t reflect.Type, name string, packagename string) string {
+func getReference(t reflect.Type, name string, packagename string) (string, error) {
 	isResource := false
 	isType := false
 	isFunction := false
 
-	resourceType := reflect.TypeOf((*Resource)(nil))
-	typeType := reflect.TypeOf((*Type)(nil))
-	functionType := reflect.TypeOf((*Function)(nil))
+	resourceType := reflect.TypeOf((*resource.Custom)(nil))
 
 	for i := 0; i < t.NumField(); i++ {
 		if t.Field(i).Name == "Resource" && t.Field(i).Type == resourceType {
 			isResource = true
-			break
-		}
-		if t.Field(i).Name == "Type" && t.Field(i).Type == typeType {
-			isType = true
-			break
-		}
-		if t.Field(i).Name == "Function" && t.Field(i).Type == functionType {
-			isFunction = true
 			break
 		}
 	}
@@ -128,5 +146,5 @@ func getReference(t reflect.Type, name string, packagename string) string {
 
 	typetoken := packagename + ":index:" + name
 
-	return "#/" + typename + "/" + typetoken
+	return "#/" + typename + "/" + typetoken, nil
 }

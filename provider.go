@@ -23,9 +23,13 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 
 func makeProviderfunc(opts options) func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
+		schema, err := serialize(opts)
+		if err != nil {
+			return nil, err
+		}
 		return &server.Server{
 			Host:   host,
-			Schema: serialize(opts),
+			Schema: schema,
 		}, nil
 	}
 }
