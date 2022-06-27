@@ -16,7 +16,7 @@ type URN = string
 type Server struct {
 	version semver.Version
 	Host    *provider.HostClient
-	Schema  []byte
+	Schema  string
 }
 
 // GetSchema fetches the schema for this resource provider.
