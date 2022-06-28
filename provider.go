@@ -36,7 +36,10 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 
 	if genCmd := os.Getenv("PULUMI_GENERATE_SDK"); genCmd != "" {
 		cmds := strings.Split(genCmd, ",")
-		schemaBytes, err := ioutil.ReadFile(filepath.Join(cmds[0], "schema.json"))
+		sdkPath := filepath.Join(cmds[0], "sdk")
+		schemaPath := filepath.Join(cmds[0], "schema.json")
+		fmt.Printf("Generating %v sdk for %s in %s\n", cmds[1:], schemaPath, sdkPath)
+		schemaBytes, err := ioutil.ReadFile(schemaPath)
 		var spec schema.PackageSpec
 		err = json.Unmarshal(schemaBytes, &spec)
 		if err != nil {
@@ -49,7 +52,7 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 		if len(diags) > 0 {
 			return diags
 		}
-		return generateSDKs(name, filepath.Join(cmds[0], "sdk"), pkg, cmds[1:]...)
+		return generateSDKs(name, sdkPath, pkg, cmds[1:]...)
 	}
 	return provider.Main(name, makeProviderfunc)
 }
@@ -85,7 +88,6 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 				return err
 			}
 		}
-
 	}
 	return nil
 }

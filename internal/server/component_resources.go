@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"

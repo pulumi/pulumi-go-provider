@@ -3,6 +3,8 @@ package introspect
 import (
 	"reflect"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -38,18 +40,30 @@ func StructToMap(i any) map[string]interface{} {
 }
 
 func ResourceToProperties(r any) (*structpb.Struct, error) {
-	mapper := mapper.New(&mapper.Opts{
-		IgnoreMissing:      true,
-		IgnoreUnrecognized: true,
-	})
+	mapper := mapper.New(
+		&mapper.Opts{IgnoreMissing: true, IgnoreUnrecognized: true},
+	)
 
-	inputs, err := mapper.Encode(r)
+	props, err := mapper.Encode(r)
 	if err != nil {
 		return nil, err
 	}
-	s, nErr := structpb.NewStruct(inputs)
-	if nErr != nil {
-		return nil, nErr
+
+	return plugin.MarshalProperties(resource.NewPropertyMapFromMap(props), plugin.MarshalOptions{
+		KeepUnknowns: true,
+		SkipNulls:    true,
+	})
+}
+
+func PropertiesToResource(s *structpb.Struct, res any) error {
+	inputProps, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+		SkipNulls:        true,
+		SkipInternalKeys: true,
+	})
+	if err != nil {
+		return err
 	}
-	return s, nil
+	inputs := inputProps.Mappable()
+
+	return mapper.MapI(inputs, res)
 }

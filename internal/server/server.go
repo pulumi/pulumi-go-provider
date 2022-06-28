@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/blang/semver"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	r "github.com/pulumi/pulumi-go-provider/resource"
@@ -121,15 +121,12 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 		return nil, err
 	}
 	if res, ok := custom.(r.ResourceCheck); ok {
-		mapper := mapper.New(&mapper.Opts{
-			IgnoreMissing: true,
-		})
-		err := mapper.Decode(req.GetOlds().AsMap(), &res)
+		err = introspect.PropertiesToResource(req.GetOlds(), res)
 		if err != nil {
 			return nil, err
 		}
-		new := reflect.New(reflect.TypeOf(custom)).Interface().(r.Custom)
-		err = mapper.Decode(req.GetNews().AsMap(), &new)
+		new := newOfType(custom)
+		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
@@ -145,17 +142,13 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 			}
 		}
 
-		inputs, err := mapper.Encode(res)
+		// TODO: Swap new and old so old is the argument and new is the default
+		inputs, err := introspect.ResourceToProperties(res)
 		if err != nil {
 			return nil, err
 		}
-		s, nErr := structpb.NewStruct(inputs)
-		if nErr != nil {
-			return nil, nErr
-		}
-
 		return &rpc.CheckResponse{
-			Inputs:   s,
+			Inputs:   inputs,
 			Failures: f,
 		}, nil
 	}
@@ -174,39 +167,76 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 		return nil, err
 	}
 	if r, ok := custom.(r.ResourceDiff); ok {
-		mapper := mapper.New(&mapper.Opts{
-			IgnoreMissing: true,
-		})
-		err := mapper.Decode(req.GetOlds().AsMap(), &r)
+		err := introspect.PropertiesToResource(req.GetOlds(), r)
 		if err != nil {
 			return nil, err
 		}
 
 		new := newOfType(custom)
-		err = mapper.Decode(req.GetNews().AsMap(), &new)
+		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
 		return r.Diff(ctx, req.GetId(), new, req.GetIgnoreChanges())
 	}
-	return nil, status.Error(codes.Unimplemented, "Diff is not yet implemented")
+
+	// The user has not provided a diff, so use the default diff
+	olds, err := plugin.UnmarshalProperties(req.GetOlds(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	if err != nil {
+		return nil, err
+	}
+
+	news, err := plugin.UnmarshalProperties(req.GetNews(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	if err != nil {
+		return nil, err
+	}
+	changes := rpc.DiffResponse_DIFF_NONE
+	var diffs, replaces []string
+	if d := olds.Diff(news); d != nil {
+		for _, propKey := range d.ChangedKeys() {
+			key := string(propKey)
+			i := sort.SearchStrings(req.IgnoreChanges, key)
+			if i < len(req.IgnoreChanges) && req.IgnoreChanges[i] == key {
+				continue
+			}
+
+			if d.Changed(resource.PropertyKey(key)) {
+				changes = rpc.DiffResponse_DIFF_SOME
+				diffs = append(diffs, key)
+
+				if _, hasUpdate := custom.(r.ResourceUpdate); !hasUpdate {
+					replaces = append(replaces, key)
+				}
+			}
+		}
+	}
+	fmt.Printf("Found diff for %v in %v -> %v\n", replaces, req.GetOlds(), req.GetNews())
+
+	return &rpc.DiffResponse{
+		Replaces: replaces,
+		Changes:  changes,
+		Diffs:    diffs,
+	}, nil
 }
 
 // Create allocates a new instance of the provided resource and returns its unique ID afterwards.  (The input ID
 // must be blank.)  If this call fails, the resource must not have been created (i.e., it is "transactional").
 func (s *Server) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.CreateResponse, error) {
-	custom, err := s.Customs.GetCustom(resource.URN(req.Urn).Type())
+	urn := resource.URN(req.Urn)
+	custom, err := s.Customs.GetCustom(urn.Type())
 	if err != nil {
 		return nil, err
 	}
-	mapper := mapper.New(&mapper.Opts{
-		IgnoreMissing: true,
-	})
-	err = mapper.Decode(req.GetProperties().AsMap(), &custom)
+	// We need to be careful not to take an unnecessary reference to custom here.
+	err = introspect.PropertiesToResource(req.GetProperties(), custom)
 	if err != nil {
 		return nil, err
 	}
-	id, err := custom.Create(ctx, req.Preview)
+
+	// Apply timeout
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.GetTimeout())*time.Second)
+	defer cancel()
+	id, err := custom.Create(ctx, urn.Name().String(), req.GetPreview())
 	if err != nil {
 		return nil, err
 	}
@@ -228,21 +258,14 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		return nil, err
 	}
 	if r, ok := custom.(r.ResourceRead); ok {
-		mapper := mapper.New(&mapper.Opts{
-			IgnoreMissing: true,
-		})
-		// NOTE: this only works if we can prioritize one set over the other
-		// AND
-		// mapper.Decode won't overwrite blanks.
-		// TODO: make sure this works
-		mapErr := mapper.Decode(req.GetInputs().AsMap(), &r)
-		if mapErr != nil {
-			return nil, mapErr
+		err = introspect.PropertiesToResource(req.GetProperties(), custom)
+		if err != nil {
+			return nil, err
 		}
-		new := newOfType(custom)
-		mapErr = mapper.Decode(req.GetProperties().AsMap(), &new)
-		if mapErr != nil {
-			return nil, mapErr
+
+		err = introspect.PropertiesToResource(req.GetInputs(), custom)
+		if err != nil {
+			return nil, err
 		}
 		err = r.Read(ctx)
 		if err != nil {
@@ -260,15 +283,12 @@ func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Updat
 		return nil, err
 	}
 	if r, ok := custom.(r.ResourceUpdate); ok {
-		mapper := mapper.New(&mapper.Opts{
-			IgnoreMissing: true,
-		})
-		err = mapper.Decode(req.GetOlds().AsMap(), &r)
+		err = introspect.PropertiesToResource(req.GetOlds(), custom)
 		if err != nil {
 			return nil, err
 		}
 		new := newOfType(custom)
-		err = mapper.Decode(req.GetNews().AsMap(), &new)
+		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
@@ -296,10 +316,8 @@ func (s *Server) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.E
 	if err != nil {
 		return nil, err
 	}
-	mapper := mapper.New(&mapper.Opts{
-		IgnoreMissing: true,
-	})
-	err = mapper.Decode(req.GetProperties().AsMap(), &custom)
+
+	err = introspect.PropertiesToResource(req.GetProperties(), custom)
 	if err != nil {
 		return nil, err
 	}

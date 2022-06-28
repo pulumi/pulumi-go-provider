@@ -19,7 +19,7 @@ type Custom interface {
 	//
 	// Warning: Mutating the receiver asynchronously after Create has returned may lead to
 	// invalid behavior.
-	Create(ctx context.Context, preview bool) (Id, error)
+	Create(ctx context.Context, name string, preview bool) (Id, error)
 	Delete(ctx context.Context, id Id) error
 }
 

@@ -2,6 +2,33 @@
   "name": "random-login",
   "version": "0.1.0",
   "resources": {
+    "random-login:index:RandomSalt": {
+      "inputProperties": {
+        "password": {
+          "type": "string"
+        },
+        "saltedLength": {
+          "type": "integer"
+        }
+      },
+      "requiredInputs": [ "password" ],
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "salt": {
+          "type": "string"
+        },
+        "saltedPassword": {
+          "type": "string"
+        }
+      },
+      "requiredProperties": [
+        "password",
+        "salt",
+        "salterPassword"
+      ]
+    },
     "random-login:index:RandomLogin": {
       "isComponent": true,
       "inputProperties": {
@@ -16,10 +43,15 @@
         "password": {
           "type": "string"
         },
-        "login": {
+        "username": {
           "type": "string"
         }
-      }
+      },
+      "requiredProperties": [
+        "passwordLength",
+        "password",
+        "username"
+      ]
     }
   }
 }

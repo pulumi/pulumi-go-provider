@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"math/rand"
+
 	"github.com/blang/semver"
 	provider "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
@@ -8,16 +12,16 @@ import (
 )
 
 func main() {
-	provider.Run("random-login", semver.Version{Minor: 1}, provider.Components(
-		&RandomLogin{},
-	))
+	provider.Run("random-login", semver.Version{Minor: 1},
+		provider.Components(&RandomLogin{}),
+		provider.Resources(&RandomSalt{}))
 }
 
 type RandomLogin struct {
 	pulumi.ResourceState
 
 	// Outputs
-	Login    pulumi.StringOutput `pulumi:"login"`
+	Username pulumi.StringOutput `pulumi:"username"`
 	Password pulumi.StringOutput `pulumi:"password"`
 
 	// Inputs
@@ -29,7 +33,7 @@ func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {
 	if err != nil {
 		return err
 	}
-	r.Login = pet.ID().ToStringOutput()
+	r.Username = pet.ID().ToStringOutput()
 	var length pulumi.IntInput = pulumi.Int(16)
 	if r.PasswordLength != nil {
 		length = r.PasswordLength.ToIntPtrOutput().Elem()
@@ -42,5 +46,40 @@ func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {
 	}
 	r.Password = password.Result.ToStringOutput()
 
+	return nil
+}
+
+type RandomSalt struct {
+
+	// Outputs
+	Salt           string `pulumi:"salt"`
+	SaltedPassword string `pulumi:"saltedPassword"`
+
+	// Inputs
+	Password   string `pulumi:"password"`
+	SaltLength *int   `pulumi:"saltedLength,optional"`
+}
+
+func (r *RandomSalt) Create(ctx context.Context, name string, preview bool) (string, error) {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+	l := 4
+	if r.SaltLength != nil {
+		l = *r.SaltLength
+	}
+
+	b := make([]rune, l)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	r.Salt = string(b)
+
+	r.SaltedPassword = fmt.Sprintf("%s%s", r.Salt, r.Password)
+
+	return name, nil
+}
+
+func (r *RandomSalt) Delete(ctx context.Context, id string) error {
+	// We don't manage external state, so just do nothing
 	return nil
 }
