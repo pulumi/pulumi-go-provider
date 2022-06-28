@@ -104,13 +104,7 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 		return nil, err
 	}
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
-		return &server.Server{
-			Host:    host,
-			Version: opts.Version,
-
-			Components: components,
-			Customs:    customs,
-		}, nil
+		return server.New(pkg.String(), opts.Version, host, components, customs), nil
 	}, nil
 }
 

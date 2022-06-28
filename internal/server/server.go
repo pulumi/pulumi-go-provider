@@ -67,8 +67,19 @@ type Server struct {
 	Version semver.Version
 	Host    *pprovider.HostClient
 
-	Components ComponentResources
-	Customs    CustomResources
+	components ComponentResources
+	customs    CustomResources
+}
+
+func New(name string, version semver.Version, host *pprovider.HostClient,
+	components ComponentResources, customs CustomResources) *Server {
+	return &Server{
+		Name:       name,
+		Version:    version,
+		Host:       host,
+		components: components,
+		customs:    customs,
+	}
 }
 
 // GetSchema fetches the schema for this resource provider.
@@ -116,7 +127,7 @@ func (s *Server) Call(context.Context, *rpc.CallRequest) (*rpc.CallResponse, err
 // the program inputs. Though this rule is not required for correctness, violations thereof can negatively impact
 // the end-user experience, as the provider inputs are using for detecting and rendering diffs.
 func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
-	custom, err := s.Customs.GetCustom(resource.URN(req.Urn).Type())
+	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +173,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 
 // Diff checks what impacts a hypothetical update will have on the resource's properties.
 func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
-	custom, err := s.Customs.GetCustom(resource.URN(req.Urn).Type())
+	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
 	if err != nil {
 		return nil, err
 	}
@@ -181,20 +192,31 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 	}
 
 	// The user has not provided a diff, so use the default diff
-	olds, err := plugin.UnmarshalProperties(req.GetOlds(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	marshalOptions := plugin.MarshalOptions{
+		KeepUnknowns: true,
+		SkipNulls:    true,
+	}
+	olds, err := plugin.UnmarshalProperties(req.GetOlds(), marshalOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	news, err := plugin.UnmarshalProperties(req.GetNews(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	news, err := plugin.UnmarshalProperties(req.GetNews(), marshalOptions)
 	if err != nil {
 		return nil, err
 	}
 	changes := rpc.DiffResponse_DIFF_NONE
 	var diffs, replaces []string
+
+	outputKeys := introspect.FindOutputProperties(custom)
+
 	if d := olds.Diff(news); d != nil {
 		for _, propKey := range d.ChangedKeys() {
+			// We don't want to signal when we have a changed outpuit
 			key := string(propKey)
+			if outputKeys[key] {
+				continue
+			}
 			i := sort.SearchStrings(req.IgnoreChanges, key)
 			if i < len(req.IgnoreChanges) && req.IgnoreChanges[i] == key {
 				continue
@@ -210,7 +232,6 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 			}
 		}
 	}
-	fmt.Printf("Found diff for %v in %v -> %v\n", replaces, req.GetOlds(), req.GetNews())
 
 	return &rpc.DiffResponse{
 		Replaces: replaces,
@@ -223,7 +244,7 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 // must be blank.)  If this call fails, the resource must not have been created (i.e., it is "transactional").
 func (s *Server) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.CreateResponse, error) {
 	urn := resource.URN(req.Urn)
-	custom, err := s.Customs.GetCustom(urn.Type())
+	custom, err := s.customs.GetCustom(urn.Type())
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +274,7 @@ func (s *Server) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Creat
 // Read the current live state associated with a resource.  Enough state must be include in the inputs to uniquely
 // identify the resource; this is typically just the resource ID, but may also include some properties.
 func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadResponse, error) {
-	custom, err := s.Customs.GetCustom(resource.URN(req.Urn).Type())
+	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +299,7 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 
 // Update updates an existing resource with new values.
 func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
-	custom, err := s.Customs.GetCustom(resource.URN(req.Urn).Type())
+	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +333,7 @@ func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Updat
 
 // Delete tears down an existing resource with the given ID.  If it fails, the resource is assumed to still exist.
 func (s *Server) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
-	custom, err := s.Customs.GetCustom(resource.URN(req.Urn).Type())
+	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +354,7 @@ func (s *Server) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.E
 
 // Construct creates a new instance of the provided component resource and returns its state.
 func (s *Server) Construct(ctx context.Context, request *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	c, err := s.Components.GetComponent(tokens.Type(request.Type))
+	c, err := s.components.GetComponent(tokens.Type(request.Type))
 	if err != nil {
 		return nil, err
 	}

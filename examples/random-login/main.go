@@ -52,8 +52,8 @@ func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {
 type RandomSalt struct {
 
 	// Outputs
-	Salt           string `pulumi:"salt"`
-	SaltedPassword string `pulumi:"saltedPassword"`
+	Salt           string `pulumi:"salt" provider:"output"`
+	SaltedPassword string `pulumi:"saltedPassword" provider:"output"`
 
 	// Inputs
 	Password   string `pulumi:"password"`

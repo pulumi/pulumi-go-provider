@@ -2,6 +2,7 @@ package introspect
 
 import (
 	"reflect"
+	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
@@ -66,4 +67,31 @@ func PropertiesToResource(s *structpb.Struct, res any) error {
 	inputs := inputProps.Mappable()
 
 	return mapper.MapI(inputs, res)
+}
+
+func FindOutputProperties(r any) map[string]bool {
+	typ := reflect.TypeOf(r)
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	contract.Assertf(typ.Kind() == reflect.Struct, "Expected struct, found %s (%T)", typ.Kind(), r)
+	m := map[string]bool{}
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		tag, ok := f.Tag.Lookup("provider")
+		if !ok {
+			continue
+		}
+		name := f.Name
+		pulumiTag, ok := f.Tag.Lookup("pulumi")
+		if ok {
+			name = strings.Split(pulumiTag, ",")[0]
+		}
+		for _, c := range strings.Split(tag, ",") {
+			if c == "output" {
+				m[name] = true
+			}
+		}
+	}
+	return m
 }
