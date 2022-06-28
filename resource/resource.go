@@ -28,60 +28,11 @@ type ResourceUpdate interface {
 }
 
 type ResourceDiff interface {
-	Diff(ctx context.Context, id Id, new interface{}, ignoreChanges []string) (DiffResponce, error)
-}
-
-type DiffResponceChangeType int32
-
-const (
-	ChangeUnknown = pulumirpc.DiffResponse_DIFF_UNKNOWN
-	ChangeNone    = pulumirpc.DiffResponse_DIFF_NONE
-	ChangeSome    = pulumirpc.DiffResponse_DIFF_SOME
-)
-
-// TODO: cleanup DiffResponce and remove all rpc types
-type DiffResponce struct {
-	Replaces            []string
-	Stables             []string
-	DeleteBeforeReplace bool
-	Changes             DiffResponceChangeType
-	Diffs               []string
-	// detailedDiff is an optional field that contains map from each changed property to the type of the change.
-	//
-	// The keys of this map are property paths. These paths are essentially Javascript property access expressions
-	// in which all elements are literals, and obey the following EBNF-ish grammar:
-	//
-	//   propertyName := [a-zA-Z_$] { [a-zA-Z0-9_$] }
-	//   quotedPropertyName := '"' ( '\' '"' | [^"] ) { ( '\' '"' | [^"] ) } '"'
-	//   arrayIndex := { [0-9] }
-	//
-	//   propertyIndex := '[' ( quotedPropertyName | arrayIndex ) ']'
-	//   rootProperty := ( propertyName | propertyIndex )
-	//   propertyAccessor := ( ( '.' propertyName ) |  propertyIndex )
-	//   path := rootProperty { propertyAccessor }
-	//
-	// Examples of valid keys:
-	// - root
-	// - root.nested
-	// - root["nested"]
-	// - root.double.nest
-	// - root["double"].nest
-	// - root["double"]["nest"]
-	// - root.array[0]
-	// - root.array[100]
-	// - root.array[0].nested
-	// - root.array[0][1].nested
-	// - root.nested.array[0].double[1]
-	// - root["key with \"escaped\" quotes"]
-	// - root["key with a ."]
-	// - ["root key with \"escaped\" quotes"].nested
-	// - ["root key with a ."][100]
-	DetailedDiff    map[string]*pulumirpc.PropertyDiff
-	HasDetailedDiff bool
+	Diff(ctx context.Context, id Id, new interface{}, ignoreChanges []string) (*pulumirpc.DiffResponse, error)
 }
 
 type ResourceCheck interface {
-	Check(ctx context.Context, news interface{}, sequenceNumber int32) ([]CheckFailure, error)
+	Check(ctx context.Context, news interface{}, sequenceNumber int) ([]CheckFailure, error)
 }
 
 type CheckFailure struct {

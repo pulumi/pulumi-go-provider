@@ -3,6 +3,7 @@ package provider
 import (
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
 	"github.com/pulumi/pulumi-go-provider/internal/server"
@@ -17,16 +18,33 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	for _, o := range providerOptions {
 		o(&opts)
 	}
-
-	return provider.Main(name, makeProviderfunc(opts))
+	makeProviderfunc, err := prepareProvider(opts)
+	if err != nil {
+		return err
+	}
+	return provider.Main(name, makeProviderfunc)
 }
 
-func makeProviderfunc(opts options) func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
+func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), error) {
+
+	pkg := tokens.NewPackageToken(tokens.PackageName(opts.Name))
+	components, err := server.NewComponentResources(pkg, opts.Components)
+	if err != nil {
+		return nil, err
+	}
+	customs, err := server.NewCustomResources(pkg, opts.Resources)
+	if err != nil {
+		return nil, err
+	}
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
 		return &server.Server{
-			Host: host,
+			Host:    host,
+			Version: opts.Version,
+
+			Components: components,
+			Customs:    customs,
 		}, nil
-	}
+	}, nil
 }
 
 type options struct {
