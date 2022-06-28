@@ -28,6 +28,7 @@ func makeProviderfunc(opts options) func(*provider.HostClient) (pulumirpc.Resour
 		if err != nil {
 			return nil, err
 		}
+		println(schema)
 		return &server.Server{
 			Host:   host,
 			Schema: schema,
@@ -61,6 +62,12 @@ func Types(types ...interface{}) Options {
 func Components(components ...resource.Component) Options {
 	return func(o *options) {
 		o.Components = append(o.Components, components...)
+	}
+}
+
+func PartialSpec(spec schema.PackageSpec) Options {
+	return func(o *options) {
+		o.PartialSpec = spec
 	}
 }
 

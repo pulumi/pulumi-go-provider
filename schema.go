@@ -8,12 +8,6 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
-type PropertyArgs struct {
-	Description string
-	Required    bool
-	Input       bool
-}
-
 // Serialize a package to JSON Schema.
 func serialize(opts options) (string, error) {
 	pkgSpec := serializeSchema(opts)
@@ -204,6 +198,11 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 	var requiredInputs []string = make([]string, 0)
 
 	for i := 0; i < t.NumField(); i++ {
+
+		//A little janky but works for now
+		if t.Field(i).Type.String() == "resource.Custom" {
+			continue
+		}
 		field := t.Field(i)
 		if hasBoolFlag(field, "input") {
 			inputProperties[field.Name] = serializeProperty(field.Type, getFlag(field, "description"))
@@ -325,7 +324,7 @@ func serializeType(pkgname string, resourcename string, typ interface{}) (string
 	} else {
 		//Type is an enum
 		enumVals := make([]schema.EnumValueSpec, 0)
-		//Copy enum values into schema???
+		//Enum values MUST be manually specified
 
 		return token, schema.ComplexTypeSpec{
 			ObjectTypeSpec: schema.ObjectTypeSpec{
