@@ -1,0 +1,24 @@
+name: Run Acceptance Tests from PR
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'CHANGELOG_PENDING.md'
+
+jobs:
+  lint:
+    uses: ./.github/workflows/stage-lint.yml
+  test:
+    uses: ./.github/workflows/stage-test.yml
+    with:
+      live-test: true
+    secrets:
+      PULUMI_ACCESS_TOKEN:     ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      AWS_ACCESS_KEY_ID:       ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:   ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_CI_ROLE_ARN:         ${{ secrets.AWS_CI_ROLE_ARN }}
+      ARM_CLIENT_ID:           ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET:       ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID:     ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:           ${{ secrets.ARM_TENANT_ID }}

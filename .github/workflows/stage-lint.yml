@@ -1,0 +1,34 @@
+name: Lint
+
+on:
+  workflow_call:
+
+permissions: read-all
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  lint:
+    container: golangci/golangci-lint:latest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+      - name: Lint
+        # TODO: Enable linting after a cleanup commit.
+        # Avoiding in this commit so as to not mix code changes w/ CI changes.
+        run: make lint-golang
+  check-copyright:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+      - name: Install pulumictl
+        uses: jaxxstorm/action-install-gh-release@v1.5.0
+        with:
+          repo: pulumi/pulumictl
+      - name: Lint
+        # TODO: Enable copyright checking after adding notices
+        # Avoiding in this commit so as to not mix code changes w/ CI changes.
+        run: make lint-copyright
