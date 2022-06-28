@@ -2,6 +2,7 @@ package provider
 
 import (
 	"github.com/blang/semver"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
@@ -35,11 +36,12 @@ func makeProviderfunc(opts options) func(*provider.HostClient) (pulumirpc.Resour
 }
 
 type options struct {
-	Name       string
-	Version    semver.Version
-	Resources  []resource.Custom
-	Types      []interface{}
-	Components []resource.Component
+	Name        string
+	Version     semver.Version
+	Resources   []resource.Custom
+	Types       []interface{}
+	Components  []resource.Component
+	PartialSpec schema.PackageSpec
 }
 
 type Options func(*options)
