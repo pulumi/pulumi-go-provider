@@ -3,10 +3,14 @@ package provider
 import (
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
+var ignore []string = []string{"resource.Custom", "pulumi.ResourceState", "ResourceState"}
 
 // Serialize a package to JSON Schema.
 func serialize(opts options) (string, error) {
@@ -24,48 +28,36 @@ func serializeSchema(opts options) schema.PackageSpec {
 	spec := schema.PackageSpec{}
 	spec.Resources = make(map[string]schema.ResourceSpec)
 	spec.Types = make(map[string]schema.ComplexTypeSpec)
+	spec.Name = opts.Name
+	spec.Version = opts.Version.String()
 
 	for i := 0; i < len(opts.Resources); i++ {
 		resource := opts.Resources[i]
 
-		//Fetch the package path
-		mod := reflect.TypeOf(resource).PkgPath()
-		if mod == "" {
-			panic("Type " + reflect.TypeOf(resource).String() + "has no module path")
-		}
-		// Take off the pkg name, since that is supplied by `pkg`.
-		mod = mod[strings.IndexRune(mod, '/')+1:]
+		name := reflect.TypeOf(resource).String()
+		name = strings.Split(name, ".")[1]
 
-		token, resourceSpec := serializeResource(opts.Name, mod, resource)
+		token, resourceSpec := serializeResource(opts.Name, name, resource)
 		spec.Resources[token] = resourceSpec
 	}
 	//Components are essentially resources, I don't believe they are differentiated in the schema
 	for i := 0; i < len(opts.Components); i++ {
 		component := opts.Components[i]
 
-		//Fetch the package path
-		mod := reflect.TypeOf(component).PkgPath()
-		if mod == "" {
-			panic("Type " + reflect.TypeOf(component).String() + "has no module path")
-		}
-		// Take off the pkg name, since that is supplied by `pkg`.
-		mod = mod[strings.IndexRune(mod, '/')+1:]
+		name := reflect.TypeOf(component).String()
+		name = strings.Split(name, ".")[1]
 
-		token, componentSpec := serializeResource(opts.Name, mod, component)
+		token, componentSpec := serializeResource(opts.Name, name, component)
 		spec.Resources[token] = componentSpec
 	}
 
 	for i := 0; i < len(opts.Types); i++ {
 		t := opts.Types[i]
-		//Fetch the package path
-		mod := reflect.TypeOf(t).PkgPath()
-		if mod == "" {
-			panic("Type " + reflect.TypeOf(t).String() + "has no module path")
-		}
-		// Take off the pkg name, since that is supplied by `pkg`.
-		mod = mod[strings.IndexRune(mod, '/')+1:]
 
-		token, typeSpec := serializeType(opts.Name, mod, t)
+		name := reflect.TypeOf(t).String()
+		name = strings.Split(name, ".")[1]
+
+		token, typeSpec := serializeType(opts.Name, name, t)
 		spec.Types[token] = typeSpec
 	}
 	over := opts.PartialSpec
@@ -192,7 +184,13 @@ func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec
 
 // Get the resourceSpec for a single resource
 func serializeResource(pkgname string, resourcename string, resource interface{}) (string, schema.ResourceSpec) {
+
+	for reflect.TypeOf(resource).Kind() == reflect.Ptr {
+		resource = reflect.ValueOf(resource).Elem().Interface()
+	}
+
 	t := reflect.TypeOf(resource)
+	v := reflect.ValueOf(resource)
 	var properties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	var inputProperties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	var requiredInputs []string = make([]string, 0)
@@ -200,17 +198,42 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 	for i := 0; i < t.NumField(); i++ {
 
 		//A little janky but works for now
-		if t.Field(i).Type.String() == "resource.Custom" {
+		ignoreField := false
+		for _, itype := range ignore {
+			if t.Field(i).Type.String() == itype {
+				ignoreField = true
+			}
+		}
+		if ignoreField {
 			continue
 		}
 		field := t.Field(i)
-		if hasBoolFlag(field, "input") {
-			inputProperties[field.Name] = serializeProperty(field.Type, getFlag(field, "description"))
-			if hasBoolFlag((field), "required") {
+		fieldType := field.Type
+		required := true
+		isOutput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Output", fieldType.String())
+		isInput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Input", fieldType.String())
+
+		for fieldType.Kind() == reflect.Ptr {
+			required = false
+			fieldType = fieldType.Elem()
+		}
+		var serialized schema.PropertySpec
+		if isOutput {
+			//Does not work
+			listAllFields(reflect.TypeOf(v.Field(i).Elem().Interface().(pulumi.OutputState)))
+
+		} else if isInput {
+			fieldType = resource.(pulumi.Input).ElementType()
+		}
+		serialized = serializeProperty(fieldType, getFlag(field, "description"))
+
+		if hasBoolFlag(field, "input") || isInput {
+			inputProperties[field.Name] = serialized
+			if required || hasBoolFlag(field, "required") {
 				requiredInputs = append(requiredInputs, field.Name)
 			}
 		}
-		properties[field.Name] = serializeProperty(field.Type, getFlag(field, "description"))
+		properties[field.Name] = serialized
 	}
 
 	//TODO: Allow submodule name to be specified
@@ -220,6 +243,12 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 	spec.InputProperties = inputProperties
 	spec.RequiredInputs = requiredInputs
 	return token, spec
+}
+
+func listAllFields(t reflect.Type) {
+	for i := 0; i < t.NumField(); i++ {
+		print(t.Field(i).Name, ",", t.Field(i).Type.String(), "\n")
+	}
 }
 
 //Check if a field contains a specified boolean flag
@@ -260,6 +289,16 @@ func serializeProperty(t reflect.Type, description string) schema.PropertySpec {
 				},
 			}
 		}
+	}
+}
+
+//TODO: Make this better
+func serializeOutputInputProperty(t string, description string) schema.PropertySpec {
+	return schema.PropertySpec{
+		Description: description,
+		TypeSpec: schema.TypeSpec{
+			Type: t,
+		},
 	}
 }
 

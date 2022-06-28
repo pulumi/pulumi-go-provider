@@ -8,13 +8,16 @@ import (
 	"github.com/blang/semver"
 	provider "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func main() {
 	provider.Run("random-login", semver.Version{Minor: 1},
 		provider.Components(&RandomLogin{}),
-		provider.Resources(&RandomSalt{}))
+		provider.Resources(&RandomSalt{}),
+		provider.PartialSpec(schema.PackageSpec{}),
+	)
 }
 
 type RandomLogin struct {

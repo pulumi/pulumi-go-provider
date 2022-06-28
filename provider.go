@@ -120,8 +120,21 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 	if err != nil {
 		return nil, err
 	}
+	schema, err := serialize(opts)
+	print(schema)
+	if err != nil {
+		return nil, err
+	}
+	println("writing schema!")
+	cwd, err := os.Getwd()
+	println(cwd)
+	err = os.WriteFile(cwd+"/test-schema.json", []byte(schema), 0644)
+	if err != nil {
+		return nil, err
+	}
+
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
-		return server.New(pkg.String(), opts.Version, host, components, customs), nil
+		return server.New(pkg.String(), opts.Version, host, components, customs, schema), nil
 	}, nil
 }
 

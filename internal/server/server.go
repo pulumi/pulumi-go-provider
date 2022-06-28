@@ -87,11 +87,12 @@ type Server struct {
 }
 
 func New(name string, version semver.Version, host *pprovider.HostClient,
-	components ComponentResources, customs CustomResources) *Server {
+	components ComponentResources, customs CustomResources, schema string) *Server {
 	return &Server{
 		Name:       name,
 		Version:    version,
 		Host:       host,
+		Schema:     schema,
 		components: components,
 		customs:    customs,
 	}
