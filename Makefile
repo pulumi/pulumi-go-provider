@@ -1,5 +1,5 @@
 
-.PHONY: build build_examples install_examples
+.PHONY: build build_examples install_examples lint
 
 build:
 	go build github.com/pulumi/pulumi-go-provider
@@ -26,3 +26,4 @@ install_examples: build_examples
 
 lint:
 	golangci-lint run -c .golangci.yaml --timeout 5m
+	pulumictl copyright -x 'examples/**'
