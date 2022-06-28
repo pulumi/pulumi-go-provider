@@ -40,6 +40,9 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 		schemaPath := filepath.Join(cmds[0], "schema.json")
 		fmt.Printf("Generating %v sdk for %s in %s\n", cmds[1:], schemaPath, sdkPath)
 		schemaBytes, err := ioutil.ReadFile(schemaPath)
+		if err != nil {
+			return err
+		}
 		var spec schema.PackageSpec
 		err = json.Unmarshal(schemaBytes, &spec)
 		if err != nil {

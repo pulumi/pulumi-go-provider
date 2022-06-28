@@ -6,7 +6,7 @@ import (
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 )
 
-type Id = string
+type ID = string
 
 type Custom interface {
 	// Create a resource.
@@ -19,19 +19,19 @@ type Custom interface {
 	//
 	// Warning: Mutating the receiver asynchronously after Create has returned may lead to
 	// invalid behavior.
-	Create(ctx context.Context, name string, preview bool) (Id, error)
-	Delete(ctx context.Context, id Id) error
+	Create(ctx context.Context, name string, preview bool) (ID, error)
+	Delete(ctx context.Context, id ID) error
 }
 
-type ResourceUpdate interface {
-	Update(ctx context.Context, id Id, new interface{}, ignoreChanges []string, preview bool) error
+type Update interface {
+	Update(ctx context.Context, id ID, new interface{}, ignoreChanges []string, preview bool) error
 }
 
-type ResourceDiff interface {
-	Diff(ctx context.Context, id Id, new interface{}, ignoreChanges []string) (*pulumirpc.DiffResponse, error)
+type Diff interface {
+	Diff(ctx context.Context, id ID, new interface{}, ignoreChanges []string) (*pulumirpc.DiffResponse, error)
 }
 
-type ResourceCheck interface {
+type Check interface {
 	Check(ctx context.Context, news interface{}, sequenceNumber int) ([]CheckFailure, error)
 }
 
@@ -40,6 +40,6 @@ type CheckFailure struct {
 	Reason   string // the reason that the property failed validation.
 }
 
-type ResourceRead interface {
+type Read interface {
 	Read(ctx context.Context) error
 }

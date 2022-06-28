@@ -44,11 +44,15 @@ func (c ComponentResources) GetComponent(typ tokens.Type) (resource.Component, e
 func componentFn(pkg string, c resource.Component) provider.ConstructFunc {
 	return func(ctx *pulumi.Context, typ, name string, inputs provider.ConstructInputs,
 		opts pulumi.ResourceOption) (*provider.ConstructResult, error) {
-		ctx.RegisterComponentResource(typ, name, c, opts)
-		err := inputs.CopyTo(c)
+		err := ctx.RegisterComponentResource(typ, name, c, opts)
 		if err != nil {
 			return nil, err
 		}
+		err = inputs.CopyTo(c)
+		if err != nil {
+			return nil, err
+		}
+
 		err = c.Construct(name, ctx)
 		if err != nil {
 			return nil, err

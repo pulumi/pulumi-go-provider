@@ -23,3 +23,6 @@ install_examples: build_examples
 	cd examples/random-login && PULUMI_GENERATE_SDK=".,go" ./random-login
 	mv examples/random-login/random-login ~/.pulumi/plugins/resource-random-login-v0.1.0/pulumi-resource-random-login
 	cd examples/random-login/sdk/go/randomlogin && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
+
+lint:
+	golangci-lint run -c .golangci.yaml --timeout 5m

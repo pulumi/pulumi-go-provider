@@ -131,7 +131,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 	if err != nil {
 		return nil, err
 	}
-	if res, ok := custom.(r.ResourceCheck); ok {
+	if res, ok := custom.(r.Check); ok {
 		err = introspect.PropertiesToResource(req.GetOlds(), res)
 		if err != nil {
 			return nil, err
@@ -177,7 +177,7 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.ResourceDiff); ok {
+	if r, ok := custom.(r.Diff); ok {
 		err := introspect.PropertiesToResource(req.GetOlds(), r)
 		if err != nil {
 			return nil, err
@@ -226,7 +226,7 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 				changes = rpc.DiffResponse_DIFF_SOME
 				diffs = append(diffs, key)
 
-				if _, hasUpdate := custom.(r.ResourceUpdate); !hasUpdate {
+				if _, hasUpdate := custom.(r.Update); !hasUpdate {
 					replaces = append(replaces, key)
 				}
 			}
@@ -278,7 +278,7 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.ResourceRead); ok {
+	if r, ok := custom.(r.Read); ok {
 		err = introspect.PropertiesToResource(req.GetProperties(), custom)
 		if err != nil {
 			return nil, err
@@ -303,7 +303,7 @@ func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Updat
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.ResourceUpdate); ok {
+	if r, ok := custom.(r.Update); ok {
 		err = introspect.PropertiesToResource(req.GetOlds(), custom)
 		if err != nil {
 			return nil, err
