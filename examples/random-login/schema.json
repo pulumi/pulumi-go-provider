@@ -1,0 +1,25 @@
+{
+  "name": "random-login",
+  "version": "0.1.0",
+  "resources": {
+    "random-login:index:RandomLogin": {
+      "isComponent": true,
+      "inputProperties": {
+        "passwordLength": {
+          "type": "integer"
+        }
+      },
+      "properties": {
+        "passwordLength": {
+          "type": "integer"
+        },
+        "password": {
+          "type": "string"
+        },
+        "login": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,10 +1,21 @@
 package provider
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
+
+	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 
 	"github.com/pulumi/pulumi-go-provider/internal/server"
 	"github.com/pulumi/pulumi-go-provider/resource"
@@ -22,7 +33,61 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	if err != nil {
 		return err
 	}
+
+	if genCmd := os.Getenv("PULUMI_GENERATE_SDK"); genCmd != "" {
+		cmds := strings.Split(genCmd, ",")
+		schemaBytes, err := ioutil.ReadFile(filepath.Join(cmds[0], "schema.json"))
+		var spec schema.PackageSpec
+		err = json.Unmarshal(schemaBytes, &spec)
+		if err != nil {
+			return err
+		}
+		pkg, diags, err := schema.BindSpec(spec, nil)
+		if err != nil {
+			return err
+		}
+		if len(diags) > 0 {
+			return diags
+		}
+		return generateSDKs(name, filepath.Join(cmds[0], "sdk"), pkg, cmds[1:]...)
+	}
 	return provider.Main(name, makeProviderfunc)
+}
+
+func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...string) error {
+	if outDir == "" {
+		return fmt.Errorf("outDir not specified")
+	}
+	if err := os.RemoveAll(outDir); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, lang := range languages {
+		var files map[string][]byte
+		var err error
+		switch lang {
+		case "go":
+			files, err = goGen.GeneratePackage(pkgName, pkg)
+		default:
+			fmt.Printf("Unknown language: '%s'", lang)
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		root := filepath.Join(outDir, lang)
+		for p, file := range files {
+			// TODO: full conversion from path to filepath
+			err = os.MkdirAll(filepath.Join(root, path.Dir(p)), 0700)
+			if err != nil {
+				return err
+			}
+			if err = os.WriteFile(filepath.Join(root, p), file, 0600); err != nil {
+				return err
+			}
+		}
+
+	}
+	return nil
 }
 
 func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), error) {

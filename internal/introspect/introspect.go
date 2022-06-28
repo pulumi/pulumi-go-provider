@@ -2,17 +2,11 @@ package introspect
 
 import (
 	"reflect"
-	"unicode"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 	"google.golang.org/protobuf/types/known/structpb"
 )
-
-func camelCase(name string) string {
-	runes := []rune(name)
-	return string(append([]rune{unicode.ToLower(rune(name[0]))}, runes[1:]...))
-}
 
 func StructToMap(i any) map[string]interface{} {
 	typ := reflect.TypeOf(i)
@@ -20,13 +14,25 @@ func StructToMap(i any) map[string]interface{} {
 		typ = typ.Elem()
 	}
 
-	contract.Assertf(typ.Kind() != reflect.Struct, "You need to give a struct")
+	contract.Assertf(typ.Kind() == reflect.Struct, "Expected a struct. Instead got %s (%v)", typ.Kind(), i)
 
 	m := map[string]interface{}{}
 	value := reflect.ValueOf(i)
+	for value.Type().Kind() == reflect.Pointer {
+		value = value.Elem()
+	}
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		m[camelCase(field.Name)] = value.Field(i).Interface()
+		if !field.IsExported() {
+			continue
+		}
+
+		tag, has := field.Tag.Lookup("pulumi")
+		if !has {
+			continue
+		}
+
+		m[tag] = value.Field(i).Interface()
 	}
 	return m
 }

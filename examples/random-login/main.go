@@ -14,13 +14,14 @@ func main() {
 }
 
 type RandomLogin struct {
-	pulumi.ComponentResource
+	pulumi.ResourceState
 
-	login pulumi.StringOutput
+	// Outputs
+	Login    pulumi.StringOutput `pulumi:"login"`
+	Password pulumi.StringOutput `pulumi:"password"`
 
-	password pulumi.StringOutput
-
-	passwordLength pulumi.IntInput
+	// Inputs
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
 }
 
 func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {
@@ -28,14 +29,18 @@ func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {
 	if err != nil {
 		return err
 	}
-	r.login = pet.ID().ToStringOutput()
+	r.Login = pet.ID().ToStringOutput()
+	var length pulumi.IntInput = pulumi.Int(16)
+	if r.PasswordLength != nil {
+		length = r.PasswordLength.ToIntPtrOutput().Elem()
+	}
 	password, err := random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
-		Length: r.passwordLength,
+		Length: length,
 	}, pulumi.Parent(r))
 	if err != nil {
 		return err
 	}
-	r.password = password.ID().ToStringOutput()
+	r.Password = password.Result.ToStringOutput()
 
 	return nil
 }

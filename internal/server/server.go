@@ -23,6 +23,10 @@ import (
 	r "github.com/pulumi/pulumi-go-provider/resource"
 )
 
+func newOfType[T any](t T) T {
+	return reflect.New(reflect.TypeOf(t)).Interface().(T)
+}
+
 func getToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 	typ := reflect.TypeOf(t)
 	if typ == nil {
@@ -44,20 +48,18 @@ func getToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 	if name == "" {
 		return "", fmt.Errorf("Type %T has no name", t)
 	}
-	mod := typ.PkgPath()
+	mod := strings.Trim(typ.PkgPath(), "*")
 	if mod == "" {
 		return "", fmt.Errorf("Type %T has no module path", t)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
 	mod = mod[strings.IndexRune(mod, '/')+1:]
+	if mod == "main" {
+		mod = "index"
+	}
 	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
-	return tokens.NewTypeToken(m, tokens.TypeName(name)), nil
-}
-
-func newOfType[T any](t T) T {
-	typ := reflect.TypeOf(t)
-	v := reflect.New(typ)
-	return v.Interface().(T)
+	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
+	return tk, nil
 }
 
 type Server struct {
@@ -75,8 +77,8 @@ func (s *Server) GetSchema(context.Context, *rpc.GetSchemaRequest) (*rpc.GetSche
 }
 
 // CheckConfig validates the configuration for this resource provider.
-func (s *Server) CheckConfig(context.Context, *rpc.CheckRequest) (*rpc.CheckResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "CheckConfig is not yet implemented")
+func (s *Server) CheckConfig(_ context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
+	return &rpc.CheckResponse{Inputs: req.GetNews()}, nil
 }
 
 // DiffConfig checks the impact a hypothetical change to this provider's configuration will have on the provider.
@@ -86,7 +88,10 @@ func (s *Server) DiffConfig(context.Context, *rpc.DiffRequest) (*rpc.DiffRespons
 
 // Configure configures the resource provider with "globals" that control its behavior.
 func (s *Server) Configure(context.Context, *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Configure is not yet implemented")
+	return &rpc.ConfigureResponse{
+		AcceptSecrets:   true,
+		SupportsPreview: true,
+	}, nil
 }
 
 // Invoke dynamically executes a built-in function in the provider.
@@ -115,20 +120,20 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.ResourceCheck); ok {
+	if res, ok := custom.(r.ResourceCheck); ok {
 		mapper := mapper.New(&mapper.Opts{
 			IgnoreMissing: true,
 		})
-		err := mapper.Decode(req.GetOlds().AsMap(), &r)
+		err := mapper.Decode(req.GetOlds().AsMap(), &res)
 		if err != nil {
 			return nil, err
 		}
-		new := newOfType(custom)
+		new := reflect.New(reflect.TypeOf(custom)).Interface().(r.Custom)
 		err = mapper.Decode(req.GetNews().AsMap(), &new)
 		if err != nil {
 			return nil, err
 		}
-		failures, nErr := r.Check(ctx, new, int(req.SequenceNumber))
+		failures, nErr := res.Check(ctx, new, int(req.SequenceNumber))
 		if err != nil {
 			return nil, nErr
 		}
@@ -140,7 +145,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 			}
 		}
 
-		inputs, err := mapper.Encode(r)
+		inputs, err := mapper.Encode(res)
 		if err != nil {
 			return nil, err
 		}
@@ -176,6 +181,7 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 		if err != nil {
 			return nil, err
 		}
+
 		new := newOfType(custom)
 		err = mapper.Decode(req.GetNews().AsMap(), &new)
 		if err != nil {
@@ -313,7 +319,8 @@ func (s *Server) Construct(ctx context.Context, request *rpc.ConstructRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return provider.Construct(ctx, request, s.Host.EngineConn(), componentFn(s.Name, c))
+	cR, err := provider.Construct(ctx, request, s.Host.EngineConn(), componentFn(s.Name, c))
+	return cR, err
 }
 
 // Cancel signals the provider to gracefully shut down and abort any ongoing resource operations.
