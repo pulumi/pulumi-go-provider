@@ -9,9 +9,12 @@ import (
 type Context interface {
 	context.Context
 
-	// MarkComputed marks a resource field as computed during a preview. MarkComputed may only
-	// be called on a direct reference to a field of the resource whose method Context was
-	// passed to. Calling it on another value will panic.
+	// MarkComputed marks a resource field as computed during a preview. Marking a field
+	// as computed indicates to the engine that the field will be computed during the
+	// update but the result is not known during the preview.
+	//
+	// MarkComputed may only be called on a direct reference to a field of the resource
+	// whose method Context was passed to. Calling it on another value panics.
 	//
 	// For example:
 	// ```go
