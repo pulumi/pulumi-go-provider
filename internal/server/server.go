@@ -119,7 +119,8 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 			return nil, err
 		}
 
-		failures, nErr := res.Check(ctx, new, int(req.SequenceNumber))
+		checkContext := r.NewContext(ctx, reflect.ValueOf(custom))
+		failures, nErr := res.Check(checkContext, new, int(req.SequenceNumber))
 		if err != nil {
 			return nil, nErr
 		}
@@ -156,8 +157,8 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.Diff); ok {
-		err := introspect.PropertiesToResource(req.GetOlds(), r)
+	if custom, ok := custom.(r.Diff); ok {
+		err := introspect.PropertiesToResource(req.GetOlds(), custom)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +170,8 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 		if err != nil {
 			return nil, err
 		}
-		return r.Diff(ctx, req.GetId(), new, req.GetIgnoreChanges())
+		diffContext := r.NewContext(ctx, reflect.ValueOf(custom))
+		return custom.Diff(diffContext, req.GetId(), new, req.GetIgnoreChanges())
 	}
 
 	// The user has not provided a diff, so use the default diff
@@ -265,7 +267,7 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.Read); ok {
+	if custom, ok := custom.(r.Read); ok {
 		err = introspect.PropertiesToResource(req.GetProperties(), custom)
 		if err != nil {
 			return nil, err
@@ -275,7 +277,9 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		if err != nil {
 			return nil, err
 		}
-		err = r.Read(ctx)
+
+		readContext := r.NewContext(ctx, reflect.ValueOf(custom))
+		err = custom.Read(readContext)
 		if err != nil {
 			return nil, err
 		}
@@ -341,7 +345,8 @@ func (s *Server) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.E
 
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.GetTimeout())*time.Second)
 	defer cancel()
-	err = custom.Delete(ctx, req.Id)
+	deleteContext := r.NewContext(ctx, reflect.ValueOf(custom))
+	err = custom.Delete(deleteContext, req.Id)
 	if err != nil {
 		return nil, err
 	}

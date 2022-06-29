@@ -16,8 +16,13 @@ package resource
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )
 
 type Context interface {
@@ -46,33 +51,53 @@ type Context interface {
 	// }
 	// ```
 	MarkComputed(field any)
+
+	// Log logs a global message, including errors and warnings.
+	Log(severity diag.Severity, msg string, args ...any) error
+
+	// LogStatus logs a global status message, including errors and warnings. Status messages will
+	// appear in the `Info` column of the progress display, but not in the final output.
+	LogStatus(severity diag.Severity, msg string, args ...any) error
 }
 
 type SContext struct {
 	context.Context
 
-	hostPtr reflect.Value
+	hostResource reflect.Value
 
 	// fields of the underlying type that should be marked unknown
 	markedComputed []string
+	urn            resource.URN
+	host           *provider.HostClient
 }
 
 // See the method documentation for Context.MarkComputed.
 func (c *SContext) MarkComputed(field any) {
-	hostType := c.hostPtr.Type()
-	for i := 0; i < c.hostPtr.NumField(); i++ {
-		f := c.hostPtr.Field(i)
+	hostType := c.hostResource.Type()
+	for i := 0; i < c.hostResource.NumField(); i++ {
+		f := c.hostResource.Field(i)
 		fType := hostType.Field(i)
 		if f.Addr().Interface() == field {
 			name := fType.Name
-			if value, ok := c.hostPtr.Type().Field(i).Tag.Lookup("pulumi"); ok {
+			if value, ok := c.hostResource.Type().Field(i).Tag.Lookup("pulumi"); ok {
 				name = strings.Split(value, ",")[0]
 			}
 			c.markedComputed = append(c.markedComputed, name)
 			return
 		}
 	}
-	panic("Marked an invalid field to be unknown")
+	panic("Marked an invalid field as computed")
+}
+
+// Log logs a global message, including errors and warnings.
+func (c *SContext) Log(severity diag.Severity, msg string, args ...any) error {
+	return c.host.Log(c, severity, c.urn, fmt.Sprintf(msg, args...))
+}
+
+// LogStatus logs a global status message, including errors and warnings. Status messages will
+// appear in the `Info` column of the progress display, but not in the final output.
+func (c *SContext) LogStatus(severity diag.Severity, msg string, args ...any) error {
+	return c.host.LogStatus(c, severity, c.urn, fmt.Sprintf(msg, args...))
 }
 
 func NewContext(ctx context.Context, hostResource reflect.Value) *SContext {
@@ -81,8 +106,8 @@ func NewContext(ctx context.Context, hostResource reflect.Value) *SContext {
 		host = host.Elem()
 	}
 	return &SContext{
-		Context: ctx,
-		hostPtr: host,
+		Context:      ctx,
+		hostResource: host,
 	}
 }
 

@@ -15,8 +15,6 @@
 package resource
 
 import (
-	"context"
-
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 )
 
@@ -45,12 +43,12 @@ type ID = string
 //
 // When Read is not implemented, the Pulumi Engine will error when read is called.
 
+// The base interface for a custom resource.
 type Custom interface {
 	// Create a Custom resource and return its ID.
 	//
-	// Resource input properties will be applied to the resource the custom resource
-	// before any methods are called. Create should set any output properties it wants to
-	// export.
+	// Resource input properties will be applied to the custom resource before any methods
+	// are called. Create should set any output properties it wants to export.
 	//
 	// The context passed to Create may be canceled. Create should clean up and return as
 	// soon as possible.
@@ -63,7 +61,10 @@ type Custom interface {
 	Create(ctx Context, name string, preview bool) (ID, error)
 
 	// Delete the Custom resource.
-	Delete(ctx context.Context, id ID) error
+	//
+	// Resource properties will be applied to the custom resource before the Delete
+	// method is called.
+	Delete(ctx Context, id ID) error
 }
 
 // A Custom resource which knows how to handle changing inputs.
@@ -84,7 +85,7 @@ type Diff interface {
 	// Diff the resource against another resource of the same type. `new` has the same
 	// type as the implementer of Diff. Diff should ignore changes to any field specified
 	// by `ignoreChanges`.
-	Diff(ctx context.Context, id ID, new interface{}, ignoreChanges []string) (*pulumirpc.DiffResponse, error)
+	Diff(ctx Context, id ID, new interface{}, ignoreChanges []string) (*pulumirpc.DiffResponse, error)
 }
 
 // A Custom resource which knows how to validate itself.
@@ -96,7 +97,7 @@ type Check interface {
 	// inputs returned by a call to Check should preserve the original representation of the properties as present in
 	// the program inputs. Though this rule is not required for correctness, violations thereof can negatively impact
 	// the end-user experience, as the provider inputs are using for detecting and rendering diffs.
-	Check(ctx context.Context, news interface{}, sequenceNumber int) ([]CheckFailure, error)
+	Check(ctx Context, news interface{}, sequenceNumber int) ([]CheckFailure, error)
 }
 
 type CheckFailure struct {
@@ -106,5 +107,5 @@ type CheckFailure struct {
 
 type Read interface {
 	Custom
-	Read(ctx context.Context) error
+	Read(ctx Context) error
 }

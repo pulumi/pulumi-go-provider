@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/blang/semver"
 	provider "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/resource"
+	r "github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -73,7 +72,7 @@ func makeSalt(length int) string {
 
 }
 
-func (r *RandomSalt) Create(ctx resource.Context, name string, preview bool) (string, error) {
+func (r *RandomSalt) Create(ctx r.Context, name string, preview bool) (string, error) {
 	l := 4
 	if r.SaltLength != nil {
 		l = *r.SaltLength
@@ -85,14 +84,14 @@ func (r *RandomSalt) Create(ctx resource.Context, name string, preview bool) (st
 	return name, nil
 }
 
-func (r *RandomSalt) Delete(ctx context.Context, id string) error {
+func (r *RandomSalt) Delete(ctx r.Context, id string) error {
 	// We don't manage external state, so just do nothing
 	return nil
 }
 
-var _ = (resource.Update)((*RandomSalt)(nil))
+var _ = (r.Update)((*RandomSalt)(nil))
 
-func (r *RandomSalt) Update(ctx resource.Context, id string, newSalt any, ignoreChanges []string, preview bool) error {
+func (r *RandomSalt) Update(ctx r.Context, id string, newSalt any, ignoreChanges []string, preview bool) error {
 	new := newSalt.(*RandomSalt)
 	var redoSalt bool
 	if r.SaltLength != nil && new.SaltLength != nil {
