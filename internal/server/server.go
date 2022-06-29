@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/grpc/codes"
@@ -36,10 +37,6 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	r "github.com/pulumi/pulumi-go-provider/resource"
 )
-
-func newOfType[T any](t T) T {
-	return reflect.New(reflect.TypeOf(t)).Interface().(T)
-}
 
 func getToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 	typ := reflect.TypeOf(t)
@@ -141,7 +138,8 @@ func (s *Server) Call(context.Context, *rpc.CallRequest) (*rpc.CallResponse, err
 // the program inputs. Though this rule is not required for correctness, violations thereof can negatively impact
 // the end-user experience, as the provider inputs are using for detecting and rendering diffs.
 func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
-	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
+	typ := resource.URN(req.Urn).Type()
+	custom, err := s.customs.GetCustom(typ)
 	if err != nil {
 		return nil, err
 	}
@@ -150,11 +148,14 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 		if err != nil {
 			return nil, err
 		}
-		new := newOfType(custom)
+		new, err := s.customs.GetCustom(typ)
+		contract.AssertNoErrorf(err, "We already know a type is registered for %s since we retrieved it before", typ)
+
 		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
+
 		failures, nErr := res.Check(ctx, new, int(req.SequenceNumber))
 		if err != nil {
 			return nil, nErr
@@ -168,7 +169,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 		}
 
 		// TODO: Swap new and old so old is the argument and new is the default
-		inputs, err := introspect.ResourceToProperties(res)
+		inputs, err := introspect.ResourceToProperties(res, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +188,8 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 
 // Diff checks what impacts a hypothetical update will have on the resource's properties.
 func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
-	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
+	typ := resource.URN(req.Urn).Type()
+	custom, err := s.customs.GetCustom(typ)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +199,9 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 			return nil, err
 		}
 
-		new := newOfType(custom)
+		new, err := s.customs.GetCustom(typ)
+		contract.AssertNoErrorf(err, "We already know a type is registered for %s since we retrieved it before", typ)
+
 		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
@@ -271,11 +275,17 @@ func (s *Server) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Creat
 	// Apply timeout
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.GetTimeout())*time.Second)
 	defer cancel()
-	id, err := custom.Create(ctx, urn.Name().String(), req.GetPreview())
+	createContext := r.NewContext(ctx, reflect.ValueOf(custom))
+	id, err := custom.Create(createContext, urn.Name().String(), req.GetPreview())
 	if err != nil {
 		return nil, err
 	}
-	props, err := introspect.ResourceToProperties(custom)
+
+	opts := introspect.ToPropertiesOptions{}
+	if req.GetPreview() {
+		opts.ComputedKeys = createContext.ComputedKeys()
+	}
+	props, err := introspect.ResourceToProperties(custom, &opts)
 	if err != nil {
 		return nil, err
 	}
@@ -313,26 +323,35 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 
 // Update updates an existing resource with new values.
 func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
-	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
+	typ := resource.URN(req.Urn).Type()
+	custom, err := s.customs.GetCustom(typ)
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.Update); ok {
+	if custom, ok := custom.(r.Update); ok {
 		err = introspect.PropertiesToResource(req.GetOlds(), custom)
 		if err != nil {
 			return nil, err
 		}
-		new := newOfType(custom)
+		new, err := s.customs.GetCustom(typ)
+		contract.AssertNoErrorf(err, "We already know a type is registered for %s since we retrieved it before", typ)
 		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
-		err = r.Update(ctx, req.Id, new, req.GetIgnoreChanges(), req.GetPreview())
+
+		updateContext := r.NewContext(ctx, reflect.ValueOf(custom))
+		err = custom.Update(updateContext, req.Id, new, req.GetIgnoreChanges(), req.GetPreview())
 		if err != nil {
 			return nil, err
 		}
 
-		props, err := introspect.ResourceToProperties(custom)
+		opts := introspect.ToPropertiesOptions{}
+		if req.GetPreview() {
+			opts.ComputedKeys = updateContext.ComputedKeys()
+		}
+
+		props, err := introspect.ResourceToProperties(custom, &opts)
 		if err != nil {
 			return nil, err
 		}

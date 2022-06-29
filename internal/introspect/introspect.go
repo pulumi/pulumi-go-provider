@@ -54,7 +54,14 @@ func StructToMap(i any) map[string]interface{} {
 	return m
 }
 
-func ResourceToProperties(r any) (*structpb.Struct, error) {
+type ToPropertiesOptions struct {
+	ComputedKeys []string
+}
+
+func ResourceToProperties(r any, opts *ToPropertiesOptions) (*structpb.Struct, error) {
+	if opts == nil {
+		opts = &ToPropertiesOptions{}
+	}
 	mapper := mapper.New(
 		&mapper.Opts{IgnoreMissing: true, IgnoreUnrecognized: true},
 	)
@@ -64,7 +71,13 @@ func ResourceToProperties(r any) (*structpb.Struct, error) {
 		return nil, err
 	}
 
-	return plugin.MarshalProperties(resource.NewPropertyMapFromMap(props), plugin.MarshalOptions{
+	propsMap := resource.NewPropertyMapFromMap(props)
+
+	for _, computed := range opts.ComputedKeys {
+		propsMap[resource.PropertyKey(computed)] = resource.MakeComputed(resource.NewStringProperty(""))
+	}
+
+	return plugin.MarshalProperties(propsMap, plugin.MarshalOptions{
 		KeepUnknowns: true,
 		SkipNulls:    true,
 	})
