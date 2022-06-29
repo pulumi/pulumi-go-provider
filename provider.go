@@ -35,6 +35,9 @@ import (
 	"github.com/pulumi/pulumi-go-provider/resource"
 )
 
+// Run spawns a Pulumi Provider server, returning when the server shuts down. This
+// function should be called directly from main and the program should return after Run
+// returns.
 func Run(name string, version semver.Version, providerOptions ...Options) error {
 	opts := options{
 		Name:    name,
@@ -135,18 +138,21 @@ type options struct {
 
 type Options func(*options)
 
+// Resources adds resource.Custom for the provider to serve.
 func Resources(resources ...resource.Custom) Options {
 	return func(o *options) {
 		o.Resources = append(o.Resources, resources...)
 	}
 }
 
+// Types adds schema types for the provider to serve.
 func Types(types ...interface{}) Options {
 	return func(o *options) {
 		o.Types = append(o.Types, types...)
 	}
 }
 
+// Components adds resource.Components for the provider to serve.
 func Components(components ...resource.Component) Options {
 	return func(o *options) {
 		o.Components = append(o.Components, components...)

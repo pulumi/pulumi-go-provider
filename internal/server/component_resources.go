@@ -32,7 +32,7 @@ type ComponentResources map[tokens.Type]reflect.Type
 func NewComponentResources(pkg tokens.Package, components []resource.Component) (ComponentResources, error) {
 	var c ComponentResources = map[tokens.Type]reflect.Type{}
 	for _, comp := range components {
-		urn, err := getToken(pkg, comp)
+		urn, err := introspect.GetToken(pkg, comp)
 		if err != nil {
 			return nil, err
 		}
