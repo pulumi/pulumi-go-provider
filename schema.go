@@ -23,7 +23,7 @@ type serializationInfo struct {
 func serialize(opts options) (string, error) {
 	pkgSpec := serializeSchema(opts)
 
-	schemaJSON, err := json.Marshal(pkgSpec)
+	schemaJSON, err := json.MarshalIndent(pkgSpec, "", "  ")
 	if err != nil {
 		return "", err
 	}
@@ -498,6 +498,7 @@ func serializeResource(resource interface{}, info serializationInfo) schema.Reso
 		var serialized schema.PropertySpec
 		if isOutput {
 			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
+			required = false
 		} else if isInput {
 			if info.inputMap[fieldType] == nil {
 				panic(fmt.Sprintf("Could not find base type for input type %s", fieldType))

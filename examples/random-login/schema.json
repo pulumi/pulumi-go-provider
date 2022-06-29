@@ -1,57 +1,51 @@
 {
   "name": "random-login",
   "version": "0.1.0",
+  "config": {},
+  "provider": {},
   "resources": {
-    "random-login:index:RandomSalt": {
-      "inputProperties": {
-        "password": {
-          "type": "string"
-        },
-        "saltedLength": {
-          "type": "integer"
-        }
-      },
-      "requiredInputs": [ "password" ],
+    "random-login:index:RandomLogin": {
       "properties": {
-        "password": {
+        "Password": {
           "type": "string"
         },
-        "salt": {
-          "type": "string"
+        "PasswordLength": {
+          "type": "integer"
         },
-        "saltedPassword": {
+        "Username": {
           "type": "string"
         }
       },
-      "requiredProperties": [
-        "password",
-        "salt",
-        "salterPassword"
+      "inputProperties": {
+        "Password": {
+          "type": "string"
+        },
+        "PasswordLength": {
+          "type": "integer"
+        },
+        "Username": {
+          "type": "string"
+        }
+      },
+      "requiredInputs": [
+        "PasswordLength"
       ]
     },
-    "random-login:index:RandomLogin": {
-      "isComponent": true,
-      "inputProperties": {
-        "passwordLength": {
-          "type": "integer"
-        }
-      },
+    "random-login:index:RandomSalt": {
       "properties": {
-        "passwordLength": {
+        "Password": {
+          "type": "string"
+        },
+        "Salt": {
+          "type": "string"
+        },
+        "SaltLength": {
           "type": "integer"
         },
-        "password": {
-          "type": "string"
-        },
-        "username": {
+        "SaltedPassword": {
           "type": "string"
         }
-      },
-      "requiredProperties": [
-        "passwordLength",
-        "password",
-        "username"
-      ]
+      }
     }
   }
 }

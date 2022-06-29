@@ -13,11 +13,14 @@ import (
 )
 
 func main() {
-	provider.Run("random-login", semver.Version{Minor: 1},
+	err := provider.Run("random-login", semver.Version{Minor: 1},
 		provider.Components(&RandomLogin{}),
 		provider.Resources(&RandomSalt{}),
 		provider.PartialSpec(schema.PackageSpec{}),
 	)
+	if err != nil {
+		panic(err)
+	}
 }
 
 type RandomLogin struct {
