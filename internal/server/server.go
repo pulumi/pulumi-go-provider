@@ -16,10 +16,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -38,45 +36,10 @@ import (
 	r "github.com/pulumi/pulumi-go-provider/resource"
 )
 
-func getToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
-	typ := reflect.TypeOf(t)
-	if typ == nil {
-		return "", fmt.Errorf("Cannot get token of nil type")
-	}
-
-	for typ.Kind() == reflect.Pointer {
-		typ = typ.Elem()
-		if typ == nil {
-			return "", fmt.Errorf("Cannot get token of nil type")
-		}
-	}
-
-	if typ.Kind() != reflect.Struct {
-		return "", fmt.Errorf("Can only get tokens with underlying structs")
-	}
-
-	name := typ.Name()
-	if name == "" {
-		return "", fmt.Errorf("Type %T has no name", t)
-	}
-	mod := strings.Trim(typ.PkgPath(), "*")
-	if mod == "" {
-		return "", fmt.Errorf("Type %T has no module path", t)
-	}
-	// Take off the pkg name, since that is supplied by `pkg`.
-	mod = mod[strings.IndexRune(mod, '/')+1:]
-	if mod == "main" {
-		mod = "index"
-	}
-	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
-	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
-	return tk, nil
-}
-
 type Server struct {
 	Name    string
 	Version semver.Version
-	Host    *pprovider.HostClient
+	host    *pprovider.HostClient
 
 	components ComponentResources
 	customs    CustomResources
@@ -87,7 +50,7 @@ func New(name string, version semver.Version, host *pprovider.HostClient,
 	return &Server{
 		Name:       name,
 		Version:    version,
-		Host:       host,
+		host:       host,
 		components: components,
 		customs:    customs,
 	}
@@ -391,7 +354,7 @@ func (s *Server) Construct(ctx context.Context, request *rpc.ConstructRequest) (
 	if err != nil {
 		return nil, err
 	}
-	cR, err := provider.Construct(ctx, request, s.Host.EngineConn(), componentFn(s.Name, c))
+	cR, err := provider.Construct(ctx, request, s.host.EngineConn(), componentFn(s.Name, c))
 	return cR, err
 }
 
@@ -412,6 +375,11 @@ func (s *Server) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginInfo
 }
 
 // Attach sends the engine address to an already running plugin.
-func (s *Server) Attach(context.Context, *rpc.PluginAttach) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "Attach is not yet implemented")
+func (s *Server) Attach(_ context.Context, req *rpc.PluginAttach) (*emptypb.Empty, error) {
+	host, err := pprovider.NewHostClient(req.GetAddress())
+	if err != nil {
+		return nil, err
+	}
+	s.host = host
+	return &emptypb.Empty{}, nil
 }

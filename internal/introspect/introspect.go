@@ -15,11 +15,13 @@
 package introspect
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -121,4 +123,39 @@ func FindOutputProperties(r any) map[string]bool {
 		}
 	}
 	return m
+}
+
+func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
+	typ := reflect.TypeOf(t)
+	if typ == nil {
+		return "", fmt.Errorf("Cannot get token of nil type")
+	}
+
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+		if typ == nil {
+			return "", fmt.Errorf("Cannot get token of nil type")
+		}
+	}
+
+	if typ.Kind() != reflect.Struct {
+		return "", fmt.Errorf("Can only get tokens with underlying structs")
+	}
+
+	name := typ.Name()
+	if name == "" {
+		return "", fmt.Errorf("Type %T has no name", t)
+	}
+	mod := strings.Trim(typ.PkgPath(), "*")
+	if mod == "" {
+		return "", fmt.Errorf("Type %T has no module path", t)
+	}
+	// Take off the pkg name, since that is supplied by `pkg`.
+	mod = mod[strings.IndexRune(mod, '/')+1:]
+	if mod == "main" {
+		mod = "index"
+	}
+	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
+	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
+	return tk, nil
 }
