@@ -3,11 +3,10 @@ package provider
 import (
 	"encoding/json"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/pulumi/pulumi/sdk/go/pulumi"
 )
 
 var ignore []string = []string{"resource.Custom", "pulumi.ResourceState", "ResourceState"}
@@ -190,7 +189,6 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 	}
 
 	t := reflect.TypeOf(resource)
-	v := reflect.ValueOf(resource)
 	var properties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	var inputProperties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	var requiredInputs []string = make([]string, 0)
@@ -210,8 +208,10 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 		field := t.Field(i)
 		fieldType := field.Type
 		required := true
-		isOutput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Output", fieldType.String())
-		isInput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Input", fieldType.String())
+		//isOutput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Output", fieldType.String())
+		//isInput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Input", fieldType.String())
+		isInput := fieldType.Implements(reflect.TypeOf((*pulumi.Input)(nil)).Elem())
+		isOutput := fieldType.Implements(reflect.TypeOf((*pulumi.Output)(nil)).Elem())
 
 		for fieldType.Kind() == reflect.Ptr {
 			required = false
@@ -219,11 +219,9 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 		}
 		var serialized schema.PropertySpec
 		if isOutput {
-			//Does not work
-			listAllFields(reflect.TypeOf(v.Field(i).Elem().Interface().(pulumi.OutputState)))
-
+			fieldType = reflect.ValueOf(field).Interface().(pulumi.Output).ElementType()
 		} else if isInput {
-			fieldType = resource.(pulumi.Input).ElementType()
+			fieldType = reflect.ValueOf(field).Interface().(pulumi.Input).ElementType()
 		}
 		serialized = serializeProperty(fieldType, getFlag(field, "description"))
 
@@ -289,16 +287,6 @@ func serializeProperty(t reflect.Type, description string) schema.PropertySpec {
 				},
 			}
 		}
-	}
-}
-
-//TODO: Make this better
-func serializeOutputInputProperty(t string, description string) schema.PropertySpec {
-	return schema.PropertySpec{
-		Description: description,
-		TypeSpec: schema.TypeSpec{
-			Type: t,
-		},
 	}
 }
 
