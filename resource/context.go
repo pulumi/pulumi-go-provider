@@ -9,7 +9,7 @@ import (
 type Context interface {
 	context.Context
 
-	MarkUnknown(field any)
+	MarkComputed(field any)
 }
 
 type SContext struct {
@@ -21,7 +21,26 @@ type SContext struct {
 	markedComputed []string
 }
 
-func (c *SContext) MarkUnknown(field any) {
+// MarkComputed marks a resource field as computed during a preview. MarkComputed may only
+// be called on a direct reference to a field of the resource whose method Context was
+// passed to. Calling it on another value will panic.
+//
+// For example:
+// ```go
+// func (r *MyResource) Update(ctx resource.Context, id string, newSalt any, ignoreChanges []string, preview bool) error {
+//     new := newSalt.(*RandomSalt)
+//     if new.FieldInput != r.FieldInput {
+//         ctx.MarkComputed(&r.ComputedField)        // This is valid
+//         // ctx.MarkComputed(r.ComputedField)      // This is *not* valid
+//         // ctx.markedComputed(&new.ComputedField) // Neither is this
+//         if !preview {
+//             r.ComputedField = expensiveComputation(r.FieldInput)
+//         }
+//     }
+//     return nil
+// }
+// ```
+func (c *SContext) MarkComputed(field any) {
 	hostType := c.hostPtr.Type()
 	for i := 0; i < c.hostPtr.NumField(); i++ {
 		f := c.hostPtr.Field(i)
@@ -35,7 +54,7 @@ func (c *SContext) MarkUnknown(field any) {
 			return
 		}
 	}
-	panic("Marked an invalid tag to be unknown")
+	panic("Marked an invalid field to be unknown")
 }
 
 func NewContext(ctx context.Context, hostResource reflect.Value) *SContext {

@@ -103,8 +103,8 @@ func (r *RandomSalt) Update(ctx resource.Context, id string, newSalt any, ignore
 	r.SaltLength = new.SaltLength
 
 	if redoSalt {
-		ctx.MarkUnknown(&r.Salt)
-		ctx.MarkUnknown(&r.SaltedPassword)
+		ctx.MarkComputed(&r.Salt)
+		ctx.MarkComputed(&r.SaltedPassword)
 		return nil
 		l := 4
 		if r.SaltLength != nil {
@@ -113,7 +113,7 @@ func (r *RandomSalt) Update(ctx resource.Context, id string, newSalt any, ignore
 		r.Salt = makeSalt(l)
 	}
 	if r.Password != new.Password {
-		ctx.MarkUnknown(&r.SaltedPassword)
+		ctx.MarkComputed(&r.SaltedPassword)
 	}
 	r.Password = new.Password
 

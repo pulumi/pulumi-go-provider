@@ -13,10 +13,10 @@ type FooResoruce struct {
 	B *int
 }
 
-func TestMarkUnknown(t *testing.T) {
+func TestMarkComputed(t *testing.T) {
 	f := &FooResoruce{}
 
 	ctx := NewContext(context.Background(), reflect.ValueOf(f))
-	ctx.MarkUnknown(&f.A)
+	ctx.MarkComputed(&f.A)
 	assert.Equal(t, []string{"A"}, ctx.markedComputed)
 }
