@@ -121,14 +121,15 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 		return nil, err
 	}
 	schema, err := serialize(opts)
-	print(schema)
 	if err != nil {
 		return nil, err
 	}
-	println("writing schema!")
 	cwd, err := os.Getwd()
-	println(cwd)
-	err = os.WriteFile(cwd+"/test-schema.json", []byte(schema), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.WriteFile(cwd+"/schema.json", []byte(schema), 0644)
 	if err != nil {
 		return nil, err
 	}

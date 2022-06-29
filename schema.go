@@ -2,14 +2,22 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/go/pulumi"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 var ignore []string = []string{"resource.Custom", "pulumi.ResourceState", "ResourceState"}
+
+type serializationInfo struct {
+	pkgname   string
+	resources map[reflect.Type]string
+	types     map[reflect.Type]string
+	inputMap  inputToImplementor
+}
 
 // Serialize a package to JSON Schema.
 func serialize(opts options) (string, error) {
@@ -30,37 +38,307 @@ func serializeSchema(opts options) schema.PackageSpec {
 	spec.Name = opts.Name
 	spec.Version = opts.Version.String()
 
+	info := serializationInfo{}
+	info.pkgname = opts.Name
+	info.resources = make(map[reflect.Type]string)
+	info.types = make(map[reflect.Type]string)
+	info.inputMap = initializeInputMap()
+
+	for i := 0; i < len(opts.Resources); i++ {
+		resource := opts.Resources[i]
+		t := reflect.TypeOf(resource)
+		t = dereference(t)
+		name := reflect.TypeOf(resource).String()
+		name = strings.Split(name, ".")[1]
+		token := info.pkgname + ":index:" + name
+		info.resources[t] = token
+	}
+	for i := 0; i < len(opts.Types); i++ {
+		typeSpec := opts.Types[i]
+		t := reflect.TypeOf(typeSpec)
+		t = dereference(t)
+		name := reflect.TypeOf(typeSpec).String()
+		name = strings.Split(name, ".")[1]
+		token := info.pkgname + ":index:" + name
+		info.types[t] = token
+	}
+	for i := 0; i < len(opts.Components); i++ {
+		component := opts.Components[i]
+		t := reflect.TypeOf(component)
+		t = dereference(t)
+		name := reflect.TypeOf(component).String()
+		name = strings.Split(name, ".")[1]
+		token := info.pkgname + ":index:" + name
+		info.resources[t] = token
+	}
+
 	for i := 0; i < len(opts.Resources); i++ {
 		resource := opts.Resources[i]
 
-		name := reflect.TypeOf(resource).String()
-		name = strings.Split(name, ".")[1]
-
-		token, resourceSpec := serializeResource(opts.Name, name, resource)
+		resourceSpec := serializeResource(resource, info)
+		token := info.resources[dereference(reflect.TypeOf(resource))]
 		spec.Resources[token] = resourceSpec
 	}
 	//Components are essentially resources, I don't believe they are differentiated in the schema
 	for i := 0; i < len(opts.Components); i++ {
 		component := opts.Components[i]
 
-		name := reflect.TypeOf(component).String()
-		name = strings.Split(name, ".")[1]
-
-		token, componentSpec := serializeResource(opts.Name, name, component)
+		componentSpec := serializeResource(component, info)
+		token := info.resources[dereference(reflect.TypeOf(component))]
 		spec.Resources[token] = componentSpec
 	}
 
 	for i := 0; i < len(opts.Types); i++ {
 		t := opts.Types[i]
 
-		name := reflect.TypeOf(t).String()
-		name = strings.Split(name, ".")[1]
-
-		token, typeSpec := serializeType(opts.Name, name, t)
+		typeSpec := serializeType(t, info)
+		token := info.types[dereference(reflect.TypeOf(t))]
 		spec.Types[token] = typeSpec
 	}
 	over := opts.PartialSpec
 	return mergePackageSpec(spec, over)
+}
+
+func initializeInputMap() inputToImplementor {
+	var inputMap inputToImplementor = make(map[reflect.Type]reflect.Type)
+	//IntInput to int
+	inputMap.add((*pulumi.IntInput)(nil), (*int)(nil))
+
+	//IntPtrInput to *int
+	inputMap.add((*pulumi.IntPtrInput)(nil), (**int)(nil))
+
+	//IntArrayInput to []int
+	inputMap.add((*pulumi.IntArrayInput)(nil), (*[]int)(nil))
+
+	//IntMapInput to map[string]int
+	inputMap.add((*pulumi.IntMapInput)(nil), (*map[string]int)(nil))
+
+	//IntArrayMapInput to map[string][]int
+	inputMap.add((*pulumi.IntArrayMapInput)(nil), (*map[string][]int)(nil))
+
+	//IntMapArrayInput to []map[string]int
+	inputMap.add((*pulumi.IntMapArrayInput)(nil), (*[]map[string]int)(nil))
+
+	//IntMapMapInput to map[string]map[string]int
+	inputMap.add((*pulumi.IntMapMapInput)(nil), (*map[string]map[string]int)(nil))
+
+	//IntArrayArrayInput to [][]int
+	inputMap.add((*pulumi.IntArrayArrayInput)(nil), (*[][]int)(nil))
+
+	//StringInput to string
+	inputMap.add((*pulumi.StringInput)(nil), (*string)(nil))
+
+	//StringPtrInput to *string
+	inputMap.add((*pulumi.StringPtrInput)(nil), (**string)(nil))
+
+	//StringArrayInput to []string
+	inputMap.add((*pulumi.StringArrayInput)(nil), (*[]string)(nil))
+
+	//StringMapInput to map[string]string
+	inputMap.add((*pulumi.StringMapInput)(nil), (*map[string]string)(nil))
+
+	//StringArrayMapInput to map[string][]string
+	inputMap.add((*pulumi.StringArrayMapInput)(nil), (*map[string][]string)(nil))
+
+	//StringMapArrayInput to []map[string]string
+	inputMap.add((*pulumi.StringMapArrayInput)(nil), (*[]map[string]string)(nil))
+
+	//StringMapMapInput to map[string]map[string]string
+	inputMap.add((*pulumi.StringMapMapInput)(nil), (*map[string]map[string]string)(nil))
+
+	//StringArrayArrayInput to [][]string
+	inputMap.add((*pulumi.StringArrayArrayInput)(nil), (*[][]string)(nil))
+
+	//URNInput to pulumi.URN
+	inputMap.add((*pulumi.URNInput)(nil), (*pulumi.URN)(nil))
+
+	//URNPtrInput to *pulumi.URN
+	inputMap.add((*pulumi.URNPtrInput)(nil), (**pulumi.URN)(nil))
+
+	//URNArrayInput to []pulumi.URN
+	inputMap.add((*pulumi.URNArrayInput)(nil), (*[]pulumi.URN)(nil))
+
+	//URNMapInput to map[string]pulumi.URN
+	inputMap.add((*pulumi.URNMapInput)(nil), (*map[string]pulumi.URN)(nil))
+
+	//URNArrayMapInput to map[string][]pulumi.URN
+	inputMap.add((*pulumi.URNArrayMapInput)(nil), (*map[string][]pulumi.URN)(nil))
+
+	//URNMapArrayInput to []map[string]pulumi.URN
+	inputMap.add((*pulumi.URNMapArrayInput)(nil), (*[]map[string]pulumi.URN)(nil))
+
+	//URNMapMapInput to map[string]map[string]pulumi.URN
+	inputMap.add((*pulumi.URNMapMapInput)(nil), (*map[string]map[string]pulumi.URN)(nil))
+
+	//URNArrayArrayInput to [][]pulumi.URN
+	inputMap.add((*pulumi.URNArrayArrayInput)(nil), (*[][]pulumi.URN)(nil))
+
+	//ArchiveInput to pulumi.Archive
+	inputMap.add((*pulumi.ArchiveInput)(nil), (*pulumi.Archive)(nil))
+
+	//ArchiveArrayInput to []pulumi.Archive
+	inputMap.add((*pulumi.ArchiveArrayInput)(nil), (*[]pulumi.Archive)(nil))
+
+	//ArchiveMapInput to map[string]pulumi.Archive
+	inputMap.add((*pulumi.ArchiveMapInput)(nil), (*map[string]pulumi.Archive)(nil))
+
+	//ArchiveArrayMapInput to map[string][]pulumi.Archive
+	inputMap.add((*pulumi.ArchiveArrayMapInput)(nil), (*map[string][]pulumi.Archive)(nil))
+
+	//ArchiveMapArrayInput to []map[string]pulumi.Archive
+	inputMap.add((*pulumi.ArchiveMapArrayInput)(nil), (*[]map[string]pulumi.Archive)(nil))
+
+	//ArchiveMapMapInput to map[string]map[string]pulumi.Archive
+	inputMap.add((*pulumi.ArchiveMapMapInput)(nil), (*map[string]map[string]pulumi.Archive)(nil))
+
+	//ArchiveArrayArrayInput to [][]pulumi.Archive
+	inputMap.add((*pulumi.ArchiveArrayArrayInput)(nil), (*[][]pulumi.Archive)(nil))
+
+	//AssetInput to pulumi.Asset
+	inputMap.add((*pulumi.AssetInput)(nil), (*pulumi.Asset)(nil))
+
+	//AssetArrayInput to []pulumi.Asset
+	inputMap.add((*pulumi.AssetArrayInput)(nil), (*[]pulumi.Asset)(nil))
+
+	//AssetMapInput to map[string]pulumi.Asset
+	inputMap.add((*pulumi.AssetMapInput)(nil), (*map[string]pulumi.Asset)(nil))
+
+	//AssetArrayMapInput to map[string][]pulumi.Asset
+	inputMap.add((*pulumi.AssetArrayMapInput)(nil), (*map[string][]pulumi.Asset)(nil))
+
+	//AssetMapArrayInput to []map[string]pulumi.Asset
+	inputMap.add((*pulumi.AssetMapArrayInput)(nil), (*[]map[string]pulumi.Asset)(nil))
+
+	//AssetMapMapInput to map[string]map[string]pulumi.Asset
+	inputMap.add((*pulumi.AssetMapMapInput)(nil), (*map[string]map[string]pulumi.Asset)(nil))
+
+	//AssetArrayArrayInput to [][]pulumi.Asset
+	inputMap.add((*pulumi.AssetArrayArrayInput)(nil), (*[][]pulumi.Asset)(nil))
+
+	//AssetOrArchiveInput to pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveInput)(nil), (*pulumi.AssetOrArchive)(nil))
+
+	//AssetOrArchiveArrayInput to []pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveArrayInput)(nil), (*[]pulumi.AssetOrArchive)(nil))
+
+	//AssetOrArchiveMapInput to map[string]pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveMapInput)(nil), (*map[string]pulumi.AssetOrArchive)(nil))
+
+	//AssetOrArchiveArrayMapInput to map[string][]pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveArrayMapInput)(nil), (*map[string][]pulumi.AssetOrArchive)(nil))
+
+	//AssetOrArchiveMapArrayInput to []map[string]pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveMapArrayInput)(nil), (*[]map[string]pulumi.AssetOrArchive)(nil))
+
+	//AssetOrArchiveMapMapInput to map[string]map[string]pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveMapMapInput)(nil), (*map[string]map[string]pulumi.AssetOrArchive)(nil))
+
+	//AssetOrArchiveArrayArrayInput to [][]pulumi.AssetOrArchive
+	inputMap.add((*pulumi.AssetOrArchiveArrayArrayInput)(nil), (*[][]pulumi.AssetOrArchive)(nil))
+
+	//BoolInput to bool
+	inputMap.add((*pulumi.BoolInput)(nil), (*bool)(nil))
+
+	//BoolArrayInput to []bool
+	inputMap.add((*pulumi.BoolArrayInput)(nil), (*[]bool)(nil))
+
+	//BoolMapInput to map[string]bool
+	inputMap.add((*pulumi.BoolMapInput)(nil), (*map[string]bool)(nil))
+
+	//BoolArrayMapInput to map[string][]bool
+	inputMap.add((*pulumi.BoolArrayMapInput)(nil), (*map[string][]bool)(nil))
+
+	//BoolMapArrayInput to []map[string]bool
+	inputMap.add((*pulumi.BoolMapArrayInput)(nil), (*[]map[string]bool)(nil))
+
+	//BoolMapMapInput to map[string]map[string]bool
+	inputMap.add((*pulumi.BoolMapMapInput)(nil), (*map[string]map[string]bool)(nil))
+
+	//BoolArrayArrayInput to [][]bool
+	inputMap.add((*pulumi.BoolArrayArrayInput)(nil), (*[][]bool)(nil))
+
+	//IDInput to pulumi.ID
+	inputMap.add((*pulumi.IDInput)(nil), (*pulumi.ID)(nil))
+
+	//IDPtrInput to *pulumi.ID
+	inputMap.add((*pulumi.IDPtrInput)(nil), (**pulumi.ID)(nil))
+
+	//IDArrayInput to []pulumi.ID
+	inputMap.add((*pulumi.IDArrayInput)(nil), (*[]pulumi.ID)(nil))
+
+	//IDMapInput to map[string]pulumi.ID
+	inputMap.add((*pulumi.IDMapInput)(nil), (*map[string]pulumi.ID)(nil))
+
+	//IDArrayMapInput to map[string][]pulumi.ID
+	inputMap.add((*pulumi.IDArrayMapInput)(nil), (*map[string][]pulumi.ID)(nil))
+
+	//IDMapArrayInput to []map[string]pulumi.ID
+	inputMap.add((*pulumi.IDMapArrayInput)(nil), (*[]map[string]pulumi.ID)(nil))
+
+	//IDMapMapInput to map[string]map[string]pulumi.ID
+	inputMap.add((*pulumi.IDMapMapInput)(nil), (*map[string]map[string]pulumi.ID)(nil))
+
+	//IDArrayArrayInput to [][]pulumi.ID
+	inputMap.add((*pulumi.IDArrayArrayInput)(nil), (*[][]pulumi.ID)(nil))
+
+	//ArrayInput to []interface{}
+	inputMap.add((*pulumi.ArrayInput)(nil), (*[]interface{})(nil))
+
+	//MapInput to map[string]interface{}
+	inputMap.add((*pulumi.MapInput)(nil), (*map[string]interface{})(nil))
+
+	//ArrayMapInput to map[string][]interface{}
+	inputMap.add((*pulumi.ArrayMapInput)(nil), (*map[string][]interface{})(nil))
+
+	//MapArrayInput to []map[string]interface{}
+	inputMap.add((*pulumi.MapArrayInput)(nil), (*[]map[string]interface{})(nil))
+
+	//MapMapInput to map[string]map[string]interface{}
+	inputMap.add((*pulumi.MapMapInput)(nil), (*map[string]map[string]interface{})(nil))
+
+	//ArrayArrayInput to [][]interface{}
+	inputMap.add((*pulumi.ArrayArrayInput)(nil), (*[][]interface{})(nil))
+
+	//ArrayArrayMapInput to map[string][][]interface{}
+	inputMap.add((*pulumi.ArrayArrayMapInput)(nil), (*map[string][][]interface{})(nil))
+
+	//Float65Input to float64
+	inputMap.add((*pulumi.Float64Input)(nil), (*float64)(nil))
+
+	//Float64PtrInput to *float64
+	inputMap.add((*pulumi.Float64PtrInput)(nil), (**float64)(nil))
+
+	//Float64ArrayInput to []float64
+	inputMap.add((*pulumi.Float64ArrayInput)(nil), (*[]float64)(nil))
+
+	//Float64MapInput to map[string]float64
+	inputMap.add((*pulumi.Float64MapInput)(nil), (*map[string]float64)(nil))
+
+	//Float64ArrayMapInput to map[string][]float64
+	inputMap.add((*pulumi.Float64ArrayMapInput)(nil), (*map[string][]float64)(nil))
+
+	//Float64MapArrayInput to []map[string]float64
+	inputMap.add((*pulumi.Float64MapArrayInput)(nil), (*[]map[string]float64)(nil))
+
+	//Float64MapMapInput to map[string]map[string]float64
+	inputMap.add((*pulumi.Float64MapMapInput)(nil), (*map[string]map[string]float64)(nil))
+
+	//Float64ArrayArrayInput to [][]float64
+	inputMap.add((*pulumi.Float64ArrayArrayInput)(nil), (*[][]float64)(nil))
+
+	//ResourceInput to pulumi.Resource
+	inputMap.add((*pulumi.ResourceInput)(nil), (*pulumi.Resource)(nil))
+
+	//ResourceArrayInput to []pulumi.Resource
+	inputMap.add((*pulumi.ResourceArrayInput)(nil), (*[]pulumi.Resource)(nil))
+
+	return inputMap
+}
+
+type inputToImplementor map[reflect.Type]reflect.Type
+
+func (m inputToImplementor) add(k interface{}, v interface{}) {
+	m[reflect.TypeOf(k).Elem()] = reflect.TypeOf(v).Elem()
 }
 
 func mergePackageSpec(spec, over schema.PackageSpec) schema.PackageSpec {
@@ -182,13 +460,14 @@ func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec
 }
 
 // Get the resourceSpec for a single resource
-func serializeResource(pkgname string, resourcename string, resource interface{}) (string, schema.ResourceSpec) {
+func serializeResource(resource interface{}, info serializationInfo) schema.ResourceSpec {
 
 	for reflect.TypeOf(resource).Kind() == reflect.Ptr {
 		resource = reflect.ValueOf(resource).Elem().Interface()
 	}
 
 	t := reflect.TypeOf(resource)
+	v := reflect.ValueOf(resource)
 	var properties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	var inputProperties map[string]schema.PropertySpec = make(map[string]schema.PropertySpec)
 	var requiredInputs []string = make([]string, 0)
@@ -208,10 +487,9 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 		field := t.Field(i)
 		fieldType := field.Type
 		required := true
-		//isOutput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Output", fieldType.String())
-		//isInput, _ := regexp.MatchString("pulumi.[a-zA-Z0-9]+Input", fieldType.String())
-		isInput := fieldType.Implements(reflect.TypeOf((*pulumi.Input)(nil)).Elem())
-		isOutput := fieldType.Implements(reflect.TypeOf((*pulumi.Output)(nil)).Elem())
+		vField := v.Field(i)
+		isInput := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
+		_, isOutput := vField.Interface().(pulumi.Output)
 
 		for fieldType.Kind() == reflect.Ptr {
 			required = false
@@ -219,11 +497,16 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 		}
 		var serialized schema.PropertySpec
 		if isOutput {
-			fieldType = reflect.ValueOf(field).Interface().(pulumi.Output).ElementType()
+			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
 		} else if isInput {
-			fieldType = reflect.ValueOf(field).Interface().(pulumi.Input).ElementType()
+			if info.inputMap[fieldType] == nil {
+				panic(fmt.Sprintf("Could not find base type for input type %s", fieldType))
+			} else {
+				fieldType = info.inputMap[fieldType]
+			}
 		}
-		serialized = serializeProperty(fieldType, getFlag(field, "description"))
+		fieldType = dereference(fieldType)
+		serialized = serializeProperty(fieldType, getFlag(field, "description"), info)
 
 		if hasBoolFlag(field, "input") || isInput {
 			inputProperties[field.Name] = serialized
@@ -234,19 +517,11 @@ func serializeResource(pkgname string, resourcename string, resource interface{}
 		properties[field.Name] = serialized
 	}
 
-	//TODO: Allow submodule name to be specified
-	token := pkgname + ":index:" + resourcename
 	spec := schema.ResourceSpec{}
 	spec.ObjectTypeSpec.Properties = properties
 	spec.InputProperties = inputProperties
 	spec.RequiredInputs = requiredInputs
-	return token, spec
-}
-
-func listAllFields(t reflect.Type) {
-	for i := 0; i < t.NumField(); i++ {
-		print(t.Field(i).Name, ",", t.Field(i).Type.String(), "\n")
-	}
+	return spec
 }
 
 //Check if a field contains a specified boolean flag
@@ -266,17 +541,20 @@ func getFlag(field reflect.StructField, flag string) string {
 }
 
 //Get the propertySpec for a single property
-func serializeProperty(t reflect.Type, description string) schema.PropertySpec {
+func serializeProperty(t reflect.Type, description string, info serializationInfo) schema.PropertySpec {
 	typeName := getTypeName(t)
-	if typeName == "unknown" {
-		panic("Unsupported non-generic type " + t.String())
-	} else {
+	if isTypeOrResource(t, info) {
+		return schema.PropertySpec{
+			Description: description,
+			TypeSpec:    *serializeRef(t, info),
+		}
+	} else if typeName != "unknown" {
 		if typeName == "array" {
 			return schema.PropertySpec{
 				Description: description,
 				TypeSpec: schema.TypeSpec{
 					Type:  typeName,
-					Items: serializeTypeRef(t.Elem()),
+					Items: serializeTypeRef(t.Elem(), info),
 				},
 			}
 		} else {
@@ -287,7 +565,38 @@ func serializeProperty(t reflect.Type, description string) schema.PropertySpec {
 				},
 			}
 		}
+	} else {
+		panic("Unknown type " + t.String())
 	}
+}
+
+func serializeRef(t reflect.Type, info serializationInfo) *schema.TypeSpec {
+	dereference(t)
+	token, isResource := info.resources[t]
+	path := "#/resources/"
+	if !isResource {
+		var isType bool
+		token, isType = info.types[t]
+		path = "#/types/"
+		if !isType {
+			//panic("Unknown type " + t.String())
+			return &schema.TypeSpec{}
+		}
+	}
+
+	return &schema.TypeSpec{
+		Ref: path + token,
+	}
+}
+
+func isTypeOrResource(t reflect.Type, info serializationInfo) bool {
+	dereference(t)
+	_, isResource := info.resources[t]
+	if isResource {
+		return true
+	}
+	_, isType := info.types[t]
+	return isType
 }
 
 //Get the typeSpec for a single type
@@ -304,7 +613,7 @@ func getTypeName(t reflect.Type) string {
 		typeName = "number"
 	case reflect.Array, reflect.Slice:
 		typeName = "array"
-	case reflect.Map:
+	case reflect.Map, reflect.Interface, reflect.Struct: //Should maps be objects?
 		typeName = "object"
 	default:
 		typeName = "unknown"
@@ -312,50 +621,50 @@ func getTypeName(t reflect.Type) string {
 	return typeName
 }
 
-func serializeTypeRef(t reflect.Type) *schema.TypeSpec {
+func serializeTypeRef(t reflect.Type, info serializationInfo) *schema.TypeSpec {
 	typeName := getTypeName(t)
-	if typeName == "unknown" {
-		panic("Unsupported non-generic type " + t.Kind().String())
+	if isTypeOrResource(t, info) {
+		return serializeRef(t, info)
 	} else {
 		if typeName == "array" {
 			return &schema.TypeSpec{
 				Type:  typeName,
-				Items: serializeTypeRef(t.Elem()),
+				Items: serializeTypeRef(t.Elem(), info),
 			}
-		} else {
+		} else if typeName != "unknown" {
 			return &schema.TypeSpec{
 				Type: typeName,
 			}
+		} else {
+			panic("Unknown type " + t.String())
 		}
 	}
 }
 
-func serializeType(pkgname string, resourcename string, typ interface{}) (string, schema.ComplexTypeSpec) {
+func serializeType(typ interface{}, info serializationInfo) schema.ComplexTypeSpec {
 	t := reflect.TypeOf(typ)
+	t = dereference(t)
 	typeName := getTypeName(t)
-
-	token := pkgname + ":index:" + resourcename
 
 	if typeName == "object" {
 		properties := make(map[string]schema.PropertySpec)
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
-			properties[field.Name] = serializeProperty(field.Type, getFlag(field, "description"))
+			properties[field.Name] = serializeProperty(field.Type, getFlag(field, "description"), info)
 		}
-		return token, schema.ComplexTypeSpec{
+		return schema.ComplexTypeSpec{
 			ObjectTypeSpec: schema.ObjectTypeSpec{
 				Type:       "object",
 				Properties: properties,
 			},
 		}
 	} else {
-		//Type is an enum
 		enumVals := make([]schema.EnumValueSpec, 0)
-		//Enum values MUST be manually specified
 
-		return token, schema.ComplexTypeSpec{
+		return schema.ComplexTypeSpec{
 			ObjectTypeSpec: schema.ObjectTypeSpec{
-				Type: typeName,
+				Description: "WARNING! Enum types must be manually specified. Overwrite this autogenerated type with your own.",
+				Type:        typeName,
 			},
 			Enum: enumVals,
 		}
@@ -412,43 +721,21 @@ func mergeMapsWithMergeFunction[T any](base, override map[string]T, mergeFunc fu
 	return base
 }
 
-/*
-func getReference(t reflect.Type, name string, packagename string) (string, error) {
-	isResource := false
-	isType := false
-	isFunction := false
-
-	resourceType := reflect.TypeOf((*resource.Custom)(nil))
-
-	for i := 0; i < t.NumField(); i++ {
-		if t.Field(i).Name == "Resource" && t.Field(i).Type == resourceType {
-			isResource = true
-			break
-		}
+func dereference(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
-	typename := ""
-	if isResource {
-		typename = "resource"
-	}
-	if isType {
-		if typename != "" {
-			panic("Must be only one of Resource or Type or Function")
-		}
-		typename = "type"
-	}
-	if isFunction {
-		if typename != "" {
-			panic("Must be only one of Resource or Type or Function")
-		}
-		typename = "function"
-	}
-
-	if typename == "" {
-		panic("Must embed Type, Resource or Function")
-	}
-
-	typetoken := packagename + ":index:" + name
-
-	return "#/" + typename + "/" + typetoken, nil
+	return t
 }
-*/
+
+func printAllMethods(t reflect.Type) {
+
+	if t.Kind() != reflect.Interface {
+		return
+	}
+	println(t.String())
+	for i := 0; i < t.NumMethod(); i++ {
+		//print the fields name and type
+		fmt.Printf("%s \n", t.Method(i).Name)
+	}
+}
