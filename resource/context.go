@@ -9,6 +9,25 @@ import (
 type Context interface {
 	context.Context
 
+	// MarkComputed marks a resource field as computed during a preview. MarkComputed may only
+	// be called on a direct reference to a field of the resource whose method Context was
+	// passed to. Calling it on another value will panic.
+	//
+	// For example:
+	// ```go
+	// func (r *MyResource) Update(ctx resource.Context, id string, newSalt any, ignoreChanges []string, preview bool) error {
+	//     new := newSalt.(*RandomSalt)
+	//     if new.FieldInput != r.FieldInput {
+	//         ctx.MarkComputed(&r.ComputedField)        // This is valid
+	//         // ctx.MarkComputed(r.ComputedField)      // This is *not* valid
+	//         // ctx.markedComputed(&new.ComputedField) // Neither is this
+	//         if !preview {
+	//             r.ComputedField = expensiveComputation(r.FieldInput)
+	//         }
+	//     }
+	//     return nil
+	// }
+	// ```
 	MarkComputed(field any)
 }
 
@@ -21,25 +40,7 @@ type SContext struct {
 	markedComputed []string
 }
 
-// MarkComputed marks a resource field as computed during a preview. MarkComputed may only
-// be called on a direct reference to a field of the resource whose method Context was
-// passed to. Calling it on another value will panic.
-//
-// For example:
-// ```go
-// func (r *MyResource) Update(ctx resource.Context, id string, newSalt any, ignoreChanges []string, preview bool) error {
-//     new := newSalt.(*RandomSalt)
-//     if new.FieldInput != r.FieldInput {
-//         ctx.MarkComputed(&r.ComputedField)        // This is valid
-//         // ctx.MarkComputed(r.ComputedField)      // This is *not* valid
-//         // ctx.markedComputed(&new.ComputedField) // Neither is this
-//         if !preview {
-//             r.ComputedField = expensiveComputation(r.FieldInput)
-//         }
-//     }
-//     return nil
-// }
-// ```
+// See the method documentation for Context.MarkComputed.
 func (c *SContext) MarkComputed(field any) {
 	hostType := c.hostPtr.Type()
 	for i := 0; i < c.hostPtr.NumField(); i++ {
