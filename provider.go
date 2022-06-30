@@ -17,19 +17,18 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
-	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 
 	"github.com/pulumi/pulumi-go-provider/internal/server"
 	"github.com/pulumi/pulumi-go-provider/resource"
@@ -46,7 +45,7 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	for _, o := range providerOptions {
 		o(&opts)
 	}
-	makeProviderfunc, err := prepareProvider(opts)
+	makeProviderfunc, schemastr, err := prepareProvider(opts)
 	if err != nil {
 		return err
 	}
@@ -54,14 +53,9 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	if genCmd := os.Getenv("PULUMI_GENERATE_SDK"); genCmd != "" {
 		cmds := strings.Split(genCmd, ",")
 		sdkPath := filepath.Join(cmds[0], "sdk")
-		schemaPath := filepath.Join(cmds[0], "schema.json")
-		fmt.Printf("Generating %v sdk for %s in %s\n", cmds[1:], schemaPath, sdkPath)
-		schemaBytes, err := ioutil.ReadFile(schemaPath)
-		if err != nil {
-			return err
-		}
+		fmt.Printf("Generating %v sdk in %s\n", cmds[1:], sdkPath)
 		var spec schema.PackageSpec
-		err = json.Unmarshal(schemaBytes, &spec)
+		err = json.Unmarshal([]byte(*schemastr), &spec)
 		if err != nil {
 			return err
 		}
@@ -112,28 +106,35 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 	return nil
 }
 
-func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), error) {
+func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer,
+	error), *string, error) {
 
 	pkg := tokens.NewPackageToken(tokens.PackageName(opts.Name))
 	components, err := server.NewComponentResources(pkg, opts.Components)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	customs, err := server.NewCustomResources(pkg, opts.Resources)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	schema, err := serialize(opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
-		return server.New(pkg.String(), opts.Version, host, components, customs), nil
-	}, nil
+		return server.New(pkg.String(), opts.Version, host, components, customs, schema), nil
+	}, &schema, nil
 }
 
 type options struct {
-	Name       string
-	Version    semver.Version
-	Resources  []resource.Custom
-	Types      []interface{}
-	Components []resource.Component
+	Name        string
+	Version     semver.Version
+	Resources   []resource.Custom
+	Types       []interface{}
+	Components  []resource.Component
+	PartialSpec schema.PackageSpec
 }
 
 type Options func(*options)
@@ -156,6 +157,12 @@ func Types(types ...interface{}) Options {
 func Components(components ...resource.Component) Options {
 	return func(o *options) {
 		o.Components = append(o.Components, components...)
+	}
+}
+
+func PartialSpec(spec schema.PackageSpec) Options {
+	return func(o *options) {
+		o.PartialSpec = spec
 	}
 }
 
