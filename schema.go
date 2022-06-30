@@ -83,11 +83,10 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		info.resources[t] = token
 	}
 
-	//"type" is a keyword
-	for _, type_ := range opts.Types {
-		t := reflect.TypeOf(type_)
+	for _, typ := range opts.Types {
+		t := reflect.TypeOf(typ)
 		t = dereference(t)
-		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), type_)
+		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), typ)
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
@@ -119,6 +118,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
+		componentSpec.IsComponent = true
 		token := info.resources[dereference(reflect.TypeOf(component))]
 		spec.Resources[token] = componentSpec
 	}
@@ -518,54 +518,59 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 	properties := make(map[string]schema.PropertySpec)
 	inputProperties := make(map[string]schema.PropertySpec)
 	requiredInputs := make([]string, 0)
+	required := make([]string, 0)
 
 	for i := 0; i < t.NumField(); i++ {
+
 		field := t.Field(i)
 		fieldType := field.Type
-		required := true
 		vField := v.Field(i)
-		isInput := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
-		_, isOutput := vField.Interface().(pulumi.Output)
 
-		for fieldType.Kind() == reflect.Ptr {
-			required = false
-			fieldType = fieldType.Elem()
-		}
-		if isOutput {
-			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
-			required = false
-		} else if isInput {
-			if info.inputMap[fieldType] == nil {
-				return schema.ResourceSpec{}, fmt.Errorf("input %s for property %s has type %s, which is not a valid input type", field.Name, t, fieldType)
-			} else {
-				fieldType = info.inputMap[fieldType]
-			}
-		}
-		fieldType = dereference(fieldType)
 		tags, err := introspect.ParseTag(field)
-		if err != nil {
-			return schema.ResourceSpec{}, err
-		}
-		serialized, err := serializeProperty(fieldType, tags.Description, info)
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
 		if tags.Internal {
 			continue
 		}
+
+		isInput := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
+		_, isOutput := vField.Interface().(pulumi.Output)
+
+		for fieldType.Kind() == reflect.Ptr {
+			fieldType = fieldType.Elem()
+		}
+		if isOutput {
+			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
+		} else if isInput {
+			if _, ok := info.inputMap[fieldType]; !ok {
+				return schema.ResourceSpec{}, fmt.Errorf("input %s for property %s has type %s, which is not a valid input type", field.Name, t, fieldType)
+			} else {
+				fieldType = info.inputMap[fieldType]
+			}
+		}
+		fieldType = dereference(fieldType)
+		serialized, err := serializeProperty(fieldType, tags.Description, info)
+		if err != nil {
+			return schema.ResourceSpec{}, err
+		}
 		if ((!tags.Output) || isInput) && !isOutput {
 			inputProperties[field.Name] = serialized
-			if required || !tags.Optional {
+			if !tags.Optional {
 				requiredInputs = append(requiredInputs, field.Name)
 			}
 		}
 		properties[field.Name] = serialized
+		if !tags.Optional {
+			required = append(required, field.Name)
+		}
 	}
 
 	spec := schema.ResourceSpec{}
 	spec.ObjectTypeSpec.Properties = properties
 	spec.InputProperties = inputProperties
 	spec.RequiredInputs = requiredInputs
+	spec.Required = required
 	return spec, nil
 }
 
