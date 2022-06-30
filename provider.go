@@ -24,12 +24,12 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
-	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 
 	"github.com/pulumi/pulumi-go-provider/internal/server"
 	"github.com/pulumi/pulumi-go-provider/resource"
@@ -46,22 +46,60 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	for _, o := range providerOptions {
 		o(&opts)
 	}
-	makeProviderfunc, err := prepareProvider(opts)
+	makeProviderfunc, schemastr, err := prepareProvider(opts)
 	if err != nil {
 		return err
 	}
 
-	if genCmd := os.Getenv("PULUMI_GENERATE_SDK"); genCmd != "" {
-		cmds := strings.Split(genCmd, ",")
-		sdkPath := filepath.Join(cmds[0], "sdk")
-		schemaPath := filepath.Join(cmds[0], "schema.json")
-		fmt.Printf("Generating %v sdk for %s in %s\n", cmds[1:], schemaPath, sdkPath)
-		schemaBytes, err := ioutil.ReadFile(schemaPath)
-		if err != nil {
-			return err
+	sdkGenIndex := -1
+	emitSchemaIndex := -1
+	for i, arg := range os.Args {
+		if arg == "-sdkGen" {
+			sdkGenIndex = i
 		}
+		if arg == "-emitSchema" {
+			emitSchemaIndex = i
+		}
+	}
+	runProvider := sdkGenIndex == -1 && emitSchemaIndex == -1
+
+	getArgs := func(index int) []string {
+		args := []string{}
+		for _, arg := range os.Args[index+1:] {
+			if strings.HasPrefix(arg, "-") {
+				break
+			}
+			args = append(args, arg)
+		}
+		return args
+	}
+
+	if emitSchemaIndex != -1 {
+		args := getArgs(emitSchemaIndex)
+		if len(args) > 1 {
+			return fmt.Errorf("-emitSchema only takes one optional argument, it received %d", len(args))
+		}
+		file := "schema.json"
+		if len(args) > 0 {
+			file = args[0]
+		}
+
+		if err := ioutil.WriteFile(file, []byte(schemastr), 0600); err != nil {
+			return fmt.Errorf("failed to write schema: %w", err)
+		}
+	}
+
+	if sdkGenIndex != -1 {
+		args := getArgs(sdkGenIndex)
+		rootDir := "."
+		if len(args) != 0 {
+			rootDir = args[0]
+			args = args[1:]
+		}
+		sdkPath := filepath.Join(rootDir, "sdk")
+		fmt.Printf("Generating sdk for %s in %s\n", args, sdkPath)
 		var spec schema.PackageSpec
-		err = json.Unmarshal(schemaBytes, &spec)
+		err = json.Unmarshal([]byte(schemastr), &spec)
 		if err != nil {
 			return err
 		}
@@ -72,9 +110,15 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 		if len(diags) > 0 {
 			return diags
 		}
-		return generateSDKs(name, sdkPath, pkg, cmds[1:]...)
+		if err := generateSDKs(name, sdkPath, pkg, args...); err != nil {
+			return fmt.Errorf("failed to generate schema: %w", err)
+		}
 	}
-	return provider.Main(name, makeProviderfunc)
+
+	if runProvider {
+		return provider.Main(name, makeProviderfunc)
+	}
+	return nil
 }
 
 func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...string) error {
@@ -83,6 +127,9 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 	}
 	if err := os.RemoveAll(outDir); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	if len(languages) == 0 {
+		languages = []string{"go"}
 	}
 	for _, lang := range languages {
 		var files map[string][]byte
@@ -112,28 +159,35 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 	return nil
 }
 
-func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), error) {
+func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer,
+	error), string, error) {
 
 	pkg := tokens.NewPackageToken(tokens.PackageName(opts.Name))
 	components, err := server.NewComponentResources(pkg, opts.Components)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	customs, err := server.NewCustomResources(pkg, opts.Customs)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
+	schema, err := serialize(opts)
+	if err != nil {
+		return nil, "", err
+	}
+
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
-		return server.New(pkg.String(), opts.Version, host, components, customs), nil
-	}, nil
+		return server.New(pkg.String(), opts.Version, host, components, customs, schema), nil
+	}, schema, nil
 }
 
 type options struct {
-	Name       string
-	Version    semver.Version
-	Customs    []resource.Custom
-	Types      []interface{}
-	Components []resource.Component
+	Name        string
+	Version     semver.Version
+	Customs     []resource.Custom
+	Types       []interface{}
+	Components  []resource.Component
+	PartialSpec schema.PackageSpec
 }
 
 type Options func(*options)
@@ -156,6 +210,12 @@ func Types(types ...interface{}) Options {
 func Components(components ...resource.Component) Options {
 	return func(o *options) {
 		o.Components = append(o.Components, components...)
+	}
+}
+
+func PartialSpec(spec schema.PackageSpec) Options {
+	return func(o *options) {
+		o.PartialSpec = spec
 	}
 }
 

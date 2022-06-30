@@ -40,17 +40,19 @@ type Server struct {
 	Name    string
 	Version semver.Version
 	host    *pprovider.HostClient
+	Schema  string
 
 	components ComponentResources
 	customs    CustomResources
 }
 
 func New(name string, version semver.Version, host *pprovider.HostClient,
-	components ComponentResources, customs CustomResources) *Server {
+	components ComponentResources, customs CustomResources, schema string) *Server {
 	return &Server{
 		Name:       name,
 		Version:    version,
 		host:       host,
+		Schema:     schema,
 		components: components,
 		customs:    customs,
 	}
@@ -58,7 +60,11 @@ func New(name string, version semver.Version, host *pprovider.HostClient,
 
 // GetSchema fetches the schema for this resource provider.
 func (s *Server) GetSchema(context.Context, *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetSchema is not yet implemented")
+	response := &rpc.GetSchemaResponse{
+		Schema: s.Schema,
+	}
+
+	return response, nil
 }
 
 // CheckConfig validates the configuration for this resource provider.
@@ -191,7 +197,10 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 	changes := rpc.DiffResponse_DIFF_NONE
 	var diffs, replaces []string
 
-	outputKeys := introspect.FindOutputProperties(custom)
+	outputKeys, err := introspect.FindOutputProperties(custom)
+	if err != nil {
+		return nil, err
+	}
 
 	if d := olds.Diff(news); d != nil {
 		for _, propKey := range d.ChangedKeys() {
