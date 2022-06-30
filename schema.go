@@ -555,14 +555,14 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 			return schema.ResourceSpec{}, err
 		}
 		if ((!tags.Output) || isInput) && !isOutput {
-			inputProperties[field.Name] = serialized
+			inputProperties[tags.Name] = serialized
 			if !tags.Optional {
-				requiredInputs = append(requiredInputs, field.Name)
+				requiredInputs = append(requiredInputs, tags.Name)
 			}
 		}
-		properties[field.Name] = serialized
+		properties[tags.Name] = serialized
 		if !tags.Optional {
-			required = append(required, field.Name)
+			required = append(required, tags.Name)
 		}
 	}
 
@@ -722,7 +722,7 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
 			}
-			properties[field.Name], err = serializeProperty(field.Type, tags.Description, info)
+			properties[tags.Name], err = serializeProperty(field.Type, tags.Description, info)
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
 			}
