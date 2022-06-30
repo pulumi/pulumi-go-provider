@@ -7,8 +7,7 @@ go 1.18
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
-	github.com/pulumi/pulumi-random/sdk/v4 v4.8.0
-	github.com/pulumi/pulumi/sdk/v3 v3.35.1
+	github.com/pulumi/pulumi/pkg/v3 v3.35.1
 )
 
 require (
@@ -108,7 +107,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/pulumi/pulumi/pkg/v3 v3.35.1 // indirect
+	github.com/pulumi/pulumi/sdk/v3 v3.35.1 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect

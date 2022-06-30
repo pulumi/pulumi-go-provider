@@ -44,17 +44,17 @@ func main() {
 		Value: 3,
 		Name:  "G",
 	})
-	spec.Types["Base"] = schema.ComplexTypeSpec{
+	spec.Types["schema-test:index:Enum"] = schema.ComplexTypeSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
 			Type: "integer",
 		},
 		Enum: enums,
 	}
 
-	err := provider.Run("random-login", semver.Version{Minor: 1},
+	err := provider.Run("schema-test", semver.Version{Minor: 1},
 		provider.Components(),
 		provider.Resources(),
-		provider.Types((*Enum)(nil), (*strct)(nil)),
+		provider.Types((*strct)(nil)),
 		provider.PartialSpec(spec),
 	)
 	if err != nil {

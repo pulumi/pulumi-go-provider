@@ -409,12 +409,10 @@ func merge(spec, over any) (any, error) {
 			if t.Field(i).Type.Key().Kind() != reflect.String {
 				return nil, fmt.Errorf("map key type must be string")
 			}
-			merged := mergeMapsOverride[any](sv.Field(i).Interface().(map[string]any), ov.Field(i).Interface().(map[string]any))
+			merged := mergeMapsOverride(sv.Field(i).Interface().(map[string]any), ov.Field(i).Interface().(map[string]any))
 			sv.Field(i).Set(reflect.ValueOf(merged))
 		} else {
-			if !ov.Field(i).IsNil() {
-				sv.Field(i).Set(ov.Field(i))
-			}
+			sv.Field(i).Set(ov.Field(i))
 		}
 	}
 	return sv.Interface().(struct{}), nil
