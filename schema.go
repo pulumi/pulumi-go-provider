@@ -132,7 +132,8 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		spec.Types[token] = typeSpec
 	}
 	over := opts.PartialSpec
-	spec, err := mergePackageSpec(spec, over)
+	merged, err := merge(spec, over)
+	spec = merged.(schema.PackageSpec)
 	if err != nil {
 		return schema.PackageSpec{}, err
 	}
@@ -321,26 +322,26 @@ func initializeInputMap() inputToImplementor {
 	//IDArrayArrayInput to [][]pulumi.ID
 	inputMap.add((*pulumi.IDArrayArrayInput)(nil), (*[][]pulumi.ID)(nil))
 
-	//ArrayInput to []interface{}
-	inputMap.add((*pulumi.ArrayInput)(nil), (*[]interface{})(nil))
+	//ArrayInput to []any
+	inputMap.add((*pulumi.ArrayInput)(nil), (*[]any)(nil))
 
-	//MapInput to map[string]interface{}
-	inputMap.add((*pulumi.MapInput)(nil), (*map[string]interface{})(nil))
+	//MapInput to map[string]any
+	inputMap.add((*pulumi.MapInput)(nil), (*map[string]any)(nil))
 
-	//ArrayMapInput to map[string][]interface{}
-	inputMap.add((*pulumi.ArrayMapInput)(nil), (*map[string][]interface{})(nil))
+	//ArrayMapInput to map[string][]any
+	inputMap.add((*pulumi.ArrayMapInput)(nil), (*map[string][]any)(nil))
 
-	//MapArrayInput to []map[string]interface{}
-	inputMap.add((*pulumi.MapArrayInput)(nil), (*[]map[string]interface{})(nil))
+	//MapArrayInput to []map[string]any
+	inputMap.add((*pulumi.MapArrayInput)(nil), (*[]map[string]any)(nil))
 
-	//MapMapInput to map[string]map[string]interface{}
-	inputMap.add((*pulumi.MapMapInput)(nil), (*map[string]map[string]interface{})(nil))
+	//MapMapInput to map[string]map[string]any
+	inputMap.add((*pulumi.MapMapInput)(nil), (*map[string]map[string]any)(nil))
 
-	//ArrayArrayInput to [][]interface{}
-	inputMap.add((*pulumi.ArrayArrayInput)(nil), (*[][]interface{})(nil))
+	//ArrayArrayInput to [][]any
+	inputMap.add((*pulumi.ArrayArrayInput)(nil), (*[][]any)(nil))
 
-	//ArrayArrayMapInput to map[string][][]interface{}
-	inputMap.add((*pulumi.ArrayArrayMapInput)(nil), (*map[string][][]interface{})(nil))
+	//ArrayArrayMapInput to map[string][][]any
+	inputMap.add((*pulumi.ArrayArrayMapInput)(nil), (*map[string][][]any)(nil))
 
 	//Float65Input to float64
 	inputMap.add((*pulumi.Float64Input)(nil), (*float64)(nil))
@@ -377,138 +378,50 @@ func initializeInputMap() inputToImplementor {
 
 type inputToImplementor map[reflect.Type]reflect.Type
 
-func (m inputToImplementor) add(k interface{}, v interface{}) {
+func (m inputToImplementor) add(k any, v any) {
 	m[reflect.TypeOf(k).Elem()] = reflect.TypeOf(v).Elem()
 }
 
-func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error) {
-	if over.Name != "" {
-		spec.Name = over.Name
-	}
-	if over.DisplayName != "" {
-		spec.DisplayName = over.DisplayName
-	}
-	if over.Version != "" {
-		spec.Version = over.Version
-	}
-	if over.Keywords != nil {
-		spec.Keywords = mergeStringArrays(spec.Keywords, over.Keywords)
-	}
-	if over.Homepage != "" {
-		spec.Homepage = over.Homepage
-	}
-	if over.License != "" {
-		spec.License = over.License
-	}
-	if over.Attribution != "" {
-		spec.Attribution = over.Attribution
-	}
-	if over.Repository != "" {
-		spec.Repository = over.Repository
-	}
-	if over.LogoURL != "" {
-		spec.LogoURL = over.LogoURL
-	}
-	if over.PluginDownloadURL != "" {
-		spec.PluginDownloadURL = over.PluginDownloadURL
-	}
-	if over.Publisher != "" {
-		spec.Publisher = over.Publisher
-	}
-	if over.Meta != nil {
-		spec.Meta = over.Meta //Meta is a struct containing only one field, so we can just overwrite it
-	}
-	// AllowedPackageNames []string
-	if over.AllowedPackageNames != nil {
-		spec.AllowedPackageNames = mergeStringArrays(spec.AllowedPackageNames, over.AllowedPackageNames)
-	}
-	// Language map[string]RawMessage
-	if over.Language != nil {
-		spec.Language = mergeMapsOverride(spec.Language, over.Language)
-	}
-	if over.Config.Variables != nil {
-		spec.Config.Variables = mergeMapsOverride(spec.Config.Variables, over.Config.Variables)
-	}
-	if over.Config.Required != nil {
-		spec.Config.Required = mergeStringArrays(spec.Config.Required, over.Config.Required)
-	}
-	if over.Types != nil {
-		spec.Types = mergeMapsOverride(spec.Types, over.Types)
-	}
-	p, err := mergeResourceSpec(spec.Provider, over.Provider)
-	if err != nil {
-		return schema.PackageSpec{}, err
-	}
-	spec.Provider = p
-	if over.Resources != nil {
-		spec.Resources = mergeMapsOverride(spec.Resources, over.Resources)
-	}
-	if over.Functions != nil {
-		spec.Functions = mergeMapsOverride(spec.Functions, over.Functions)
-	}
-	return spec, nil
-}
+func merge(spec, over any) (any, error) {
+	//iterate over fields in the overriding spec
+	t := reflect.TypeOf(over)
+	sv := reflect.ValueOf(spec)
+	ov := reflect.ValueOf(over)
+	for i := 0; i < t.NumField(); i++ {
+		//for primitives
+		if t.Field(i).Type.Kind() == reflect.Struct || t.Field(i).Type.Kind() == reflect.Interface {
+			merged, err := merge(sv.Field(i).Interface(), ov.Field(i).Interface())
+			if err != nil {
+				return nil, err
+			}
+			sv.Field(i).Set(reflect.ValueOf(merged))
 
-//mergeResourceSpec merges two resource specs together.
-func mergeResourceSpec(base, over schema.ResourceSpec) (schema.ResourceSpec, error) {
-	base.ObjectTypeSpec = mergeObjectTypeSpec(base.ObjectTypeSpec, over.ObjectTypeSpec)
-
-	if over.InputProperties != nil {
-		base.InputProperties = mergeMapsOverride(base.InputProperties, over.InputProperties)
-	}
-	if over.RequiredInputs != nil {
-		base.RequiredInputs = mergeStringArrays(base.RequiredInputs, over.RequiredInputs)
-	}
-	//PlainInputs is deprecated and thus ignored
-	if over.StateInputs != nil {
-		//StateInputs is a pointer, so for now we're just going to override it.
-		//It could also be dereferenced and merged, but for now we'll keep it like this
-		base.StateInputs = over.StateInputs
-	}
-	if over.Aliases != nil {
-		aliases, err := mergeStructArraysByKey[schema.AliasSpec, string](base.Aliases, over.Aliases, "Name")
-		if err != nil {
-			return schema.ResourceSpec{}, err
+		} else if t.Field(i).Type.Kind() == reflect.Array {
+			if t.Field(i).Type.Elem().Kind() == reflect.Struct || t.Field(i).Type.Elem().Kind() == reflect.Interface {
+				merged, err := mergeStructArraysByKey[any,
+					string](sv.Field(i).Interface().([]any), ov.Field(i).Interface().([]any), "Name")
+				if err != nil {
+					return nil, err
+				}
+				sv.Field(i).Set(reflect.ValueOf(merged))
+			}
+		} else if t.Field(i).Type.Kind() == reflect.Map {
+			if t.Field(i).Type.Key().Kind() != reflect.String {
+				return nil, fmt.Errorf("map key type must be string")
+			}
+			merged := mergeMapsOverride[any](sv.Field(i).Interface().(map[string]any), ov.Field(i).Interface().(map[string]any))
+			sv.Field(i).Set(reflect.ValueOf(merged))
+		} else {
+			if !ov.Field(i).IsNil() {
+				sv.Field(i).Set(ov.Field(i))
+			}
 		}
-		base.Aliases = aliases
 	}
-	if over.DeprecationMessage != "" {
-		base.DeprecationMessage = over.DeprecationMessage
-	}
-	if over.IsComponent {
-		base.IsComponent = true
-	}
-	if over.Methods != nil {
-		base.Methods = mergeMapsOverride(base.Methods, over.Methods)
-	}
-	return base, nil
-}
-
-func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec {
-	if over.Description != "" {
-		base.Description = over.Description
-	}
-	if over.Properties != nil {
-		base.Properties = mergeMapsOverride(base.Properties, over.Properties)
-	}
-	if over.Type != "" {
-		base.Type = over.Type
-	}
-	if over.Required != nil {
-		base.Required = mergeStringArrays(base.Required, over.Required)
-	}
-	//Plain is deprecated and thus ignored
-	if over.Language != nil {
-		base.Language = mergeMapsOverride(base.Language, over.Language)
-	}
-	if over.IsOverlay {
-		base.IsOverlay = true
-	}
-	return base
+	return sv.Interface().(struct{}), nil
 }
 
 // Get the resourceSpec for a single resource
-func serializeResource(rawResource interface{}, info serializationInfo) (schema.ResourceSpec, error) {
+func serializeResource(rawResource any, info serializationInfo) (schema.ResourceSpec, error) {
 	v := reflect.ValueOf(rawResource)
 	for v.Type().Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -710,7 +623,7 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 	}
 }
 
-func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeSpec, error) {
+func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, error) {
 	t := reflect.TypeOf(typ)
 	t = dereference(t)
 	typeName := getTypeName(t)
@@ -746,8 +659,8 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 	}, nil
 }
 
-func mergeStringArrays(base, override []string) []string {
-	m := make(map[string]bool)
+func mergePrimitiveArrays(base, override []any) []any {
+	m := make(map[any]bool)
 	for _, x := range base {
 		m[x] = true
 	}
@@ -761,7 +674,7 @@ func mergeStringArrays(base, override []string) []string {
 }
 
 //Merge two arrays of structs which have the string property "Name" by their names
-func mergeStructArraysByKey[T interface{}, K comparable](base, override []T, fieldName string) ([]T, error) {
+func mergeStructArraysByKey[T any, K comparable](base, override []T, fieldName string) ([]T, error) {
 	m := make(map[K]T)
 	//Check that type T has field fieldName
 	t := reflect.TypeOf((*T)(nil)).Elem()
@@ -784,7 +697,7 @@ func mergeStructArraysByKey[T interface{}, K comparable](base, override []T, fie
 		key := reflect.ValueOf(y).FieldByName(fieldName).Interface().(K)
 		if _, ok := m[key]; !ok {
 			base = append(base, y)
-		}
+		} //We could overwrite or we could call merge(), not sure which is desired behavior
 	}
 
 	return base, nil
