@@ -17,6 +17,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -50,12 +51,53 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 		return err
 	}
 
-	if genCmd := os.Getenv("PULUMI_GENERATE_SDK"); genCmd != "" {
-		cmds := strings.Split(genCmd, ",")
-		sdkPath := filepath.Join(cmds[0], "sdk")
-		fmt.Printf("Generating %v sdk in %s\n", cmds[1:], sdkPath)
+	sdkGenIndex := -1
+	emitSchemaIndex := -1
+	for i, arg := range os.Args {
+		if arg == "-sdkgen" {
+			sdkGenIndex = i
+		}
+		if arg == "-emitSchema" {
+			emitSchemaIndex = i
+		}
+	}
+	runProvider := sdkGenIndex == -1 && emitSchemaIndex == -1
+
+	getArgs := func(index int) []string {
+		args := []string{}
+		for _, arg := range os.Args[index+1:] {
+			if strings.HasPrefix(arg, "-") {
+				break
+			}
+			args = append(args, arg)
+		}
+		return args
+	}
+
+	if emitSchemaIndex != -1 {
+		args := getArgs(emitSchemaIndex)
+		if len(args) > 1 {
+			return fmt.Errorf("-emitSchema only takes one optional argument, it received %d", len(args))
+		}
+		file := "schema.json"
+		if len(args) > 0 {
+			file = args[0]
+		}
+
+		return ioutil.WriteFile(file, []byte(schemastr), 0600)
+	}
+
+	if sdkGenIndex != -1 {
+		args := getArgs(sdkGenIndex)
+		rootDir := "."
+		if len(args) != 0 {
+			rootDir = args[0]
+			args = args[1:]
+		}
+		sdkPath := filepath.Join(rootDir, "sdk")
+		fmt.Printf("Generating sdk for %s in %s\n", args, sdkPath)
 		var spec schema.PackageSpec
-		err = json.Unmarshal([]byte(*schemastr), &spec)
+		err = json.Unmarshal([]byte(schemastr), &spec)
 		if err != nil {
 			return err
 		}
@@ -66,9 +108,15 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 		if len(diags) > 0 {
 			return diags
 		}
-		return generateSDKs(name, sdkPath, pkg, cmds[1:]...)
+		if err := generateSDKs(name, sdkPath, pkg, args[1:]...); err != nil {
+			return err
+		}
 	}
-	return provider.Main(name, makeProviderfunc)
+
+	if runProvider {
+		return provider.Main(name, makeProviderfunc)
+	}
+	return nil
 }
 
 func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...string) error {
@@ -77,6 +125,9 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 	}
 	if err := os.RemoveAll(outDir); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	if len(languages) == 0 {
+		languages = []string{"go"}
 	}
 	for _, lang := range languages {
 		var files map[string][]byte
@@ -107,25 +158,25 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 }
 
 func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer,
-	error), *string, error) {
+	error), string, error) {
 
 	pkg := tokens.NewPackageToken(tokens.PackageName(opts.Name))
 	components, err := server.NewComponentResources(pkg, opts.Components)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 	customs, err := server.NewCustomResources(pkg, opts.Resources)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 	schema, err := serialize(opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
 		return server.New(pkg.String(), opts.Version, host, components, customs, schema), nil
-	}, &schema, nil
+	}, schema, nil
 }
 
 type options struct {
