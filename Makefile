@@ -27,3 +27,6 @@ install_examples: build_examples
 lint:
 	golangci-lint run -c .golangci.yaml --timeout 5m
 	pulumictl copyright -x 'examples/**'
+
+test:
+	go test ./...
