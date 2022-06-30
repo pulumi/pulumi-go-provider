@@ -106,7 +106,8 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 	return nil
 }
 
-func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), *string, error) {
+func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer,
+	error), *string, error) {
 
 	pkg := tokens.NewPackageToken(tokens.PackageName(opts.Name))
 	components, err := server.NewComponentResources(pkg, opts.Components)
