@@ -32,6 +32,7 @@ const (
 	BOOL    = "boolean"
 	FLOAT   = "number"
 	ARRAY   = "array"
+	MAP     = "object"
 	OBJECT  = "object"
 	UNKNOWN = "unknown"
 )
@@ -592,6 +593,21 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 				Items: itemSpec,
 			},
 		}, nil
+	} else if typeName == MAP {
+		valSpec, err := serializeTypeRef(t.Elem(), info)
+		if err != nil {
+			return schema.PropertySpec{}, err
+		}
+		if t.Key().Kind() != reflect.String {
+			return schema.PropertySpec{}, fmt.Errorf("map keys must be strings")
+		}
+		return schema.PropertySpec{
+			Description: description,
+			TypeSpec: schema.TypeSpec{
+				Type:                 "object", //There is no map type in the schema
+				AdditionalProperties: valSpec,
+			},
+		}, nil
 	} else if typeName != UNKNOWN {
 		return schema.PropertySpec{
 			Description: description,
@@ -644,7 +660,9 @@ func getTypeName(t reflect.Type) string {
 		typeName = FLOAT
 	case reflect.Array, reflect.Slice:
 		typeName = ARRAY
-	case reflect.Map, reflect.Interface, reflect.Struct: //Should maps be objects?
+	case reflect.Map:
+		typeName = MAP
+	case reflect.Interface, reflect.Struct: //Should maps be objects?
 		typeName = OBJECT
 	default:
 		typeName = UNKNOWN
@@ -666,6 +684,18 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 			Type:  typeName,
 			Items: itemSpec,
 		}, nil
+	} else if typeName == MAP {
+		valSpec, err := serializeTypeRef(t.Elem(), info)
+		if err != nil {
+			return nil, err
+		}
+		if t.Key().Kind() != reflect.String {
+			return nil, fmt.Errorf("map keys must be strings")
+		}
+		return &schema.TypeSpec{
+			Type:                 "object", //There is no map type in the schema
+			AdditionalProperties: valSpec,
+		}, nil
 	} else if typeName != UNKNOWN {
 		return &schema.TypeSpec{
 			Type: typeName,
@@ -684,6 +714,9 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			tags, err := introspect.ParseTag(field)
+			if err != nil {
+				return schema.ComplexTypeSpec{}, err
+			}
 			properties[field.Name], err = serializeProperty(field.Type, tags.Description, info)
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
