@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/blang/semver"
@@ -20,7 +21,8 @@ func main() {
 		provider.PartialSpec(schema.PackageSpec{}),
 	)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
 	}
 }
 

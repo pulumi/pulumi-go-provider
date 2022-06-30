@@ -17,7 +17,6 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -46,7 +45,7 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	for _, o := range providerOptions {
 		o(&opts)
 	}
-	makeProviderfunc, err := prepareProvider(opts)
+	makeProviderfunc, schemastr, err := prepareProvider(opts)
 	if err != nil {
 		return err
 	}
@@ -54,14 +53,9 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	if genCmd := os.Getenv("PULUMI_GENERATE_SDK"); genCmd != "" {
 		cmds := strings.Split(genCmd, ",")
 		sdkPath := filepath.Join(cmds[0], "sdk")
-		schemaPath := filepath.Join(cmds[0], "schema.json")
-		fmt.Printf("Generating %v sdk for %s in %s\n", cmds[1:], schemaPath, sdkPath)
-		schemaBytes, err := ioutil.ReadFile(schemaPath)
-		if err != nil {
-			return err
-		}
+		fmt.Printf("Generating %v sdk in %s\n", cmds[1:], sdkPath)
 		var spec schema.PackageSpec
-		err = json.Unmarshal(schemaBytes, &spec)
+		err = json.Unmarshal([]byte(*schemastr), &spec)
 		if err != nil {
 			return err
 		}
@@ -112,34 +106,25 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 	return nil
 }
 
-func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), error) {
+func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.ResourceProviderServer, error), *string, error) {
 
 	pkg := tokens.NewPackageToken(tokens.PackageName(opts.Name))
 	components, err := server.NewComponentResources(pkg, opts.Components)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	customs, err := server.NewCustomResources(pkg, opts.Resources)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	schema, err := serialize(opts)
 	if err != nil {
-		return nil, err
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	err = os.WriteFile(cwd+"/schema.json", []byte(schema), 0600)
-	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
 		return server.New(pkg.String(), opts.Version, host, components, customs, schema), nil
-	}, nil
+	}, &schema, nil
 }
 
 type options struct {
