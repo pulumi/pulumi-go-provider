@@ -1,7 +1,6 @@
 package local
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -13,6 +12,8 @@ import (
 	r "github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+
+	"github.com/pulumi/pulumi-go-provider/examples/command/util"
 )
 
 type Command struct {
@@ -104,8 +105,8 @@ func (c *Command) run(ctx r.Context, command string) (string, string, string, er
 
 	stdoutch := make(chan struct{})
 	stderrch := make(chan struct{})
-	go copyOutput(ctx, stdouttee, stdoutch)
-	go copyOutput(ctx, stderrtee, stderrch)
+	go util.CopyOutput(ctx, stdouttee, stdoutch, diag.Debug)
+	go util.CopyOutput(ctx, stderrtee, stderrch, diag.Error)
 
 	err = cmd.Start()
 	pid := cmd.Process.Pid
@@ -129,15 +130,4 @@ func (c *Command) run(ctx r.Context, command string) (string, string, string, er
 	}
 
 	return strings.TrimSuffix(stdoutbuf.String(), "\n"), strings.TrimSuffix(stderrbuf.String(), "\n"), id, nil
-}
-
-func copyOutput(ctx r.Context, r io.Reader, doneCh chan<- struct{}) {
-	defer close(doneCh)
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		err := ctx.Log(diag.Debug, "%s", scanner.Text())
-		if err != nil {
-			return
-		}
-	}
 }
