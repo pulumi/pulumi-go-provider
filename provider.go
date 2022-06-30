@@ -119,7 +119,7 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 	if err != nil {
 		return nil, err
 	}
-	customs, err := server.NewCustomResources(pkg, opts.Resources)
+	customs, err := server.NewCustomResources(pkg, opts.Customs)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 type options struct {
 	Name       string
 	Version    semver.Version
-	Resources  []resource.Custom
+	Customs    []resource.Custom
 	Types      []interface{}
 	Components []resource.Component
 }
@@ -141,7 +141,7 @@ type Options func(*options)
 // Resources adds resource.Custom for the provider to serve.
 func Resources(resources ...resource.Custom) Options {
 	return func(o *options) {
-		o.Resources = append(o.Resources, resources...)
+		o.Customs = append(o.Customs, resources...)
 	}
 }
 

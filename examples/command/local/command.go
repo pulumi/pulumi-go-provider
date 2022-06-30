@@ -31,8 +31,8 @@ type Command struct {
 	Stderr string `pulumi:"stderr" provider:"output"`
 }
 
-// RunCreate executes the create command, sets Stdout and Stderr, and returns a unique
-// ID for the command execution
+// Create executes the create command, sets Stdout and Stderr, and returns a unique ID for
+// the command execution
 func (c *Command) Create(ctx r.Context, name string, preview bool) (string, error) {
 	// TODO: provider interface for generating ids that obey sequence numbers
 	if preview {
@@ -46,8 +46,8 @@ func (c *Command) Create(ctx r.Context, name string, preview bool) (string, erro
 	return id, err
 }
 
-// RunDelete executes the create command, sets Stdout and Stderr, and returns a unique
-// ID for the command execution
+// Delete executes the create command, sets Stdout and Stderr, and returns a unique ID for
+// the command execution
 func (c *Command) Delete(ctx r.Context, _ r.ID) error {
 	if c.Delete_ == nil {
 		return nil
@@ -81,6 +81,9 @@ func (c *Command) run(ctx r.Context, command string) (string, string, string, er
 	}
 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	if cmd == nil {
+		return "", "", "", fmt.Errorf("Created null command from ctx (%v)", ctx)
+	}
 	cmd.Stdout = stdoutw
 	cmd.Stderr = stderrw
 	if c.Dir != nil {
@@ -109,7 +112,6 @@ func (c *Command) run(ctx r.Context, command string) (string, string, string, er
 	go util.CopyOutput(ctx, stderrtee, stderrch, diag.Error)
 
 	err = cmd.Start()
-	pid := cmd.Process.Pid
 	if err == nil {
 		err = cmd.Wait()
 	}
@@ -124,6 +126,7 @@ func (c *Command) run(ctx r.Context, command string) (string, string, string, er
 		return "", "", "", err
 	}
 
+	pid := cmd.Process.Pid
 	id, err := resource.NewUniqueHex(fmt.Sprintf("%d", pid), 8, 0)
 	if err != nil {
 		return "", "", "", err

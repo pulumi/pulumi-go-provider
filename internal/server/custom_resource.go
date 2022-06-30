@@ -46,7 +46,7 @@ func NewCustomResources(pkg tokens.Package, resources []resource.Custom) (Custom
 func (c CustomResources) GetCustom(typ tokens.Type) (resource.Custom, error) {
 	r, ok := c[typ]
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "There is no custom resource ''%s'", typ)
+		return nil, status.Errorf(codes.NotFound, "There is no custom resource '%s'", typ)
 	}
 
 	return reflect.New(r).Interface().(resource.Custom), nil

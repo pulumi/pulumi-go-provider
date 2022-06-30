@@ -31,7 +31,7 @@ func TestMarkComputed(t *testing.T) {
 	t.Parallel()
 	f := &FooResoruce{}
 
-	ctx := NewContext(context.Background(), reflect.ValueOf(f))
+	ctx := NewContext(context.Background(), "urn", reflect.ValueOf(f))
 	ctx.MarkComputed(&f.A)
 	assert.Equal(t, []string{"A"}, ctx.markedComputed)
 }
