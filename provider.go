@@ -132,7 +132,7 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 		return nil, err
 	}
 
-	err = os.WriteFile(cwd+"/schema.json", []byte(schema), 0644)
+	err = os.WriteFile(cwd+"/schema.json", []byte(schema), 0600)
 	if err != nil {
 		return nil, err
 	}

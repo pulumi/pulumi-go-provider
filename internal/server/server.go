@@ -61,7 +61,7 @@ func New(name string, version semver.Version, host *pprovider.HostClient,
 // GetSchema fetches the schema for this resource provider.
 func (s *Server) GetSchema(context.Context, *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
 	response := &rpc.GetSchemaResponse{
-		Schema: string(s.Schema),
+		Schema: s.Schema,
 	}
 
 	return response, nil
