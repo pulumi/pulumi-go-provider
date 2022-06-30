@@ -98,7 +98,7 @@ func PropertiesToResource(s *structpb.Struct, res any) error {
 	return mapper.MapI(inputs, res)
 }
 
-func FindOutputProperties(r any) map[string]bool {
+func FindOutputProperties(r any) (map[string]bool, error) {
 	typ := reflect.TypeOf(r)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -107,24 +107,18 @@ func FindOutputProperties(r any) map[string]bool {
 	m := map[string]bool{}
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
-		tag, ok := f.Tag.Lookup("provider")
-		if !ok {
-			continue
+		info, err := ParseTag(f)
+		if err != nil {
+			return nil, err
 		}
-		name := f.Name
-		pulumiTag, ok := f.Tag.Lookup("pulumi")
-		if ok {
-			name = strings.Split(pulumiTag, ",")[0]
-		}
-		for _, c := range strings.Split(tag, ",") {
-			if c == "output" {
-				m[name] = true
-			}
+		if info.Output {
+			m[info.Name] = true
 		}
 	}
-	return m
+	return m, nil
 }
 
+// Get the token that represents a struct.
 func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 	typ := reflect.TypeOf(t)
 	if typ == nil {
@@ -158,4 +152,58 @@ func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
 	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
 	return tk, nil
+}
+
+// ParseTag gets tag information out of struct tags. It looks under the `pulumi` and
+// `provider` tag namespaces.
+func ParseTag(field reflect.StructField) (FieldTag, error) {
+	pulumiTag, hasPulumiTag := field.Tag.Lookup("pulumi")
+	providerTag, hasProviderTag := field.Tag.Lookup("provider")
+	if hasProviderTag && !hasPulumiTag {
+		return FieldTag{}, fmt.Errorf("you must put to the `pulumi` tag to use the `provider` tag")
+	}
+	if !hasPulumiTag {
+		return FieldTag{Internal: true}, nil
+	}
+
+	pulumi := map[string]bool{}
+	pulumiArray := strings.Split(pulumiTag, ",")
+	name := pulumiArray[0]
+	for _, item := range pulumiArray[1:] {
+		pulumi[item] = true
+	}
+
+	provider := map[string]bool{}
+	providerArray := strings.Split(providerTag, ",")
+	description := ""
+	if hasProviderTag {
+		descTag := "description="
+		for _, item := range providerArray {
+			if strings.HasPrefix(item, descTag) {
+				description = strings.TrimPrefix(item, descTag)
+				continue
+			}
+			provider[item] = true
+		}
+	}
+
+	return FieldTag{
+		Name:             name,
+		Optional:         pulumi["optional"],
+		Output:           provider["output"],
+		Secret:           provider["secret"],
+		ReplaceOnChanges: provider["replaceOnChanges"],
+		Description:      description,
+	}, nil
+}
+
+type FieldTag struct {
+	Optional         bool // If the field is optional in the Pulumi type system.
+	Internal         bool // If the field should exist in the Pulumi type system.
+	Output           bool // If the field is an output type in the pulumi type system.
+	Secret           bool // If the field is secret.
+	ReplaceOnChanges bool // If changes in the field should force a replacement.
+	// ReplaceOnChanges will only be obeyed when the default diff implementation is used.
+	Description string // The description of the field.
+	Name        string // The name of the field in the Pulumi type system.
 }
