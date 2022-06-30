@@ -554,7 +554,7 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
-		if ((!tags.Output) || isInput) && !isOutput {
+		if !tags.Output {
 			inputProperties[tags.Name] = serialized
 			if !tags.Optional {
 				requiredInputs = append(requiredInputs, tags.Name)
@@ -634,15 +634,15 @@ func serializeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, err
 	t = dereference(t)
 	if token, ok := info.resources[t]; ok {
 		return &schema.TypeSpec{
-			Type: "#/resources/" + token,
+			Ref: "#/resources/" + token,
 		}, nil
 	}
 	if token, ok := info.types[t]; ok {
 		return &schema.TypeSpec{
-			Type: "#/types/" + token,
+			Ref: "#/types/" + token,
 		}, nil
 	}
-	return nil, fmt.Errorf("unknown type %s", t)
+	return nil, fmt.Errorf("unknown reference type %s", t)
 
 }
 
@@ -711,7 +711,7 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 		}, nil
 	case ANY:
 		return &schema.TypeSpec{
-			Ref: "#pulumi.json#/Any",
+			Ref: "pulumi.json#/Any",
 		}, nil
 	case UNKNOWN:
 		return &schema.TypeSpec{}, fmt.Errorf("unknown type %s", t)
