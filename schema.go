@@ -26,9 +26,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-//ignore is a map of types to ignore when serializing properties
-var ignore = []string{"resource.Custom", "pulumi.ResourceState"}
-
 const (
 	STRING  = "string"
 	INT     = "integer"
@@ -522,16 +519,6 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 	requiredInputs := make([]string, 0)
 
 	for i := 0; i < t.NumField(); i++ {
-		//A little janky but works for now
-		ignoreField := false
-		for _, itype := range ignore {
-			if t.Field(i).Type.String() == itype {
-				ignoreField = true
-			}
-		}
-		if ignoreField {
-			continue
-		}
 		field := t.Field(i)
 		fieldType := field.Type
 		required := true
@@ -554,14 +541,20 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 			}
 		}
 		fieldType = dereference(fieldType)
-		serialized, err := serializeProperty(fieldType, getFlag(field, "description"), info)
+		tags, err := introspect.ParseTag(field)
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
-
-		if hasBoolFlag(field, "input") || isInput {
+		serialized, err := serializeProperty(fieldType, tags.Description, info)
+		if err != nil {
+			return schema.ResourceSpec{}, err
+		}
+		if tags.Internal {
+			continue
+		}
+		if ((!tags.Output) || isInput) && !isOutput {
 			inputProperties[field.Name] = serialized
-			if required || hasBoolFlag(field, "required") {
+			if required || !tags.Optional {
 				requiredInputs = append(requiredInputs, field.Name)
 			}
 		}
@@ -573,21 +566,6 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 	spec.InputProperties = inputProperties
 	spec.RequiredInputs = requiredInputs
 	return spec, nil
-}
-
-//Check if a field contains a specified boolean flag
-func hasBoolFlag(field reflect.StructField, flag string) bool {
-	tag, ok := field.Tag.Lookup(flag)
-	return ok && tag == "true"
-}
-
-//Get the value of a flag on a field
-func getFlag(field reflect.StructField, flag string) string {
-	tag, ok := field.Tag.Lookup(flag)
-	if ok {
-		return tag
-	}
-	return ""
 }
 
 //Get the propertySpec for a single property
@@ -701,12 +679,12 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 	t := reflect.TypeOf(typ)
 	t = dereference(t)
 	typeName := getTypeName(t)
-	var err error
 	if typeName == "object" {
 		properties := make(map[string]schema.PropertySpec)
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
-			properties[field.Name], err = serializeProperty(field.Type, getFlag(field, "description"), info)
+			tags, err := introspect.ParseTag(field)
+			properties[field.Name], err = serializeProperty(field.Type, tags.Description, info)
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
 			}
