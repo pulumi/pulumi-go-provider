@@ -16,8 +16,8 @@ package provider
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -26,7 +26,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-var ignore = []string{"resource.Custom", "pulumi.ResourceState", "ResourceState"}
+//ignore is a map of types to ignore when serializing properties
+var ignore = []string{"resource.Custom", "pulumi.ResourceState"}
 
 const (
 	STRING  = "string"
@@ -133,7 +134,11 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		spec.Types[token] = typeSpec
 	}
 	over := opts.PartialSpec
-	return mergePackageSpec(spec, over), nil
+	spec, err := mergePackageSpec(spec, over)
+	if err != nil {
+		return schema.PackageSpec{}, err
+	}
+	return spec, nil
 }
 
 func initializeInputMap() inputToImplementor {
@@ -378,7 +383,7 @@ func (m inputToImplementor) add(k interface{}, v interface{}) {
 	m[reflect.TypeOf(k).Elem()] = reflect.TypeOf(v).Elem()
 }
 
-func mergePackageSpec(spec, over schema.PackageSpec) schema.PackageSpec {
+func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error) {
 	if over.Name != "" {
 		spec.Name = over.Name
 	}
@@ -432,25 +437,29 @@ func mergePackageSpec(spec, over schema.PackageSpec) schema.PackageSpec {
 	if over.Types != nil {
 		spec.Types = mergeMapsOverride(spec.Types, over.Types)
 	}
-	spec.Provider = mergeResourceSpec(spec.Provider, over.Provider)
+	p, err := mergeResourceSpec(spec.Provider, over.Provider)
+	if err != nil {
+		return schema.PackageSpec{}, err
+	}
+	spec.Provider = p
 	if over.Resources != nil {
 		spec.Resources = mergeMapsOverride(spec.Resources, over.Resources)
 	}
 	if over.Functions != nil {
 		spec.Functions = mergeMapsOverride(spec.Functions, over.Functions)
 	}
-	return spec
+	return spec, nil
 }
 
 //mergeResourceSpec merges two resource specs together.
-func mergeResourceSpec(base, over schema.ResourceSpec) schema.ResourceSpec {
+func mergeResourceSpec(base, over schema.ResourceSpec) (schema.ResourceSpec, error) {
 	base.ObjectTypeSpec = mergeObjectTypeSpec(base.ObjectTypeSpec, over.ObjectTypeSpec)
 
 	if over.InputProperties != nil {
 		base.InputProperties = mergeMapsOverride(base.InputProperties, over.InputProperties)
 	}
 	if over.RequiredInputs != nil {
-		base.RequiredInputs = mergeStructArraysByName(base.RequiredInputs, over.RequiredInputs)
+		base.RequiredInputs = mergeStringArrays(base.RequiredInputs, over.RequiredInputs)
 	}
 	//PlainInputs is deprecated and thus ignored
 	if over.StateInputs != nil {
@@ -459,7 +468,11 @@ func mergeResourceSpec(base, over schema.ResourceSpec) schema.ResourceSpec {
 		base.StateInputs = over.StateInputs
 	}
 	if over.Aliases != nil {
-		base.Aliases = mergeStructArraysByName(base.Aliases, over.Aliases)
+		aliases, err := mergeStructArraysByKey[schema.AliasSpec, string](base.Aliases, over.Aliases, "Name")
+		if err != nil {
+			return schema.ResourceSpec{}, err
+		}
+		base.Aliases = aliases
 	}
 	if over.DeprecationMessage != "" {
 		base.DeprecationMessage = over.DeprecationMessage
@@ -470,7 +483,7 @@ func mergeResourceSpec(base, over schema.ResourceSpec) schema.ResourceSpec {
 	if over.Methods != nil {
 		base.Methods = mergeMapsOverride(base.Methods, over.Methods)
 	}
-	return base
+	return base, nil
 }
 
 func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec {
@@ -535,7 +548,7 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 			required = false
 		} else if isInput {
 			if info.inputMap[fieldType] == nil {
-				return schema.ResourceSpec{}, errors.New(fmt.Sprintf("Could not find base type for input type %s", fieldType))
+				return schema.ResourceSpec{}, fmt.Errorf("input %s for property %s has type %s, which is not a valid input type", field.Name, t, fieldType)
 			} else {
 				fieldType = info.inputMap[fieldType]
 			}
@@ -589,21 +602,19 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 			Description: description,
 			TypeSpec:    *typeSpec,
 		}, nil
-	} else if typeName != UNKNOWN {
-		if typeName == ARRAY {
-			itemSpec, err := serializeTypeRef(t.Elem(), info)
-			if err != nil {
-				return schema.PropertySpec{}, err
-			}
-			return schema.PropertySpec{
-				Description: description,
-				TypeSpec: schema.TypeSpec{
-					Type:  typeName,
-					Items: itemSpec,
-				},
-			}, nil
+	} else if typeName == ARRAY {
+		itemSpec, err := serializeTypeRef(t.Elem(), info)
+		if err != nil {
+			return schema.PropertySpec{}, err
 		}
-
+		return schema.PropertySpec{
+			Description: description,
+			TypeSpec: schema.TypeSpec{
+				Type:  typeName,
+				Items: itemSpec,
+			},
+		}, nil
+	} else if typeName != UNKNOWN {
 		return schema.PropertySpec{
 			Description: description,
 			TypeSpec: schema.TypeSpec{
@@ -611,30 +622,28 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 			},
 		}, nil
 	} else {
-		return schema.PropertySpec{}, errors.New(fmt.Sprintf("Unknown type %s", t))
+		return schema.PropertySpec{}, fmt.Errorf("unknown type %s", t)
 	}
 }
 
 func serializeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, error) {
-	dereference(t)
-	token, isResource := info.resources[t]
-	path := "#/resources/"
-	if !isResource {
-		var isType bool
-		token, isType = info.types[t]
-		path = "#/types/"
-		if !isType {
-			return &schema.TypeSpec{}, errors.New(fmt.Sprintf("Unknown type %s", t))
-		}
+	t = dereference(t)
+	if token, ok := info.resources[t]; ok {
+		return &schema.TypeSpec{
+			Type: "#/resources/" + token,
+		}, nil
 	}
+	if token, ok := info.types[t]; ok {
+		return &schema.TypeSpec{
+			Type: "#/types/" + token,
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown type %s", t)
 
-	return &schema.TypeSpec{
-		Ref: path + token,
-	}, nil
 }
 
 func isTypeOrResource(t reflect.Type, info serializationInfo) bool {
-	dereference(t)
+	t = dereference(t)
 	_, isResource := info.resources[t]
 	if isResource {
 		return true
@@ -684,7 +693,7 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 			Type: typeName,
 		}, nil
 	} else {
-		return &schema.TypeSpec{}, errors.New(fmt.Sprintf("Unknown type %s", t))
+		return &schema.TypeSpec{}, fmt.Errorf("unknown type %s", t)
 	}
 }
 
@@ -711,10 +720,10 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 	}
 	enumVals := make([]schema.EnumValueSpec, 0)
 
+	os.Stderr.WriteString(fmt.Sprintf("WARNING! Enum types must be manually specified. Overwrite the autogenerated type %s with your own.", t))
 	return schema.ComplexTypeSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
-			Description: "WARNING! Enum types must be manually specified. Overwrite this autogenerated type with your own.",
-			Type:        typeName,
+			Type: typeName,
 		},
 		Enum: enumVals,
 	}, nil
@@ -725,35 +734,43 @@ func mergeStringArrays(base, override []string) []string {
 	for _, x := range base {
 		m[x] = true
 	}
+	//If an element in override is not in base, append it
 	for _, y := range override {
-		m[y] = true
+		if !m[y] {
+			base = append(base, y)
+		}
 	}
-	var merged []string
-	for k := range m {
-		merged = append(merged, k)
-	}
-	return merged
+	return base
 }
 
 //Merge two arrays of structs which have the string property "Name" by their names
-func mergeStructArraysByName[T any](base, override []T) []T {
-	m := make(map[string]T)
+func mergeStructArraysByKey[T interface{}, K comparable](base, override []T, fieldName string) ([]T, error) {
+	m := make(map[K]T)
+	//Check that type T has field fieldName
+	t := reflect.TypeOf((*T)(nil)).Elem()
+	field, ok := t.FieldByName(fieldName)
+	if !ok {
+		return nil, fmt.Errorf("type %s does not have field %s", t, fieldName)
+	}
+	//Check that field fieldName is of type K
+	k := reflect.TypeOf((*K)(nil)).Elem()
+	if field.Type != k {
+		return nil, fmt.Errorf("type %s field %s is not of type %s", t, fieldName, k)
+	}
 
 	for _, x := range base {
-		name := reflect.ValueOf(x).FieldByName("Name").String()
-		m[name] = x
+		key := reflect.ValueOf(x).FieldByName(fieldName).Interface().(K)
+		m[key] = x
 	}
 
 	for _, y := range override {
-		name := reflect.ValueOf(y).FieldByName("Name").String()
-		m[name] = y
+		key := reflect.ValueOf(y).FieldByName(fieldName).Interface().(K)
+		if _, ok := m[key]; !ok {
+			base = append(base, y)
+		}
 	}
 
-	var merged []T
-	for _, v := range m {
-		merged = append(merged, v)
-	}
-	return merged
+	return base, nil
 }
 
 func mergeMapsOverride[T any](base, override map[string]T) map[string]T {
@@ -762,14 +779,6 @@ func mergeMapsOverride[T any](base, override map[string]T) map[string]T {
 	}
 	return base
 }
-
-/*
-func mergeMapsWithMergeFunction[T any](base, override map[string]T, mergeFunc func(T, T) T) map[string]T {
-	for k, v := range override {
-		base[k] = mergeFunc(base[k], v)
-	}
-	return base
-}*/
 
 func dereference(t reflect.Type) reflect.Type {
 	for t.Kind() == reflect.Ptr {
