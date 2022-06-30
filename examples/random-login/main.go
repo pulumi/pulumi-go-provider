@@ -30,8 +30,8 @@ type RandomLogin struct {
 	pulumi.ResourceState
 
 	// Outputs
-	Username pulumi.StringOutput `pulumi:"username"`
-	Password pulumi.StringOutput `pulumi:"password"`
+	Username pulumi.StringOutput `pulumi:"username" provider:"output"`
+	Password pulumi.StringOutput `pulumi:"password" provider:"output"`
 
 	// Inputs
 	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`

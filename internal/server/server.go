@@ -197,7 +197,10 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 	changes := rpc.DiffResponse_DIFF_NONE
 	var diffs, replaces []string
 
-	outputKeys := introspect.FindOutputProperties(custom)
+	outputKeys, err := introspect.FindOutputProperties(custom)
+	if err != nil {
+		return nil, err
+	}
 
 	if d := olds.Diff(news); d != nil {
 		for _, propKey := range d.ChangedKeys() {
