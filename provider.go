@@ -54,7 +54,7 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 	sdkGenIndex := -1
 	emitSchemaIndex := -1
 	for i, arg := range os.Args {
-		if arg == "-sdkgen" {
+		if arg == "-sdkGen" {
 			sdkGenIndex = i
 		}
 		if arg == "-emitSchema" {
@@ -84,7 +84,9 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 			file = args[0]
 		}
 
-		return ioutil.WriteFile(file, []byte(schemastr), 0600)
+		if err := ioutil.WriteFile(file, []byte(schemastr), 0600); err != nil {
+			return fmt.Errorf("failed to write schema: %w", err)
+		}
 	}
 
 	if sdkGenIndex != -1 {
@@ -108,8 +110,8 @@ func Run(name string, version semver.Version, providerOptions ...Options) error 
 		if len(diags) > 0 {
 			return diags
 		}
-		if err := generateSDKs(name, sdkPath, pkg, args[1:]...); err != nil {
-			return err
+		if err := generateSDKs(name, sdkPath, pkg, args...); err != nil {
+			return fmt.Errorf("failed to generate schema: %w", err)
 		}
 	}
 
