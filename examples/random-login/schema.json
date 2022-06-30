@@ -1,8 +1,56 @@
 {
   "name": "random-login",
   "version": "0.1.0",
+  "config": {},
+  "provider": {},
   "resources": {
+    "random-login:index:RandomLogin": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "passwordLength": {
+          "type": "integer"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "username",
+        "password",
+        "passwordLength"
+      ],
+      "inputProperties": {
+        "passwordLength": {
+          "type": "integer"
+        }
+      },
+      "requiredInputs": [
+        "passwordLength"
+      ],
+      "isComponent": true
+    },
     "random-login:index:RandomSalt": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "salt": {
+          "type": "string"
+        },
+        "saltedLength": {
+          "type": "integer"
+        },
+        "saltedPassword": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "salt",
+        "saltedPassword",
+        "password"
+      ],
       "inputProperties": {
         "password": {
           "type": "string"
@@ -11,46 +59,8 @@
           "type": "integer"
         }
       },
-      "requiredInputs": [ "password" ],
-      "properties": {
-        "password": {
-          "type": "string"
-        },
-        "salt": {
-          "type": "string"
-        },
-        "saltedPassword": {
-          "type": "string"
-        }
-      },
-      "requiredProperties": [
-        "password",
-        "salt",
-        "salterPassword"
-      ]
-    },
-    "random-login:index:RandomLogin": {
-      "isComponent": true,
-      "inputProperties": {
-        "passwordLength": {
-          "type": "integer"
-        }
-      },
-      "properties": {
-        "passwordLength": {
-          "type": "integer"
-        },
-        "password": {
-          "type": "string"
-        },
-        "username": {
-          "type": "string"
-        }
-      },
-      "requiredProperties": [
-        "passwordLength",
-        "password",
-        "username"
+      "requiredInputs": [
+        "password"
       ]
     }
   }

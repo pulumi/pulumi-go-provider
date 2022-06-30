@@ -20,7 +20,7 @@ install_examples: build_examples
 		mkdir -p ~/.pulumi/plugins/resource-random-login-v0.1.0/; \
 	fi
 	rm -fr examples/random-login/sdk
-	cd examples/random-login && PULUMI_GENERATE_SDK=".,go" ./random-login
+	cd examples/random-login && ./random-login -sdkGen -emitSchema
 	mv examples/random-login/random-login ~/.pulumi/plugins/resource-random-login-v0.1.0/pulumi-resource-random-login
 	cd examples/random-login/sdk/go/randomlogin && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
 
