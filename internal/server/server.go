@@ -39,12 +39,8 @@ import (
 type Server struct {
 	Name    string
 	Version semver.Version
-<<<<<<< HEAD
 	Host    *pprovider.HostClient
 	Schema  string
-=======
-	host    *pprovider.HostClient
->>>>>>> 5368f68ee28a6dc6c120ea5349c92d2111b4f255
 
 	components ComponentResources
 	customs    CustomResources
@@ -55,12 +51,8 @@ func New(name string, version semver.Version, host *pprovider.HostClient,
 	return &Server{
 		Name:       name,
 		Version:    version,
-<<<<<<< HEAD
 		Host:       host,
 		Schema:     schema,
-=======
-		host:       host,
->>>>>>> 5368f68ee28a6dc6c120ea5349c92d2111b4f255
 		components: components,
 		customs:    customs,
 	}
@@ -373,7 +365,7 @@ func (s *Server) Construct(ctx context.Context, request *rpc.ConstructRequest) (
 	if err != nil {
 		return nil, err
 	}
-	cR, err := provider.Construct(ctx, request, s.host.EngineConn(), componentFn(s.Name, c))
+	cR, err := provider.Construct(ctx, request, s.Host.EngineConn(), componentFn(s.Name, c))
 	return cR, err
 }
 
@@ -399,6 +391,6 @@ func (s *Server) Attach(_ context.Context, req *rpc.PluginAttach) (*emptypb.Empt
 	if err != nil {
 		return nil, err
 	}
-	s.host = host
+	s.Host = host
 	return &emptypb.Empty{}, nil
 }
