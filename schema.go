@@ -56,8 +56,7 @@ func serialize(opts options) (string, error) {
 	info.inputMap = inputmap.GetInputMap()
 
 	for _, resource := range opts.Customs {
-		t := reflect.TypeOf(resource)
-		t = dereference(t)
+		t := baseType(resource)
 		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), resource)
 		if err != nil {
 			return "", err
@@ -76,8 +75,7 @@ func serialize(opts options) (string, error) {
 			info.enums[dereference(enum.Type)] = typeToken.String()
 			continue
 		}
-		t := reflect.TypeOf(typ)
-		t = dereference(t)
+		t := baseType(typ)
 		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), typ)
 		if err != nil {
 			return "", err
@@ -87,8 +85,7 @@ func serialize(opts options) (string, error) {
 	}
 
 	for _, component := range opts.Components {
-		t := reflect.TypeOf(component)
-		t = dereference(t)
+		t := baseType(component)
 		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), component)
 		if err != nil {
 			return "", err
@@ -124,7 +121,7 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
-		token := info.resources[dereference(reflect.TypeOf(resource))]
+		token := info.resources[baseType(resource)]
 		spec.Resources[token] = resourceSpec
 	}
 
@@ -134,7 +131,7 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 			return schema.PackageSpec{}, err
 		}
 		componentSpec.IsComponent = true
-		token := info.resources[dereference(reflect.TypeOf(component))]
+		token := info.resources[baseType(component)]
 		spec.Resources[token] = componentSpec
 	}
 
@@ -155,7 +152,7 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
-		token := info.types[dereference(reflect.TypeOf(t))]
+		token := info.types[baseType(t)]
 		spec.Types[token] = typeSpec
 	}
 	over := opts.PartialSpec
@@ -167,8 +164,7 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 }
 
 func (info serializationInfo) serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
-	t := enum.Type
-	t = dereference(t)
+	t := dereference(enum.Type)
 	kind, _ := getTypeKind(t)
 	enumVals := make([]schema.EnumValueSpec, 0, len(enum.Values))
 	for _, val := range enum.Values {
@@ -652,6 +648,10 @@ func mergeMapsOverride[T any](base, override map[string]T) map[string]T {
 		base[k] = v
 	}
 	return base
+}
+
+func baseType(i any) reflect.Type {
+	return dereference(reflect.TypeOf(i))
 }
 
 func dereference(t reflect.Type) reflect.Type {
