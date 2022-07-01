@@ -106,8 +106,8 @@ type Command struct {
 	Stdin       *string            `pulumi:"stdin,optional"`
 
 	// Output
-	Stdout string `pulumi:"stdout"`
-	Stderr string `pulumi:"stderr"`
+	Stdout string `pulumi:"stdout" provider:"output"`
+	Stderr string `pulumi:"stderr" provider:"output"`
 }
 
 // Create executes the create command, sets Stdout and Stderr, and returns a unique

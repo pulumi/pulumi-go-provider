@@ -50,6 +50,7 @@ func serialize(opts options) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	pkgSpec.Language = opts.Language
 
 	schemaJSON, err := json.MarshalIndent(pkgSpec, "", "  ")
 	if err != nil {

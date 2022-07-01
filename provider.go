@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
@@ -40,8 +41,9 @@ import (
 // returns.
 func Run(name string, version semver.Version, providerOptions ...Options) error {
 	opts := options{
-		Name:    name,
-		Version: version,
+		Name:     name,
+		Version:  version,
+		Language: map[string]schema.RawMessage{},
 	}
 	for _, o := range providerOptions {
 		o(&opts)
@@ -188,6 +190,8 @@ type options struct {
 	Types       []interface{}
 	Components  []resource.Component
 	PartialSpec schema.PackageSpec
+
+	Language map[string]schema.RawMessage
 }
 
 type Options func(*options)
@@ -216,6 +220,14 @@ func Components(components ...resource.Component) Options {
 func PartialSpec(spec schema.PackageSpec) Options {
 	return func(o *options) {
 		o.PartialSpec = spec
+	}
+}
+
+func GoOptions(opts goGen.GoPackageInfo) Options {
+	return func(o *options) {
+		b, err := json.Marshal(opts)
+		contract.AssertNoErrorf(err, "Failed to marshal go package info")
+		o.Language["go"] = b
 	}
 }
 

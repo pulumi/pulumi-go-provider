@@ -8,6 +8,7 @@ import (
 	provider "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/examples/command/local"
 	"github.com/pulumi/pulumi-go-provider/examples/command/remote"
+	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 )
 
 func main() {
@@ -17,7 +18,11 @@ func main() {
 			&remote.Command{},
 			&remote.FileCopy{}),
 		provider.Types(
-			&remote.Connection{}))
+			&remote.Connection{}),
+		provider.GoOptions(goGen.GoPackageInfo{
+			GenerateResourceContainerTypes: true,
+			ImportBasePath:                 "github.com/pulumi/pulumi-go-provider/examples/command/sdk/go/command",
+		}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
