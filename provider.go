@@ -229,26 +229,26 @@ func PartialSpec(spec schema.PackageSpec) Options {
 	}
 }
 
-func ConstructEnum[T any](enum any, pkgname string, values []types.EnumValue) types.Enum {
+func Enum[T any](enum any, pkgname string, values []types.EnumValue) (types.Enum, error) {
 	t := reflect.TypeOf(enum)
 	token, err := introspect.GetToken(tokens.Package(pkgname), enum)
 	if err != nil {
 		panic(err)
-		return types.Enum{}
+		return types.Enum{}, err
 	}
 
 	return types.Enum{
 		Type:   t,
 		Token:  token.String(),
 		Values: values,
-	}
+	}, nil
 }
 
-func ConstructEnumValues(values ...types.EnumValue) []types.EnumValue {
+func EnumVals(values ...types.EnumValue) []types.EnumValue {
 	return values
 }
 
-func ConstructEnumValue(name string, value any) types.EnumValue {
+func EnumVal(name string, value any) types.EnumValue {
 	return types.EnumValue{
 		Value: value,
 		Name:  name,

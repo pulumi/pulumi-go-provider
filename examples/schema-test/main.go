@@ -29,16 +29,22 @@ func main() {
 
 	spec := schema.PackageSpec{}
 
-	err := provider.Run("schema-test", semver.Version{Minor: 1},
+	enum, err := provider.Enum[int]((*Enum)(nil), "Enum", provider.EnumVals(
+		provider.EnumVal("A", 0),
+		provider.EnumVal("C", 1),
+		provider.EnumVal("T", 2),
+		provider.EnumVal("G", 3),
+	))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+
+	err = provider.Run("schema-test", semver.Version{Minor: 1},
 		provider.Components(),
 		provider.Resources(),
 		provider.Types((*strct)(nil)),
-		provider.Enums(provider.ConstructEnum[int]((*Enum)(nil), "Enum", provider.ConstructEnumValues(
-			provider.ConstructEnumValue("A", 0),
-			provider.ConstructEnumValue("C", 1),
-			provider.ConstructEnumValue("T", 2),
-			provider.ConstructEnumValue("G", 3),
-		))),
+		provider.Enums(enum),
 		provider.PartialSpec(spec),
 	)
 	if err != nil {
