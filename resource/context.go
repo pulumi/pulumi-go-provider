@@ -23,6 +23,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
 type Context interface {
@@ -91,23 +92,26 @@ func (c *SContext) MarkComputed(field any) {
 
 // Log logs a global message, including errors and warnings.
 func (c *SContext) Log(severity diag.Severity, msg string, args ...any) error {
-	return c.host.Log(c, severity, c.urn, fmt.Sprintf(msg, args...))
+	return c.host.Log(c.Context, severity, c.urn, fmt.Sprintf(msg, args...))
 }
 
 // LogStatus logs a global status message, including errors and warnings. Status messages will
 // appear in the `Info` column of the progress display, but not in the final output.
 func (c *SContext) LogStatus(severity diag.Severity, msg string, args ...any) error {
-	return c.host.LogStatus(c, severity, c.urn, fmt.Sprintf(msg, args...))
+	fmt.Printf("URN: '%s'\n", c.urn)
+	return c.host.LogStatus(c.Context, severity, c.urn, fmt.Sprintf(msg, args...))
 }
 
-func NewContext(ctx context.Context, hostResource reflect.Value) *SContext {
-	host := hostResource
-	for host.Kind() == reflect.Pointer {
-		host = host.Elem()
+func NewContext(ctx context.Context, host *provider.HostClient, urn resource.URN, resource reflect.Value) *SContext {
+	contract.Assert(host != nil)
+	for resource.Kind() == reflect.Pointer {
+		resource = resource.Elem()
 	}
 	return &SContext{
 		Context:      ctx,
-		hostResource: host,
+		hostResource: resource,
+		urn:          urn,
+		host:         host,
 	}
 }
 

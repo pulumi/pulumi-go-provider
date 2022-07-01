@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,7 +32,7 @@ func TestMarkComputed(t *testing.T) {
 	t.Parallel()
 	f := &FooResoruce{}
 
-	ctx := NewContext(context.Background(), reflect.ValueOf(f))
+	ctx := NewContext(context.Background(), &provider.HostClient{}, "urn", reflect.ValueOf(f))
 	ctx.MarkComputed(&f.A)
 	assert.Equal(t, []string{"A"}, ctx.markedComputed)
 }
