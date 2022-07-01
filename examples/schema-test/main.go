@@ -29,7 +29,7 @@ func main() {
 
 	spec := schema.PackageSpec{}
 
-	enum, err := provider.Enum[int]((*Enum)(nil), "Enum", provider.EnumVals(
+	enum, err := provider.Enum[int]((*Enum)(nil), "schema-test", provider.EnumVals(
 		provider.EnumVal("A", 0),
 		provider.EnumVal("C", 1),
 		provider.EnumVal("T", 2),

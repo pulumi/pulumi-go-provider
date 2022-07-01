@@ -6,16 +6,35 @@ build:
 
 
 build_examples: build
-	@for ex in examples/*; do \
+	@for ex in ${wildcard examples/*}; do \
 		if [ -d $$ex ]; then \
 		cd $$ex; \
 		echo "Building github.com/pulumi/pulumi-go-provider/$$ex"; \
-		go build ./...; \
+		go build github.com/pulumi/pulumi-go-provider/$$ex || exit 1; \
 		cd -; \
 		fi; \
 	done
 
 install_examples: build_examples
+	@echo Install schema-test provider
+	@if [ -d ~/.pulumi/plugins/resource-schema-test-v0.1.0/ ]; then \
+		mkdir -p ~/.pulumi/plugins/resource-schema-test-v0.1.0/; \
+	fi
+	rm -fr examples/schema-test/sdk
+	cd examples/schema-test && ./schema-test -sdkGen -emitSchema
+	mv examples/schema-test/schema-test ~/.pulumi/plugins/resource-schema-test-v0.1.0/pulumi-resource-schema-test
+	cd examples/schema-test/sdk/go/schematest && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
+
+	@echo Install command provider
+	@if [ -d ~/.pulumi/plugins/resource-command-v0.3.2/ ]; then \
+		mkdir -p ~/.pulumi/plugins/resource-command-v0.3.2/; \
+	fi
+	rm -rf examples/command/sdk
+	cd examples/command && ./command -sdkGen -emitSchema
+	mv examples/command/command ~/.pulumi/plugins/resource-command-v0.3.2/pulumi-resource-command
+	cd examples/command/sdk/go/command && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
+
+	@echo Install random-login provider
 	@if [ -d ~/.pulumi/plugins/resource-random-login-v0.1.0/ ]; then \
 		mkdir -p ~/.pulumi/plugins/resource-random-login-v0.1.0/; \
 	fi

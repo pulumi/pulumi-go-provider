@@ -145,7 +145,7 @@ func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 		return "", fmt.Errorf("Type %T has no module path", t)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
-	mod = mod[strings.IndexRune(mod, '/')+1:]
+	mod = mod[strings.LastIndex(mod, "/")+1:]
 	if mod == "main" {
 		mod = "index"
 	}

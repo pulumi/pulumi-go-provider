@@ -28,6 +28,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
@@ -43,8 +44,9 @@ import (
 // returns.
 func Run(name string, version semver.Version, providerOptions ...Options) error {
 	opts := options{
-		Name:    name,
-		Version: version,
+		Name:     name,
+		Version:  version,
+		Language: map[string]schema.RawMessage{},
 	}
 	for _, o := range providerOptions {
 		o(&opts)
@@ -170,7 +172,7 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 	if err != nil {
 		return nil, "", err
 	}
-	customs, err := server.NewCustomResources(pkg, opts.Resources)
+	customs, err := server.NewCustomResources(pkg, opts.Customs)
 	if err != nil {
 		return nil, "", err
 	}
@@ -187,11 +189,13 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 type options struct {
 	Name        string
 	Version     semver.Version
-	Resources   []resource.Custom
+	Customs     []resource.Custom
 	Types       []interface{}
 	Components  []resource.Component
 	Enums       []types.Enum
 	PartialSpec schema.PackageSpec
+
+	Language map[string]schema.RawMessage
 }
 
 type Options func(*options)
@@ -199,7 +203,7 @@ type Options func(*options)
 // Resources adds resource.Custom for the provider to serve.
 func Resources(resources ...resource.Custom) Options {
 	return func(o *options) {
-		o.Resources = append(o.Resources, resources...)
+		o.Customs = append(o.Customs, resources...)
 	}
 }
 
@@ -252,6 +256,13 @@ func EnumVal(name string, value any) types.EnumValue {
 	return types.EnumValue{
 		Value: value,
 		Name:  name,
+	}
+}
+func GoOptions(opts goGen.GoPackageInfo) Options {
+	return func(o *options) {
+		b, err := json.Marshal(opts)
+		contract.AssertNoErrorf(err, "Failed to marshal go package info")
+		o.Language["go"] = b
 	}
 }
 
