@@ -21,6 +21,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/blang/semver"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/pulumi/pulumi-go-provider/internal/server"
 	"github.com/pulumi/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 // Run spawns a Pulumi Provider server, returning when the server shuts down. This
@@ -223,6 +225,21 @@ func PartialSpec(spec schema.PackageSpec) Options {
 	}
 }
 
+func Enum[T any](values ...types.EnumValue) types.Enum {
+	v := new(T)
+	t := reflect.TypeOf(v).Elem()
+	return types.Enum{
+		Type:   t,
+		Values: values,
+	}
+}
+
+func EnumVal(name string, value any) types.EnumValue {
+	return types.EnumValue{
+		Name:  name,
+		Value: value,
+	}
+}
 func GoOptions(opts goGen.GoPackageInfo) Options {
 	return func(o *options) {
 		b, err := json.Marshal(opts)

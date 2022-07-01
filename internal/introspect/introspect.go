@@ -132,10 +132,6 @@ func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 		}
 	}
 
-	if typ.Kind() != reflect.Struct {
-		return "", fmt.Errorf("Can only get tokens with underlying structs")
-	}
-
 	name := typ.Name()
 	if name == "" {
 		return "", fmt.Errorf("Type %T has no name", t)
