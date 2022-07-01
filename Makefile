@@ -1,9 +1,16 @@
-
-.PHONY: build build_examples install_examples lint
+.PHONY: build build_examples install_examples lint lint-copyright lint-golang test
 
 build:
 	go build github.com/pulumi/pulumi-go-provider
 
+test:
+	go test github.com/pulumi/pulumi-go-provider
+
+lint: lint-golang lint-copyright
+lint-golang:
+	golangci-lint run -c .golangci.yaml --timeout 5m
+lint-copyright:
+	pulumictl copyright -x 'examples/**'
 
 build_examples: build
 	@for ex in ${wildcard examples/*}; do \
@@ -45,10 +52,3 @@ install_examples: build_examples
 	mkdir -p ~/.pulumi/plugins/resource-random-login-v0.1.0
 	mv examples/random-login/random-login ~/.pulumi/plugins/resource-random-login-v0.1.0/pulumi-resource-random-login
 	cd examples/random-login/sdk/go/randomlogin && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
-
-lint:
-	golangci-lint run -c .golangci.yaml --timeout 5m
-	pulumictl copyright -x 'examples/**'
-
-test:
-	go test ./...

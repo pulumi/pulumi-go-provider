@@ -1,0 +1,108 @@
+name: Test
+
+on:
+  workflow_call:
+    inputs:
+      live-test:
+        description: |
+          Whether to run tests against a live environment. When false, tests that require secrets
+          should be skipped.
+        default: false
+        required: false
+        type: boolean
+      python-version:
+        description: "Version of the Python toolchain for the build"
+        default: "3.9.x"
+        required: false
+        type: string
+      node-version:
+        description: "Version of the Node toolchain for the build"
+        default: "14.x"
+        required: false
+        type: string
+      dotnet-version:
+        description: "Version of the .NET toolchain for the build"
+        default: "3.1.x"
+        required: false
+        type: string
+      commit-ref:
+        description: Commit ref to check out and run tests against.
+        default: ""
+        required: false
+        type: string
+    secrets:
+      PULUMI_ACCESS_TOKEN: { required: false }
+      AWS_ACCESS_KEY_ID: { required: false }
+      AWS_SECRET_ACCESS_KEY: { required: false }
+      AWS_CI_ROLE_ARN: { required: false }
+      ARM_CLIENT_ID: { required: false }
+      ARM_CLIENT_SECRET: { required: false }
+      ARM_SUBSCRIPTION_ID: { required: false }
+      ARM_TENANT_ID: { required: false }
+
+env:
+  PULUMI_LIVE_TEST: ${{ inputs.live-test }}
+  PULUMI_API: https://api.pulumi-staging.io
+  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  AWS_REGION: us-west-2
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  PULUMI_TEST_PARALLEL: false
+  NODE_OPTIONS: --max-old-space-size=3072
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.commit-ref }}
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+          stable: ${{ matrix.go-stable }}
+      # We are not testing on languages beyond go right now
+      # name: Set up Python ${{ inputs.python-version }}
+      #   uses: actions/setup-python@v1
+      #   with:
+      #     python-version: ${{ inputs.python-version }}
+      # - name: Install Python deps
+      #   run: |
+      #     python -m pip install --upgrade pip requests wheel urllib3 chardet
+      # - name: Set up DotNet ${{ inputs.dotnet-version }}
+      #   uses: actions/setup-dotnet@v1
+      #   with:
+      #     dotnet-version: ${{ inputs.dotnet-version }}
+      # - name: Set up Node ${{ inputs.node-version }}
+      #   uses: actions/setup-node@v2
+      #   with:
+      #     node-version: ${{ inputs.node-version }}
+      # - name: Install yarn
+      #   run: |
+      #     npm install -g yarn@1.22
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   # Skip on dry-run
+      #   if: ${{ inputs.live-test }}
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-region: ${{ env.AWS_REGION }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     role-duration-seconds: 3600
+      #     role-session-name: pulumi-go-provider@githubActions
+      #     role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+      - name: Install Pulumi CLI
+        uses: pulumi/action-install-pulumi-cli@v2
+      - name: Test
+        run: make test
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: [1.18.x]
+        go-stable: [true]
