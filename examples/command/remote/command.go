@@ -41,6 +41,25 @@ type Connection struct {
 	PrivateKey *string `pulumi:"privateKey,optional"`
 }
 
+func (con *Connection) Annotate(a r.Annotator) {
+	a.Describe(&con, "A local command to be executed.\n"+
+		"This command can be inserted into the life cycles of other resources using the\n"+
+		"`dependsOn` or `parent` resource options. A command is considered to have\n"+
+		"failed when it finished with a non-zero exit code. This will fail the CRUD step\n"+
+		"of the `Command` resource.")
+
+	a.Describe(&con.User, "The user that we should use for the connection.")
+	a.SetDefault(&con.User, "root")
+
+	a.Describe(&con.Password, "The password we should use for the connection.")
+	a.Describe(&con.Host, "The address of the resource to connect to.")
+
+	a.Describe(&con.Port, "The port to connect to.")
+	a.SetDefault(&con.Port, 22)
+
+	a.Describe(&con.PrivateKey, "The contents of an SSH key to use for the connection. This takes preference over the password if provided.")
+}
+
 // Generate an ssh config from a connection specification.
 func (con Connection) SShConfig() (*ssh.ClientConfig, error) {
 	config := &ssh.ClientConfig{
@@ -108,6 +127,20 @@ type Command struct {
 	// Output
 	Stdout string `pulumi:"stdout" provider:"output"`
 	Stderr string `pulumi:"stderr" provider:"output"`
+}
+
+func (c *Command) Annotate(a r.Annotator) {
+	a.Describe(&c, "A command to run on a remote host.\nThe connection is established via ssh.")
+	a.Describe(&c.Connection, "The parameters with which to connect to the remote host")
+	a.Describe(&c.Environment, "Additional environment variables available to the command's process.")
+	a.Describe(&c.Triggers, "Trigger replacements on changes to this input.")
+	a.Describe(&c.Create_, "The command to run on create.")
+	a.Describe(&c.Delete_, "The command to run on delete.")
+	a.Describe(&c.Update_, "The command to run on update, if empty, create will run again.")
+	a.Describe(&c.Stdin, "Pass a string to the command's process as standard in")
+
+	a.Describe(&c.Stdout, "The standard output of the command's process")
+	a.Describe(&c.Stderr, "")
 }
 
 // Create executes the create command, sets Stdout and Stderr, and returns a unique

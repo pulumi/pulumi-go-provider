@@ -32,6 +32,15 @@ type FileCopy struct {
 	RemotePath string         `pulumi:"remotePath"`
 }
 
+func (c *FileCopy) Annotate(a r.Annotator) {
+	a.Describe(&c, "Copy a local file to a remote host.")
+
+	a.Describe(&c.Connection, "The parameters with which to connect to the remote host.")
+	a.Describe(&c.Triggers, "Trigger replacements on changes to this input.")
+	a.Describe(&c.LocalPath, "The path of the file to be copied.")
+	a.Describe(&c.RemotePath, "The destination path in the remote host.")
+}
+
 func (c *FileCopy) Create(ctx r.Context, name string, preview bool) (r.ID, error) {
 	ctx.Log(diag.Debug, "Creating file: %s:%s from local file %s", c.Connection.Host, c.RemotePath, c.LocalPath)
 	inner := func() error {
