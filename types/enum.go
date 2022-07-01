@@ -20,11 +20,10 @@ import (
 
 type Enum struct {
 	Type   reflect.Type
-	Token  string
 	Values []EnumValue
 }
 
 type EnumValue struct {
-	Value interface{}
 	Name  string
+	Value any
 }

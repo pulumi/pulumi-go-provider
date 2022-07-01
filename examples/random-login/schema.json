@@ -18,17 +18,13 @@
       },
       "required": [
         "username",
-        "password",
-        "passwordLength"
+        "password"
       ],
       "inputProperties": {
         "passwordLength": {
           "type": "integer"
         }
       },
-      "requiredInputs": [
-        "passwordLength"
-      ],
       "isComponent": true
     },
     "random-login:index:RandomSalt": {

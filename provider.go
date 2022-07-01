@@ -33,7 +33,6 @@ import (
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi-go-provider/internal/server"
 	"github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi-go-provider/types"
@@ -192,7 +191,6 @@ type options struct {
 	Customs     []resource.Custom
 	Types       []interface{}
 	Components  []resource.Component
-	Enums       []types.Enum
 	PartialSpec schema.PackageSpec
 
 	Language map[string]schema.RawMessage
@@ -221,40 +219,25 @@ func Components(components ...resource.Component) Options {
 	}
 }
 
-func Enums(enums ...types.Enum) Options {
-	return func(o *options) {
-		o.Enums = append(o.Enums, enums...)
-	}
-}
-
 func PartialSpec(spec schema.PackageSpec) Options {
 	return func(o *options) {
 		o.PartialSpec = spec
 	}
 }
 
-func Enum[T any](enum any, pkgname string, values []types.EnumValue) (types.Enum, error) {
-	t := reflect.TypeOf(enum)
-	token, err := introspect.GetToken(tokens.Package(pkgname), enum)
-	if err != nil {
-		return types.Enum{}, err
-	}
-
+func Enum[T any](values ...types.EnumValue) types.Enum {
+	v := new(T)
+	t := reflect.TypeOf(v).Elem()
 	return types.Enum{
 		Type:   t,
-		Token:  token.String(),
 		Values: values,
-	}, nil
-}
-
-func EnumVals(values ...types.EnumValue) []types.EnumValue {
-	return values
+	}
 }
 
 func EnumVal(name string, value any) types.EnumValue {
 	return types.EnumValue{
-		Value: value,
 		Name:  name,
+		Value: value,
 	}
 }
 func GoOptions(opts goGen.GoPackageInfo) Options {
