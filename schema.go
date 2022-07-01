@@ -57,6 +57,8 @@ func serialize(opts options) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	fmt.Fprintf(os.Stdout, string(schemaJSON))
 	return string(schemaJSON), nil
 }
 
@@ -108,7 +110,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	}
 
 	for _, enum := range opts.Enums {
-		info.enums[enum.Type] = enum
+		info.enums[dereference(enum.Type)] = enum
 		enumSpec, err := serializeEnumType(enum)
 		if err != nil {
 			return schema.PackageSpec{}, err
@@ -152,7 +154,9 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 }
 
 func serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
-	kind, _ := getTypeKind(enum.Type)
+	t := enum.Type
+	t = dereference(t)
+	kind, _ := getTypeKind(t)
 	enumVals := make([]schema.EnumValueSpec, 0)
 	for _, val := range enum.Values {
 		enumVals = append(enumVals, schema.EnumValueSpec{
@@ -695,24 +699,29 @@ func isTypeOrResource(t reflect.Type, info serializationInfo) bool {
 func getTypeKind(t reflect.Type) (string, bool) {
 	var typeName string
 	isEnum := false
+	fmt.Fprintf(os.Stdout, "getTypeKind: %s\n", t.Kind())
 	switch t.Kind() {
 	case reflect.String:
 		typeName = STRING
-		isEnum = t.Name() != reflect.String.String()
+		isEnum = t.String() != reflect.String.String()
 	case reflect.Bool:
 		typeName = BOOL
 	case reflect.Int:
 		typeName = INT
-		isEnum = t.Name() != reflect.Int.String()
+		isEnum = t.String() != reflect.Int.String()
 	case reflect.Float64:
 		typeName = FLOAT
-		isEnum = t.Name() != reflect.Float64.String()
+		isEnum = t.String() != reflect.Float64.String()
 	case reflect.Array, reflect.Slice:
 		typeName = ARRAY
 	case reflect.Map:
 		typeName = MAP
 	case reflect.Interface, reflect.Struct: //Should maps be objects?
 		typeName = OBJECT
+	case reflect.Ptr:
+		//This is a panic because we should always be dereferencing pointers
+		//The user should not be able to cause this to happen
+		panic("Detected pointer type during serialization - did you forget to dereference?")
 	default:
 		typeName = UNKNOWN
 	}
@@ -801,6 +810,7 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 }
 
 func serializeEnum(t reflect.Type, info serializationInfo) (schema.TypeSpec, error) {
+	t = dereference(t)
 	enum, ok := info.enums[t]
 	if !ok {
 		return schema.TypeSpec{}, fmt.Errorf("unknown enum type %s", t)
