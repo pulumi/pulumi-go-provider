@@ -21,6 +21,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/blang/semver"
@@ -31,8 +32,10 @@ import (
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi-go-provider/internal/server"
 	"github.com/pulumi/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 // Run spawns a Pulumi Provider server, returning when the server shuts down. This
@@ -187,6 +190,7 @@ type options struct {
 	Resources   []resource.Custom
 	Types       []interface{}
 	Components  []resource.Component
+	Enums       []types.Enum
 	PartialSpec schema.PackageSpec
 }
 
@@ -213,9 +217,41 @@ func Components(components ...resource.Component) Options {
 	}
 }
 
+func Enums(enums ...types.Enum) Options {
+	return func(o *options) {
+		o.Enums = append(o.Enums, enums...)
+	}
+}
+
 func PartialSpec(spec schema.PackageSpec) Options {
 	return func(o *options) {
 		o.PartialSpec = spec
+	}
+}
+
+func ConstructEnum[T any](enum any, pkgname string, values []types.EnumValue) types.Enum {
+	t := reflect.TypeOf(enum)
+	token, err := introspect.GetToken(tokens.Package(pkgname), enum)
+	if err != nil {
+		panic(err)
+		return types.Enum{}
+	}
+
+	return types.Enum{
+		Type:   t,
+		Token:  token.String(),
+		Values: values,
+	}
+}
+
+func ConstructEnumValues(values ...types.EnumValue) []types.EnumValue {
+	return values
+}
+
+func ConstructEnumValue(name string, value any) types.EnumValue {
+	return types.EnumValue{
+		Value: value,
+		Name:  name,
 	}
 }
 
