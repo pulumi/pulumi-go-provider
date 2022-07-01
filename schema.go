@@ -623,16 +623,21 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 		}
 	}
 
-	spec := schema.ResourceSpec{}
-	spec.ObjectTypeSpec.Properties = properties
-	spec.InputProperties = inputProperties
-	spec.RequiredInputs = requiredInputs
-	spec.Required = required
-	return spec, nil
+	return schema.ResourceSpec{
+		ObjectTypeSpec: schema.ObjectTypeSpec{
+			Properties:  properties,
+			Description: descriptions[""],
+			Required:    required,
+		},
+		InputProperties: inputProperties,
+		RequiredInputs:  requiredInputs,
+	}, nil
 }
 
 //Get the propertySpec for a single property
-func serializeProperty(t reflect.Type, description string, defValue any, info serializationInfo) (schema.PropertySpec, error) {
+func serializeProperty(t reflect.Type, description string,
+	defValue any, info serializationInfo) (schema.PropertySpec, error) {
+	// TODO: add the default
 	t = dereference(t)
 	typeKind, enum := getTypeKind(t)
 	if enum {

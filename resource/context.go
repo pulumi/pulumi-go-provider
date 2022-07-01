@@ -73,12 +73,13 @@ type SContext struct {
 
 // See the method documentation for Context.MarkComputed.
 func (c *SContext) MarkComputed(field any) {
-	tag, err, ok := c.matcher.GetField(field)
+	tag, ok, err := c.matcher.GetField(field)
+	if err != nil {
+		panic(fmt.Sprintf("failed to mark as computed: %s", err.Error()))
+	}
+
 	if !ok {
 		panic("Cannot mark value as computed, since it is not a field reference")
-	}
-	if err != nil {
-		panic("Failed to parse struct tags for the marked value")
 	}
 	c.markedComputed = append(c.markedComputed, tag.Name)
 }
@@ -94,7 +95,8 @@ func (c *SContext) LogStatus(severity diag.Severity, msg string, args ...any) er
 	return c.host.LogStatus(c.Context, severity, c.urn, fmt.Sprintf(msg, args...))
 }
 
-func NewContext(ctx context.Context, host *provider.HostClient, urn resource.URN, matcher introspect.FieldMatcher) *SContext {
+func NewContext(ctx context.Context, host *provider.HostClient,
+	urn resource.URN, matcher introspect.FieldMatcher) *SContext {
 	contract.Assert(host != nil)
 
 	return &SContext{

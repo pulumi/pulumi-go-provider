@@ -33,7 +33,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Names for the default value"
         }
       },
       "type": "object",

@@ -211,15 +211,15 @@ type FieldMatcher struct {
 	value reflect.Value
 }
 
-func (f *FieldMatcher) GetField(field any) (FieldTag, error, bool) {
+func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 	hostType := f.value.Type()
 	for i := 0; i < hostType.NumField(); i++ {
 		f := f.value.Field(i)
 		fType := hostType.Field(i)
 		if f.Addr().Interface() == field {
-			f, ok := ParseTag(fType)
-			return f, ok, true
+			f, error := ParseTag(fType)
+			return f, true, error
 		}
 	}
-	return FieldTag{}, nil, false
+	return FieldTag{}, false, nil
 }
