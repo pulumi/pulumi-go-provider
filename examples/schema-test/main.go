@@ -7,7 +7,6 @@ import (
 
 	"github.com/blang/semver"
 	provider "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
 type Enum int
@@ -19,36 +18,25 @@ const (
 	G
 )
 
-type strct struct {
-	enum  Enum     `pulumi:"enum"`
-	names []string `pulumi:"names"`
+type Strct struct {
+	Enum  Enum     `pulumi:"enum"`
+	Names []string `pulumi:"names"`
 }
 
 func main() {
 	println(reflect.TypeOf((*Enum)(nil)).Elem().String())
 
-	spec := schema.PackageSpec{}
-
-	enum, err := provider.Enum[int]((*Enum)(nil), "schema-test", provider.EnumVals(
-		provider.EnumVal("A", 0),
-		provider.EnumVal("C", 1),
-		provider.EnumVal("T", 2),
-		provider.EnumVal("G", 3),
-	))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
-		os.Exit(1)
-	}
-
-	err = provider.Run("schema-test", semver.Version{Minor: 1},
-		provider.Components(),
-		provider.Resources(),
-		provider.Types((*strct)(nil)),
-		provider.Enums(enum),
-		provider.PartialSpec(spec),
+	err := provider.Run("schema-test", semver.Version{Minor: 1},
+		provider.Types(
+			provider.Enum[Enum](
+				provider.EnumVal("A", A),
+				provider.EnumVal("C", C),
+				provider.EnumVal("T", T),
+				provider.EnumVal("G", G)),
+			&Strct{}),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
 	}
 }

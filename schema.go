@@ -42,7 +42,7 @@ type serializationInfo struct {
 	pkgname   string
 	resources map[reflect.Type]string
 	types     map[reflect.Type]string
-	enums     map[reflect.Type]types.Enum
+	enums     map[reflect.Type]string
 	inputMap  inputToImplementor
 }
 
@@ -74,7 +74,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	info.pkgname = opts.Name
 	info.resources = make(map[reflect.Type]string)
 	info.types = make(map[reflect.Type]string)
-	info.enums = make(map[reflect.Type]types.Enum)
+	info.enums = make(map[reflect.Type]string)
 	info.inputMap = initializeInputMap()
 
 	for _, resource := range opts.Customs {
@@ -89,6 +89,15 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	}
 
 	for _, typ := range opts.Types {
+		if enum, ok := typ.(types.Enum); ok {
+			instance := reflect.New(enum.Type).Elem().Interface()
+			typeToken, err := introspect.GetToken(tokens.Package(info.pkgname), instance)
+			if err != nil {
+				return schema.PackageSpec{}, err
+			}
+			info.enums[dereference(enum.Type)] = typeToken.String()
+			continue
+		}
 		t := reflect.TypeOf(typ)
 		t = dereference(t)
 		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), typ)
@@ -107,15 +116,6 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		}
 		token := tokenType.String()
 		info.resources[t] = token
-	}
-
-	for _, enum := range opts.Enums {
-		info.enums[dereference(enum.Type)] = enum
-		enumSpec, err := serializeEnumType(enum)
-		if err != nil {
-			return schema.PackageSpec{}, err
-		}
-		spec.Types[enum.Token] = enumSpec
 	}
 
 	for _, resource := range opts.Customs {
@@ -138,6 +138,18 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	}
 
 	for _, t := range opts.Types {
+		if enum, ok := t.(types.Enum); ok {
+			enumSpec, err := serializeEnumType(enum)
+			if err != nil {
+				return schema.PackageSpec{}, err
+			}
+			token, ok := info.enums[dereference(enum.Type)]
+			if !ok {
+				return schema.PackageSpec{}, fmt.Errorf("internal error: could not find type enum type: %s", dereference(enum.Type))
+			}
+			spec.Types[token] = enumSpec
+			continue
+		}
 		typeSpec, err := serializeType(t, info)
 		if err != nil {
 			return schema.PackageSpec{}, err
@@ -157,7 +169,7 @@ func serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
 	t := enum.Type
 	t = dereference(t)
 	kind, _ := getTypeKind(t)
-	enumVals := make([]schema.EnumValueSpec, 0)
+	enumVals := make([]schema.EnumValueSpec, 0, len(enum.Values))
 	for _, val := range enum.Values {
 		enumVals = append(enumVals, schema.EnumValueSpec{
 			Name:  val.Name,
@@ -839,7 +851,7 @@ func serializeEnum(t reflect.Type, info serializationInfo) (schema.TypeSpec, err
 		return schema.TypeSpec{}, fmt.Errorf("unknown enum type %s", t)
 	}
 	return schema.TypeSpec{
-		Ref: "#/types/" + enum.Token,
+		Ref: "#/types/" + enum,
 	}, nil
 }
 

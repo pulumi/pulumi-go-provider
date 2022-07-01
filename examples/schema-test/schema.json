@@ -24,7 +24,7 @@
         }
       ]
     },
-    "schema-test:index:strct": {
+    "schema-test:index:Strct": {
       "properties": {
         "enum": {
           "$ref": "#/types/schema-test:index:Enum"

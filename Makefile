@@ -20,8 +20,9 @@ install_examples: build_examples
 	@if [ -d ~/.pulumi/plugins/resource-schema-test-v0.1.0/ ]; then \
 		mkdir -p ~/.pulumi/plugins/resource-schema-test-v0.1.0/; \
 	fi
-	rm -fr examples/schema-test/sdk
+	rm -rf examples/schema-test/sdk
 	cd examples/schema-test && ./schema-test -sdkGen -emitSchema
+	mkdir -p ~/.pulumi/plugins/resource-schema-test-v0.1.0
 	mv examples/schema-test/schema-test ~/.pulumi/plugins/resource-schema-test-v0.1.0/pulumi-resource-schema-test
 	cd examples/schema-test/sdk/go/schematest && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
 
@@ -31,6 +32,7 @@ install_examples: build_examples
 	fi
 	rm -rf examples/command/sdk
 	cd examples/command && ./command -sdkGen -emitSchema
+	mkdir -p ~/.pulumi/plugins/resource-command-v0.3.2
 	mv examples/command/command ~/.pulumi/plugins/resource-command-v0.3.2/pulumi-resource-command
 	cd examples/command/sdk/go/command && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
 
@@ -38,8 +40,9 @@ install_examples: build_examples
 	@if [ -d ~/.pulumi/plugins/resource-random-login-v0.1.0/ ]; then \
 		mkdir -p ~/.pulumi/plugins/resource-random-login-v0.1.0/; \
 	fi
-	rm -fr examples/random-login/sdk
+	rm -rf examples/random-login/sdk
 	cd examples/random-login && ./random-login -sdkGen -emitSchema
+	mkdir -p ~/.pulumi/plugins/resource-random-login-v0.1.0
 	mv examples/random-login/random-login ~/.pulumi/plugins/resource-random-login-v0.1.0/pulumi-resource-random-login
 	cd examples/random-login/sdk/go/randomlogin && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
 

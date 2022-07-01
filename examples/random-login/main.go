@@ -34,7 +34,7 @@ type RandomLogin struct {
 	Password pulumi.StringOutput `pulumi:"password" provider:"output"`
 
 	// Inputs
-	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength,optional"`
 }
 
 func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {

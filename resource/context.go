@@ -98,7 +98,6 @@ func (c *SContext) Log(severity diag.Severity, msg string, args ...any) error {
 // LogStatus logs a global status message, including errors and warnings. Status messages will
 // appear in the `Info` column of the progress display, but not in the final output.
 func (c *SContext) LogStatus(severity diag.Severity, msg string, args ...any) error {
-	fmt.Printf("URN: '%s'\n", c.urn)
 	return c.host.LogStatus(c.Context, severity, c.urn, fmt.Sprintf(msg, args...))
 }
 
