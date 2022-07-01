@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/blang/semver"
 	provider "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
 type Enum int
@@ -18,47 +18,25 @@ const (
 	G
 )
 
-type strct struct {
-	enum  Enum     `pulumi:"enum"`
-	names []string `pulumi:"names"`
+type Strct struct {
+	Enum  Enum     `pulumi:"enum"`
+	Names []string `pulumi:"names"`
 }
 
 func main() {
-	spec := schema.PackageSpec{}
-	spec.Types = make(map[string]schema.ComplexTypeSpec)
-
-	enums := make([]schema.EnumValueSpec, 0)
-	enums = append(enums, schema.EnumValueSpec{
-		Value: 0,
-		Name:  "A",
-	})
-	enums = append(enums, schema.EnumValueSpec{
-		Value: 1,
-		Name:  "C",
-	})
-	enums = append(enums, schema.EnumValueSpec{
-		Value: 2,
-		Name:  "T",
-	})
-	enums = append(enums, schema.EnumValueSpec{
-		Value: 3,
-		Name:  "G",
-	})
-	spec.Types["schema-test:index:Enum"] = schema.ComplexTypeSpec{
-		ObjectTypeSpec: schema.ObjectTypeSpec{
-			Type: "integer",
-		},
-		Enum: enums,
-	}
+	println(reflect.TypeOf((*Enum)(nil)).Elem().String())
 
 	err := provider.Run("schema-test", semver.Version{Minor: 1},
-		provider.Components(),
-		provider.Resources(),
-		provider.Types((*strct)(nil)),
-		provider.PartialSpec(spec),
+		provider.Types(
+			provider.Enum[Enum](
+				provider.EnumVal("A", A),
+				provider.EnumVal("C", C),
+				provider.EnumVal("T", T),
+				provider.EnumVal("G", G)),
+			&Strct{}),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
 	}
 }

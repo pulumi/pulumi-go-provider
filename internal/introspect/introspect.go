@@ -132,10 +132,6 @@ func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 		}
 	}
 
-	if typ.Kind() != reflect.Struct {
-		return "", fmt.Errorf("Can only get tokens with underlying structs")
-	}
-
 	name := typ.Name()
 	if name == "" {
 		return "", fmt.Errorf("Type %T has no name", t)
@@ -145,7 +141,7 @@ func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 		return "", fmt.Errorf("Type %T has no module path", t)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
-	mod = mod[strings.IndexRune(mod, '/')+1:]
+	mod = mod[strings.LastIndex(mod, "/")+1:]
 	if mod == "main" {
 		mod = "index"
 	}

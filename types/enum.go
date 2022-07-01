@@ -12,27 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resource
+package types
 
 import (
-	"context"
 	"reflect"
-	"testing"
-
-	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
-	"github.com/stretchr/testify/assert"
 )
 
-type FooResoruce struct {
-	A string
-	B *int
+type Enum struct {
+	Type   reflect.Type
+	Values []EnumValue
 }
 
-func TestMarkComputed(t *testing.T) {
-	t.Parallel()
-	f := &FooResoruce{}
-
-	ctx := NewContext(context.Background(), &provider.HostClient{}, "urn", reflect.ValueOf(f))
-	ctx.MarkComputed(&f.A)
-	assert.Equal(t, []string{"A"}, ctx.markedComputed)
+type EnumValue struct {
+	Name  string
+	Value any
 }

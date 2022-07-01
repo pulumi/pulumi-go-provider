@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/types"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -32,7 +33,7 @@ const (
 	BOOL    = "boolean"
 	FLOAT   = "number"
 	ARRAY   = "array"
-	MAP     = "object"
+	ANY     = "any"
 	OBJECT  = "object"
 	UNKNOWN = "unknown"
 )
@@ -41,6 +42,7 @@ type serializationInfo struct {
 	pkgname   string
 	resources map[reflect.Type]string
 	types     map[reflect.Type]string
+	enums     map[reflect.Type]string
 	inputMap  inputToImplementor
 }
 
@@ -50,11 +52,13 @@ func serialize(opts options) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	pkgSpec.Language = opts.Language
 
 	schemaJSON, err := json.MarshalIndent(pkgSpec, "", "  ")
 	if err != nil {
 		return "", err
 	}
+
 	return string(schemaJSON), nil
 }
 
@@ -70,9 +74,10 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	info.pkgname = opts.Name
 	info.resources = make(map[reflect.Type]string)
 	info.types = make(map[reflect.Type]string)
+	info.enums = make(map[reflect.Type]string)
 	info.inputMap = initializeInputMap()
 
-	for _, resource := range opts.Resources {
+	for _, resource := range opts.Customs {
 		t := reflect.TypeOf(resource)
 		t = dereference(t)
 		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), resource)
@@ -84,6 +89,15 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	}
 
 	for _, typ := range opts.Types {
+		if enum, ok := typ.(types.Enum); ok {
+			instance := reflect.New(enum.Type).Elem().Interface()
+			typeToken, err := introspect.GetToken(tokens.Package(info.pkgname), instance)
+			if err != nil {
+				return schema.PackageSpec{}, err
+			}
+			info.enums[dereference(enum.Type)] = typeToken.String()
+			continue
+		}
 		t := reflect.TypeOf(typ)
 		t = dereference(t)
 		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), typ)
@@ -104,7 +118,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		info.resources[t] = token
 	}
 
-	for _, resource := range opts.Resources {
+	for _, resource := range opts.Customs {
 		resourceSpec, err := serializeResource(resource, info)
 		if err != nil {
 			return schema.PackageSpec{}, err
@@ -112,7 +126,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		token := info.resources[dereference(reflect.TypeOf(resource))]
 		spec.Resources[token] = resourceSpec
 	}
-	//Components are essentially resources, I don't believe they are differentiated in the schema
+
 	for _, component := range opts.Components {
 		componentSpec, err := serializeResource(component, info)
 		if err != nil {
@@ -124,6 +138,18 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	}
 
 	for _, t := range opts.Types {
+		if enum, ok := t.(types.Enum); ok {
+			enumSpec, err := serializeEnumType(enum)
+			if err != nil {
+				return schema.PackageSpec{}, err
+			}
+			token, ok := info.enums[dereference(enum.Type)]
+			if !ok {
+				return schema.PackageSpec{}, fmt.Errorf("internal error: could not find type enum type: %s", dereference(enum.Type))
+			}
+			spec.Types[token] = enumSpec
+			continue
+		}
 		typeSpec, err := serializeType(t, info)
 		if err != nil {
 			return schema.PackageSpec{}, err
@@ -137,6 +163,27 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	if err != nil {
 		return schema.PackageSpec{}, err
 	}
+	return spec, nil
+}
+
+func serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
+	t := enum.Type
+	t = dereference(t)
+	kind, _ := getTypeKind(t)
+	enumVals := make([]schema.EnumValueSpec, 0, len(enum.Values))
+	for _, val := range enum.Values {
+		enumVals = append(enumVals, schema.EnumValueSpec{
+			Name:  val.Name,
+			Value: val.Value,
+		})
+	}
+	spec := schema.ComplexTypeSpec{
+		ObjectTypeSpec: schema.ObjectTypeSpec{
+			Type: kind,
+		},
+		Enum: enumVals,
+	}
+
 	return spec, nil
 }
 
@@ -465,7 +512,7 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
-		if ((!tags.Output) || isInput) && !isOutput {
+		if !tags.Output {
 			inputProperties[tags.Name] = serialized
 			if !tags.Optional {
 				requiredInputs = append(requiredInputs, tags.Name)
@@ -487,8 +534,18 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 
 //Get the propertySpec for a single property
 func serializeProperty(t reflect.Type, description string, info serializationInfo) (schema.PropertySpec, error) {
-	typeName := getTypeName(t)
-	if isTypeOrResource(t, info) {
+	t = dereference(t)
+	typeKind, enum := getTypeKind(t)
+	if enum {
+		enumSpec, err := serializeEnum(t, info)
+		if err != nil {
+			return schema.PropertySpec{}, err
+		}
+		return schema.PropertySpec{
+			TypeSpec:    enumSpec,
+			Description: description,
+		}, nil
+	} else if isTypeOrResource(t, info) {
 		typeSpec, err := serializeRef(t, info)
 		if err != nil {
 			return schema.PropertySpec{}, err
@@ -497,7 +554,14 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 			Description: description,
 			TypeSpec:    *typeSpec,
 		}, nil
-	} else if typeName == ARRAY {
+	}
+
+	if typeKind == UNKNOWN {
+		return schema.PropertySpec{}, fmt.Errorf("failed to serialize property of type %s: unknown typeName", t)
+	}
+
+	switch typeKind {
+	case ARRAY:
 		itemSpec, err := serializeTypeRef(t.Elem(), info)
 		if err != nil {
 			return schema.PropertySpec{}, err
@@ -505,11 +569,11 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 		return schema.PropertySpec{
 			Description: description,
 			TypeSpec: schema.TypeSpec{
-				Type:  typeName,
+				Type:  typeKind,
 				Items: itemSpec,
 			},
 		}, nil
-	} else if typeName == MAP {
+	case OBJECT:
 		valSpec, err := serializeTypeRef(t.Elem(), info)
 		if err != nil {
 			return schema.PropertySpec{}, err
@@ -524,15 +588,13 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 				AdditionalProperties: valSpec,
 			},
 		}, nil
-	} else if typeName != UNKNOWN {
+	default:
 		return schema.PropertySpec{
 			Description: description,
 			TypeSpec: schema.TypeSpec{
-				Type: typeName,
+				Type: typeKind,
 			},
 		}, nil
-	} else {
-		return schema.PropertySpec{}, fmt.Errorf("unknown type %s", t)
 	}
 }
 
@@ -540,15 +602,15 @@ func serializeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, err
 	t = dereference(t)
 	if token, ok := info.resources[t]; ok {
 		return &schema.TypeSpec{
-			Type: "#/resources/" + token,
+			Ref: "#/resources/" + token,
 		}, nil
 	}
 	if token, ok := info.types[t]; ok {
 		return &schema.TypeSpec{
-			Type: "#/types/" + token,
+			Ref: "#/types/" + token,
 		}, nil
 	}
-	return nil, fmt.Errorf("unknown type %s", t)
+	return nil, fmt.Errorf("unknown reference type %s", t)
 
 }
 
@@ -563,44 +625,62 @@ func isTypeOrResource(t reflect.Type, info serializationInfo) bool {
 }
 
 //Get the typeSpec for a single type
-func getTypeName(t reflect.Type) string {
+func getTypeKind(t reflect.Type) (string, bool) {
 	var typeName string
+	isEnum := false
 	switch t.Kind() {
 	case reflect.String:
 		typeName = STRING
+		isEnum = t.String() != reflect.String.String()
 	case reflect.Bool:
 		typeName = BOOL
 	case reflect.Int:
 		typeName = INT
+		isEnum = t.String() != reflect.Int.String()
 	case reflect.Float64:
 		typeName = FLOAT
+		isEnum = t.String() != reflect.Float64.String()
 	case reflect.Array, reflect.Slice:
 		typeName = ARRAY
 	case reflect.Map:
-		typeName = MAP
-	case reflect.Interface, reflect.Struct: //Should maps be objects?
 		typeName = OBJECT
+	case reflect.Ptr:
+		//This is a panic because we should always be dereferencing pointers
+		//The user should not be able to cause this to happen
+		//I removed the behavior where getTypeKind would automatically dereference pointers
+		//Because it may be confusing when debugging if getTypeKind is returning non-pointer
+		//When t is actually a pointe
+		panic("Detected pointer type during serialization - did you forget to dereference?")
+	case reflect.Interface:
+		typeName = ANY
 	default:
 		typeName = UNKNOWN
 	}
-	return typeName
+	return typeName, isEnum
 }
 
 func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, error) {
-	typeName := getTypeName(t)
-	if isTypeOrResource(t, info) {
+	typeKind, enum := getTypeKind(t)
+	if enum {
+		enumSpec, err := serializeEnum(t, info)
+		if err != nil {
+			return nil, err
+		}
+		return &enumSpec, nil
+	} else if isTypeOrResource(t, info) {
 		return serializeRef(t, info)
 	}
-	if typeName == ARRAY {
+	switch typeKind {
+	case ARRAY:
 		itemSpec, err := serializeTypeRef(t.Elem(), info)
 		if err != nil {
 			return nil, err
 		}
 		return &schema.TypeSpec{
-			Type:  typeName,
+			Type:  typeKind,
 			Items: itemSpec,
 		}, nil
-	} else if typeName == MAP {
+	case OBJECT:
 		valSpec, err := serializeTypeRef(t.Elem(), info)
 		if err != nil {
 			return nil, err
@@ -612,26 +692,41 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 			Type:                 "object", //There is no map type in the schema
 			AdditionalProperties: valSpec,
 		}, nil
-	} else if typeName != UNKNOWN {
+	case ANY:
 		return &schema.TypeSpec{
-			Type: typeName,
+			Ref: "pulumi.json#/Any",
 		}, nil
-	} else {
+	case UNKNOWN:
 		return &schema.TypeSpec{}, fmt.Errorf("unknown type %s", t)
+	default:
+		return &schema.TypeSpec{
+			Type: typeKind,
+		}, nil
 	}
 }
 
 func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, error) {
 	t := reflect.TypeOf(typ)
 	t = dereference(t)
-	typeName := getTypeName(t)
-	if typeName == "object" {
+	typeKind, enum := getTypeKind(t)
+	if enum {
+		return schema.ComplexTypeSpec{}, fmt.Errorf("enums are implemented using provider.Enums()")
+	}
+
+	if t.Kind() == reflect.Struct {
 		properties := make(map[string]schema.PropertySpec)
+		var required []string
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			tags, err := introspect.ParseTag(field)
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
+			}
+			if tags.Internal {
+				continue
+			}
+			if !tags.Optional {
+				required = append(required, tags.Name)
 			}
 			properties[tags.Name], err = serializeProperty(field.Type, tags.Description, info)
 			if err != nil {
@@ -642,18 +737,32 @@ func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, err
 			ObjectTypeSpec: schema.ObjectTypeSpec{
 				Type:       "object",
 				Properties: properties,
+				Required:   required,
 			},
 		}, nil
 	}
+
 	enumVals := make([]schema.EnumValueSpec, 0)
 
-	fmt.Fprintf(os.Stderr, "WARNING! Enum types must be manually specified"+
-		"Overwrite the autogenerated type %s with your own.", t)
+	fmt.Fprintf(os.Stderr, "overwrite the autogenerated type %s with your own: "+
+		"enum types must be manually specified", t)
+
 	return schema.ComplexTypeSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
-			Type: typeName,
+			Type: typeKind,
 		},
 		Enum: enumVals,
+	}, nil
+}
+
+func serializeEnum(t reflect.Type, info serializationInfo) (schema.TypeSpec, error) {
+	t = dereference(t)
+	enum, ok := info.enums[t]
+	if !ok {
+		return schema.TypeSpec{}, fmt.Errorf("unknown enum type %s", t)
+	}
+	return schema.TypeSpec{
+		Ref: "#/types/" + enum,
 	}, nil
 }
 
