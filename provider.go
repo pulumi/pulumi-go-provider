@@ -237,7 +237,6 @@ func Enum[T any](enum any, pkgname string, values []types.EnumValue) (types.Enum
 	t := reflect.TypeOf(enum)
 	token, err := introspect.GetToken(tokens.Package(pkgname), enum)
 	if err != nil {
-		panic(err)
 		return types.Enum{}, err
 	}
 
