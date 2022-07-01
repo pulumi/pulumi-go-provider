@@ -158,8 +158,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		token := info.types[dereference(reflect.TypeOf(t))]
 		spec.Types[token] = typeSpec
 	}
-	over := opts.PartialSpec
-	spec, err := mergePackageSpec(spec, over)
+	spec, err := mergePackageSpec(spec, opts.PartialSpec)
 	if err != nil {
 		return schema.PackageSpec{}, err
 	}

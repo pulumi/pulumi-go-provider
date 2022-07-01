@@ -24,7 +24,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )
 
-type FileCopy struct {
+type CopyFile struct {
 	// Input
 	Connection Connection     `pulumi:"connection"`
 	Triggers   *[]interface{} `pulumi:"triggers,optional"`
@@ -32,7 +32,7 @@ type FileCopy struct {
 	RemotePath string         `pulumi:"remotePath"`
 }
 
-func (c *FileCopy) Annotate(a r.Annotator) {
+func (c *CopyFile) Annotate(a r.Annotator) {
 	a.Describe(&c, "Copy a local file to a remote host.")
 
 	a.Describe(&c.Connection, "The parameters with which to connect to the remote host.")
@@ -41,7 +41,7 @@ func (c *FileCopy) Annotate(a r.Annotator) {
 	a.Describe(&c.RemotePath, "The destination path in the remote host.")
 }
 
-func (c *FileCopy) Create(ctx r.Context, name string, preview bool) (r.ID, error) {
+func (c *CopyFile) Create(ctx r.Context, name string, preview bool) (r.ID, error) {
 	ctx.Log(diag.Debug, "Creating file: %s:%s from local file %s", c.Connection.Host, c.RemotePath, c.LocalPath)
 	inner := func() error {
 		src, err := os.Open(c.LocalPath)
@@ -81,7 +81,7 @@ func (c *FileCopy) Create(ctx r.Context, name string, preview bool) (r.ID, error
 
 }
 
-func (c *FileCopy) Delete(ctx r.Context, _ r.ID) error {
+func (c *CopyFile) Delete(ctx r.Context, _ r.ID) error {
 	ctx.Log(diag.Debug, "CopyFile delete is a no-op")
 	return nil
 }

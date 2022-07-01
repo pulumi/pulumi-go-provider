@@ -25,6 +25,7 @@
       ]
     },
     "schema-test:index:Strct": {
+      "description": "This is a holder for enums",
       "properties": {
         "enum": {
           "$ref": "#/types/schema-test:index:Enum",
