@@ -1,0 +1,47 @@
+{
+  "name": "schema-test",
+  "version": "0.1.0",
+  "config": {},
+  "types": {
+    "schema-test:index:Enum": {
+      "type": "integer",
+      "enum": [
+        {
+          "name": "A",
+          "value": 0
+        },
+        {
+          "name": "C",
+          "value": 1
+        },
+        {
+          "name": "T",
+          "value": 2
+        },
+        {
+          "name": "G",
+          "value": 3
+        }
+      ]
+    },
+    "schema-test:index:Strct": {
+      "properties": {
+        "enum": {
+          "$ref": "#/types/schema-test:index:Enum"
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "enum",
+        "names"
+      ]
+    }
+  },
+  "provider": {}
+}

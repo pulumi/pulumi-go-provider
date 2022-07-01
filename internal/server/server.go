@@ -16,10 +16,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -27,6 +25,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/grpc/codes"
@@ -37,60 +36,23 @@ import (
 	r "github.com/pulumi/pulumi-go-provider/resource"
 )
 
-func newOfType[T any](t T) T {
-	return reflect.New(reflect.TypeOf(t)).Interface().(T)
-}
-
-func getToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
-	typ := reflect.TypeOf(t)
-	if typ == nil {
-		return "", fmt.Errorf("Cannot get token of nil type")
-	}
-
-	for typ.Kind() == reflect.Pointer {
-		typ = typ.Elem()
-		if typ == nil {
-			return "", fmt.Errorf("Cannot get token of nil type")
-		}
-	}
-
-	if typ.Kind() != reflect.Struct {
-		return "", fmt.Errorf("Can only get tokens with underlying structs")
-	}
-
-	name := typ.Name()
-	if name == "" {
-		return "", fmt.Errorf("Type %T has no name", t)
-	}
-	mod := strings.Trim(typ.PkgPath(), "*")
-	if mod == "" {
-		return "", fmt.Errorf("Type %T has no module path", t)
-	}
-	// Take off the pkg name, since that is supplied by `pkg`.
-	mod = mod[strings.IndexRune(mod, '/')+1:]
-	if mod == "main" {
-		mod = "index"
-	}
-	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
-	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
-	return tk, nil
-}
-
 type Server struct {
 	Name    string
 	Version semver.Version
-	Host    *pprovider.HostClient
+	host    *pprovider.HostClient
+	Schema  string
 
 	components ComponentResources
 	customs    CustomResources
 }
 
 func New(name string, version semver.Version, host *pprovider.HostClient,
-	components ComponentResources, customs CustomResources) *Server {
+	components ComponentResources, customs CustomResources, schema string) *Server {
 	return &Server{
 		Name:       name,
 		Version:    version,
-		Host:       host,
+		host:       host,
+		Schema:     schema,
 		components: components,
 		customs:    customs,
 	}
@@ -98,7 +60,11 @@ func New(name string, version semver.Version, host *pprovider.HostClient,
 
 // GetSchema fetches the schema for this resource provider.
 func (s *Server) GetSchema(context.Context, *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetSchema is not yet implemented")
+	response := &rpc.GetSchemaResponse{
+		Schema: s.Schema,
+	}
+
+	return response, nil
 }
 
 // CheckConfig validates the configuration for this resource provider.
@@ -141,7 +107,8 @@ func (s *Server) Call(context.Context, *rpc.CallRequest) (*rpc.CallResponse, err
 // the program inputs. Though this rule is not required for correctness, violations thereof can negatively impact
 // the end-user experience, as the provider inputs are using for detecting and rendering diffs.
 func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
-	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
+	typ := resource.URN(req.Urn).Type()
+	custom, err := s.customs.GetCustom(typ)
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +117,16 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 		if err != nil {
 			return nil, err
 		}
-		new := newOfType(custom)
+		new, err := s.customs.GetCustom(typ)
+		contract.AssertNoErrorf(err, "We already know a type is registered for %s since we retrieved it before", typ)
+
 		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
-		failures, nErr := res.Check(ctx, new, int(req.SequenceNumber))
+
+		checkContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		failures, nErr := res.Check(checkContext, new, int(req.SequenceNumber))
 		if err != nil {
 			return nil, nErr
 		}
@@ -168,7 +139,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 		}
 
 		// TODO: Swap new and old so old is the argument and new is the default
-		inputs, err := introspect.ResourceToProperties(res)
+		inputs, err := introspect.ResourceToProperties(res, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -187,22 +158,26 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 
 // Diff checks what impacts a hypothetical update will have on the resource's properties.
 func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
-	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
+	typ := resource.URN(req.Urn).Type()
+	custom, err := s.customs.GetCustom(typ)
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.Diff); ok {
-		err := introspect.PropertiesToResource(req.GetOlds(), r)
+	if custom, ok := custom.(r.Diff); ok {
+		err := introspect.PropertiesToResource(req.GetOlds(), custom)
 		if err != nil {
 			return nil, err
 		}
 
-		new := newOfType(custom)
+		new, err := s.customs.GetCustom(typ)
+		contract.AssertNoErrorf(err, "We already know a type is registered for %s since we retrieved it before", typ)
+
 		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
-		return r.Diff(ctx, req.GetId(), new, req.GetIgnoreChanges())
+		diffContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		return custom.Diff(diffContext, req.GetId(), new, req.GetIgnoreChanges())
 	}
 
 	// The user has not provided a diff, so use the default diff
@@ -222,7 +197,10 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 	changes := rpc.DiffResponse_DIFF_NONE
 	var diffs, replaces []string
 
-	outputKeys := introspect.FindOutputProperties(custom)
+	outputKeys, err := introspect.FindOutputProperties(custom)
+	if err != nil {
+		return nil, err
+	}
 
 	if d := olds.Diff(news); d != nil {
 		for _, propKey := range d.ChangedKeys() {
@@ -269,13 +247,23 @@ func (s *Server) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Creat
 	}
 
 	// Apply timeout
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.GetTimeout())*time.Second)
-	defer cancel()
-	id, err := custom.Create(ctx, urn.Name().String(), req.GetPreview())
+	if t := req.GetTimeout(); t != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(t)*time.Second)
+		defer cancel()
+	}
+
+	createContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+	id, err := custom.Create(createContext, urn.Name().String(), req.GetPreview())
 	if err != nil {
 		return nil, err
 	}
-	props, err := introspect.ResourceToProperties(custom)
+
+	opts := introspect.ToPropertiesOptions{}
+	if req.GetPreview() {
+		opts.ComputedKeys = createContext.ComputedKeys()
+	}
+	props, err := introspect.ResourceToProperties(custom, &opts)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +280,7 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.Read); ok {
+	if custom, ok := custom.(r.Read); ok {
 		err = introspect.PropertiesToResource(req.GetProperties(), custom)
 		if err != nil {
 			return nil, err
@@ -302,7 +290,9 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		if err != nil {
 			return nil, err
 		}
-		err = r.Read(ctx)
+
+		readContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		err = custom.Read(readContext)
 		if err != nil {
 			return nil, err
 		}
@@ -313,26 +303,35 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 
 // Update updates an existing resource with new values.
 func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
-	custom, err := s.customs.GetCustom(resource.URN(req.Urn).Type())
+	typ := resource.URN(req.Urn).Type()
+	custom, err := s.customs.GetCustom(typ)
 	if err != nil {
 		return nil, err
 	}
-	if r, ok := custom.(r.Update); ok {
+	if custom, ok := custom.(r.Update); ok {
 		err = introspect.PropertiesToResource(req.GetOlds(), custom)
 		if err != nil {
 			return nil, err
 		}
-		new := newOfType(custom)
+		new, err := s.customs.GetCustom(typ)
+		contract.AssertNoErrorf(err, "We already know a type is registered for %s since we retrieved it before", typ)
 		err = introspect.PropertiesToResource(req.GetNews(), new)
 		if err != nil {
 			return nil, err
 		}
-		err = r.Update(ctx, req.Id, new, req.GetIgnoreChanges(), req.GetPreview())
+
+		updateContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		err = custom.Update(updateContext, req.Id, new, req.GetIgnoreChanges(), req.GetPreview())
 		if err != nil {
 			return nil, err
 		}
 
-		props, err := introspect.ResourceToProperties(custom)
+		opts := introspect.ToPropertiesOptions{}
+		if req.GetPreview() {
+			opts.ComputedKeys = updateContext.ComputedKeys()
+		}
+
+		props, err := introspect.ResourceToProperties(custom, &opts)
 		if err != nil {
 			return nil, err
 		}
@@ -357,9 +356,15 @@ func (s *Server) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.E
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.GetTimeout())*time.Second)
-	defer cancel()
-	err = custom.Delete(ctx, req.Id)
+	// Apply timeout
+	if t := req.GetTimeout(); t != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(t)*time.Second)
+		defer cancel()
+	}
+
+	deleteContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+	err = custom.Delete(deleteContext, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +377,7 @@ func (s *Server) Construct(ctx context.Context, request *rpc.ConstructRequest) (
 	if err != nil {
 		return nil, err
 	}
-	cR, err := provider.Construct(ctx, request, s.Host.EngineConn(), componentFn(s.Name, c))
+	cR, err := provider.Construct(ctx, request, s.host.EngineConn(), componentFn(s.Name, c))
 	return cR, err
 }
 
@@ -393,6 +398,11 @@ func (s *Server) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginInfo
 }
 
 // Attach sends the engine address to an already running plugin.
-func (s *Server) Attach(context.Context, *rpc.PluginAttach) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "Attach is not yet implemented")
+func (s *Server) Attach(_ context.Context, req *rpc.PluginAttach) (*emptypb.Empty, error) {
+	host, err := pprovider.NewHostClient(req.GetAddress())
+	if err != nil {
+		return nil, err
+	}
+	s.host = host
+	return &emptypb.Empty{}, nil
 }
