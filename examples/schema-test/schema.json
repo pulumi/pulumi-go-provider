@@ -27,7 +27,8 @@
     "schema-test:index:Strct": {
       "properties": {
         "enum": {
-          "$ref": "#/types/schema-test:index:Enum"
+          "$ref": "#/types/schema-test:index:Enum",
+          "default": 0
         },
         "names": {
           "type": "array",

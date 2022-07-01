@@ -646,8 +646,9 @@ func serializeProperty(t reflect.Type, description string,
 			return schema.PropertySpec{}, err
 		}
 		return schema.PropertySpec{
-			TypeSpec:    enumSpec,
 			Description: description,
+			Default:     defValue,
+			TypeSpec:    enumSpec,
 		}, nil
 	} else if isTypeOrResource(t, info) {
 		typeSpec, err := serializeRef(t, info)
@@ -656,6 +657,7 @@ func serializeProperty(t reflect.Type, description string,
 		}
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec:    *typeSpec,
 		}, nil
 	}
@@ -672,6 +674,7 @@ func serializeProperty(t reflect.Type, description string,
 		}
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
 				Type:  typeKind,
 				Items: itemSpec,
@@ -687,6 +690,7 @@ func serializeProperty(t reflect.Type, description string,
 		}
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
 				Type:                 "object", //There is no map type in the schema
 				AdditionalProperties: valSpec,
@@ -695,6 +699,7 @@ func serializeProperty(t reflect.Type, description string,
 	default:
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
 				Type: typeKind,
 			},
@@ -849,9 +854,10 @@ func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, err
 		}
 		return schema.ComplexTypeSpec{
 			ObjectTypeSpec: schema.ObjectTypeSpec{
-				Type:       "object",
-				Properties: properties,
-				Required:   required,
+				Type:        "object",
+				Properties:  properties,
+				Required:    required,
+				Description: descriptions[""],
 			},
 		}, nil
 	}
@@ -863,7 +869,8 @@ func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, err
 
 	return schema.ComplexTypeSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
-			Type: typeKind,
+			Type:        typeKind,
+			Description: descriptions[""],
 		},
 		Enum: enumVals,
 	}, nil

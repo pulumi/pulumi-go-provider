@@ -25,6 +25,7 @@ type Strct struct {
 }
 
 func (s *Strct) Annotate(a resource.Annotator) {
+	a.Describe(&s, "This is a holder for enums")
 	a.Describe(&s.Names, "Names for the default value")
 
 	a.SetDefault(&s.Enum, A)
