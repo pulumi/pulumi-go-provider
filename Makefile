@@ -10,7 +10,7 @@ build_examples: build
 		if [ -d $$ex ]; then \
 		cd $$ex; \
 		echo "Building github.com/pulumi/pulumi-go-provider/$$ex"; \
-		go build github.com/pulumi/pulumi-go-provider/$$ex; \
+		go build github.com/pulumi/pulumi-go-provider/$$ex || exit 1; \
 		cd -; \
 		fi; \
 	done
@@ -29,8 +29,8 @@ install_examples: build_examples
 	@if [ -d ~/.pulumi/plugins/resource-command-v0.3.2/ ]; then \
 		mkdir -p ~/.pulumi/plugins/resource-command-v0.3.2/; \
 	fi
-	rm -fr examples/command/sdk
-	cd examples/command && PULUMI_GENERATE_SDK=".,go" ./command
+	rm -rf examples/command/sdk
+	cd examples/command && ./command -sdkGen -emitSchema
 	mv examples/command/command ~/.pulumi/plugins/resource-command-v0.3.2/pulumi-resource-command
 	cd examples/command/sdk/go/command && go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy
 
