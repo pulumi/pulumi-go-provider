@@ -7,6 +7,7 @@ import (
 
 	"github.com/blang/semver"
 	provider "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/resource"
 )
 
 type Enum int
@@ -21,6 +22,12 @@ const (
 type Strct struct {
 	Enum  Enum     `pulumi:"enum"`
 	Names []string `pulumi:"names"`
+}
+
+func (s *Strct) Annotate(a resource.Annotator) {
+	a.Describe(&s.Names, "Names for the default value")
+
+	a.SetDefault(&s.Enum, A)
 }
 
 func main() {

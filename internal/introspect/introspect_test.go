@@ -19,13 +19,19 @@ import (
 	"testing"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/stretchr/testify/assert"
 )
 
 type MyStruct struct {
-	Foo  string `pulumi:"foo,optional" provider:"secret,output,description=This is a foo."`
+	Foo  string `pulumi:"foo,optional" provider:"secret,output"`
 	Bar  int    `provider:"secret"`
 	Fizz *int   `pulumi:"fizz"`
+}
+
+func (m *MyStruct) Annotate(a resource.Annotator) {
+	a.Describe(&m.Fizz, "Fizz is not MyStruct.Foo.")
+	a.SetDefault(&m.Foo, "Fizz")
 }
 
 func TestParseTag(t *testing.T) {
@@ -40,11 +46,10 @@ func TestParseTag(t *testing.T) {
 		{
 			Field: "Foo",
 			Expected: introspect.FieldTag{
-				Name:        "foo",
-				Optional:    true,
-				Secret:      true,
-				Output:      true,
-				Description: "This is a foo.",
+				Name:     "foo",
+				Optional: true,
+				Secret:   true,
+				Output:   true,
 			},
 		},
 		{
@@ -73,4 +78,17 @@ func TestParseTag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnnotate(t *testing.T) {
+	t.Parallel()
+
+	s := &MyStruct{}
+
+	a := introspect.NewAnnotator(s)
+
+	s.Annotate(&a)
+
+	assert.Equal(t, "Fizz", a.Defaults["foo"])
+	assert.Equal(t, "Fizz is not MyStruct.Foo.", a.Descriptions["fizz"])
 }

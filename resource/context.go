@@ -17,9 +17,8 @@ package resource
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
 
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -64,7 +63,7 @@ type Context interface {
 type SContext struct {
 	context.Context
 
-	hostResource reflect.Value
+	matcher introspect.FieldMatcher
 
 	// fields of the underlying type that should be marked unknown
 	markedComputed []string
@@ -74,20 +73,14 @@ type SContext struct {
 
 // See the method documentation for Context.MarkComputed.
 func (c *SContext) MarkComputed(field any) {
-	hostType := c.hostResource.Type()
-	for i := 0; i < c.hostResource.NumField(); i++ {
-		f := c.hostResource.Field(i)
-		fType := hostType.Field(i)
-		if f.Addr().Interface() == field {
-			name := fType.Name
-			if value, ok := c.hostResource.Type().Field(i).Tag.Lookup("pulumi"); ok {
-				name = strings.Split(value, ",")[0]
-			}
-			c.markedComputed = append(c.markedComputed, name)
-			return
-		}
+	tag, err, ok := c.matcher.GetField(field)
+	if !ok {
+		panic("Cannot mark value as computed, since it is not a field reference")
 	}
-	panic("Marked an invalid field as computed")
+	if err != nil {
+		panic("Failed to parse struct tags for the marked value")
+	}
+	c.markedComputed = append(c.markedComputed, tag.Name)
 }
 
 // Log logs a global message, including errors and warnings.
@@ -101,16 +94,14 @@ func (c *SContext) LogStatus(severity diag.Severity, msg string, args ...any) er
 	return c.host.LogStatus(c.Context, severity, c.urn, fmt.Sprintf(msg, args...))
 }
 
-func NewContext(ctx context.Context, host *provider.HostClient, urn resource.URN, resource reflect.Value) *SContext {
+func NewContext(ctx context.Context, host *provider.HostClient, urn resource.URN, matcher introspect.FieldMatcher) *SContext {
 	contract.Assert(host != nil)
-	for resource.Kind() == reflect.Pointer {
-		resource = resource.Elem()
-	}
+
 	return &SContext{
-		Context:      ctx,
-		hostResource: resource,
-		urn:          urn,
-		host:         host,
+		Context: ctx,
+		matcher: matcher,
+		urn:     urn,
+		host:    host,
 	}
 }
 
