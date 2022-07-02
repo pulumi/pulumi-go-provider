@@ -22,13 +22,32 @@ type Command struct {
 	Dir         *string            `pulumi:"dir,optional"`
 	Environment *map[string]string `pulumi:"environment,optional"`
 	Triggers    *[]interface{}     `pulumi:"triggers,optional"`
-	Create_     string             `pulumi:"create"`
+	Create_     string             `pulumi:"create,optional"`
 	Delete_     *string            `pulumi:"delete,optional"`
 	Stdin       *string            `pulumi:"stdin,optional"`
 
 	// Output
 	Stdout string `pulumi:"stdout" provider:"output"`
 	Stderr string `pulumi:"stderr" provider:"output"`
+}
+
+func (c *Command) Annotate(a r.Annotator) {
+	a.Describe(&c, "A local command to be executed.\n"+
+		"This command can be inserted into the life cycles of other resources using the\n"+
+		"`dependsOn` or `parent` resource options. A command is considered to have\n"+
+		"failed when it finished with a non-zero exit code. This will fail the CRUD step\n"+
+		"of the `Command` resource.")
+
+	a.Describe(&c.Interpreter, "The program and arguments to run the command.\nFor example: `[\"/bin/sh\", \"-c\"]`")
+	a.Describe(&c.Dir, "The directory from which to run the command from. If `dir` does not exist, then\n`Command` will fail.")
+	a.Describe(&c.Environment, "Additional environment variables available to the command's process.")
+	a.Describe(&c.Triggers, "Trigger replacements on changes to this input.")
+	a.Describe(&c.Create_, "The command to run on create.")
+	a.Describe(&c.Delete_, "The command to run on delete.")
+	a.Describe(&c.Stdin, "Pass a string to the command's process as standard in")
+
+	a.Describe(&c.Stdout, "The standard output of the command's process")
+	a.Describe(&c.Stderr, "The standard error of the command's process")
 }
 
 // Create executes the create command, sets Stdout and Stderr, and returns a unique ID for

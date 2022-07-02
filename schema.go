@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi-go-provider/types"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -157,8 +158,7 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 		token := info.types[dereference(reflect.TypeOf(t))]
 		spec.Types[token] = typeSpec
 	}
-	over := opts.PartialSpec
-	spec, err := mergePackageSpec(spec, over)
+	spec, err := mergePackageSpec(spec, opts.PartialSpec)
 	if err != nil {
 		return schema.PackageSpec{}, err
 	}
@@ -555,17 +555,26 @@ func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec
 }
 
 // Get the resourceSpec for a single resource
-func serializeResource(rawResource interface{}, info serializationInfo) (schema.ResourceSpec, error) {
+func serializeResource(rawResource any, info serializationInfo) (schema.ResourceSpec, error) {
 	v := reflect.ValueOf(rawResource)
 	for v.Type().Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 
 	t := v.Type()
-	properties := make(map[string]schema.PropertySpec)
-	inputProperties := make(map[string]schema.PropertySpec)
-	requiredInputs := make([]string, 0)
-	required := make([]string, 0)
+	properties := map[string]schema.PropertySpec{}
+	inputProperties := map[string]schema.PropertySpec{}
+	requiredInputs := []string{}
+	required := []string{}
+	descriptions := map[string]string{}
+	defaults := map[string]any{}
+
+	if rawResource, ok := rawResource.(resource.Annotated); ok {
+		a := introspect.NewAnnotator(rawResource)
+		rawResource.Annotate(&a)
+		descriptions = a.Descriptions
+		defaults = a.Defaults
+	}
 
 	for i := 0; i < t.NumField(); i++ {
 
@@ -597,7 +606,7 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 			fieldType = info.inputMap[fieldType]
 		}
 		fieldType = dereference(fieldType)
-		serialized, err := serializeProperty(fieldType, tags.Description, info)
+		serialized, err := serializeProperty(fieldType, descriptions[tags.Name], defaults[tags.Name], info)
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
@@ -613,16 +622,21 @@ func serializeResource(rawResource interface{}, info serializationInfo) (schema.
 		}
 	}
 
-	spec := schema.ResourceSpec{}
-	spec.ObjectTypeSpec.Properties = properties
-	spec.InputProperties = inputProperties
-	spec.RequiredInputs = requiredInputs
-	spec.Required = required
-	return spec, nil
+	return schema.ResourceSpec{
+		ObjectTypeSpec: schema.ObjectTypeSpec{
+			Properties:  properties,
+			Description: descriptions[""],
+			Required:    required,
+		},
+		InputProperties: inputProperties,
+		RequiredInputs:  requiredInputs,
+	}, nil
 }
 
 //Get the propertySpec for a single property
-func serializeProperty(t reflect.Type, description string, info serializationInfo) (schema.PropertySpec, error) {
+func serializeProperty(t reflect.Type, description string,
+	defValue any, info serializationInfo) (schema.PropertySpec, error) {
+	// TODO: add the default
 	t = dereference(t)
 	typeKind, enum := getTypeKind(t)
 	if enum {
@@ -631,8 +645,9 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 			return schema.PropertySpec{}, err
 		}
 		return schema.PropertySpec{
-			TypeSpec:    enumSpec,
 			Description: description,
+			Default:     defValue,
+			TypeSpec:    enumSpec,
 		}, nil
 	} else if isTypeOrResource(t, info) {
 		typeSpec, err := serializeRef(t, info)
@@ -641,6 +656,7 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 		}
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec:    *typeSpec,
 		}, nil
 	}
@@ -657,6 +673,7 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 		}
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
 				Type:  typeKind,
 				Items: itemSpec,
@@ -672,6 +689,7 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 		}
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
 				Type:                 "object", //There is no map type in the schema
 				AdditionalProperties: valSpec,
@@ -680,6 +698,7 @@ func serializeProperty(t reflect.Type, description string, info serializationInf
 	default:
 		return schema.PropertySpec{
 			Description: description,
+			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
 				Type: typeKind,
 			},
@@ -794,12 +813,22 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 	}
 }
 
-func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeSpec, error) {
+func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, error) {
 	t := reflect.TypeOf(typ)
 	t = dereference(t)
 	typeKind, enum := getTypeKind(t)
 	if enum {
 		return schema.ComplexTypeSpec{}, fmt.Errorf("enums are implemented using provider.Enums()")
+	}
+
+	descriptions := map[string]string{}
+	defaults := map[string]any{}
+
+	if typ, ok := typ.(resource.Annotated); ok {
+		a := introspect.NewAnnotator(typ)
+		typ.Annotate(&a)
+		descriptions = a.Descriptions
+		defaults = a.Defaults
 	}
 
 	if t.Kind() == reflect.Struct {
@@ -817,16 +846,17 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 			if !tags.Optional {
 				required = append(required, tags.Name)
 			}
-			properties[tags.Name], err = serializeProperty(field.Type, tags.Description, info)
+			properties[tags.Name], err = serializeProperty(field.Type, descriptions[tags.Name], defaults[tags.Name], info)
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
 			}
 		}
 		return schema.ComplexTypeSpec{
 			ObjectTypeSpec: schema.ObjectTypeSpec{
-				Type:       "object",
-				Properties: properties,
-				Required:   required,
+				Type:        "object",
+				Properties:  properties,
+				Required:    required,
+				Description: descriptions[""],
 			},
 		}, nil
 	}
@@ -838,7 +868,8 @@ func serializeType(typ interface{}, info serializationInfo) (schema.ComplexTypeS
 
 	return schema.ComplexTypeSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
-			Type: typeKind,
+			Type:        typeKind,
+			Description: descriptions[""],
 		},
 		Enum: enumVals,
 	}, nil

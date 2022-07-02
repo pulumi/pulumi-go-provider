@@ -16,7 +16,6 @@ package server
 
 import (
 	"context"
-	"reflect"
 	"sort"
 	"time"
 
@@ -125,7 +124,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 			return nil, err
 		}
 
-		checkContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		checkContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
 		failures, nErr := res.Check(checkContext, new, int(req.SequenceNumber))
 		if err != nil {
 			return nil, nErr
@@ -176,7 +175,7 @@ func (s *Server) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRespo
 		if err != nil {
 			return nil, err
 		}
-		diffContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		diffContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
 		return custom.Diff(diffContext, req.GetId(), new, req.GetIgnoreChanges())
 	}
 
@@ -253,7 +252,7 @@ func (s *Server) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Creat
 		defer cancel()
 	}
 
-	createContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+	createContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
 	id, err := custom.Create(createContext, urn.Name().String(), req.GetPreview())
 	if err != nil {
 		return nil, err
@@ -291,7 +290,7 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 			return nil, err
 		}
 
-		readContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		readContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
 		err = custom.Read(readContext)
 		if err != nil {
 			return nil, err
@@ -320,7 +319,7 @@ func (s *Server) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Updat
 			return nil, err
 		}
 
-		updateContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+		updateContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
 		err = custom.Update(updateContext, req.Id, new, req.GetIgnoreChanges(), req.GetPreview())
 		if err != nil {
 			return nil, err
@@ -363,7 +362,7 @@ func (s *Server) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.E
 		defer cancel()
 	}
 
-	deleteContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
+	deleteContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
 	err = custom.Delete(deleteContext, req.Id)
 	if err != nil {
 		return nil, err

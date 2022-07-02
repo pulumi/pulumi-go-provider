@@ -3,8 +3,8 @@
 build:
 	go build github.com/pulumi/pulumi-go-provider
 
-test:
-	go test github.com/pulumi/pulumi-go-provider
+test: build
+	go test ./...
 
 lint: lint-golang lint-copyright
 lint-golang:

@@ -109,3 +109,16 @@ type Read interface {
 	Custom
 	Read(ctx Context) error
 }
+
+type Annotator interface {
+	// Annotate a a struct field with a text description.
+	Describe(i any, description string)
+
+	// Annotate a a struct field with a default value. The default value must be a primitive
+	// type in the pulumi type system.
+	SetDefault(i any, defaultValue any)
+}
+
+type Annotated interface {
+	Annotate(Annotator)
+}
