@@ -33,9 +33,9 @@ import (
 
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 
-	"github.com/pulumi/pulumi-go-provider/internal/server"
-	"github.com/pulumi/pulumi-go-provider/resource"
-	"github.com/pulumi/pulumi-go-provider/types"
+	"github.com/iwahbe/pulumi-go-provider/internal/server"
+	"github.com/iwahbe/pulumi-go-provider/resource"
+	"github.com/iwahbe/pulumi-go-provider/types"
 )
 
 // Run spawns a Pulumi Provider server, returning when the server shuts down. This

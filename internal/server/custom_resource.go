@@ -17,12 +17,12 @@ package server
 import (
 	"reflect"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
-	"github.com/pulumi/pulumi-go-provider/resource"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
+	"github.com/iwahbe/pulumi-go-provider/resource"
 )
 
 type CustomResources map[tokens.Type]reflect.Type

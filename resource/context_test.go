@@ -18,7 +18,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/stretchr/testify/assert"
 )
