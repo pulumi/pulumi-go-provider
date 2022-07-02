@@ -20,9 +20,9 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
-	"github.com/pulumi/pulumi-go-provider/resource"
-	"github.com/pulumi/pulumi-go-provider/types"
+	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
+	"github.com/iwahbe/pulumi-go-provider/resource"
+	"github.com/iwahbe/pulumi-go-provider/types"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -610,6 +610,8 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
+		serialized.Secret = tags.Secret
+		serialized.ReplaceOnChanges = tags.ReplaceOnChanges
 		if !tags.Output {
 			inputProperties[tags.Name] = serialized
 			if !tags.Optional {
@@ -846,10 +848,13 @@ func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, err
 			if !tags.Optional {
 				required = append(required, tags.Name)
 			}
-			properties[tags.Name], err = serializeProperty(field.Type, descriptions[tags.Name], defaults[tags.Name], info)
+			prop, err := serializeProperty(field.Type, descriptions[tags.Name], defaults[tags.Name], info)
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
 			}
+			prop.Secret = tags.Secret
+			prop.ReplaceOnChanges = tags.ReplaceOnChanges
+			properties[tags.Name] = prop
 		}
 		return schema.ComplexTypeSpec{
 			ObjectTypeSpec: schema.ObjectTypeSpec{

@@ -6,8 +6,8 @@ import (
 	"reflect"
 
 	"github.com/blang/semver"
-	provider "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/resource"
+	provider "github.com/iwahbe/pulumi-go-provider"
+	"github.com/iwahbe/pulumi-go-provider/resource"
 )
 
 type Enum int

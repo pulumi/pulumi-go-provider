@@ -18,9 +18,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
-	"github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
+	"github.com/iwahbe/pulumi-go-provider/resource"
 )
 
 type MyStruct struct {
