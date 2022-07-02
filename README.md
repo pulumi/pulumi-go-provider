@@ -2,6 +2,8 @@
 
 A framework for building Go Providers for Pulumi
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/iwahbe/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/iwahbe/pulumi-go-provider)
+
 ## The "Hello, Pulumi" Provider
 
 Here we provide the code to create an entire native provider consumable from any of the
