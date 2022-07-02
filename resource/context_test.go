@@ -16,15 +16,15 @@ package resource
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
+	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/stretchr/testify/assert"
 )
 
 type FooResoruce struct {
-	A string
+	A string `pulumi:"A"`
 	B *int
 }
 
@@ -32,7 +32,8 @@ func TestMarkComputed(t *testing.T) {
 	t.Parallel()
 	f := &FooResoruce{}
 
-	ctx := NewContext(context.Background(), &provider.HostClient{}, "urn", reflect.ValueOf(f))
+	matcher := introspect.NewFieldMatcher(f)
+	ctx := NewContext(context.Background(), &provider.HostClient{}, "urn", matcher)
 	ctx.MarkComputed(&f.A)
 	assert.Equal(t, []string{"A"}, ctx.markedComputed)
 }

@@ -171,14 +171,8 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 
 	provider := map[string]bool{}
 	providerArray := strings.Split(providerTag, ",")
-	description := ""
 	if hasProviderTag {
-		descTag := "description="
 		for _, item := range providerArray {
-			if strings.HasPrefix(item, descTag) {
-				description = strings.TrimPrefix(item, descTag)
-				continue
-			}
 			provider[item] = true
 		}
 	}
@@ -189,17 +183,43 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		Output:           provider["output"],
 		Secret:           provider["secret"],
 		ReplaceOnChanges: provider["replaceOnChanges"],
-		Description:      description,
 	}, nil
 }
 
 type FieldTag struct {
-	Optional         bool // If the field is optional in the Pulumi type system.
-	Internal         bool // If the field should exist in the Pulumi type system.
-	Output           bool // If the field is an output type in the pulumi type system.
-	Secret           bool // If the field is secret.
+	Name     string // The name of the field in the Pulumi type system.
+	Optional bool   // If the field is optional in the Pulumi type system.
+	Internal bool   // If the field should exist in the Pulumi type system.
+	Output   bool   // If the field is an output type in the pulumi type system.
+	Secret   bool   // If the field is secret.
+	// NOTE: ReplaceOnChanges will only be obeyed when the default diff implementation is used.
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
-	// ReplaceOnChanges will only be obeyed when the default diff implementation is used.
-	Description string // The description of the field.
-	Name        string // The name of the field in the Pulumi type system.
+}
+
+func NewFieldMatcher(i any) FieldMatcher {
+	v := reflect.ValueOf(i)
+	for v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	contract.Assertf(v.Kind() == reflect.Struct, "FieldMatcher must contain a struct.")
+	return FieldMatcher{
+		value: v,
+	}
+}
+
+type FieldMatcher struct {
+	value reflect.Value
+}
+
+func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
+	hostType := f.value.Type()
+	for i := 0; i < hostType.NumField(); i++ {
+		f := f.value.Field(i)
+		fType := hostType.Field(i)
+		if f.Addr().Interface() == field {
+			f, error := ParseTag(fType)
+			return f, true, error
+		}
+	}
+	return FieldTag{}, false, nil
 }

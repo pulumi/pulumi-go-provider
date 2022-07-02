@@ -25,15 +25,18 @@
       ]
     },
     "schema-test:index:Strct": {
+      "description": "This is a holder for enums",
       "properties": {
         "enum": {
-          "$ref": "#/types/schema-test:index:Enum"
+          "$ref": "#/types/schema-test:index:Enum",
+          "default": 0
         },
         "names": {
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Names for the default value"
         }
       },
       "type": "object",

@@ -7,18 +7,18 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	provider "github.com/pulumi/pulumi-go-provider"
-	r "github.com/pulumi/pulumi-go-provider/resource"
+	p "github.com/iwahbe/pulumi-go-provider"
+	r "github.com/iwahbe/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func main() {
-	err := provider.Run("random-login", semver.Version{Minor: 1},
-		provider.Components(&RandomLogin{}),
-		provider.Resources(&RandomSalt{}),
-		provider.PartialSpec(schema.PackageSpec{}),
+	err := p.Run("random-login", semver.Version{Minor: 1},
+		p.Components(&RandomLogin{}),
+		p.Resources(&RandomSalt{}),
+		p.PartialSpec(schema.PackageSpec{}),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())

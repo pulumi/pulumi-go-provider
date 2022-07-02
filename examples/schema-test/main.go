@@ -6,7 +6,9 @@ import (
 	"reflect"
 
 	"github.com/blang/semver"
-	provider "github.com/pulumi/pulumi-go-provider"
+	p "github.com/iwahbe/pulumi-go-p"
+	r "github.com/iwahbe/pulumi-go-p/resource"
+	"github.com/iwahbe/pulumi-go-provider/resource"
 )
 
 type Enum int
@@ -24,20 +26,38 @@ type Strct struct {
 }
 
 type EnumStore struct {
+	r.Custom
+	r.Read
+	r.Update
+	e Enum `pulumi:"e"`
+}
 
+func (e *EnumStore) Create(ctx resource.Context, name string, preview bool) (string, error) {
+	return "", nil
+}
+
+func (e *EnumStore) Delete(ctx resource.Context, id string) error {
+	return nil
+}
+
+func (s *Strct) Annotate(a resource.Annotator) {
+	a.Describe(&s, "This is a holder for enums")
+	a.Describe(&s.Names, "Names for the default value")
+
+	a.SetDefault(&s.Enum, A)
 }
 
 func main() {
 	println(reflect.TypeOf((*Enum)(nil)).Elem().String())
 
-	err := provider.Run("schema-test", semver.Version{Minor: 1},
-		provider.Resources()
-		provider.Types(
-			provider.Enum[Enum](
-				provider.EnumVal("A", A),
-				provider.EnumVal("C", C),
-				provider.EnumVal("T", T),
-				provider.EnumVal("G", G)),
+	err := p.Run("schema-test", semver.Version{Minor: 1},
+		p.Resources(&EnumStore{}),
+		p.Types(
+			p.Enum[Enum](
+				p.EnumVal("A", A),
+				p.EnumVal("C", C),
+				p.EnumVal("T", T),
+				p.EnumVal("G", G)),
 			&Strct{}),
 	)
 	if err != nil {
