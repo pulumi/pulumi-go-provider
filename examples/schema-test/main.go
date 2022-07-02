@@ -23,10 +23,15 @@ type Strct struct {
 	Names []string `pulumi:"names"`
 }
 
+type EnumStore struct {
+
+}
+
 func main() {
 	println(reflect.TypeOf((*Enum)(nil)).Elem().String())
 
 	err := provider.Run("schema-test", semver.Version{Minor: 1},
+		provider.Resources()
 		provider.Types(
 			provider.Enum[Enum](
 				provider.EnumVal("A", A),

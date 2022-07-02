@@ -292,10 +292,11 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		}
 
 		readContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), reflect.ValueOf(custom))
-		err = custom.Read(readContext)
+		response, err := custom.Read(readContext)
 		if err != nil {
 			return nil, err
 		}
+		return response, nil
 	}
 
 	return nil, status.Error(codes.Unimplemented, "Read is not yet implemented")

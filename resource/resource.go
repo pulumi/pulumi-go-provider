@@ -107,5 +107,5 @@ type CheckFailure struct {
 
 type Read interface {
 	Custom
-	Read(ctx Context) error
+	Read(ctx Context) (*pulumirpc.ReadResponse, error)
 }
