@@ -344,7 +344,7 @@ func (info serializationInfo) serializeResource(rawResource any) (schema.Resourc
 			continue
 		}
 
-		_, isInputType := vField.Interface().(pulumi.Input)
+		isInputType := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
 		_, isOutputType := vField.Interface().(pulumi.Output)
 
 		for fieldType.Kind() == reflect.Ptr {

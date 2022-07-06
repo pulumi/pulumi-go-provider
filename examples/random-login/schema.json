@@ -10,7 +10,7 @@
           "type": "string"
         },
         "passwordLength": {
-          "type": "any"
+          "type": "integer"
         },
         "username": {
           "type": "string"
@@ -22,7 +22,7 @@
       ],
       "inputProperties": {
         "passwordLength": {
-          "type": "any"
+          "type": "integer"
         }
       },
       "isComponent": true
