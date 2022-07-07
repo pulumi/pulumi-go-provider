@@ -29,7 +29,7 @@ type Strct struct {
 
 type EnumStore struct {
 	r.Custom
-	E        Enum   `pulumi:"e, optional"`
+	E        Enum   `pulumi:"e"`
 	Filepath string `pulumi:"filepath"`
 }
 

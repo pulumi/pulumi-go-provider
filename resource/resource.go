@@ -107,7 +107,7 @@ type CheckFailure struct {
 
 type Read interface {
 	Custom
-	Read(ctx Context) (*pulumirpc.ReadResponse, error)
+	Read(ctx Context, id string) (*pulumirpc.ReadResponse, error)
 }
 
 type Annotator interface {

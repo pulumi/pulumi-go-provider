@@ -55,6 +55,7 @@ func serialize(opts options) (string, error) {
 	info.types = make(map[reflect.Type]string)
 	info.enums = make(map[reflect.Type]string)
 	info.inputMap = inputmap.GetInputMap()
+	
 
 	for _, resource := range opts.Customs {
 		t := baseType(resource)
@@ -116,6 +117,29 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 	spec.Types = make(map[string]schema.ComplexTypeSpec)
 	spec.Name = opts.Name
 	spec.Version = opts.Version.String()
+	spec.Language = map[string]schema.RawMessage{
+		"csharp": rawMessage(map[string]interface{}{
+			"packageReferences": map[string]string{
+				"Pulumi":             "3.*",
+			},
+			"respectSchemaVersion": true,
+		}),
+		"go": rawMessage(map[string]interface{}{
+			"respectSchemaVersion": true,
+		}),
+		"nodejs": rawMessage(map[string]interface{}{
+			"dependencies": map[string]string{
+				"@pulumi/pulumi":       "^3.0.0",
+			},
+			"respectSchemaVersion": true,
+		}),
+		"python": rawMessage(map[string]interface{}{
+			"requires": map[string]string{
+				"pulumi":              ">=3.0.0,<4.0.0",
+			},
+			"respectSchemaVersion": true,
+		}),
+	}
 
 	for _, resource := range opts.Customs {
 		resourceSpec, err := info.serializeResource(resource)
@@ -694,4 +718,12 @@ func dereference(t reflect.Type) reflect.Type {
 		t = t.Elem()
 	}
 	return t
+}
+
+func rawMessage(v interface{}) schema.RawMessage {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return bytes
 }

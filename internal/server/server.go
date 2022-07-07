@@ -291,7 +291,7 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		}
 
 		readContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
-		response, err := custom.Read(readContext)
+		response, err := custom.Read(readContext, req.GetId())
 		if err != nil {
 			return nil, err
 		}
