@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
-	"github.com/iwahbe/pulumi-go-provider/internal/inputmap"
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	"github.com/iwahbe/pulumi-go-provider/resource"
 	"github.com/iwahbe/pulumi-go-provider/types"
@@ -44,7 +44,6 @@ type serializationInfo struct {
 	resources map[reflect.Type]string
 	types     map[reflect.Type]string
 	enums     map[reflect.Type]string
-	inputMap  inputmap.InputToImplementor
 }
 
 // Serialize a package to JSON Schema.
@@ -54,7 +53,6 @@ func serialize(opts options) (string, error) {
 		resources: make(map[reflect.Type]string),
 		types:     make(map[reflect.Type]string),
 		enums:     make(map[reflect.Type]string),
-		inputMap:  inputmap.New(),
 	}
 
 	for _, resource := range opts.Customs {
@@ -377,11 +375,24 @@ func (info serializationInfo) serializeResource(rawResource any) (schema.Resourc
 		if isOutputType {
 			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
 		} else if isInputType {
-			if _, ok := info.inputMap[fieldType]; !ok {
-				return schema.ResourceSpec{}, fmt.Errorf("input %s for property"+
-					"%s has type %s, which is not a valid input type", field.Name, t, fieldType)
+			T := fieldType.Name()
+			if strings.HasSuffix(T, "Input") {
+				T = strings.TrimSuffix(T, "Input")
+			} else {
+				return schema.ResourceSpec{}, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
 			}
-			fieldType = info.inputMap[fieldType]
+			toOutMethod, ok := fieldType.MethodByName("To" + T + "Output")
+			if !ok {
+				return schema.ResourceSpec{}, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", fieldType.Name(), T)
+			}
+			outputT := toOutMethod.Type.Out(0)
+			//create new object of type outputT
+			strct := reflect.New(outputT).Elem().Interface()
+			out, ok := strct.(pulumi.Output)
+			if !ok {
+				return schema.ResourceSpec{}, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output", reflect.TypeOf(strct), T, fieldType.Name())
+			}
+			fieldType = out.ElementType()
 		}
 		fieldType = dereference(fieldType)
 		serialized, err := info.serializeProperty(fieldType, descriptions[tags.Name], defaults[tags.Name])
