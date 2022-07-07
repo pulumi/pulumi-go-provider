@@ -107,7 +107,7 @@ type CheckFailure struct {
 
 type Read interface {
 	Custom
-	Read(ctx Context, id string) (error)
+	Read(ctx Context, id string) error
 }
 
 type Annotator interface {
