@@ -112,33 +112,34 @@ func serialize(opts options) (string, error) {
 
 // Get the packagespec given resources, etc.
 func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec, error) {
-	spec := schema.PackageSpec{}
-	spec.Resources = make(map[string]schema.ResourceSpec)
-	spec.Types = make(map[string]schema.ComplexTypeSpec)
-	spec.Name = opts.Name
-	spec.Version = opts.Version.String()
-	spec.Language = map[string]schema.RawMessage{
-		"csharp": rawMessage(map[string]interface{}{
-			"packageReferences": map[string]string{
-				"Pulumi": "3.*",
-			},
-			"respectSchemaVersion": true,
-		}),
-		"go": rawMessage(map[string]interface{}{
-			"respectSchemaVersion": true,
-		}),
-		"nodejs": rawMessage(map[string]interface{}{
-			"dependencies": map[string]string{
-				"@pulumi/pulumi": "^3.0.0",
-			},
-			"respectSchemaVersion": true,
-		}),
-		"python": rawMessage(map[string]interface{}{
-			"requires": map[string]string{
-				"pulumi": ">=3.0.0,<4.0.0",
-			},
-			"respectSchemaVersion": true,
-		}),
+	spec := schema.PackageSpec{
+		Resources: make(map[string]schema.ResourceSpec),
+		Types:     make(map[string]schema.ComplexTypeSpec),
+		Name:      opts.Name,
+		Version:   opts.Version.String(),
+		Language: map[string]schema.RawMessage{
+			"csharp": rawMessage(map[string]interface{}{
+				"packageReferences": map[string]string{
+					"Pulumi": "3.*",
+				},
+				"respectSchemaVersion": true,
+			}),
+			"go": rawMessage(map[string]interface{}{
+				"respectSchemaVersion": true,
+			}),
+			"nodejs": rawMessage(map[string]interface{}{
+				"dependencies": map[string]string{
+					"@pulumi/pulumi": "^3.0.0",
+				},
+				"respectSchemaVersion": true,
+			}),
+			"python": rawMessage(map[string]interface{}{
+				"requires": map[string]string{
+					"pulumi": ">=3.0.0,<4.0.0",
+				},
+				"respectSchemaVersion": true,
+			}),
+		},
 	}
 
 	for _, resource := range opts.Customs {
@@ -244,11 +245,9 @@ func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error)
 	if over.Meta != nil {
 		spec.Meta = over.Meta //Meta is a struct containing only one field, so we can just overwrite it
 	}
-	// AllowedPackageNames []string
 	if over.AllowedPackageNames != nil {
 		spec.AllowedPackageNames = mergeStringArrays(spec.AllowedPackageNames, over.AllowedPackageNames)
 	}
-	// Language map[string]RawMessage
 	if over.Language != nil {
 		spec.Language = mergeMapsOverride(spec.Language, over.Language)
 	}
@@ -275,7 +274,7 @@ func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error)
 	return spec, nil
 }
 
-//mergeResourceSpec merges two resource specs together.
+// mergeResourceSpec merges two resource specs together.
 func mergeResourceSpec(base, over schema.ResourceSpec) (schema.ResourceSpec, error) {
 	base.ObjectTypeSpec = mergeObjectTypeSpec(base.ObjectTypeSpec, over.ObjectTypeSpec)
 
@@ -285,10 +284,10 @@ func mergeResourceSpec(base, over schema.ResourceSpec) (schema.ResourceSpec, err
 	if over.RequiredInputs != nil {
 		base.RequiredInputs = mergeStringArrays(base.RequiredInputs, over.RequiredInputs)
 	}
-	//PlainInputs is deprecated and thus ignored
+	// PlainInputs is deprecated and thus ignored
 	if over.StateInputs != nil {
-		//StateInputs is a pointer, so for now we're just going to override it.
-		//It could also be dereferenced and merged, but for now we'll keep it like this
+		// StateInputs is a pointer, so for now we're just going to override it.
+		// It could also be dereferenced and merged, but for now we'll keep it like this
 		base.StateInputs = over.StateInputs
 	}
 	if over.Aliases != nil {
@@ -323,7 +322,7 @@ func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec
 	if over.Required != nil {
 		base.Required = mergeStringArrays(base.Required, over.Required)
 	}
-	//Plain is deprecated and thus ignored
+	// Plain is deprecated and thus ignored
 	if over.Language != nil {
 		base.Language = mergeMapsOverride(base.Language, over.Language)
 	}
@@ -374,7 +373,7 @@ func (info serializationInfo) serializeResource(rawResource any) (schema.Resourc
 		for fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
-		//Need to fetch the underlying types for input and outputs
+		// Need to fetch the underlying types for input and outputs
 		if isOutputType {
 			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
 		} else if isInputType {
@@ -414,7 +413,7 @@ func (info serializationInfo) serializeResource(rawResource any) (schema.Resourc
 	}, nil
 }
 
-//Get the propertySpec for a single property
+// Get the propertySpec for a single property
 func (info serializationInfo) serializeProperty(t reflect.Type, description string,
 	defValue any) (schema.PropertySpec, error) {
 	// TODO: add the default
@@ -472,7 +471,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 			Description: description,
 			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
-				Type:                 "object", //There is no map type in the schema
+				Type:                 "object", // There is no map type in the schema
 				AdditionalProperties: valSpec,
 			},
 		}, nil
@@ -487,7 +486,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 	}
 }
 
-//Get a TypeSpec which is a reference.
+// Get a TypeSpec which is a reference.
 func (info serializationInfo) serializeReference(t reflect.Type) (*schema.TypeSpec, error) {
 	t = dereference(t)
 	if token, ok := info.resources[t]; ok {
@@ -533,11 +532,11 @@ func getTypeKind(t reflect.Type) (string, bool) {
 	case reflect.Map:
 		typeName = OBJECT
 	case reflect.Ptr:
-		//This is a panic because we should always be dereferencing pointers
-		//The user should not be able to cause this to happen
-		//I removed the behavior where getTypeKind would automatically dereference pointers
-		//Because it may be confusing when debugging if getTypeKind is returning non-pointer
-		//When t is actually a pointer
+		// This is a panic because we should always be dereferencing pointers
+		// The user should not be able to cause this to happen
+		// I removed the behavior where getTypeKind would automatically dereference pointers
+		// Because it may be confusing when debugging if getTypeKind is returning non-pointer
+		// When t is actually a pointer
 		panic("Detected pointer type during serialization - did you forget to dereference?")
 	case reflect.Interface:
 		typeName = ANY
@@ -577,7 +576,7 @@ func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSp
 			return nil, fmt.Errorf("map keys must be strings")
 		}
 		return &schema.TypeSpec{
-			Type:                 "object", //There is no map type in the schema
+			Type:                 "object", // There is no map type in the schema
 			AdditionalProperties: valSpec,
 		}, nil
 	case ANY:
@@ -663,7 +662,7 @@ func mergeStringArrays(base, override []string) []string {
 	for _, x := range base {
 		m[x] = true
 	}
-	//If an element in override is not in base, append it
+	// If an element in override is not in base, append it
 	for _, y := range override {
 		if !m[y] {
 			base = append(base, y)
@@ -672,16 +671,16 @@ func mergeStringArrays(base, override []string) []string {
 	return base
 }
 
-//Merge two arrays of structs which have the string property "Name" by their names
+// Merge two arrays of structs which have the string property "Name" by their names
 func mergeStructArraysByKey[T interface{}, K comparable](base, override []T, fieldName string) ([]T, error) {
 	m := make(map[K]T)
-	//Check that type T has field fieldName
+	// Check that type T has field fieldName
 	t := reflect.TypeOf((*T)(nil)).Elem()
 	field, ok := t.FieldByName(fieldName)
 	if !ok {
 		return nil, fmt.Errorf("type %s does not have field %s", t, fieldName)
 	}
-	//Check that field fieldName is of type K
+	// Check that field fieldName is of type K
 	k := reflect.TypeOf((*K)(nil)).Elem()
 	if field.Type != k {
 		return nil, fmt.Errorf("type %s field %s is not of type %s", t, fieldName, k)

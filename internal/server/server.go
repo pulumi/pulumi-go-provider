@@ -295,12 +295,8 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		if err != nil {
 			return nil, err
 		}
-		if err != nil {
-			return nil, err
-		}
-		opts := introspect.ToPropertiesOptions{}
 
-		props, err := introspect.ResourceToProperties(custom, &opts)
+		props, err := introspect.ResourceToProperties(custom, nil)
 		if err != nil {
 			return nil, err
 		}
