@@ -291,10 +291,20 @@ func (s *Server) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRespo
 		}
 
 		readContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
-		err = custom.Read(readContext)
+		err := custom.Read(readContext, req.GetId())
 		if err != nil {
 			return nil, err
 		}
+
+		props, err := introspect.ResourceToProperties(custom, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return &rpc.ReadResponse{
+			Id:         req.GetId(),
+			Properties: props,
+		}, nil
 	}
 
 	return nil, status.Error(codes.Unimplemented, "Read is not yet implemented")

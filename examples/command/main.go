@@ -22,7 +22,7 @@ func main() {
 			&remote.Connection{}),
 		provider.GoOptions(goGen.GoPackageInfo{
 			GenerateResourceContainerTypes: true,
-			ImportBasePath:                 "github.com/pulumi/pulumi-go-provider/examples/command/sdk/go/command",
+			ImportBasePath:                 "github.com/iwahbe/pulumi-go-provider/examples/command/sdk/go/command",
 		}),
 		provider.PartialSpec(schema.PackageSpec{
 			DisplayName: "Command",

@@ -17,9 +17,9 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 
+	"github.com/iwahbe/pulumi-go-provider/internal/inputmap"
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	"github.com/iwahbe/pulumi-go-provider/resource"
 	"github.com/iwahbe/pulumi-go-provider/types"
@@ -44,12 +44,59 @@ type serializationInfo struct {
 	resources map[reflect.Type]string
 	types     map[reflect.Type]string
 	enums     map[reflect.Type]string
-	inputMap  inputToImplementor
+	inputMap  inputmap.InputToImplementor
 }
 
 // Serialize a package to JSON Schema.
 func serialize(opts options) (string, error) {
-	pkgSpec, err := serializeSchema(opts)
+	info := serializationInfo{
+		pkgname:   opts.Name,
+		resources: make(map[reflect.Type]string),
+		types:     make(map[reflect.Type]string),
+		enums:     make(map[reflect.Type]string),
+		inputMap:  inputmap.New(),
+	}
+
+	for _, resource := range opts.Customs {
+		t := baseType(resource)
+		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), resource)
+		if err != nil {
+			return "", err
+		}
+		token := tokenType.String()
+		info.resources[t] = token
+	}
+
+	for _, typ := range opts.Types {
+		if enum, ok := typ.(types.Enum); ok {
+			instance := reflect.New(enum.Type).Elem().Interface()
+			typeToken, err := introspect.GetToken(tokens.Package(info.pkgname), instance)
+			if err != nil {
+				return "", err
+			}
+			info.enums[dereference(enum.Type)] = typeToken.String()
+			continue
+		}
+		t := baseType(typ)
+		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), typ)
+		if err != nil {
+			return "", err
+		}
+		token := tokenType.String()
+		info.types[t] = token
+	}
+
+	for _, component := range opts.Components {
+		t := baseType(component)
+		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), component)
+		if err != nil {
+			return "", err
+		}
+		token := tokenType.String()
+		info.resources[t] = token
+	}
+
+	pkgSpec, err := info.serializeSchema(opts)
 	if err != nil {
 		return "", err
 	}
@@ -64,83 +111,59 @@ func serialize(opts options) (string, error) {
 }
 
 // Get the packagespec given resources, etc.
-func serializeSchema(opts options) (schema.PackageSpec, error) {
-	spec := schema.PackageSpec{}
-	spec.Resources = make(map[string]schema.ResourceSpec)
-	spec.Types = make(map[string]schema.ComplexTypeSpec)
-	spec.Name = opts.Name
-	spec.Version = opts.Version.String()
-
-	info := serializationInfo{}
-	info.pkgname = opts.Name
-	info.resources = make(map[reflect.Type]string)
-	info.types = make(map[reflect.Type]string)
-	info.enums = make(map[reflect.Type]string)
-	info.inputMap = initializeInputMap()
-
-	for _, resource := range opts.Customs {
-		t := reflect.TypeOf(resource)
-		t = dereference(t)
-		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), resource)
-		if err != nil {
-			return schema.PackageSpec{}, err
-		}
-		token := tokenType.String()
-		info.resources[t] = token
-	}
-
-	for _, typ := range opts.Types {
-		if enum, ok := typ.(types.Enum); ok {
-			instance := reflect.New(enum.Type).Elem().Interface()
-			typeToken, err := introspect.GetToken(tokens.Package(info.pkgname), instance)
-			if err != nil {
-				return schema.PackageSpec{}, err
-			}
-			info.enums[dereference(enum.Type)] = typeToken.String()
-			continue
-		}
-		t := reflect.TypeOf(typ)
-		t = dereference(t)
-		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), typ)
-		if err != nil {
-			return schema.PackageSpec{}, err
-		}
-		token := tokenType.String()
-		info.types[t] = token
-	}
-	for _, component := range opts.Components {
-		t := reflect.TypeOf(component)
-		t = dereference(t)
-		tokenType, err := introspect.GetToken(tokens.Package(info.pkgname), component)
-		if err != nil {
-			return schema.PackageSpec{}, err
-		}
-		token := tokenType.String()
-		info.resources[t] = token
+func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec, error) {
+	spec := schema.PackageSpec{
+		Resources: make(map[string]schema.ResourceSpec),
+		Types:     make(map[string]schema.ComplexTypeSpec),
+		Name:      opts.Name,
+		Version:   opts.Version.String(),
+		Language: map[string]schema.RawMessage{
+			"csharp": rawMessage(map[string]interface{}{
+				"packageReferences": map[string]string{
+					"Pulumi": "3.*",
+				},
+				"respectSchemaVersion": true,
+			}),
+			"go": rawMessage(map[string]interface{}{
+				"respectSchemaVersion": true,
+			}),
+			"nodejs": rawMessage(map[string]interface{}{
+				"dependencies": map[string]string{
+					"@pulumi/pulumi": "^3.0.0",
+				},
+				"respectSchemaVersion": true,
+			}),
+			"python": rawMessage(map[string]interface{}{
+				"requires": map[string]string{
+					"pulumi": ">=3.0.0,<4.0.0",
+				},
+				"respectSchemaVersion": true,
+			}),
+		},
 	}
 
 	for _, resource := range opts.Customs {
-		resourceSpec, err := serializeResource(resource, info)
+		resourceSpec, err := info.serializeResource(resource)
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
-		token := info.resources[dereference(reflect.TypeOf(resource))]
+		token := info.resources[baseType(resource)]
 		spec.Resources[token] = resourceSpec
 	}
 
 	for _, component := range opts.Components {
-		componentSpec, err := serializeResource(component, info)
+		componentSpec, err := info.serializeResource(component)
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
 		componentSpec.IsComponent = true
-		token := info.resources[dereference(reflect.TypeOf(component))]
+		token := info.resources[baseType(component)]
 		spec.Resources[token] = componentSpec
 	}
 
 	for _, t := range opts.Types {
 		if enum, ok := t.(types.Enum); ok {
-			enumSpec, err := serializeEnumType(enum)
+			enumSpec, err := info.serializeEnumType(enum)
 			if err != nil {
 				return schema.PackageSpec{}, err
 			}
@@ -151,11 +174,11 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 			spec.Types[token] = enumSpec
 			continue
 		}
-		typeSpec, err := serializeType(t, info)
+		typeSpec, err := info.serializeComplexType(t)
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
-		token := info.types[dereference(reflect.TypeOf(t))]
+		token := info.types[baseType(t)]
 		spec.Types[token] = typeSpec
 	}
 	spec, err := mergePackageSpec(spec, opts.PartialSpec)
@@ -165,9 +188,8 @@ func serializeSchema(opts options) (schema.PackageSpec, error) {
 	return spec, nil
 }
 
-func serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
-	t := enum.Type
-	t = dereference(t)
+func (info serializationInfo) serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
+	t := dereference(enum.Type)
 	kind, _ := getTypeKind(t)
 	enumVals := make([]schema.EnumValueSpec, 0, len(enum.Values))
 	for _, val := range enum.Values {
@@ -184,248 +206,6 @@ func serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
 	}
 
 	return spec, nil
-}
-
-func initializeInputMap() inputToImplementor {
-	var inputMap inputToImplementor = make(map[reflect.Type]reflect.Type)
-	//IntInput to int
-	inputMap.add((*pulumi.IntInput)(nil), (*int)(nil))
-
-	//IntPtrInput to *int
-	inputMap.add((*pulumi.IntPtrInput)(nil), (**int)(nil))
-
-	//IntArrayInput to []int
-	inputMap.add((*pulumi.IntArrayInput)(nil), (*[]int)(nil))
-
-	//IntMapInput to map[string]int
-	inputMap.add((*pulumi.IntMapInput)(nil), (*map[string]int)(nil))
-
-	//IntArrayMapInput to map[string][]int
-	inputMap.add((*pulumi.IntArrayMapInput)(nil), (*map[string][]int)(nil))
-
-	//IntMapArrayInput to []map[string]int
-	inputMap.add((*pulumi.IntMapArrayInput)(nil), (*[]map[string]int)(nil))
-
-	//IntMapMapInput to map[string]map[string]int
-	inputMap.add((*pulumi.IntMapMapInput)(nil), (*map[string]map[string]int)(nil))
-
-	//IntArrayArrayInput to [][]int
-	inputMap.add((*pulumi.IntArrayArrayInput)(nil), (*[][]int)(nil))
-
-	//StringInput to string
-	inputMap.add((*pulumi.StringInput)(nil), (*string)(nil))
-
-	//StringPtrInput to *string
-	inputMap.add((*pulumi.StringPtrInput)(nil), (**string)(nil))
-
-	//StringArrayInput to []string
-	inputMap.add((*pulumi.StringArrayInput)(nil), (*[]string)(nil))
-
-	//StringMapInput to map[string]string
-	inputMap.add((*pulumi.StringMapInput)(nil), (*map[string]string)(nil))
-
-	//StringArrayMapInput to map[string][]string
-	inputMap.add((*pulumi.StringArrayMapInput)(nil), (*map[string][]string)(nil))
-
-	//StringMapArrayInput to []map[string]string
-	inputMap.add((*pulumi.StringMapArrayInput)(nil), (*[]map[string]string)(nil))
-
-	//StringMapMapInput to map[string]map[string]string
-	inputMap.add((*pulumi.StringMapMapInput)(nil), (*map[string]map[string]string)(nil))
-
-	//StringArrayArrayInput to [][]string
-	inputMap.add((*pulumi.StringArrayArrayInput)(nil), (*[][]string)(nil))
-
-	//URNInput to pulumi.URN
-	inputMap.add((*pulumi.URNInput)(nil), (*pulumi.URN)(nil))
-
-	//URNPtrInput to *pulumi.URN
-	inputMap.add((*pulumi.URNPtrInput)(nil), (**pulumi.URN)(nil))
-
-	//URNArrayInput to []pulumi.URN
-	inputMap.add((*pulumi.URNArrayInput)(nil), (*[]pulumi.URN)(nil))
-
-	//URNMapInput to map[string]pulumi.URN
-	inputMap.add((*pulumi.URNMapInput)(nil), (*map[string]pulumi.URN)(nil))
-
-	//URNArrayMapInput to map[string][]pulumi.URN
-	inputMap.add((*pulumi.URNArrayMapInput)(nil), (*map[string][]pulumi.URN)(nil))
-
-	//URNMapArrayInput to []map[string]pulumi.URN
-	inputMap.add((*pulumi.URNMapArrayInput)(nil), (*[]map[string]pulumi.URN)(nil))
-
-	//URNMapMapInput to map[string]map[string]pulumi.URN
-	inputMap.add((*pulumi.URNMapMapInput)(nil), (*map[string]map[string]pulumi.URN)(nil))
-
-	//URNArrayArrayInput to [][]pulumi.URN
-	inputMap.add((*pulumi.URNArrayArrayInput)(nil), (*[][]pulumi.URN)(nil))
-
-	//ArchiveInput to pulumi.Archive
-	inputMap.add((*pulumi.ArchiveInput)(nil), (*pulumi.Archive)(nil))
-
-	//ArchiveArrayInput to []pulumi.Archive
-	inputMap.add((*pulumi.ArchiveArrayInput)(nil), (*[]pulumi.Archive)(nil))
-
-	//ArchiveMapInput to map[string]pulumi.Archive
-	inputMap.add((*pulumi.ArchiveMapInput)(nil), (*map[string]pulumi.Archive)(nil))
-
-	//ArchiveArrayMapInput to map[string][]pulumi.Archive
-	inputMap.add((*pulumi.ArchiveArrayMapInput)(nil), (*map[string][]pulumi.Archive)(nil))
-
-	//ArchiveMapArrayInput to []map[string]pulumi.Archive
-	inputMap.add((*pulumi.ArchiveMapArrayInput)(nil), (*[]map[string]pulumi.Archive)(nil))
-
-	//ArchiveMapMapInput to map[string]map[string]pulumi.Archive
-	inputMap.add((*pulumi.ArchiveMapMapInput)(nil), (*map[string]map[string]pulumi.Archive)(nil))
-
-	//ArchiveArrayArrayInput to [][]pulumi.Archive
-	inputMap.add((*pulumi.ArchiveArrayArrayInput)(nil), (*[][]pulumi.Archive)(nil))
-
-	//AssetInput to pulumi.Asset
-	inputMap.add((*pulumi.AssetInput)(nil), (*pulumi.Asset)(nil))
-
-	//AssetArrayInput to []pulumi.Asset
-	inputMap.add((*pulumi.AssetArrayInput)(nil), (*[]pulumi.Asset)(nil))
-
-	//AssetMapInput to map[string]pulumi.Asset
-	inputMap.add((*pulumi.AssetMapInput)(nil), (*map[string]pulumi.Asset)(nil))
-
-	//AssetArrayMapInput to map[string][]pulumi.Asset
-	inputMap.add((*pulumi.AssetArrayMapInput)(nil), (*map[string][]pulumi.Asset)(nil))
-
-	//AssetMapArrayInput to []map[string]pulumi.Asset
-	inputMap.add((*pulumi.AssetMapArrayInput)(nil), (*[]map[string]pulumi.Asset)(nil))
-
-	//AssetMapMapInput to map[string]map[string]pulumi.Asset
-	inputMap.add((*pulumi.AssetMapMapInput)(nil), (*map[string]map[string]pulumi.Asset)(nil))
-
-	//AssetArrayArrayInput to [][]pulumi.Asset
-	inputMap.add((*pulumi.AssetArrayArrayInput)(nil), (*[][]pulumi.Asset)(nil))
-
-	//AssetOrArchiveInput to pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveInput)(nil), (*pulumi.AssetOrArchive)(nil))
-
-	//AssetOrArchiveArrayInput to []pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveArrayInput)(nil), (*[]pulumi.AssetOrArchive)(nil))
-
-	//AssetOrArchiveMapInput to map[string]pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveMapInput)(nil), (*map[string]pulumi.AssetOrArchive)(nil))
-
-	//AssetOrArchiveArrayMapInput to map[string][]pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveArrayMapInput)(nil), (*map[string][]pulumi.AssetOrArchive)(nil))
-
-	//AssetOrArchiveMapArrayInput to []map[string]pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveMapArrayInput)(nil), (*[]map[string]pulumi.AssetOrArchive)(nil))
-
-	//AssetOrArchiveMapMapInput to map[string]map[string]pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveMapMapInput)(nil), (*map[string]map[string]pulumi.AssetOrArchive)(nil))
-
-	//AssetOrArchiveArrayArrayInput to [][]pulumi.AssetOrArchive
-	inputMap.add((*pulumi.AssetOrArchiveArrayArrayInput)(nil), (*[][]pulumi.AssetOrArchive)(nil))
-
-	//BoolInput to bool
-	inputMap.add((*pulumi.BoolInput)(nil), (*bool)(nil))
-
-	//BoolArrayInput to []bool
-	inputMap.add((*pulumi.BoolArrayInput)(nil), (*[]bool)(nil))
-
-	//BoolMapInput to map[string]bool
-	inputMap.add((*pulumi.BoolMapInput)(nil), (*map[string]bool)(nil))
-
-	//BoolArrayMapInput to map[string][]bool
-	inputMap.add((*pulumi.BoolArrayMapInput)(nil), (*map[string][]bool)(nil))
-
-	//BoolMapArrayInput to []map[string]bool
-	inputMap.add((*pulumi.BoolMapArrayInput)(nil), (*[]map[string]bool)(nil))
-
-	//BoolMapMapInput to map[string]map[string]bool
-	inputMap.add((*pulumi.BoolMapMapInput)(nil), (*map[string]map[string]bool)(nil))
-
-	//BoolArrayArrayInput to [][]bool
-	inputMap.add((*pulumi.BoolArrayArrayInput)(nil), (*[][]bool)(nil))
-
-	//IDInput to pulumi.ID
-	inputMap.add((*pulumi.IDInput)(nil), (*pulumi.ID)(nil))
-
-	//IDPtrInput to *pulumi.ID
-	inputMap.add((*pulumi.IDPtrInput)(nil), (**pulumi.ID)(nil))
-
-	//IDArrayInput to []pulumi.ID
-	inputMap.add((*pulumi.IDArrayInput)(nil), (*[]pulumi.ID)(nil))
-
-	//IDMapInput to map[string]pulumi.ID
-	inputMap.add((*pulumi.IDMapInput)(nil), (*map[string]pulumi.ID)(nil))
-
-	//IDArrayMapInput to map[string][]pulumi.ID
-	inputMap.add((*pulumi.IDArrayMapInput)(nil), (*map[string][]pulumi.ID)(nil))
-
-	//IDMapArrayInput to []map[string]pulumi.ID
-	inputMap.add((*pulumi.IDMapArrayInput)(nil), (*[]map[string]pulumi.ID)(nil))
-
-	//IDMapMapInput to map[string]map[string]pulumi.ID
-	inputMap.add((*pulumi.IDMapMapInput)(nil), (*map[string]map[string]pulumi.ID)(nil))
-
-	//IDArrayArrayInput to [][]pulumi.ID
-	inputMap.add((*pulumi.IDArrayArrayInput)(nil), (*[][]pulumi.ID)(nil))
-
-	//ArrayInput to []interface{}
-	inputMap.add((*pulumi.ArrayInput)(nil), (*[]interface{})(nil))
-
-	//MapInput to map[string]interface{}
-	inputMap.add((*pulumi.MapInput)(nil), (*map[string]interface{})(nil))
-
-	//ArrayMapInput to map[string][]interface{}
-	inputMap.add((*pulumi.ArrayMapInput)(nil), (*map[string][]interface{})(nil))
-
-	//MapArrayInput to []map[string]interface{}
-	inputMap.add((*pulumi.MapArrayInput)(nil), (*[]map[string]interface{})(nil))
-
-	//MapMapInput to map[string]map[string]interface{}
-	inputMap.add((*pulumi.MapMapInput)(nil), (*map[string]map[string]interface{})(nil))
-
-	//ArrayArrayInput to [][]interface{}
-	inputMap.add((*pulumi.ArrayArrayInput)(nil), (*[][]interface{})(nil))
-
-	//ArrayArrayMapInput to map[string][][]interface{}
-	inputMap.add((*pulumi.ArrayArrayMapInput)(nil), (*map[string][][]interface{})(nil))
-
-	//Float65Input to float64
-	inputMap.add((*pulumi.Float64Input)(nil), (*float64)(nil))
-
-	//Float64PtrInput to *float64
-	inputMap.add((*pulumi.Float64PtrInput)(nil), (**float64)(nil))
-
-	//Float64ArrayInput to []float64
-	inputMap.add((*pulumi.Float64ArrayInput)(nil), (*[]float64)(nil))
-
-	//Float64MapInput to map[string]float64
-	inputMap.add((*pulumi.Float64MapInput)(nil), (*map[string]float64)(nil))
-
-	//Float64ArrayMapInput to map[string][]float64
-	inputMap.add((*pulumi.Float64ArrayMapInput)(nil), (*map[string][]float64)(nil))
-
-	//Float64MapArrayInput to []map[string]float64
-	inputMap.add((*pulumi.Float64MapArrayInput)(nil), (*[]map[string]float64)(nil))
-
-	//Float64MapMapInput to map[string]map[string]float64
-	inputMap.add((*pulumi.Float64MapMapInput)(nil), (*map[string]map[string]float64)(nil))
-
-	//Float64ArrayArrayInput to [][]float64
-	inputMap.add((*pulumi.Float64ArrayArrayInput)(nil), (*[][]float64)(nil))
-
-	//ResourceInput to pulumi.Resource
-	inputMap.add((*pulumi.ResourceInput)(nil), (*pulumi.Resource)(nil))
-
-	//ResourceArrayInput to []pulumi.Resource
-	inputMap.add((*pulumi.ResourceArrayInput)(nil), (*[]pulumi.Resource)(nil))
-
-	return inputMap
-}
-
-type inputToImplementor map[reflect.Type]reflect.Type
-
-func (m inputToImplementor) add(k interface{}, v interface{}) {
-	m[reflect.TypeOf(k).Elem()] = reflect.TypeOf(v).Elem()
 }
 
 func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error) {
@@ -465,11 +245,9 @@ func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error)
 	if over.Meta != nil {
 		spec.Meta = over.Meta //Meta is a struct containing only one field, so we can just overwrite it
 	}
-	// AllowedPackageNames []string
 	if over.AllowedPackageNames != nil {
 		spec.AllowedPackageNames = mergeStringArrays(spec.AllowedPackageNames, over.AllowedPackageNames)
 	}
-	// Language map[string]RawMessage
 	if over.Language != nil {
 		spec.Language = mergeMapsOverride(spec.Language, over.Language)
 	}
@@ -496,7 +274,7 @@ func mergePackageSpec(spec, over schema.PackageSpec) (schema.PackageSpec, error)
 	return spec, nil
 }
 
-//mergeResourceSpec merges two resource specs together.
+// mergeResourceSpec merges two resource specs together.
 func mergeResourceSpec(base, over schema.ResourceSpec) (schema.ResourceSpec, error) {
 	base.ObjectTypeSpec = mergeObjectTypeSpec(base.ObjectTypeSpec, over.ObjectTypeSpec)
 
@@ -506,10 +284,10 @@ func mergeResourceSpec(base, over schema.ResourceSpec) (schema.ResourceSpec, err
 	if over.RequiredInputs != nil {
 		base.RequiredInputs = mergeStringArrays(base.RequiredInputs, over.RequiredInputs)
 	}
-	//PlainInputs is deprecated and thus ignored
+	// PlainInputs is deprecated and thus ignored
 	if over.StateInputs != nil {
-		//StateInputs is a pointer, so for now we're just going to override it.
-		//It could also be dereferenced and merged, but for now we'll keep it like this
+		// StateInputs is a pointer, so for now we're just going to override it.
+		// It could also be dereferenced and merged, but for now we'll keep it like this
 		base.StateInputs = over.StateInputs
 	}
 	if over.Aliases != nil {
@@ -544,7 +322,7 @@ func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec
 	if over.Required != nil {
 		base.Required = mergeStringArrays(base.Required, over.Required)
 	}
-	//Plain is deprecated and thus ignored
+	// Plain is deprecated and thus ignored
 	if over.Language != nil {
 		base.Language = mergeMapsOverride(base.Language, over.Language)
 	}
@@ -554,8 +332,8 @@ func mergeObjectTypeSpec(base, over schema.ObjectTypeSpec) schema.ObjectTypeSpec
 	return base
 }
 
-// Get the resourceSpec for a single resource
-func serializeResource(rawResource any, info serializationInfo) (schema.ResourceSpec, error) {
+// Get the ResourceSpec for a single resource
+func (info serializationInfo) serializeResource(rawResource any) (schema.ResourceSpec, error) {
 	v := reflect.ValueOf(rawResource)
 	for v.Type().Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -577,7 +355,6 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 	}
 
 	for i := 0; i < t.NumField(); i++ {
-
 		field := t.Field(i)
 		fieldType := field.Type
 		vField := v.Field(i)
@@ -590,15 +367,16 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 			continue
 		}
 
-		isInput := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
-		_, isOutput := vField.Interface().(pulumi.Output)
+		isInputType := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
+		_, isOutputType := vField.Interface().(pulumi.Output)
 
 		for fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
-		if isOutput {
+		// Need to fetch the underlying types for input and outputs
+		if isOutputType {
 			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
-		} else if isInput {
+		} else if isInputType {
 			if _, ok := info.inputMap[fieldType]; !ok {
 				return schema.ResourceSpec{}, fmt.Errorf("input %s for property"+
 					"%s has type %s, which is not a valid input type", field.Name, t, fieldType)
@@ -606,7 +384,7 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 			fieldType = info.inputMap[fieldType]
 		}
 		fieldType = dereference(fieldType)
-		serialized, err := serializeProperty(fieldType, descriptions[tags.Name], defaults[tags.Name], info)
+		serialized, err := info.serializeProperty(fieldType, descriptions[tags.Name], defaults[tags.Name])
 		if err != nil {
 			return schema.ResourceSpec{}, err
 		}
@@ -635,14 +413,14 @@ func serializeResource(rawResource any, info serializationInfo) (schema.Resource
 	}, nil
 }
 
-//Get the propertySpec for a single property
-func serializeProperty(t reflect.Type, description string,
-	defValue any, info serializationInfo) (schema.PropertySpec, error) {
+// Get the propertySpec for a single property
+func (info serializationInfo) serializeProperty(t reflect.Type, description string,
+	defValue any) (schema.PropertySpec, error) {
 	// TODO: add the default
 	t = dereference(t)
 	typeKind, enum := getTypeKind(t)
 	if enum {
-		enumSpec, err := serializeEnum(t, info)
+		enumSpec, err := info.serializeEnum(t)
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -652,7 +430,7 @@ func serializeProperty(t reflect.Type, description string,
 			TypeSpec:    enumSpec,
 		}, nil
 	} else if isTypeOrResource(t, info) {
-		typeSpec, err := serializeRef(t, info)
+		typeSpec, err := info.serializeReference(t)
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -669,7 +447,7 @@ func serializeProperty(t reflect.Type, description string,
 
 	switch typeKind {
 	case ARRAY:
-		itemSpec, err := serializeTypeRef(t.Elem(), info)
+		itemSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -682,7 +460,7 @@ func serializeProperty(t reflect.Type, description string,
 			},
 		}, nil
 	case OBJECT:
-		valSpec, err := serializeTypeRef(t.Elem(), info)
+		valSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -693,7 +471,7 @@ func serializeProperty(t reflect.Type, description string,
 			Description: description,
 			Default:     defValue,
 			TypeSpec: schema.TypeSpec{
-				Type:                 "object", //There is no map type in the schema
+				Type:                 "object", // There is no map type in the schema
 				AdditionalProperties: valSpec,
 			},
 		}, nil
@@ -708,7 +486,8 @@ func serializeProperty(t reflect.Type, description string,
 	}
 }
 
-func serializeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, error) {
+// Get a TypeSpec which is a reference.
+func (info serializationInfo) serializeReference(t reflect.Type) (*schema.TypeSpec, error) {
 	t = dereference(t)
 	if token, ok := info.resources[t]; ok {
 		return &schema.TypeSpec{
@@ -721,7 +500,6 @@ func serializeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, err
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown reference type %s", t)
-
 }
 
 func isTypeOrResource(t reflect.Type, info serializationInfo) bool {
@@ -734,7 +512,6 @@ func isTypeOrResource(t reflect.Type, info serializationInfo) bool {
 	return isType
 }
 
-//Get the typeSpec for a single type
 func getTypeKind(t reflect.Type) (string, bool) {
 	var typeName string
 	isEnum := false
@@ -755,11 +532,11 @@ func getTypeKind(t reflect.Type) (string, bool) {
 	case reflect.Map:
 		typeName = OBJECT
 	case reflect.Ptr:
-		//This is a panic because we should always be dereferencing pointers
-		//The user should not be able to cause this to happen
-		//I removed the behavior where getTypeKind would automatically dereference pointers
-		//Because it may be confusing when debugging if getTypeKind is returning non-pointer
-		//When t is actually a pointe
+		// This is a panic because we should always be dereferencing pointers
+		// The user should not be able to cause this to happen
+		// I removed the behavior where getTypeKind would automatically dereference pointers
+		// Because it may be confusing when debugging if getTypeKind is returning non-pointer
+		// When t is actually a pointer
 		panic("Detected pointer type during serialization - did you forget to dereference?")
 	case reflect.Interface:
 		typeName = ANY
@@ -769,20 +546,20 @@ func getTypeKind(t reflect.Type) (string, bool) {
 	return typeName, isEnum
 }
 
-func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec, error) {
+func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSpec, error) {
 	typeKind, enum := getTypeKind(t)
 	if enum {
-		enumSpec, err := serializeEnum(t, info)
+		enumSpec, err := info.serializeEnum(t)
 		if err != nil {
 			return nil, err
 		}
 		return &enumSpec, nil
 	} else if isTypeOrResource(t, info) {
-		return serializeRef(t, info)
+		return info.serializeReference(t)
 	}
 	switch typeKind {
 	case ARRAY:
-		itemSpec, err := serializeTypeRef(t.Elem(), info)
+		itemSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return nil, err
 		}
@@ -791,7 +568,7 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 			Items: itemSpec,
 		}, nil
 	case OBJECT:
-		valSpec, err := serializeTypeRef(t.Elem(), info)
+		valSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return nil, err
 		}
@@ -799,7 +576,7 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 			return nil, fmt.Errorf("map keys must be strings")
 		}
 		return &schema.TypeSpec{
-			Type:                 "object", //There is no map type in the schema
+			Type:                 "object", // There is no map type in the schema
 			AdditionalProperties: valSpec,
 		}, nil
 	case ANY:
@@ -815,10 +592,10 @@ func serializeTypeRef(t reflect.Type, info serializationInfo) (*schema.TypeSpec,
 	}
 }
 
-func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, error) {
+func (info serializationInfo) serializeComplexType(typ any) (schema.ComplexTypeSpec, error) {
 	t := reflect.TypeOf(typ)
 	t = dereference(t)
-	typeKind, enum := getTypeKind(t)
+	_, enum := getTypeKind(t)
 	if enum {
 		return schema.ComplexTypeSpec{}, fmt.Errorf("enums are implemented using provider.Enums()")
 	}
@@ -848,7 +625,7 @@ func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, err
 			if !tags.Optional {
 				required = append(required, tags.Name)
 			}
-			prop, err := serializeProperty(field.Type, descriptions[tags.Name], defaults[tags.Name], info)
+			prop, err := info.serializeProperty(field.Type, descriptions[tags.Name], defaults[tags.Name])
 			if err != nil {
 				return schema.ComplexTypeSpec{}, err
 			}
@@ -866,21 +643,10 @@ func serializeType(typ any, info serializationInfo) (schema.ComplexTypeSpec, err
 		}, nil
 	}
 
-	enumVals := make([]schema.EnumValueSpec, 0)
-
-	fmt.Fprintf(os.Stderr, "overwrite the autogenerated type %s with your own: "+
-		"enum types must be manually specified", t)
-
-	return schema.ComplexTypeSpec{
-		ObjectTypeSpec: schema.ObjectTypeSpec{
-			Type:        typeKind,
-			Description: descriptions[""],
-		},
-		Enum: enumVals,
-	}, nil
+	return schema.ComplexTypeSpec{}, fmt.Errorf("Types must be structs - use provider.Enum to create an enum type %s", t)
 }
 
-func serializeEnum(t reflect.Type, info serializationInfo) (schema.TypeSpec, error) {
+func (info serializationInfo) serializeEnum(t reflect.Type) (schema.TypeSpec, error) {
 	t = dereference(t)
 	enum, ok := info.enums[t]
 	if !ok {
@@ -896,7 +662,7 @@ func mergeStringArrays(base, override []string) []string {
 	for _, x := range base {
 		m[x] = true
 	}
-	//If an element in override is not in base, append it
+	// If an element in override is not in base, append it
 	for _, y := range override {
 		if !m[y] {
 			base = append(base, y)
@@ -905,16 +671,16 @@ func mergeStringArrays(base, override []string) []string {
 	return base
 }
 
-//Merge two arrays of structs which have the string property "Name" by their names
+// Merge two arrays of structs which have the string property "Name" by their names
 func mergeStructArraysByKey[T interface{}, K comparable](base, override []T, fieldName string) ([]T, error) {
 	m := make(map[K]T)
-	//Check that type T has field fieldName
+	// Check that type T has field fieldName
 	t := reflect.TypeOf((*T)(nil)).Elem()
 	field, ok := t.FieldByName(fieldName)
 	if !ok {
 		return nil, fmt.Errorf("type %s does not have field %s", t, fieldName)
 	}
-	//Check that field fieldName is of type K
+	// Check that field fieldName is of type K
 	k := reflect.TypeOf((*K)(nil)).Elem()
 	if field.Type != k {
 		return nil, fmt.Errorf("type %s field %s is not of type %s", t, fieldName, k)
@@ -942,9 +708,21 @@ func mergeMapsOverride[T any](base, override map[string]T) map[string]T {
 	return base
 }
 
+func baseType(i any) reflect.Type {
+	return dereference(reflect.TypeOf(i))
+}
+
 func dereference(t reflect.Type) reflect.Type {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	return t
+}
+
+func rawMessage(v interface{}) schema.RawMessage {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return bytes
 }

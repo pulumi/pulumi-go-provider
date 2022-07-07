@@ -31,7 +31,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
-	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
+	dotnetgen "github.com/pulumi/pulumi/pkg/v3/codegen/dotnet"
+	gogen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
+	nodejsgen "github.com/pulumi/pulumi/pkg/v3/codegen/nodejs"
+	pygen "github.com/pulumi/pulumi/pkg/v3/codegen/python"
 
 	"github.com/iwahbe/pulumi-go-provider/internal/server"
 	"github.com/iwahbe/pulumi-go-provider/resource"
@@ -133,14 +136,20 @@ func generateSDKs(pkgName, outDir string, pkg *schema.Package, languages ...stri
 		return err
 	}
 	if len(languages) == 0 {
-		languages = []string{"go"}
+		languages = []string{"go", "python", "nodejs", "dotnet"}
 	}
 	for _, lang := range languages {
 		var files map[string][]byte
 		var err error
 		switch lang {
 		case "go":
-			files, err = goGen.GeneratePackage(pkgName, pkg)
+			files, err = gogen.GeneratePackage(pkgName, pkg)
+		case "python":
+			files, err = pygen.GeneratePackage(pkgName, pkg, files)
+		case "nodejs":
+			files, err = nodejsgen.GeneratePackage(pkgName, pkg, files)
+		case "dotnet":
+			files, err = dotnetgen.GeneratePackage(pkgName, pkg, files)
 		default:
 			fmt.Printf("Unknown language: '%s'", lang)
 			continue
@@ -240,7 +249,7 @@ func EnumVal(name string, value any) types.EnumValue {
 		Value: value,
 	}
 }
-func GoOptions(opts goGen.GoPackageInfo) Options {
+func GoOptions(opts gogen.GoPackageInfo) Options {
 	return func(o *options) {
 		b, err := json.Marshal(opts)
 		contract.AssertNoErrorf(err, "Failed to marshal go package info")
