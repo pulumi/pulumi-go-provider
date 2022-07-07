@@ -55,7 +55,6 @@ func serialize(opts options) (string, error) {
 	info.types = make(map[reflect.Type]string)
 	info.enums = make(map[reflect.Type]string)
 	info.inputMap = inputmap.GetInputMap()
-	
 
 	for _, resource := range opts.Customs {
 		t := baseType(resource)
@@ -120,7 +119,7 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 	spec.Language = map[string]schema.RawMessage{
 		"csharp": rawMessage(map[string]interface{}{
 			"packageReferences": map[string]string{
-				"Pulumi":             "3.*",
+				"Pulumi": "3.*",
 			},
 			"respectSchemaVersion": true,
 		}),
@@ -129,13 +128,13 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 		}),
 		"nodejs": rawMessage(map[string]interface{}{
 			"dependencies": map[string]string{
-				"@pulumi/pulumi":       "^3.0.0",
+				"@pulumi/pulumi": "^3.0.0",
 			},
 			"respectSchemaVersion": true,
 		}),
 		"python": rawMessage(map[string]interface{}{
 			"requires": map[string]string{
-				"pulumi":              ">=3.0.0,<4.0.0",
+				"pulumi": ">=3.0.0,<4.0.0",
 			},
 			"respectSchemaVersion": true,
 		}),
