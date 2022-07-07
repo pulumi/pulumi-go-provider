@@ -26,7 +26,7 @@ func (m InputToImplementor) add(k interface{}, v interface{}) {
 	m[reflect.TypeOf(k).Elem()] = reflect.TypeOf(v).Elem()
 }
 
-func GetInputMap() InputToImplementor {
+func New() InputToImplementor {
 	var inputMap InputToImplementor = make(map[reflect.Type]reflect.Type)
 	//IntInput to int
 	inputMap.add((*pulumi.IntInput)(nil), (*int)(nil))

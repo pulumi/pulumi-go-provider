@@ -1,16 +1,12 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/blang/semver"
 	p "github.com/iwahbe/pulumi-go-provider"
 	r "github.com/iwahbe/pulumi-go-provider/resource"
-	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Enum int
@@ -55,7 +51,7 @@ func (e *EnumStore) Create(ctx r.Context, name string, preview bool) (r.ID, erro
 	//Check file existence
 	if _, err := os.Stat(path); err == nil {
 		return "", fmt.Errorf("EnumStore.Create: file already exists")
-	} else if !errors.Is(err, os.ErrNotExist) {
+	} else if !os.IsNotExist(err) {
 		return "", err
 	}
 
@@ -63,7 +59,10 @@ func (e *EnumStore) Create(ctx r.Context, name string, preview bool) (r.ID, erro
 		return "", nil
 	}
 
-	os.WriteFile(path, []byte(enum), 0644)
+	err := os.WriteFile(path, []byte(enum), 0644)
+	if err != nil {
+		return "", err
+	}
 	return name, nil
 }
 
@@ -72,11 +71,11 @@ func (e *EnumStore) Delete(ctx r.Context, id string) error {
 	return os.Remove(path)
 }
 
-func (e *EnumStore) Read(ctx r.Context, id string) (*pulumirpc.ReadResponse, error) {
+func (e *EnumStore) Read(ctx r.Context, id string) error {
 	path := e.Filepath + "/" + id
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	defer file.Close()
 
@@ -84,7 +83,7 @@ func (e *EnumStore) Read(ctx r.Context, id string) (*pulumirpc.ReadResponse, err
 	b := make([]byte, 1)
 	_, err = file.Read(b)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 
 	switch string(b) {
@@ -97,21 +96,11 @@ func (e *EnumStore) Read(ctx r.Context, id string) (*pulumirpc.ReadResponse, err
 	case "G":
 		enum = G
 	default:
-		return nil, fmt.Errorf("EnumStore.Read: file contents are not a valid enum")
+		return fmt.Errorf("EnumStore.Read: file contents are not a valid enum")
 	}
+	e.E = enum
 
-	return &pulumirpc.ReadResponse{
-		Id: id,
-		Properties: &structpb.Struct{
-			Fields: map[string]*structpb.Value{
-				"e": {
-					Kind: &structpb.Value_NumberValue{
-						NumberValue: float64(enum),
-					},
-				},
-			},
-		},
-	}, nil
+	return nil
 }
 
 func (s *Strct) Annotate(a r.Annotator) {
@@ -122,8 +111,6 @@ func (s *Strct) Annotate(a r.Annotator) {
 }
 
 func main() {
-	println(reflect.TypeOf((*Enum)(nil)).Elem().String())
-
 	err := p.Run("schema-test", semver.Version{Minor: 1},
 		p.Resources(&EnumStore{}),
 		p.Types(

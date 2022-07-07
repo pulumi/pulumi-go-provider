@@ -22,3 +22,5 @@
 examples/command/command
 examples/random-login/random-login
 examples/schema-test/schema-test
+
+/.vscode

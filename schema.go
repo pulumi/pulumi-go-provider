@@ -49,12 +49,13 @@ type serializationInfo struct {
 
 // Serialize a package to JSON Schema.
 func serialize(opts options) (string, error) {
-	info := serializationInfo{}
-	info.pkgname = opts.Name
-	info.resources = make(map[reflect.Type]string)
-	info.types = make(map[reflect.Type]string)
-	info.enums = make(map[reflect.Type]string)
-	info.inputMap = inputmap.GetInputMap()
+	info := serializationInfo{
+		pkgname:   opts.Name,
+		resources: make(map[reflect.Type]string),
+		types:     make(map[reflect.Type]string),
+		enums:     make(map[reflect.Type]string),
+		inputMap:  inputmap.New(),
+	}
 
 	for _, resource := range opts.Customs {
 		t := baseType(resource)
@@ -420,7 +421,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 	t = dereference(t)
 	typeKind, enum := getTypeKind(t)
 	if enum {
-		enumSpec, err := info.serializeTypeEnum(t)
+		enumSpec, err := info.serializeEnum(t)
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -430,7 +431,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 			TypeSpec:    enumSpec,
 		}, nil
 	} else if isTypeOrResource(t, info) {
-		typeSpec, err := info.serializeReferenceType(t)
+		typeSpec, err := info.serializeReference(t)
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -447,7 +448,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 
 	switch typeKind {
 	case ARRAY:
-		itemSpec, err := info.serializeTypeAny(t.Elem())
+		itemSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -460,7 +461,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 			},
 		}, nil
 	case OBJECT:
-		valSpec, err := info.serializeTypeAny(t.Elem())
+		valSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return schema.PropertySpec{}, err
 		}
@@ -487,7 +488,7 @@ func (info serializationInfo) serializeProperty(t reflect.Type, description stri
 }
 
 //Get a TypeSpec which is a reference.
-func (info serializationInfo) serializeReferenceType(t reflect.Type) (*schema.TypeSpec, error) {
+func (info serializationInfo) serializeReference(t reflect.Type) (*schema.TypeSpec, error) {
 	t = dereference(t)
 	if token, ok := info.resources[t]; ok {
 		return &schema.TypeSpec{
@@ -546,20 +547,20 @@ func getTypeKind(t reflect.Type) (string, bool) {
 	return typeName, isEnum
 }
 
-func (info serializationInfo) serializeTypeAny(t reflect.Type) (*schema.TypeSpec, error) {
+func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSpec, error) {
 	typeKind, enum := getTypeKind(t)
 	if enum {
-		enumSpec, err := info.serializeTypeEnum(t)
+		enumSpec, err := info.serializeEnum(t)
 		if err != nil {
 			return nil, err
 		}
 		return &enumSpec, nil
 	} else if isTypeOrResource(t, info) {
-		return info.serializeReferenceType(t)
+		return info.serializeReference(t)
 	}
 	switch typeKind {
 	case ARRAY:
-		itemSpec, err := info.serializeTypeAny(t.Elem())
+		itemSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return nil, err
 		}
@@ -568,7 +569,7 @@ func (info serializationInfo) serializeTypeAny(t reflect.Type) (*schema.TypeSpec
 			Items: itemSpec,
 		}, nil
 	case OBJECT:
-		valSpec, err := info.serializeTypeAny(t.Elem())
+		valSpec, err := info.serializeArbitrary(t.Elem())
 		if err != nil {
 			return nil, err
 		}
@@ -646,7 +647,7 @@ func (info serializationInfo) serializeComplexType(typ any) (schema.ComplexTypeS
 	return schema.ComplexTypeSpec{}, fmt.Errorf("Types must be structs - use provider.Enum to create an enum type %s", t)
 }
 
-func (info serializationInfo) serializeTypeEnum(t reflect.Type) (schema.TypeSpec, error) {
+func (info serializationInfo) serializeEnum(t reflect.Type) (schema.TypeSpec, error) {
 	t = dereference(t)
 	enum, ok := info.enums[t]
 	if !ok {
