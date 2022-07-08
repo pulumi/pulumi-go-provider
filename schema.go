@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
-	"github.com/iwahbe/pulumi-go-provider/internal/inputmap"
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	"github.com/iwahbe/pulumi-go-provider/resource"
 	"github.com/iwahbe/pulumi-go-provider/types"
@@ -44,7 +44,6 @@ type serializationInfo struct {
 	resources map[reflect.Type]string
 	types     map[reflect.Type]string
 	enums     map[reflect.Type]string
-	inputMap  inputmap.InputToImplementor
 }
 
 // Serialize a package to JSON Schema.
@@ -54,7 +53,6 @@ func serialize(opts options) (string, error) {
 		resources: make(map[reflect.Type]string),
 		types:     make(map[reflect.Type]string),
 		enums:     make(map[reflect.Type]string),
-		inputMap:  inputmap.New(),
 	}
 
 	for _, resource := range opts.Customs {
@@ -356,8 +354,10 @@ func (info serializationInfo) serializeResource(rawResource any) (schema.Resourc
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		fieldType := field.Type
-		vField := v.Field(i)
+		fieldType, err := underlyingType(field.Type)
+		if err != nil {
+			return schema.ResourceSpec{}, err
+		}
 
 		tags, err := introspect.ParseTag(field)
 		if err != nil {
@@ -367,23 +367,6 @@ func (info serializationInfo) serializeResource(rawResource any) (schema.Resourc
 			continue
 		}
 
-		isInputType := field.Type.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
-		_, isOutputType := vField.Interface().(pulumi.Output)
-
-		for fieldType.Kind() == reflect.Ptr {
-			fieldType = fieldType.Elem()
-		}
-		// Need to fetch the underlying types for input and outputs
-		if isOutputType {
-			fieldType = reflect.New(fieldType).Elem().Interface().(pulumi.Output).ElementType()
-		} else if isInputType {
-			if _, ok := info.inputMap[fieldType]; !ok {
-				return schema.ResourceSpec{}, fmt.Errorf("input %s for property"+
-					"%s has type %s, which is not a valid input type", field.Name, t, fieldType)
-			}
-			fieldType = info.inputMap[fieldType]
-		}
-		fieldType = dereference(fieldType)
 		serialized, err := info.serializeProperty(fieldType, descriptions[tags.Name], defaults[tags.Name])
 		if err != nil {
 			return schema.ResourceSpec{}, err
@@ -717,6 +700,42 @@ func dereference(t reflect.Type) reflect.Type {
 		t = t.Elem()
 	}
 	return t
+}
+
+func underlyingType(t reflect.Type) (reflect.Type, error) {
+	t = dereference(t)
+	isInputType := t.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
+	_, isOutputType := reflect.New(t).Interface().(pulumi.Output)
+
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if isOutputType {
+		t = reflect.New(t).Elem().Interface().(pulumi.Output).ElementType()
+	} else if isInputType {
+		T := t.Name()
+		if strings.HasSuffix(T, "Input") {
+			T = strings.TrimSuffix(T, "Input")
+		} else {
+			return nil, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
+		}
+		toOutMethod, ok := t.MethodByName("To" + T + "Output")
+		if !ok {
+			return nil, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
+		}
+		outputT := toOutMethod.Type.Out(0)
+		//create new object of type outputT
+		strct := reflect.New(outputT).Elem().Interface()
+		out, ok := strct.(pulumi.Output)
+		if !ok {
+			return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
+				reflect.TypeOf(strct), T, t.Name())
+		}
+		t = out.ElementType()
+	}
+	t = dereference(t)
+	return t, nil
 }
 
 func rawMessage(v interface{}) schema.RawMessage {
