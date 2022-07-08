@@ -729,7 +729,8 @@ func underlyingType(t reflect.Type) (reflect.Type, error) {
 		strct := reflect.New(outputT).Elem().Interface()
 		out, ok := strct.(pulumi.Output)
 		if !ok {
-			return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output", reflect.TypeOf(strct), T, t.Name())
+			return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
+				reflect.TypeOf(strct), T, t.Name())
 		}
 		t = out.ElementType()
 	}
