@@ -19,58 +19,64 @@ import (
 	"testing"
 
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ec2"
+	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/eks"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 )
 
+type TestStruct struct {
+	wrapper  any
+	base     any
+	notequal bool
+}
+
 func TestUnderlyingType(t *testing.T) {
 	t.Parallel()
-	intPtrInputType := reflect.TypeOf((*pulumi.IntPtrInput)(nil)).Elem()
-	intPtrOutputType := reflect.TypeOf((*pulumi.IntPtrOutput)(nil)).Elem()
-	intType := reflect.TypeOf((*int)(nil)).Elem()
-	intPtrInputUnderlying, err := underlyingType(intPtrInputType)
-	assert.NoError(t, err)
-	intPtrOutputUnderlying, err := underlyingType(intPtrOutputType)
-	assert.NoError(t, err)
-	assert.Equal(t, intType, intPtrInputUnderlying)
-	assert.Equal(t, intType, intPtrOutputUnderlying)
+	tests := []TestStruct{
+		{
+			wrapper: (*pulumi.IntPtrInput)(nil),
+			base:    (*int)(nil),
+		},
+		{
+			wrapper: (*pulumi.IntPtrOutput)(nil),
+			base:    (*int)(nil),
+		},
+		{
+			wrapper: (*pulumi.AssetArrayArrayInput)(nil),
+			base:    (*[][]pulumi.Asset)(nil),
+		},
+		{
+			wrapper: (*ec2.AmiCopyEbsBlockDeviceArrayInput)(nil),
+			base:    (*[]ec2.AmiCopyEbsBlockDevice)(nil),
+		},
+		{
+			wrapper: (*eks.ClusterOutput)(nil),
+			base:    (*eks.Cluster)(nil),
+		},
+		{
+			wrapper: (*pulumi.StringArrayInput)(nil),
+			base:    (*[]string)(nil),
+		},
+		{
+			wrapper: (****int)(nil),
+			base:    (*int)(nil),
+		},
+		{
+			wrapper:  (*int)(nil),
+			base:     (*string)(nil),
+			notequal: true,
+		},
+	}
 
-	assetArrayArrayInputType := reflect.TypeOf((*pulumi.AssetArrayArrayInput)(nil)).Elem()
-	assetArrayArrayOutputType := reflect.TypeOf((*pulumi.AssetArrayArrayOutput)(nil)).Elem()
-	assetArrayArrayType := reflect.TypeOf((*[][]pulumi.Asset)(nil)).Elem()
-	assetArrayArrayInputUnderlying, err := underlyingType(assetArrayArrayInputType)
-	assert.NoError(t, err)
-	assetArrayArrayOutputUnderlying, err := underlyingType(assetArrayArrayOutputType)
-	assert.NoError(t, err)
-	assert.Equal(t, assetArrayArrayType, assetArrayArrayInputUnderlying)
-	assert.Equal(t, assetArrayArrayType, assetArrayArrayOutputUnderlying)
-
-	stringMapArrayInputType := reflect.TypeOf((*pulumi.StringMapArrayInput)(nil)).Elem()
-	stringMapArrayOutputType := reflect.TypeOf((*pulumi.StringMapArrayOutput)(nil)).Elem()
-	stringMapArrayType := reflect.TypeOf((*[]map[string]string)(nil)).Elem()
-	stringMapArrayInputUnderlying, err := underlyingType(stringMapArrayInputType)
-	assert.NoError(t, err)
-	stringMapArrayOutputUnderlying, err := underlyingType(stringMapArrayOutputType)
-	assert.NoError(t, err)
-	assert.Equal(t, stringMapArrayType, stringMapArrayInputUnderlying)
-	assert.Equal(t, stringMapArrayType, stringMapArrayOutputUnderlying)
-
-	amiCopyEbsBlockDeviceArrayInput := reflect.TypeOf((*ec2.AmiCopyEbsBlockDeviceArrayInput)(nil)).Elem()
-	amiCopyEbsBlockDeviceArrayOutput := reflect.TypeOf((*ec2.AmiCopyEbsBlockDeviceArrayOutput)(nil)).Elem()
-	amiCopyEbsBlockDeviceArrayType := reflect.TypeOf((*[]ec2.AmiCopyEbsBlockDevice)(nil)).Elem()
-	amiCopyEbsBlockDeviceArrayInputUnderlying, err := underlyingType(amiCopyEbsBlockDeviceArrayInput)
-	assert.NoError(t, err)
-	amiCopyEbsBlockDeviceArrayOutputUnderlying, err := underlyingType(amiCopyEbsBlockDeviceArrayOutput)
-	assert.NoError(t, err)
-	assert.Equal(t, amiCopyEbsBlockDeviceArrayType, amiCopyEbsBlockDeviceArrayInputUnderlying)
-	assert.Equal(t, amiCopyEbsBlockDeviceArrayType, amiCopyEbsBlockDeviceArrayOutputUnderlying)
-
-	manyPtrIntType := reflect.TypeOf((*****int)(nil)).Elem()
-	manyPtrIntUnderlying, err := underlyingType(manyPtrIntType)
-	assert.NoError(t, err)
-	intType = reflect.TypeOf(5)
-	assert.NoError(t, err)
-	assert.Equal(t, intType, manyPtrIntUnderlying)
-
-	assert.NotEqual(t, stringMapArrayInputUnderlying, amiCopyEbsBlockDeviceArrayInputUnderlying)
+	for _, test := range tests {
+		wrapper := reflect.TypeOf(test.wrapper).Elem()
+		base := reflect.TypeOf(test.base).Elem()
+		underlying, err := underlyingType(wrapper)
+		assert.NoError(t, err)
+		if test.notequal {
+			assert.NotEqual(t, base, underlying)
+		} else {
+			assert.Equal(t, base.Name(), underlying.Name())
+		}
+	}
 }
