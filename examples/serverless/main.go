@@ -8,6 +8,7 @@ import (
 
 	"github.com/blang/semver"
 	p "github.com/iwahbe/pulumi-go-provider"
+	r "github.com/iwahbe/pulumi-go-provider/resource"
 	apigateway "github.com/pulumi/pulumi-aws-apigateway/sdk/go/apigateway"
 	"github.com/pulumi/pulumi-aws/sdk/v4/go/aws/iam"
 	"github.com/pulumi/pulumi-aws/sdk/v4/go/aws/lambda"
@@ -18,7 +19,18 @@ import (
 
 func main() {
 	err := p.Run("serverless", semver.Version{Minor: 1},
-		p.Components(&Service{}),
+		p.Components(
+			&Service{},
+		),
+		p.Types(
+			&Function{},
+			&ServiceProvider{},
+			&Event{},
+			&ProviderIam{},
+			&ProviderIamRole{},
+			&HttpEvent{},
+			&SqsEvent{},
+		),
 		p.PartialSpec(schema.PackageSpec{}),
 	)
 	if err != nil {
@@ -37,6 +49,13 @@ type Service struct {
 	// Inputs
 	Functions FunctionMapInput     `pulumi:"functions"`
 	Provider  ServiceProviderInput `pulumi:"provider"`
+}
+
+func (s *Service) Annotate(a r.Annotator) {
+	a.Describe(&s.Functions, "Configure the functions to deploy.")
+	a.Describe(&s.Provider, "Configure general settings to apply across all functions.")
+
+	a.Describe(&s.Url, "The URL at which any HTTP handlers are exposed, if any of the functions expose HTTP handlers.")
 }
 
 func (s *Service) Construct(name string, ctx *pulumi.Context) error {

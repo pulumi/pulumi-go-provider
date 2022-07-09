@@ -1,0 +1,135 @@
+{
+  "name": "serverless",
+  "version": "0.1.0",
+  "config": {},
+  "types": {
+    "serverless:index:Event": {
+      "properties": {
+        "http": {
+          "$ref": "#/types/serverless:index:HttpEvent"
+        },
+        "sqs": {
+          "$ref": "#/types/serverless:index:SqsEvent"
+        }
+      },
+      "type": "object"
+    },
+    "serverless:index:Function": {
+      "properties": {
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/types/serverless:index:Event"
+          }
+        },
+        "handler": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "serverless:index:HttpEvent": {
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "serverless:index:ProviderIam": {
+      "properties": {
+        "role": {
+          "$ref": "#/types/serverless:index:ProviderIamRole"
+        }
+      },
+      "type": "object"
+    },
+    "serverless:index:ProviderIamRole": {
+      "properties": {
+        "managedPolicies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "type": "object"
+    },
+    "serverless:index:ServiceProvider": {
+      "properties": {
+        "iam": {
+          "$ref": "#/types/serverless:index:ProviderIam"
+        },
+        "name": {
+          "type": "string"
+        },
+        "runtime": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "serverless:index:SqsEvent": {
+      "properties": {
+        "arn": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "provider": {},
+  "resources": {
+    "serverless:index:Service": {
+      "properties": {
+        "functions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/types/serverless:index:Function"
+          },
+          "description": "Configure the functions to deploy."
+        },
+        "provider": {
+          "$ref": "#/types/serverless:index:ServiceProvider",
+          "description": "Configure general settings to apply across all functions."
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL at which any HTTP handlers are exposed, if any of the functions expose HTTP handlers."
+        }
+      },
+      "required": [
+        "url",
+        "functions",
+        "provider"
+      ],
+      "inputProperties": {
+        "functions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/types/serverless:index:Function"
+          },
+          "description": "Configure the functions to deploy."
+        },
+        "provider": {
+          "$ref": "#/types/serverless:index:ServiceProvider",
+          "description": "Configure general settings to apply across all functions."
+        }
+      },
+      "requiredInputs": [
+        "functions",
+        "provider"
+      ],
+      "isComponent": true
+    }
+  }
+}

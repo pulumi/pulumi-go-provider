@@ -203,8 +203,8 @@ func (o ServiceMapOutput) MapIndex(k pulumi.StringInput) ServiceOutput {
 }
 
 type Event struct {
-	Http *HttpEvent `pulumi:"http"`
-	Sqs  *SqsEvent  `pulumi:"sqs"`
+	Http *HttpEvent `pulumi:"http,optional"`
+	Sqs  *SqsEvent  `pulumi:"sqs,optional"`
 }
 
 // EventInput is an input type that accepts EventArgs and EventOutput values.
@@ -303,9 +303,9 @@ func (o EventArrayOutput) Index(i pulumi.IntInput) EventOutput {
 }
 
 type Function struct {
-	Environment map[string]string `pulumi:"environment"`
-	Events      []Event           `pulumi:"events"`
-	Handler     *string           `pulumi:"handler"`
+	Environment map[string]string `pulumi:"environment,optional"`
+	Events      []Event           `pulumi:"events,optional"`
+	Handler     *string           `pulumi:"handler,optional"`
 }
 
 // FunctionInput is an input type that accepts FunctionArgs and FunctionOutput values.
@@ -409,8 +409,8 @@ func (o FunctionMapOutput) MapIndex(k pulumi.StringInput) FunctionOutput {
 }
 
 type HttpEvent struct {
-	Method *string `pulumi:"method"`
-	Path   *string `pulumi:"path"`
+	Method *string `pulumi:"method,optional"`
+	Path   *string `pulumi:"path,optional"`
 }
 
 // HttpEventInput is an input type that accepts HttpEventArgs and HttpEventOutput values.
@@ -550,7 +550,7 @@ func (o HttpEventPtrOutput) Path() pulumi.StringPtrOutput {
 }
 
 type ProviderIam struct {
-	Role *ProviderIamRole `pulumi:"role"`
+	Role *ProviderIamRole `pulumi:"role,optional"`
 }
 
 // ProviderIamInput is an input type that accepts ProviderIamArgs and ProviderIamOutput values.
@@ -676,7 +676,7 @@ func (o ProviderIamPtrOutput) Role() ProviderIamRolePtrOutput {
 }
 
 type ProviderIamRole struct {
-	ManagedPolicies []string `pulumi:"managedPolicies"`
+	ManagedPolicies []string `pulumi:"managedPolicies,optional"`
 }
 
 // ProviderIamRoleInput is an input type that accepts ProviderIamRoleArgs and ProviderIamRoleOutput values.
@@ -802,9 +802,9 @@ func (o ProviderIamRolePtrOutput) ManagedPolicies() pulumi.StringArrayOutput {
 }
 
 type ServiceProvider struct {
-	Iam     *ProviderIam `pulumi:"iam"`
-	Name    *string      `pulumi:"name"`
-	Runtime *string      `pulumi:"runtime"`
+	Iam     *ProviderIam `pulumi:"iam,optional"`
+	Name    *string      `pulumi:"name,optional"`
+	Runtime *string      `pulumi:"runtime,optional"`
 }
 
 // ServiceProviderInput is an input type that accepts ServiceProviderArgs and ServiceProviderOutput values.
@@ -958,7 +958,7 @@ func (o ServiceProviderPtrOutput) Runtime() pulumi.StringPtrOutput {
 }
 
 type SqsEvent struct {
-	Arn *string `pulumi:"arn"`
+	Arn *string `pulumi:"arn,optional"`
 }
 
 // SqsEventInput is an input type that accepts SqsEventArgs and SqsEventOutput values.
