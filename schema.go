@@ -195,7 +195,13 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 		}
 
 		inputs, err := info.fnInputs(typ)
+		if err != nil {
+			return schema.PackageSpec{}, err
+		}
 		outputs, err := info.fnOutputs(typ)
+		if err != nil {
+			return schema.PackageSpec{}, err
+		}
 		spec.Functions[string(token)] = schema.FunctionSpec{
 			Description:        fn.Description,
 			DeprecationMessage: fn.DeprecationMessage,
