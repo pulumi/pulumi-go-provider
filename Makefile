@@ -23,7 +23,7 @@ build_examples: build
 	done
 
 install_examples: build_examples
-	@for i in command,v0.3.2 random-login,v0.1.0 schema-test,v0.1.0 ; do \
+	@for i in command,v0.3.2 random-login,v0.1.0 schema-test,v0.1.0 serverless,v0.0.1; do \
 		IFS=","; set -- $$i; \
 		echo Installing $$1 provider; \
 		if [ -d ~/.pulumi/plugins/resource-$$1-$$2/ ]; then \

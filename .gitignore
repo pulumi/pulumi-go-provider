@@ -22,5 +22,6 @@
 examples/command/command
 examples/random-login/random-login
 examples/schema-test/schema-test
+examples/serverless/serverless
 
 /.vscode
