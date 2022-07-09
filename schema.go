@@ -25,6 +25,7 @@ import (
 	"github.com/iwahbe/pulumi-go-provider/types"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -98,7 +99,9 @@ func serialize(opts options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	pkgSpec.Language = opts.Language
+	if opts.Language != nil {
+		pkgSpec.Language = opts.Language
+	}
 
 	schemaJSON, err := json.MarshalIndent(pkgSpec, "", "  ")
 	if err != nil {
@@ -111,10 +114,11 @@ func serialize(opts options) (string, error) {
 // Get the packagespec given resources, etc.
 func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec, error) {
 	spec := schema.PackageSpec{
-		Resources: make(map[string]schema.ResourceSpec),
-		Types:     make(map[string]schema.ComplexTypeSpec),
 		Name:      opts.Name,
 		Version:   opts.Version.String(),
+		Resources: map[string]schema.ResourceSpec{},
+		Types:     map[string]schema.ComplexTypeSpec{},
+		Functions: map[string]schema.FunctionSpec{},
 		Language: map[string]schema.RawMessage{
 			"csharp": rawMessage(map[string]interface{}{
 				"packageReferences": map[string]string{
@@ -172,18 +176,69 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 			spec.Types[token] = enumSpec
 			continue
 		}
-		typeSpec, err := info.serializeComplexType(t)
+		typeSpec, err := info.serializeObjectType(t)
 		if err != nil {
 			return schema.PackageSpec{}, err
 		}
 		token := info.types[baseType(t)]
-		spec.Types[token] = typeSpec
+		spec.Types[token] = schema.ComplexTypeSpec{ObjectTypeSpec: typeSpec}
 	}
+
+	for _, fn := range opts.Functions {
+		typ := baseType(fn.F)
+		if typ.Kind() != reflect.Func {
+			return schema.PackageSpec{}, fmt.Errorf("Expected F to be a function, got a %s", typ.Kind())
+		}
+		token, err := introspect.GetToken(tokens.Package(info.pkgname), fn.F)
+		if err != nil {
+			return schema.PackageSpec{}, err
+		}
+
+		inputs, err := info.fnInputs(typ)
+		outputs, err := info.fnOutputs(typ)
+		spec.Functions[string(token)] = schema.FunctionSpec{
+			Description:        fn.Description,
+			DeprecationMessage: fn.DeprecationMessage,
+			Inputs:             inputs,
+			Outputs:            outputs,
+		}
+	}
+
 	spec, err := mergePackageSpec(spec, opts.PartialSpec)
 	if err != nil {
 		return schema.PackageSpec{}, err
 	}
 	return spec, nil
+}
+
+func (info serializationInfo) fnInputs(typ reflect.Type) (*schema.ObjectTypeSpec, error) {
+	contract.Assert(typ.Kind() == reflect.Func)
+
+	input, _, err := introspect.InvokeInput(typ)
+	if err != nil || input == nil {
+		return nil, err
+	}
+
+	ot, err := info.serializeObjectType(input)
+	if err != nil {
+		return nil, err
+	}
+	return &ot, nil
+}
+
+func (info serializationInfo) fnOutputs(typ reflect.Type) (*schema.ObjectTypeSpec, error) {
+	contract.Assert(typ.Kind() == reflect.Func)
+
+	out, _, err := introspect.InvokeOutput(typ)
+	if err != nil || out == nil {
+		return nil, err
+	}
+
+	ot, err := info.serializeObjectType(out)
+	if err != nil {
+		return nil, err
+	}
+	return &ot, nil
 }
 
 func (info serializationInfo) serializeEnumType(enum types.Enum) (schema.ComplexTypeSpec, error) {
@@ -575,12 +630,12 @@ func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSp
 	}
 }
 
-func (info serializationInfo) serializeComplexType(typ any) (schema.ComplexTypeSpec, error) {
+func (info serializationInfo) serializeObjectType(typ any) (schema.ObjectTypeSpec, error) {
 	t := reflect.TypeOf(typ)
 	t = dereference(t)
 	_, enum := getTypeKind(t)
 	if enum {
-		return schema.ComplexTypeSpec{}, fmt.Errorf("enums are implemented using provider.Enums()")
+		return schema.ObjectTypeSpec{}, fmt.Errorf("enums are implemented using provider.Enums()")
 	}
 
 	descriptions := map[string]string{}
@@ -600,7 +655,7 @@ func (info serializationInfo) serializeComplexType(typ any) (schema.ComplexTypeS
 			field := t.Field(i)
 			tags, err := introspect.ParseTag(field)
 			if err != nil {
-				return schema.ComplexTypeSpec{}, err
+				return schema.ObjectTypeSpec{}, err
 			}
 			if tags.Internal {
 				continue
@@ -610,23 +665,21 @@ func (info serializationInfo) serializeComplexType(typ any) (schema.ComplexTypeS
 			}
 			prop, err := info.serializeProperty(field.Type, descriptions[tags.Name], defaults[tags.Name])
 			if err != nil {
-				return schema.ComplexTypeSpec{}, err
+				return schema.ObjectTypeSpec{}, err
 			}
 			prop.Secret = tags.Secret
 			prop.ReplaceOnChanges = tags.ReplaceOnChanges
 			properties[tags.Name] = prop
 		}
-		return schema.ComplexTypeSpec{
-			ObjectTypeSpec: schema.ObjectTypeSpec{
-				Type:        "object",
-				Properties:  properties,
-				Required:    required,
-				Description: descriptions[""],
-			},
+		return schema.ObjectTypeSpec{
+			Type:        "object",
+			Properties:  properties,
+			Required:    required,
+			Description: descriptions[""],
 		}, nil
 	}
 
-	return schema.ComplexTypeSpec{}, fmt.Errorf("Types must be structs - use provider.Enum to create an enum type %s", t)
+	return schema.ObjectTypeSpec{}, fmt.Errorf("Types must be structs - use provider.Enum to create an enum type %s", t)
 }
 
 func (info serializationInfo) serializeEnum(t reflect.Type) (schema.TypeSpec, error) {

@@ -1,0 +1,9 @@
+{
+  "name": "str",
+  "version": "2.0.0",
+  "config": {},
+  "provider": {},
+  "functions": {
+    "str:index:strings.ReplaceAll": {}
+  }
+}

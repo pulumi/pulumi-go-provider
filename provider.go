@@ -36,6 +36,7 @@ import (
 	nodejsgen "github.com/pulumi/pulumi/pkg/v3/codegen/nodejs"
 	pygen "github.com/pulumi/pulumi/pkg/v3/codegen/python"
 
+	"github.com/iwahbe/pulumi-go-provider/function"
 	"github.com/iwahbe/pulumi-go-provider/internal/server"
 	"github.com/iwahbe/pulumi-go-provider/resource"
 	"github.com/iwahbe/pulumi-go-provider/types"
@@ -184,13 +185,18 @@ func prepareProvider(opts options) (func(*provider.HostClient) (pulumirpc.Resour
 	if err != nil {
 		return nil, "", err
 	}
+	invokes, err := server.NewInvokes(pkg, opts.Functions)
+	if err != nil {
+		return nil, "", err
+	}
 	schema, err := serialize(opts)
 	if err != nil {
 		return nil, "", err
 	}
 
 	return func(host *provider.HostClient) (pulumirpc.ResourceProviderServer, error) {
-		return server.New(pkg.String(), opts.Version, host, components, customs, schema), nil
+		return server.New(pkg.String(), opts.Version, host, components,
+			customs, invokes, schema), nil
 	}, schema, nil
 }
 
@@ -201,6 +207,7 @@ type options struct {
 	Types       []interface{}
 	Components  []resource.Component
 	PartialSpec schema.PackageSpec
+	Functions   []function.Function
 
 	Language map[string]schema.RawMessage
 }
@@ -225,6 +232,12 @@ func Types(types ...interface{}) Options {
 func Components(components ...resource.Component) Options {
 	return func(o *options) {
 		o.Components = append(o.Components, components...)
+	}
+}
+
+func Functions(functions ...function.Function) Options {
+	return func(o *options) {
+		o.Functions = append(o.Functions, functions...)
 	}
 }
 
@@ -256,5 +269,3 @@ func GoOptions(opts gogen.GoPackageInfo) Options {
 		o.Language["go"] = b
 	}
 }
-
-// TODO: Add Invokes
