@@ -46,6 +46,7 @@ func NewInvokes(pkg tokens.Package, invokes []function.Function) (Invokes, error
 	return i, nil
 }
 
+// Get an empty *T where T is the input type for the invoke with token tk.
 func (i Invokes) getInvokeInput(tk tokens.Type) (any, error) {
 	f, ok := i[tk]
 	if !ok {
@@ -61,6 +62,8 @@ func (i Invokes) getInvokeInput(tk tokens.Type) (any, error) {
 	return nil, nil
 }
 
+// Call the invoke on the input type described by tk. inputArg must be the result of
+// calling getInvokeInput.
 func (i Invokes) call(ctx context.Context, tk tokens.Type, inputArg any) (any, error) {
 	f, ok := i[tk]
 	contract.Assert(ok)
@@ -70,14 +73,14 @@ func (i Invokes) call(ctx context.Context, tk tokens.Type, inputArg any) (any, e
 	if hasContext {
 		inputs = []reflect.Value{reflect.ValueOf(ctx)}
 	}
-	input := reflect.ValueOf(inputArg)
-	// If we were given a *InputT and want InputT, dereference.
-	if inputType != nil &&
-		input.Type().Kind() == reflect.Pointer &&
-		inputType.Kind() != reflect.Pointer {
-		input = input.Elem()
+	if input := reflect.ValueOf(inputArg); inputType != nil {
+		// If we are given a *InputT and want InputT, dereference.
+		if input.Type().Kind() == reflect.Pointer &&
+			inputType.Kind() != reflect.Pointer {
+			input = input.Elem()
+		}
+		inputs = append(inputs, input)
 	}
-	inputs = append(inputs, input)
 	out := f.Call(inputs)
 	outType, hasError, err := introspect.InvokeOutput(f.Type())
 	contract.Assert(err == nil)

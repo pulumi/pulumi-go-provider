@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	r "github.com/iwahbe/pulumi-go-provider/resource"
@@ -92,17 +93,26 @@ func (s *Server) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Invok
 	if err != nil {
 		return nil, err
 	}
-	err = introspect.PropertiesToResource(req.GetArgs(), input)
-	if err != nil {
-		return nil, err
+
+	// Some methods don't take an input, so we don't map their fields
+	if input != nil {
+		err = introspect.PropertiesToResource(req.GetArgs(), input)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	result, err := s.invokes.call(ctx, tokens.Type(req.GetTok()), input)
 	if err != nil {
 		return nil, err
 	}
-	ret, err := introspect.ResourceToProperties(result, nil)
-	if err != nil {
-		return nil, err
+
+	var ret *structpb.Struct
+	if result != nil {
+		ret, err = introspect.ResourceToProperties(result, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &rpc.InvokeResponse{
 		Return: ret,

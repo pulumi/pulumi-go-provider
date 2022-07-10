@@ -24,6 +24,10 @@ func main() {
 			function.New(regex.Replace,
 				"Replace returns a copy of `s`, replacing matches of the `old`\n"+
 					"with the replacement string `new`."),
+			function.New(Print,
+				"Print to stdout"),
+			function.New(GiveMeAString,
+				"Return a string, withing any inputs"),
 		),
 	)
 	if err != nil {
@@ -44,4 +48,16 @@ type ReplaceIn struct {
 
 type Ret struct {
 	Out string `pulumi:"out"`
+}
+
+func Print(input In) {
+	fmt.Print(input.S)
+}
+
+type In struct {
+	S string `pulumi:"s"`
+}
+
+func GiveMeAString() Ret {
+	return Ret{"A string"}
 }

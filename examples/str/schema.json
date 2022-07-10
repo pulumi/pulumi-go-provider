@@ -4,6 +4,34 @@
   "config": {},
   "provider": {},
   "functions": {
+    "str:index:GiveMeAString": {
+      "description": "Return a string, withing any inputs",
+      "outputs": {
+        "properties": {
+          "out": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "out"
+        ]
+      }
+    },
+    "str:index:Print": {
+      "description": "Print to stdout",
+      "inputs": {
+        "properties": {
+          "s": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "s"
+        ]
+      }
+    },
     "str:index:Replace": {
       "description": "Replace returns a copy of the string s with all\nnon-overlapping instances of old replaced by new.\nIf old is empty, it matches at the beginning of the string\nand after each UTF-8 sequence, yielding up to k+1 replacements\nfor a k-rune string.",
       "inputs": {
