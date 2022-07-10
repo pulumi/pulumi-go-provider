@@ -8,5 +8,13 @@ variables:
         s: abc---abc---abc
         old: ---
         new: <*>
+  rrreplaced:
+    Fn::Invoke:
+      Function: str:regex:Replace
+      Arguments:
+        s: abc-abc--abc---abc
+        old: -+
+        new: <*>
 outputs:
   replace: ${replaced}
+  regex-replaced: ${rrreplaced}

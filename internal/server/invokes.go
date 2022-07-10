@@ -32,11 +32,12 @@ type Invokes map[tokens.Type]reflect.Value
 func NewInvokes(pkg tokens.Package, invokes []function.Function) (Invokes, error) {
 	var i Invokes = map[tokens.Type]reflect.Value{}
 	for _, inv := range invokes {
-		urn, err := introspect.GetToken(pkg, inv)
+		f := inv.F
+		urn, err := introspect.GetToken(pkg, f)
 		if err != nil {
 			return nil, err
 		}
-		typ := reflect.ValueOf(inv.F)
+		typ := reflect.ValueOf(f)
 		for typ.Kind() == reflect.Pointer {
 			typ = typ.Elem()
 		}
@@ -48,34 +49,47 @@ func NewInvokes(pkg tokens.Package, invokes []function.Function) (Invokes, error
 func (i Invokes) getInvokeInput(tk tokens.Type) (any, error) {
 	f, ok := i[tk]
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "There is no component resource '%s'.", f)
+		return nil, status.Errorf(codes.NotFound, "There is no invoke '%s'.", tk)
 	}
 	input, _, err := introspect.InvokeInput(f.Type())
-	return input, err
+	if err != nil {
+		return nil, err
+	}
+	if input != nil {
+		return reflect.New(input).Interface(), nil
+	}
+	return nil, nil
 }
 
 func (i Invokes) call(ctx context.Context, tk tokens.Type, inputArg any) (any, error) {
 	f, ok := i[tk]
 	contract.Assert(ok)
-	_, hasContext, err := introspect.InvokeInput(f.Type())
+	inputType, hasContext, err := introspect.InvokeInput(f.Type())
 	contract.Assert(err == nil)
 	inputs := []reflect.Value{}
 	if hasContext {
 		inputs = []reflect.Value{reflect.ValueOf(ctx)}
 	}
-	inputs = append(inputs, reflect.ValueOf(inputArg))
+	input := reflect.ValueOf(inputArg)
+	// If we were given a *InputT and want InputT, dereference.
+	if inputType != nil &&
+		input.Type().Kind() == reflect.Pointer &&
+		inputType.Kind() != reflect.Pointer {
+		input = input.Elem()
+	}
+	inputs = append(inputs, input)
 	out := f.Call(inputs)
 	outType, hasError, err := introspect.InvokeOutput(f.Type())
 	contract.Assert(err == nil)
 	if hasError {
-		var err error
+		var err any
 		if outType != nil {
-			err = out[1].Interface().(error)
+			err = out[1].Interface()
 		} else {
-			err = out[0].Interface().(error)
+			err = out[0].Interface()
 		}
 		if err != nil {
-			return nil, err
+			return nil, err.(error)
 		}
 	}
 	if outType != nil {
