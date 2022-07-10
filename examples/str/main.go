@@ -8,17 +8,23 @@ import (
 	"github.com/blang/semver"
 
 	p "github.com/iwahbe/pulumi-go-provider"
+	"github.com/iwahbe/pulumi-go-provider/examples/str/regex"
 	"github.com/iwahbe/pulumi-go-provider/function"
 )
 
 func main() {
 	err := p.Run("str", semver.Version{Minor: 1},
-		p.Functions(function.New(Replace,
-			"ReplaceAll returns a copy of the string s with all\n"+
-				"non-overlapping instances of old replaced by new.\n"+
-				"If old is empty, it matches at the beginning of the string\n"+
-				"and after each UTF-8 sequence, yielding up to k+1 replacements\n"+
-				"for a k-rune string.")),
+		p.Functions(
+			function.New(Replace,
+				"Replace returns a copy of the string s with all\n"+
+					"non-overlapping instances of old replaced by new.\n"+
+					"If old is empty, it matches at the beginning of the string\n"+
+					"and after each UTF-8 sequence, yielding up to k+1 replacements\n"+
+					"for a k-rune string."),
+			function.New(regex.Replace,
+				"Replace returns a copy of `s`, replacing matches of the `old`\n"+
+					"with the replacement string `new`."),
+		),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)

@@ -137,9 +137,9 @@ func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 	var mod string
 	if typ.Kind() == reflect.Func {
 		fn := runtime.FuncForPC(reflect.ValueOf(i).Pointer())
-		name = fn.Name()
-		// TODO: derive pkg from file
-		mod = "index"
+		parts := strings.Split(fn.Name(), ".")
+		name = parts[len(parts)-1]
+		mod = strings.Join(parts[:len(parts)-1], "/")
 	} else {
 		name = typ.Name()
 		mod = strings.Trim(typ.PkgPath(), "*")

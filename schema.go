@@ -638,10 +638,8 @@ func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSp
 }
 
 func (info serializationInfo) serializeObjectType(typ any) (schema.ObjectTypeSpec, error) {
-	var t reflect.Type
-	if typ, ok := typ.(reflect.Type); ok {
-		t = typ
-	} else {
+	t, ok := typ.(reflect.Type)
+	if !ok {
 		t = reflect.TypeOf(typ)
 	}
 	t = dereference(t)
