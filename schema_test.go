@@ -24,15 +24,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type TestStruct struct {
+type TestUnderlyingTypeStruct struct {
 	wrapper  any
 	base     any
 	notequal bool
 }
 
+type TestSerializeArbitraryStruct struct {
+	i   any
+	err bool
+}
+
 func TestUnderlyingType(t *testing.T) {
 	t.Parallel()
-	tests := []TestStruct{
+	tests := []TestUnderlyingTypeStruct{
 		{
 			wrapper: (*pulumi.IntPtrInput)(nil),
 			base:    (*int)(nil),
@@ -77,6 +82,32 @@ func TestUnderlyingType(t *testing.T) {
 			assert.NotEqual(t, base, underlying)
 		} else {
 			assert.Equal(t, base.Name(), underlying.Name())
+		}
+	}
+}
+
+func TestSerializeArbitrary(t *testing.T) {
+	t.Parallel()
+
+	tests := []TestSerializeArbitraryStruct{
+		{
+			i: make([]*int, 0),
+		},
+		{
+			i: make(map[string]*int, 0),
+		},
+		{
+			i:   make(map[int]*int, 0),
+			err: true,
+		},
+	}
+	info := &serializationInfo{}
+	for _, test := range tests {
+		_, err := info.serializeArbitrary(reflect.TypeOf(test.i))
+		if test.err {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
 		}
 	}
 }

@@ -591,6 +591,7 @@ func getTypeKind(t reflect.Type) (string, bool) {
 }
 
 func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSpec, error) {
+	t = dereference(t)
 	typeKind, enum := getTypeKind(t)
 	if enum {
 		enumSpec, err := info.serializeEnum(t)
