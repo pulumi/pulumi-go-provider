@@ -637,7 +637,12 @@ func (info serializationInfo) serializeArbitrary(t reflect.Type) (*schema.TypeSp
 }
 
 func (info serializationInfo) serializeObjectType(typ any) (schema.ObjectTypeSpec, error) {
-	t := reflect.TypeOf(typ)
+	var t reflect.Type
+	if typ, ok := typ.(reflect.Type); ok {
+		t = typ
+	} else {
+		t = reflect.TypeOf(typ)
+	}
 	t = dereference(t)
 	_, enum := getTypeKind(t)
 	if enum {
@@ -755,7 +760,7 @@ func baseType(i any) reflect.Type {
 }
 
 func dereference(t reflect.Type) reflect.Type {
-	for t.Kind() == reflect.Ptr {
+	for t != nil && t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	return t

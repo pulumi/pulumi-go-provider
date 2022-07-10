@@ -1,0 +1,12 @@
+name: test-str
+runtime: yaml
+variables:
+  replaced:
+    Fn::Invoke:
+      Function: str:Replace
+      Arguments:
+        s: abc---abc---abc
+        old: ---
+        new: <*>
+outputs:
+  replace: ${replaced}

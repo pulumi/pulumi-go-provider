@@ -13,7 +13,12 @@ import (
 
 func main() {
 	err := p.Run("str", semver.Version{Minor: 1},
-		p.Functions(function.Fn{F: strings.ReplaceAll}),
+		p.Functions(function.New(Replace,
+			"ReplaceAll returns a copy of the string s with all\n"+
+				"non-overlapping instances of old replaced by new.\n"+
+				"If old is empty, it matches at the beginning of the string\n"+
+				"and after each UTF-8 sequence, yielding up to k+1 replacements\n"+
+				"for a k-rune string.")),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -21,16 +26,16 @@ func main() {
 	}
 }
 
-func Foo(input FnInput) ([]string, error) {
-	return []string{
-		input.Thing1,
-		input.Thing2,
-		input.Thing3,
-	}, nil
+func Replace(input ReplaceIn) Ret {
+	return Ret{strings.ReplaceAll(input.S, input.Old, input.New)}
 }
 
-type FnInput struct {
-	Thing1 string
-	Thing2 string
-	Thing3 string
+type ReplaceIn struct {
+	S   string `pulumi:"s"`
+	Old string `pulumi:"old"`
+	New string `pulumi:"new"`
+}
+
+type Ret struct {
+	Out string `pulumi:"out"`
 }

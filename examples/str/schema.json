@@ -1,9 +1,41 @@
 {
   "name": "str",
-  "version": "2.0.0",
+  "version": "0.1.0",
   "config": {},
   "provider": {},
   "functions": {
-    "str:index:strings.ReplaceAll": {}
+    "str:index:main.Replace": {
+      "description": "ReplaceAll returns a copy of the string s with all\nnon-overlapping instances of old replaced by new.\nIf old is empty, it matches at the beginning of the string\nand after each UTF-8 sequence, yielding up to k+1 replacements\nfor a k-rune string.",
+      "inputs": {
+        "properties": {
+          "new": {
+            "type": "string"
+          },
+          "old": {
+            "type": "string"
+          },
+          "s": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "s",
+          "old",
+          "new"
+        ]
+      },
+      "outputs": {
+        "properties": {
+          "out": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "out"
+        ]
+      }
+    }
   }
 }
