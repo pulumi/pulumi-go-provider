@@ -17,6 +17,7 @@ package introspect
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -119,8 +120,8 @@ func FindOutputProperties(r any) (map[string]bool, error) {
 }
 
 // Get the token that represents a struct.
-func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
-	typ := reflect.TypeOf(t)
+func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
+	typ := reflect.TypeOf(i)
 	if typ == nil {
 		return "", fmt.Errorf("Cannot get token of nil type")
 	}
@@ -132,13 +133,23 @@ func GetToken(pkg tokens.Package, t interface{}) (tokens.Type, error) {
 		}
 	}
 
-	name := typ.Name()
-	if name == "" {
-		return "", fmt.Errorf("Type %T has no name", t)
+	var name string
+	var mod string
+	if typ.Kind() == reflect.Func {
+		fn := runtime.FuncForPC(reflect.ValueOf(i).Pointer())
+		parts := strings.Split(fn.Name(), ".")
+		name = parts[len(parts)-1]
+		mod = strings.Join(parts[:len(parts)-1], "/")
+	} else {
+		name = typ.Name()
+		mod = strings.Trim(typ.PkgPath(), "*")
 	}
-	mod := strings.Trim(typ.PkgPath(), "*")
+
+	if name == "" {
+		return "", fmt.Errorf("Type %T has no name", i)
+	}
 	if mod == "" {
-		return "", fmt.Errorf("Type %T has no module path", t)
+		return "", fmt.Errorf("Type %T has no module path", i)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
 	mod = mod[strings.LastIndex(mod, "/")+1:]

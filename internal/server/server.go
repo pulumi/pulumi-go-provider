@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	r "github.com/iwahbe/pulumi-go-provider/resource"
@@ -43,10 +44,11 @@ type Server struct {
 
 	components ComponentResources
 	customs    CustomResources
+	invokes    Invokes
 }
 
 func New(name string, version semver.Version, host *pprovider.HostClient,
-	components ComponentResources, customs CustomResources, schema string) *Server {
+	components ComponentResources, customs CustomResources, invokes Invokes, schema string) *Server {
 	return &Server{
 		Name:       name,
 		Version:    version,
@@ -54,6 +56,7 @@ func New(name string, version semver.Version, host *pprovider.HostClient,
 		Schema:     schema,
 		components: components,
 		customs:    customs,
+		invokes:    invokes,
 	}
 }
 
@@ -85,8 +88,35 @@ func (s *Server) Configure(context.Context, *rpc.ConfigureRequest) (*rpc.Configu
 }
 
 // Invoke dynamically executes a built-in function in the provider.
-func (s *Server) Invoke(context.Context, *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Invoke is not yet implemented")
+func (s *Server) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
+	input, err := s.invokes.getInvokeInput(tokens.Type(req.GetTok()))
+	if err != nil {
+		return nil, err
+	}
+
+	// Some methods don't take an input, so we don't map their fields
+	if input != nil {
+		err = introspect.PropertiesToResource(req.GetArgs(), input)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	result, err := s.invokes.call(ctx, tokens.Type(req.GetTok()), input)
+	if err != nil {
+		return nil, err
+	}
+
+	var ret *structpb.Struct
+	if result != nil {
+		ret, err = introspect.ResourceToProperties(result, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &rpc.InvokeResponse{
+		Return: ret,
+	}, nil
 }
 
 // StreamInvoke dynamically executes a built-in function in the provider, which returns a stream
