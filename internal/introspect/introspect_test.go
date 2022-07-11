@@ -114,7 +114,7 @@ func TestFunctions(t *testing.T) {
 		in         reflect.Type
 		hasContext bool
 		out        reflect.Type
-		hasError   bool
+		canError   bool
 	}{
 		{
 			f: Empty,
@@ -127,7 +127,7 @@ func TestFunctions(t *testing.T) {
 		{
 			f:          OnlyMetadata,
 			hasContext: true,
-			hasError:   true,
+			canError:   true,
 		},
 	}
 
@@ -141,10 +141,10 @@ func TestFunctions(t *testing.T) {
 			assert.Equal(t, c.in, in)
 			assert.Equal(t, c.hasContext, hasContext)
 
-			out, hasError, err := introspect.InvokeOutput(typ)
+			out, canError, err := introspect.InvokeOutput(typ)
 			require.NoError(t, err)
 			assert.Equal(t, c.out, out)
-			assert.Equal(t, c.hasError, hasError)
+			assert.Equal(t, c.canError, canError)
 
 		})
 	}

@@ -82,9 +82,9 @@ func (i Invokes) call(ctx context.Context, tk tokens.Type, inputArg any) (any, e
 		inputs = append(inputs, input)
 	}
 	out := f.Call(inputs)
-	outType, hasError, err := introspect.InvokeOutput(f.Type())
+	outType, canError, err := introspect.InvokeOutput(f.Type())
 	contract.Assert(err == nil)
-	if hasError {
+	if canError {
 		var err any
 		if outType != nil {
 			err = out[1].Interface()
