@@ -21,23 +21,65 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type Input struct {
-	pulumi.OutputState
-	Elem any
+// GenericInput is an input type that accepts Generic and GenericOutput values.
+type GenericInput interface {
+	pulumi.Input
+
+	ToGenericOutput() GenericOutput
+	ToGenericOutputWithContext(ctx context.Context) GenericOutput
+
+	ToGenericPtrOutput() GenericPtrOutput
+	ToGenericPtrOutputWithContext(ctx context.Context) GenericPtrOutput
 }
 
-func (i Input) ElementType() reflect.Type {
-	return reflect.TypeOf(i.Elem)
+// Generic is an input type for int values.
+type Generic struct {
+	item any
 }
 
-func (i Input) ApplyT(applier interface{}) pulumi.Output {
-
+// ElementType returns the element type of this Input (int).
+func (in Generic) ElementType() reflect.Type {
+	return reflect.TypeOf(in.item)
 }
 
-func (i Input) ApplyTWithContext(ctx context.Context, applier interface{}) pulumi.Output {
-
+func (in Generic) ToGenericOutput() GenericOutput {
+	return pulumi.ToOutput(in).(GenericOutput)
 }
 
-func (i Input) getState() *pulumi.OutputState {
+func (in Generic) ToGenericOutputWithContext(ctx context.Context) GenericOutput {
+	return pulumi.ToOutputWithContext(ctx, in).(GenericOutput)
+}
 
+func (in Generic) ToGenericPtrOutput() GenericOutput {
+	return in.ToGenericPtrOutputWithContext(context.Background())
+}
+
+func (in Generic) ToGenericPtrOutputWithContext(ctx context.Context) GenericOutput {
+	return in.ToGenericOutputWithContext(ctx).ToGenericPtrOutputWithContext(ctx)
+}
+
+type GenericOutput struct{ *pulumi.OutputState }
+
+func (o GenericOutput) ElementType() reflect.Type {
+	return o.
+}
+
+func (o GenericOutput) ToGenericOutput() GenericOutput {
+	return o
+}
+
+func (o GenericOutput) ToGenericOutputWithContext(ctx context.Context) GenericOutput {
+	return o
+}
+
+func (o GenericOutput) ToGenericPtrOutput() GenericOutput {
+	return o.ToGenericPtrOutputWithContext(context.Background())
+}
+
+func (o GenericOutput) ToGenericPtrOutputWithContext(ctx context.Context) GenericOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, v Generic) Generic {
+		return Generic{
+			item: &v.item,
+		}
+	}).(GenericOutput)
 }
