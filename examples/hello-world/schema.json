@@ -1,0 +1,59 @@
+{
+  "name": "hello-world",
+  "version": "0.1.0",
+  "config": {},
+  "provider": {},
+  "resources": {
+    "hello-world:index:Hello": {
+      "properties": {
+        "hello": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "hello"
+      ]
+    },
+    "hello-world:index:HelloWorld": {
+      "properties": {
+        "hello": {
+          "$ref": "#/resources/hello-world:index:Hello"
+        },
+        "helloworld": {
+          "type": "string"
+        },
+        "world": {
+          "$ref": "#/resources/hello-world:index:World"
+        }
+      },
+      "required": [
+        "hello",
+        "world",
+        "helloworld"
+      ],
+      "inputProperties": {
+        "hello": {
+          "$ref": "#/resources/hello-world:index:Hello"
+        },
+        "world": {
+          "$ref": "#/resources/hello-world:index:World"
+        }
+      },
+      "requiredInputs": [
+        "hello",
+        "world"
+      ],
+      "isComponent": true
+    },
+    "hello-world:index:World": {
+      "properties": {
+        "world": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "world"
+      ]
+    }
+  }
+}

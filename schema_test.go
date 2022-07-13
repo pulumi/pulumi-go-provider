@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/iwahbe/pulumi-go-provider/types"
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ec2"
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/eks"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -69,6 +70,19 @@ func TestUnderlyingType(t *testing.T) {
 		{
 			wrapper:  (*int)(nil),
 			base:     (*string)(nil),
+			notequal: true,
+		},
+		{
+			wrapper: (*types.Input[int])(nil),
+			base:    (*int)(nil),
+		},
+		{
+			wrapper: (*types.Output[int])(nil),
+			base:    (*int)(nil),
+		},
+		{
+			wrapper:  (*types.Input[[]int])(nil),
+			base:     (*int)(nil),
 			notequal: true,
 		},
 	}

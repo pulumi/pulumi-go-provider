@@ -23,5 +23,6 @@ examples/command/command
 examples/random-login/random-login
 examples/schema-test/schema-test
 examples/str/str
+examples/hello-world/hello-world
 
 /.vscode

@@ -777,25 +777,32 @@ func underlyingType(t reflect.Type) (reflect.Type, error) {
 	if isOutputType {
 		t = reflect.New(t).Elem().Interface().(pulumi.Output).ElementType()
 	} else if isInputType {
-		T := t.Name()
-		if strings.HasSuffix(T, "Input") {
-			T = strings.TrimSuffix(T, "Input")
-		} else {
-			return nil, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
+		isGenericInput := false
+		nilMethod, isGenericInput := t.MethodByName("GetNilType")
+		if isGenericInput {
+			t = nilMethod.Type.Out(0)
 		}
-		toOutMethod, ok := t.MethodByName("To" + T + "Output")
-		if !ok {
-			return nil, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
+		if !isGenericInput {
+			T := t.Name()
+			if strings.HasSuffix(T, "Input") {
+				T = strings.TrimSuffix(T, "Input")
+			} else {
+				return nil, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
+			}
+			toOutMethod, ok := t.MethodByName("To" + T + "Output")
+			if !ok {
+				return nil, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
+			}
+			outputT := toOutMethod.Type.Out(0)
+			//create new object of type outputT
+			strct := reflect.New(outputT).Elem().Interface()
+			out, ok := strct.(pulumi.Output)
+			if !ok {
+				return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
+					reflect.TypeOf(strct), T, t.Name())
+			}
+			t = out.ElementType()
 		}
-		outputT := toOutMethod.Type.Out(0)
-		//create new object of type outputT
-		strct := reflect.New(outputT).Elem().Interface()
-		out, ok := strct.(pulumi.Output)
-		if !ok {
-			return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
-				reflect.TypeOf(strct), T, t.Name())
-		}
-		t = out.ElementType()
 	}
 	t = dereference(t)
 	return t, nil

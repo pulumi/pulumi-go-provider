@@ -30,6 +30,8 @@ type GenericInput[T any] interface {
 
 	ToPtrOutput() Output[*T]
 	ToPtrOutputWithContext(ctx context.Context) Output[*T]
+
+	GetNilType() T
 }
 
 // Generic is an input type for int values.
@@ -50,6 +52,10 @@ func (in Input[T]) ToOutputWithContext(ctx context.Context) Output[T] {
 	return pulumi.ToOutputWithContext(ctx, in).(Output[T])
 }
 
+func (in Input[T]) GetNilType() T {
+	return *(*T)(nil) //Hacky but needed for reflection
+}
+
 /*
 func (in Input[T]) ToPtrOutput() Output[*T] {
 	return in.ToPtrOutputWithContext(context.Background())
@@ -60,8 +66,6 @@ func (in Input[T]) ToPtrOutputWithContext(ctx context.Context) Output[*T] {
 }*/
 
 type Output[T any] struct{ *pulumi.OutputState }
-
-type Pointer[T any] *T
 
 func (o Output[T]) ElementType() reflect.Type {
 	//return o.
