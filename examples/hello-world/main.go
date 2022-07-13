@@ -61,7 +61,7 @@ func (hw *HelloWorld) Create(ctx r.Context, name string, preview bool) (r.ID, er
 	}
 
 	hw.helloworld = pulumi.All(hw.hInput, hw.wInput).ApplyT(func(args []interface{}) string {
-		return args[0].(string) + " " + args[1].(string)
+		return args[0].(Hello).hello + " " + args[1].(World).world
 	}).(types.Output[string])
 
 	return name, nil
