@@ -1,3 +1,17 @@
+// Copyright 2022, Pulumi Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package infer
 
 import (
@@ -39,7 +53,8 @@ type CustomUpdate[I, O any] interface {
 }
 
 type CustomRead[I, O any] interface {
-	Read(ctx p.Context, id string, inputs I, state O) (canonicalId string, normalizedInputs I, normalizedState O, err error)
+	Read(ctx p.Context, id string, inputs I, state O) (
+		canonicalID string, normalizedInputs I, normalizedState O, err error)
 }
 
 type CustomDelete[O any] interface {
@@ -185,7 +200,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		diff, err := r.Diff(ctx, req.Id, olds, news, req.IgnoreChanges)
+		diff, err := r.Diff(ctx, req.ID, olds, news, req.IgnoreChanges)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -255,7 +270,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, err
 	}
 	return p.CreateResponse{
-		Id:         id,
+		ID:         id,
 		Properties: presource.NewPropertyMapFromMap(m),
 	}, nil
 }
@@ -277,7 +292,10 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	id, inputs, state, err := read.Read(ctx, req.Id, inputs, state)
+	id, inputs, state, err := read.Read(ctx, req.ID, inputs, state)
+	if err != nil {
+		return p.ReadResponse{}, err
+	}
 	i, err := mapper.New(nil).Encode(inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
@@ -288,7 +306,7 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	}
 
 	return p.ReadResponse{
-		Id:         id,
+		ID:         id,
 		Properties: presource.NewPropertyMapFromMap(s),
 		Inputs:     presource.NewPropertyMapFromMap(i),
 	}, nil
@@ -310,7 +328,7 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	o, err := update.Update(ctx, req.Id, olds, news, req.Preview)
+	o, err := update.Update(ctx, req.ID, olds, news, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -332,7 +350,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 		if err != nil {
 			return err
 		}
-		return del.Delete(ctx, req.Id, olds)
+		return del.Delete(ctx, req.ID, olds)
 	}
 	delete(rc.m, req.Urn)
 	return nil

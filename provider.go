@@ -53,8 +53,8 @@ import (
 
 type Context interface {
 	context.Context
-	Log(severity diag.Severity, msg string, args ...any) error
-	LogStatus(severity diag.Severity, msg string, args ...any) error
+	Log(severity diag.Severity, msg string, args ...any)
+	LogStatus(severity diag.Severity, msg string, args ...any)
 }
 
 type GetSchemaRequest struct {
@@ -83,7 +83,7 @@ type CheckResponse struct {
 }
 
 type DiffRequest struct {
-	Id            string
+	ID            string
 	Urn           presource.URN
 	Olds          presource.PropertyMap
 	News          presource.PropertyMap
@@ -222,31 +222,31 @@ type CreateRequest struct {
 }
 
 type CreateResponse struct {
-	Id         string                // the ID of the created resource.
+	ID         string                // the ID of the created resource.
 	Properties presource.PropertyMap // any properties that were computed during creation.
 }
 
 type ReadRequest struct {
-	Id         string                // the ID of the resource to read.
+	ID         string                // the ID of the resource to read.
 	Urn        presource.URN         // the Pulumi URN for this resource.
 	Properties presource.PropertyMap // the current state (sufficiently complete to identify the resource).
 	Inputs     presource.PropertyMap // the current inputs, if any (only populated during refresh).
 }
 
 type ReadResponse struct {
-	Id         string                // the ID of the resource read back (or empty if missing).
+	ID         string                // the ID of the resource read back (or empty if missing).
 	Properties presource.PropertyMap // the state of the resource read from the live environment.
 	Inputs     presource.PropertyMap // the inputs for this resource that would be returned from Check.
 }
 
 type UpdateRequest struct {
-	Id            string                  // the ID of the resource to update.
+	ID            string                  // the ID of the resource to update.
 	Urn           presource.URN           // the Pulumi URN for this resource.
 	Olds          presource.PropertyMap   // the old values of provider inputs for the resource to update.
 	News          presource.PropertyMap   // the new values of provider inputs for the resource to update.
 	Timeout       float64                 // the update request timeout represented in seconds.
 	IgnoreChanges []presource.PropertyKey // a set of property paths that should be treated as unchanged.
-	Preview       bool                    // true if this is a preview and the provider should not actually create the resource.
+	Preview       bool                    // true if the provider should not actually create the resource.
 }
 
 type UpdateResponse struct {
@@ -254,7 +254,7 @@ type UpdateResponse struct {
 }
 
 type DeleteRequest struct {
-	Id         string                // the ID of the resource to delete.
+	ID         string                // the ID of the resource to delete.
 	Urn        presource.URN         // the Pulumi URN for this resource.
 	Properties presource.PropertyMap // the current properties on the resource.
 	Timeout    float64               // the delete request timeout represented in seconds.
@@ -298,7 +298,8 @@ type Provider interface {
 	// TODO Call
 
 	// Components Resources
-	Construct(pctx Context, typ string, name string, ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+	Construct(pctx Context, typ string, name string,
+		ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
 func RunProvider(name string, version semver.Version, provider Provider) error {
@@ -426,7 +427,7 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 		return nil, err
 	}
 	r, err := p.client.DiffConfig(p.ctx(ctx), DiffRequest{
-		Id:            req.GetId(),
+		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
 		News:          news,
@@ -529,7 +530,7 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 		return nil, err
 	}
 	r, err := p.client.Diff(p.ctx(ctx), DiffRequest{
-		Id:            req.GetId(),
+		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
 		News:          news,
@@ -563,7 +564,7 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 	}
 
 	return &rpc.CreateResponse{
-		Id:         r.Id,
+		Id:         r.ID,
 		Properties: propStruct,
 	}, nil
 }
@@ -578,7 +579,7 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 		return nil, err
 	}
 	r, err := p.client.Read(p.ctx(ctx), ReadRequest{
-		Id:         req.GetId(),
+		ID:         req.GetId(),
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: propMap,
 		Inputs:     inputMap,
@@ -595,7 +596,7 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 		return nil, err
 	}
 	return &rpc.ReadResponse{
-		Id:         r.Id,
+		Id:         r.ID,
 		Properties: propStruct,
 		Inputs:     inputStruct,
 	}, nil
@@ -611,7 +612,7 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		return nil, err
 	}
 	r, err := p.client.Update(p.ctx(ctx), UpdateRequest{
-		Id:            req.GetId(),
+		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          oldsMap,
 		News:          newsMap,
@@ -638,7 +639,7 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 		return nil, err
 	}
 	err = p.client.Delete(p.ctx(ctx), DeleteRequest{
-		Id:         req.GetId(),
+		ID:         req.GetId(),
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: props,
 		Timeout:    req.GetTimeout(),

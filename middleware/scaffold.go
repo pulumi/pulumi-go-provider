@@ -1,3 +1,17 @@
+// Copyright 2022, Pulumi Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package middleware
 
 import (
@@ -23,7 +37,8 @@ type Scaffold struct {
 	ReadFn      func(p.Context, p.ReadRequest) (p.ReadResponse, error)
 	UpdateFn    func(p.Context, p.UpdateRequest) (p.UpdateResponse, error)
 	DeleteFn    func(p.Context, p.DeleteRequest) error
-	ConstructFn func(pctx p.Context, typ string, name string, ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+	ConstructFn func(pctx p.Context, typ string, name string,
+		ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
 func (s *Scaffold) nyi(fn string) error {
@@ -114,7 +129,8 @@ func (s *Scaffold) Delete(ctx p.Context, req p.DeleteRequest) error {
 	return s.nyi("Delete")
 }
 
-func (s *Scaffold) Construct(pctx p.Context, typ string, name string, ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+func (s *Scaffold) Construct(pctx p.Context, typ string, name string,
+	ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
 	if s.ConstructFn != nil {
 		return s.ConstructFn(pctx, typ, name, ctx, inputs, opts)
 	}
