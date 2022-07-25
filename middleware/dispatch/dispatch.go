@@ -10,18 +10,18 @@ import (
 	t "github.com/iwahbe/pulumi-go-provider/middleware"
 )
 
-type Dispatcher struct {
+type Provider struct {
 	p.Provider
 	customs    map[string]t.CustomResource
 	components map[string]t.ComponentResource
 	invokes    map[string]t.Invoke
 }
 
-func Wrap(provider p.Provider) Dispatcher {
+func Wrap(provider p.Provider) *Provider {
 	if provider == nil {
 		provider = &t.Scaffold{}
 	}
-	return Dispatcher{
+	return &Provider{
 		Provider:   provider,
 		customs:    map[string]t.CustomResource{},
 		components: map[string]t.ComponentResource{},
@@ -40,28 +40,28 @@ func fixupError(err error) error {
 	return err
 }
 
-func (d Dispatcher) WithCustomResources(resources map[tokens.Type]t.CustomResource) Dispatcher {
+func (d *Provider) WithCustomResources(resources map[tokens.Type]t.CustomResource) *Provider {
 	for k, v := range resources {
 		d.customs[normalize(k)] = v
 	}
 	return d
 }
 
-func (d Dispatcher) WithComponentResources(components map[tokens.Type]t.ComponentResource) Dispatcher {
+func (d *Provider) WithComponentResources(components map[tokens.Type]t.ComponentResource) *Provider {
 	for k, v := range components {
 		d.components[normalize(k)] = v
 	}
 	return d
 }
 
-func (d Dispatcher) WithInvokes(invokes map[tokens.Type]t.Invoke) Dispatcher {
+func (d *Provider) WithInvokes(invokes map[tokens.Type]t.Invoke) *Provider {
 	for k, v := range invokes {
 		d.invokes[normalize(k)] = v
 	}
 	return d
 }
 
-func (d *Dispatcher) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+func (d *Provider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 	inv, ok := d.invokes[normalize(req.Token)]
 	if ok {
 		return inv.Invoke(ctx, req)
@@ -70,7 +70,7 @@ func (d *Dispatcher) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeRespons
 	return r, fixupError(err)
 }
 
-func (d *Dispatcher) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	r, ok := d.customs[normalize(req.Urn.Type())]
 	if ok {
 		return r.Check(ctx, req)
@@ -79,7 +79,7 @@ func (d *Dispatcher) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, 
 	return c, fixupError(err)
 }
 
-func (d *Dispatcher) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r, ok := d.customs[normalize(req.Urn.Type())]
 	if ok {
 		return r.Diff(ctx, req)
@@ -89,7 +89,7 @@ func (d *Dispatcher) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, err
 
 }
 
-func (d *Dispatcher) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+func (d *Provider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
 	r, ok := d.customs[normalize(req.Urn.Type())]
 	if ok {
 		return r.Create(ctx, req)
@@ -98,7 +98,7 @@ func (d *Dispatcher) Create(ctx p.Context, req p.CreateRequest) (p.CreateRespons
 	return c, fixupError(err)
 }
 
-func (d *Dispatcher) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
 	r, ok := d.customs[normalize(req.Urn.Type())]
 	if ok {
 		return r.Read(ctx, req)
@@ -107,7 +107,7 @@ func (d *Dispatcher) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, err
 	return read, fixupError(err)
 }
 
-func (d *Dispatcher) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 	r, ok := d.customs[normalize(req.Urn.Type())]
 	if ok {
 		return r.Update(ctx, req)
@@ -116,7 +116,7 @@ func (d *Dispatcher) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateRespons
 	return up, fixupError(err)
 }
 
-func (d *Dispatcher) Delete(ctx p.Context, req p.DeleteRequest) error {
+func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
 	r, ok := d.customs[normalize(req.Urn.Type())]
 	if ok {
 		return r.Delete(ctx, req)
@@ -124,7 +124,7 @@ func (d *Dispatcher) Delete(ctx p.Context, req p.DeleteRequest) error {
 	return fixupError(d.Provider.Delete(ctx, req))
 }
 
-func (d *Dispatcher) Construct(pctx p.Context, typ string, name string, ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+func (d *Provider) Construct(pctx p.Context, typ string, name string, ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
 	r, ok := d.components[typ]
 	if ok {
 		return r.Construct(pctx, typ, name, ctx, inputs, opts)

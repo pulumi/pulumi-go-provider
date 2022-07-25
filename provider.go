@@ -87,12 +87,12 @@ type DiffRequest struct {
 	Urn           presource.URN
 	Olds          presource.PropertyMap
 	News          presource.PropertyMap
-	IgnoreChanges []string
+	IgnoreChanges []presource.PropertyKey
 }
 
 type PropertyDiff struct {
-	Kind      DiffKind
-	InputDiff bool
+	Kind      DiffKind // The kind of diff asdsociated with this property.
+	InputDiff bool     // The difference is between old and new inputs, not old and new state.
 }
 
 type DiffKind string
@@ -104,6 +104,7 @@ const (
 	DeleteReplace DiffKind = "delete&replace" // this property was removed, and this change requires a replace
 	Update        DiffKind = "update"         // this property's value was changed
 	UpdateReplace DiffKind = "update&replace" // this property's value was changed, and this change requires a replace
+	Stable        DiffKind = "stable"         // this property's value will not change
 )
 
 func (k DiffKind) rpc() rpc.PropertyDiff_Kind {
@@ -126,11 +127,8 @@ func (k DiffKind) rpc() rpc.PropertyDiff_Kind {
 }
 
 type DiffResponse struct {
-	Replaces            []string
-	Stables             []string
-	DeleteBeforeReplace bool
-	HasChanges          bool
-	Diffs               []string
+	DeleteBeforeReplace bool // if true, this resource must be deleted before replacing it.
+	HasChanges          bool // if true, this diff represents an actual difference and thus requires an update.
 	// detailedDiff is an optional field that contains map from each changed property to the type of the change.
 	//
 	// The keys of this map are property paths. These paths are essentially Javascript property access expressions
@@ -161,8 +159,41 @@ type DiffResponse struct {
 	// - root["key with a ."]
 	// - ["root key with \"escaped\" quotes"].nested
 	// - ["root key with a ."][100]
-	DetailedDiff    map[string]PropertyDiff
-	HasDetailedDiff bool
+	DetailedDiff map[string]PropertyDiff
+}
+
+func (d DiffResponse) rpc() *rpc.DiffResponse {
+	r := rpc.DiffResponse{
+		DeleteBeforeReplace: d.DeleteBeforeReplace,
+		Changes:             rpc.DiffResponse_DIFF_NONE,
+		DetailedDiff:        detailedDiff(d.DetailedDiff).rpc(),
+		HasDetailedDiff:     true,
+	}
+	if d.HasChanges {
+		r.Changes = rpc.DiffResponse_DIFF_SOME
+	}
+	for k, v := range d.DetailedDiff {
+		switch v.Kind {
+		case Add:
+			r.Diffs = append(r.Diffs, k)
+		case AddReplace:
+			r.Replaces = append(r.Replaces, k)
+			r.Diffs = append(r.Diffs, k)
+		case Delete:
+			r.Diffs = append(r.Diffs, k)
+		case DeleteReplace:
+			r.Replaces = append(r.Replaces, k)
+			r.Diffs = append(r.Diffs, k)
+		case Update:
+			r.Diffs = append(r.Diffs, k)
+		case UpdateReplace:
+			r.Replaces = append(r.Replaces, k)
+			r.Diffs = append(r.Diffs, k)
+		case Stable:
+			r.Stables = append(r.Stables, k)
+		}
+	}
+	return &r
 }
 
 type ConfigureRequest struct {
@@ -209,13 +240,13 @@ type ReadResponse struct {
 }
 
 type UpdateRequest struct {
-	Id            string                // the ID of the resource to update.
-	Urn           presource.URN         // the Pulumi URN for this resource.
-	Olds          presource.PropertyMap // the old values of provider inputs for the resource to update.
-	News          presource.PropertyMap // the new values of provider inputs for the resource to update.
-	Timeout       float64               // the update request timeout represented in seconds.
-	IgnoreChanges []string              // a set of property paths that should be treated as unchanged.
-	Preview       bool                  // true if this is a preview and the provider should not actually create the resource.
+	Id            string                  // the ID of the resource to update.
+	Urn           presource.URN           // the Pulumi URN for this resource.
+	Olds          presource.PropertyMap   // the old values of provider inputs for the resource to update.
+	News          presource.PropertyMap   // the new values of provider inputs for the resource to update.
+	Timeout       float64                 // the update request timeout represented in seconds.
+	IgnoreChanges []presource.PropertyKey // a set of property paths that should be treated as unchanged.
+	Preview       bool                    // true if this is a preview and the provider should not actually create the resource.
 }
 
 type UpdateResponse struct {
@@ -334,6 +365,9 @@ type detailedDiff map[string]PropertyDiff
 func (d detailedDiff) rpc() map[string]*rpc.PropertyDiff {
 	detailedDiff := map[string]*rpc.PropertyDiff{}
 	for k, v := range d {
+		if v.Kind == Stable {
+			continue
+		}
 		detailedDiff[k] = &rpc.PropertyDiff{
 			Kind:      v.Kind.rpc(),
 			InputDiff: v.InputDiff,
@@ -374,6 +408,14 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	}, err
 }
 
+func getIgnoreChanges(l []string) []presource.PropertyKey {
+	r := make([]presource.PropertyKey, len(l))
+	for i, p := range l {
+		r[i] = presource.PropertyKey(p)
+	}
+	return r
+}
+
 func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
 	olds, err := p.getMap(req.GetOlds())
 	if err != nil {
@@ -388,25 +430,12 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
 		News:          news,
-		IgnoreChanges: req.GetIgnoreChanges(),
+		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
 	})
 	if err != nil {
 		return nil, err
 	}
-	changes := rpc.DiffResponse_DIFF_NONE
-	if r.HasChanges {
-		changes = rpc.DiffResponse_DIFF_SOME
-	}
-
-	return &rpc.DiffResponse{
-		Replaces:            r.Replaces,
-		Stables:             r.Stables,
-		DeleteBeforeReplace: r.DeleteBeforeReplace,
-		Changes:             changes,
-		Diffs:               r.Diffs,
-		DetailedDiff:        detailedDiff(r.DetailedDiff).rpc(),
-		HasDetailedDiff:     r.HasDetailedDiff,
-	}, nil
+	return r.rpc(), nil
 }
 
 func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
@@ -504,26 +533,13 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
 		News:          news,
-		IgnoreChanges: req.GetIgnoreChanges(),
+		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	changes := rpc.DiffResponse_DIFF_NONE
-	if r.HasChanges {
-		changes = rpc.DiffResponse_DIFF_SOME
-	}
-
-	return &rpc.DiffResponse{
-		Replaces:            r.Replaces,
-		Stables:             r.Stables,
-		DeleteBeforeReplace: r.DeleteBeforeReplace,
-		Changes:             changes,
-		Diffs:               r.Diffs,
-		DetailedDiff:        detailedDiff(r.DetailedDiff).rpc(),
-		HasDetailedDiff:     r.HasDetailedDiff,
-	}, nil
+	return r.rpc(), nil
 }
 
 func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.CreateResponse, error) {
@@ -600,7 +616,7 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		Olds:          oldsMap,
 		News:          newsMap,
 		Timeout:       req.GetTimeout(),
-		IgnoreChanges: req.GetIgnoreChanges(),
+		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
 		Preview:       req.GetPreview(),
 	})
 	if err != nil {
