@@ -299,7 +299,7 @@ type Provider interface {
 
 	// Components Resources
 	Construct(pctx Context, typ string, name string,
-		ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+		ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
 func RunProvider(name string, version semver.Version, provider Provider) error {
@@ -654,11 +654,7 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 	return comProvider.Construct(pctx, req, p.host.EngineConn(), func(ctx *pulumi.Context, typ, name string,
 		inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (*comProvider.ConstructResult, error) {
-		m, err := inputs.Map()
-		if err != nil {
-			return nil, err
-		}
-		r, err := p.client.Construct(p.ctx(pctx), typ, name, ctx, m, opts)
+		r, err := p.client.Construct(p.ctx(pctx), typ, name, ctx, inputs, opts)
 		if err != nil {
 			return nil, err
 		}

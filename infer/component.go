@@ -13,3 +13,53 @@
 // limitations under the License.
 
 package infer
+
+import (
+	"fmt"
+
+	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
+
+	p "github.com/iwahbe/pulumi-go-provider"
+	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
+	t "github.com/iwahbe/pulumi-go-provider/middleware"
+	schema "github.com/iwahbe/pulumi-go-provider/middleware/schema"
+)
+
+type ComponentResource[I any, O pulumi.ComponentResource] interface {
+	Construct(ctx *pulumi.Context, inputs I, opts pulumi.ResourceOption) (O, error)
+}
+
+type InferedComponent interface {
+	t.ComponentResource
+	schema.Resource
+}
+
+func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferedComponent {
+	return &derivedComponentController[R, I, O]{}
+}
+
+type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.ComponentResource] struct{}
+
+func (rc *derivedComponentController[R, I, O]) GetSchema() (pschema.ResourceSpec, error) {
+	return pschema.ResourceSpec{}, fmt.Errorf("unimplemented")
+}
+
+func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
+	var r R
+	return introspect.GetToken("pkg", r)
+}
+
+func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ string, name string,
+	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+	var r R
+	var i I
+	err := inputs.CopyTo(&i)
+	if err != nil {
+		return nil, err
+	}
+	return r.Construct(ctx, i, opts)
+}

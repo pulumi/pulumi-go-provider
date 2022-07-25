@@ -16,6 +16,7 @@ package middleware
 
 import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
 	p "github.com/iwahbe/pulumi-go-provider"
 )
@@ -31,7 +32,7 @@ type CustomResource interface {
 
 type ComponentResource interface {
 	Construct(pctx p.Context, typ string, name string,
-		ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+		ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
 type Invoke interface {

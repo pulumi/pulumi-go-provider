@@ -17,6 +17,7 @@ package dispatch
 import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -139,7 +140,7 @@ func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
 }
 
 func (d *Provider) Construct(pctx p.Context, typ string, name string,
-	ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
 	r, ok := d.components[typ]
 	if ok {
 		return r.Construct(pctx, typ, name, ctx, inputs, opts)

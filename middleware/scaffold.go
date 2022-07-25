@@ -16,6 +16,7 @@ package middleware
 
 import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -38,7 +39,7 @@ type Scaffold struct {
 	UpdateFn    func(p.Context, p.UpdateRequest) (p.UpdateResponse, error)
 	DeleteFn    func(p.Context, p.DeleteRequest) error
 	ConstructFn func(pctx p.Context, typ string, name string,
-		ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+		ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
 func (s *Scaffold) nyi(fn string) error {
@@ -130,7 +131,7 @@ func (s *Scaffold) Delete(ctx p.Context, req p.DeleteRequest) error {
 }
 
 func (s *Scaffold) Construct(pctx p.Context, typ string, name string,
-	ctx *pulumi.Context, inputs pulumi.Map, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
 	if s.ConstructFn != nil {
 		return s.ConstructFn(pctx, typ, name, ctx, inputs, opts)
 	}

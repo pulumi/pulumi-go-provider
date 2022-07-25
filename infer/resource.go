@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"reflect"
 
+	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -31,7 +32,6 @@ import (
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	t "github.com/iwahbe/pulumi-go-provider/middleware"
 	schema "github.com/iwahbe/pulumi-go-provider/middleware/schema"
-	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
 
 type CustomResource[I any, O any] interface {
