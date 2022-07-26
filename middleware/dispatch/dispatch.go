@@ -48,9 +48,9 @@ func normalize(tk tokens.Type) string {
 	return tk.Module().Name().String() + tokens.TokenDelimiter + tk.Name().String()
 }
 
-func fixupError(err error) error {
+func fixupError(tk string, err error) error {
 	if status.Code(err) == codes.Unimplemented {
-		err = status.Error(codes.NotFound, "Token not found")
+		err = status.Errorf(codes.NotFound, "Type '%s' not found", tk)
 	}
 	return err
 }
@@ -77,74 +77,82 @@ func (d *Provider) WithInvokes(invokes map[tokens.Type]t.Invoke) *Provider {
 }
 
 func (d *Provider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-	inv, ok := d.invokes[normalize(req.Token)]
+	tk := normalize(req.Token)
+	inv, ok := d.invokes[tk]
 	if ok {
 		return inv.Invoke(ctx, req)
 	}
 	r, err := d.Provider.Invoke(ctx, req)
-	return r, fixupError(err)
+	return r, fixupError(tk, err)
 }
 
 func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	r, ok := d.customs[normalize(req.Urn.Type())]
+	tk := normalize(req.Urn.Type())
+	r, ok := d.customs[tk]
 	if ok {
 		return r.Check(ctx, req)
 	}
 	c, err := d.Provider.Check(ctx, req)
-	return c, fixupError(err)
+	return c, fixupError(tk, err)
 }
 
 func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	r, ok := d.customs[normalize(req.Urn.Type())]
+	tk := normalize(req.Urn.Type())
+	r, ok := d.customs[tk]
 	if ok {
 		return r.Diff(ctx, req)
 	}
 	diff, err := d.Provider.Diff(ctx, req)
-	return diff, fixupError(err)
+	return diff, fixupError(tk, err)
 
 }
 
 func (d *Provider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	r, ok := d.customs[normalize(req.Urn.Type())]
+	tk := normalize(req.Urn.Type())
+	r, ok := d.customs[tk]
 	if ok {
 		return r.Create(ctx, req)
 	}
 	c, err := d.Provider.Create(ctx, req)
-	return c, fixupError(err)
+	return c, fixupError(tk, err)
 }
 
 func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-	r, ok := d.customs[normalize(req.Urn.Type())]
+	tk := normalize(req.Urn.Type())
+	r, ok := d.customs[tk]
 	if ok {
 		return r.Read(ctx, req)
 	}
 	read, err := d.Provider.Read(ctx, req)
-	return read, fixupError(err)
+	return read, fixupError(tk, err)
 }
 
 func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	r, ok := d.customs[normalize(req.Urn.Type())]
+	tk := normalize(req.Urn.Type())
+	r, ok := d.customs[tk]
 	if ok {
 		return r.Update(ctx, req)
 	}
 	up, err := d.Provider.Update(ctx, req)
-	return up, fixupError(err)
+	return up, fixupError(tk, err)
 }
 
 func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
-	r, ok := d.customs[normalize(req.Urn.Type())]
+	tk := normalize(req.Urn.Type())
+	r, ok := d.customs[tk]
 	if ok {
 		return r.Delete(ctx, req)
 	}
-	return fixupError(d.Provider.Delete(ctx, req))
+	return fixupError(tk, d.Provider.Delete(ctx, req))
 }
 
 func (d *Provider) Construct(pctx p.Context, typ string, name string,
 	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	r, ok := d.components[typ]
+	tk := normalize(tokens.Type(typ))
+	r, ok := d.components[tk]
 	if ok {
 		return r.Construct(pctx, typ, name, ctx, inputs, opts)
 	}
 	con, err := d.Provider.Construct(pctx, typ, name, ctx, inputs, opts)
-	return con, fixupError(err)
+	return con, fixupError(typ, err)
 }

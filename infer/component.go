@@ -15,10 +15,7 @@
 package infer
 
 import (
-	"fmt"
-
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -30,7 +27,7 @@ import (
 )
 
 type ComponentResource[I any, O pulumi.ComponentResource] interface {
-	Construct(ctx *pulumi.Context, inputs I, opts pulumi.ResourceOption) (O, error)
+	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
 type InferedComponent interface {
@@ -45,7 +42,12 @@ func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() I
 type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.ComponentResource] struct{}
 
 func (rc *derivedComponentController[R, I, O]) GetSchema() (pschema.ResourceSpec, error) {
-	return pschema.ResourceSpec{}, fmt.Errorf("unimplemented")
+	r, err := getResourceSchema[R, I, O]()
+	if err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	r.IsComponent = true
+	return r, nil
 }
 
 func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
@@ -61,5 +63,5 @@ func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ str
 	if err != nil {
 		return nil, err
 	}
-	return r.Construct(ctx, i, opts)
+	return r.Construct(ctx, name, typ, i, opts)
 }

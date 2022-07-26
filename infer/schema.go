@@ -25,6 +25,38 @@ import (
 	sch "github.com/iwahbe/pulumi-go-provider/middleware/schema"
 )
 
+func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
+	var r R
+	descriptions := map[string]string{}
+	if r, ok := (interface{})(r).(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		descriptions = a.Descriptions
+	}
+
+	properties, required, err := propertyListFromType[O]()
+	if err != nil {
+		var o O
+		return schema.ResourceSpec{}, fmt.Errorf("could not serialize output type %T: %w", o, err)
+	}
+
+	inputProperties, requiredInputs, err := propertyListFromType[I]()
+	if err != nil {
+		var i I
+		return schema.ResourceSpec{}, fmt.Errorf("could not serialize input type %T: %w", i, err)
+	}
+
+	return schema.ResourceSpec{
+		ObjectTypeSpec: schema.ObjectTypeSpec{
+			Properties:  properties,
+			Description: descriptions[""],
+			Required:    required,
+		},
+		InputProperties: inputProperties,
+		RequiredInputs:  requiredInputs,
+	}, nil
+}
+
 func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -92,6 +124,8 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 		return primitive("integer")
 	case reflect.Float64:
 		return primitive("number")
+	case reflect.String:
+		return primitive("string")
 	default:
 		return schema.TypeSpec{}, fmt.Errorf("unknown type: '%s'", t.String())
 	}
@@ -99,6 +133,9 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 
 func propertyListFromType[T any]() (props map[string]schema.PropertySpec, required []string, err error) {
 	typ := reflect.TypeOf(new(T)).Elem()
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
 	props = map[string]schema.PropertySpec{}
 	descriptions := map[string]string{}
 	if t, ok := (interface{})(*new(T)).(Annotated); ok {

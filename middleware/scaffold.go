@@ -78,7 +78,7 @@ func (s *Scaffold) Configure(ctx p.Context, req p.ConfigureRequest) error {
 	if s.ConfigureFn != nil {
 		return s.ConfigureFn(ctx, req)
 	}
-	return s.nyi("Configure")
+	return nil
 }
 
 func (s *Scaffold) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {

@@ -16,7 +16,6 @@ package infer
 
 import (
 	"fmt"
-	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
@@ -35,12 +34,12 @@ import (
 )
 
 type CustomResource[I any, O any] interface {
-	Create(ctx p.Context, input I, preview bool) (id string, output O, err error)
+	Create(ctx p.Context, name string, input I, preview bool) (id string, output O, err error)
 }
 
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx p.Context, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (I, []p.CheckFailure, error)
+	Check(ctx p.Context, name string, seqNum int, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (I, []p.CheckFailure, error)
 }
 
 type CustomDiff[I, O any] interface {
@@ -49,7 +48,7 @@ type CustomDiff[I, O any] interface {
 }
 
 type CustomUpdate[I, O any] interface {
-	Update(ctx p.Context, id string, olds, news I, preview bool) (O, error)
+	Update(ctx p.Context, id string, olds O, news I, preview bool) (O, error)
 }
 
 type CustomRead[I, O any] interface {
@@ -88,39 +87,7 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 }
 
 func (rc *derivedResourceController[R, I, O]) GetSchema() (pschema.ResourceSpec, error) {
-	var r R
-	v := reflect.ValueOf(r)
-	for v.Type().Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	descriptions := map[string]string{}
-	if r, ok := (interface{})(r).(Annotated); ok {
-		a := introspect.NewAnnotator(r)
-		r.Annotate(&a)
-		descriptions = a.Descriptions
-	}
-
-	properties, required, err := propertyListFromType[O]()
-	if err != nil {
-		var o O
-		return pschema.ResourceSpec{}, fmt.Errorf("could not serialize output type %T: %w", o, err)
-	}
-
-	inputProperties, requiredInputs, err := propertyListFromType[I]()
-	if err != nil {
-		var i I
-		return pschema.ResourceSpec{}, fmt.Errorf("could not serialize input type %T: %w", i, err)
-	}
-
-	return pschema.ResourceSpec{
-		ObjectTypeSpec: pschema.ObjectTypeSpec{
-			Properties:  properties,
-			Description: descriptions[""],
-			Required:    required,
-		},
-		InputProperties: inputProperties,
-		RequiredInputs:  requiredInputs,
-	}, nil
+	return getResourceSchema[R, I, O]()
 }
 
 func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
@@ -131,7 +98,7 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn presource.URN, call string) *R {
 	_, ok := rc.m[urn]
 	if !ok {
-		ctx.Log(diag.Warning, "Missing expect call to %s before create for resource %q", call, urn)
+		ctx.Logf(diag.Warning, "Missing expect call to %s before create for resource %q", call, urn)
 		var r R
 		rc.m[urn] = &r
 	}
@@ -143,7 +110,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	defer func() { rc.m[req.Urn] = &r }()
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// We implement check manually, so call that
-		i, failures, err := r.Check(ctx, req.Olds, req.News)
+		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.SequenceNumber, req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -260,7 +227,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, nil
 	}
 
-	id, o, err := (*r).Create(ctx, input, req.Preview)
+	id, o, err := (*r).Create(ctx, req.Urn.Name().String(), input, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
@@ -318,7 +285,8 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if !ok {
 		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented, "Update is not implemented for resource %s", req.Urn)
 	}
-	var olds, news I
+	var news I
+	var olds O
 	var err error
 	err = mapper.New(nil).Decode(req.Olds.Mappable(), &olds)
 	if err != nil {

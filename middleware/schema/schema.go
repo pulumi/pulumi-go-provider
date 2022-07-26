@@ -15,7 +15,10 @@
 package schema
 
 import (
+	"encoding/json"
 	"fmt"
+	"reflect"
+	"strings"
 
 	p "github.com/iwahbe/pulumi-go-provider"
 	t "github.com/iwahbe/pulumi-go-provider/middleware"
@@ -52,7 +55,7 @@ func (s *Provider) WithResources(resources ...Resource) *Provider {
 
 func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	if s.schema == "" {
-		err := s.generateSchema()
+		err := s.generateSchema(ctx)
 		if err != nil {
 			return p.GetSchemaResponse{}, err
 		}
@@ -63,11 +66,98 @@ func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchema
 }
 
 // Generate a schema string from the currently present schema types.
-func (s *Provider) generateSchema() error {
-	panic("TODO")
+func (s *Provider) generateSchema(ctx p.Context) error {
+	info := ctx.RuntimeInformation()
+	pkg := schema.PackageSpec{
+		Name:      info.PackageName,
+		Version:   info.Version,
+		Resources: map[string]schema.ResourceSpec{},
+	}
+	for _, r := range s.resources {
+		tk, err := r.GetToken()
+		if err != nil {
+			return err
+		}
+		tk = assignTo(tk, info.PackageName)
+		res, err := r.GetSchema()
+		if err != nil {
+			return fmt.Errorf("failed to get schema for '%s': %w", tk, err)
+		}
+		pkg.Resources[tk.String()] = renamePackage(res, info.PackageName)
+	}
+	bytes, err := json.Marshal(pkg)
+	if err != nil {
+		return err
+	}
+	s.schema = string(bytes)
+	return nil
 }
 
-// A helper function to create a token for the current module.
-func MakeToken(module, name string) string {
-	return fmt.Sprintf("derived-pkg:%s:%s", module, name)
+func assignTo(tk tokens.Type, pkg string) tokens.Type {
+	return tokens.NewTypeToken(tokens.NewModuleToken(tokens.Package(pkg), tk.Module().Name()), tk.Name())
+}
+
+func fixReference(ref, pkg string) string {
+	if !strings.HasPrefix(ref, "#/") {
+		// Not an internal reference, so we don't rewrite
+		return ref
+	}
+	s := strings.TrimPrefix(ref, "#/")
+	i := strings.IndexRune(s, '/')
+	if i == -1 {
+		// Not a valid reference, so just leave it
+		return ref
+	}
+	kind := ref[:i+3]
+	tk, err := tokens.ParseTypeToken(s[i+2:])
+	if err != nil {
+		// Not a valid token, so again we just leave it
+		return ref
+	}
+	return kind + string(assignTo(tk, pkg))
+}
+
+// renamePackage sets internal package references to point to the package with the name
+// `pkg`.
+func renamePackage[T any](typ T, pkg string) T {
+	var rename func(reflect.Value)
+	rename = func(v reflect.Value) {
+		switch v.Kind() {
+		case reflect.Pointer:
+			if v.IsNil() {
+				return
+			}
+			rename(v.Elem())
+		case reflect.Struct:
+			if v.Type() == reflect.TypeOf(schema.TypeSpec{}) {
+				field := v.FieldByName("Ref")
+				rewritten := fixReference(field.String(), pkg)
+				field.SetString(rewritten)
+			}
+			for i := 0; i < v.Type().NumField(); i++ {
+				f := v.Field(i)
+				rename(f)
+			}
+		case reflect.Array, reflect.Slice:
+			for i := 0; i < v.Len(); i++ {
+				rename(v.Index(i))
+			}
+		case reflect.Map:
+			m := map[reflect.Value]reflect.Value{}
+			for iter := v.MapRange(); iter.Next(); {
+				i := iter.Value()
+				m[iter.Key()] = i
+			}
+			for k, e := range m {
+				ptr := reflect.New(e.Type())
+				ptr.Elem().Set(e)
+				rename(ptr)
+				v.SetMapIndex(k, ptr.Elem())
+			}
+		}
+	}
+	t := &typ
+	v := reflect.ValueOf(t)
+	rename(v)
+	return *t
 }

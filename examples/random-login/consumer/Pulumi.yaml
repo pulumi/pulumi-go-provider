@@ -1,0 +1,5 @@
+name: consume-random-login
+runtime: yaml
+resources:
+  component:
+    type: random-login:RandomLogin

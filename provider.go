@@ -51,12 +51,6 @@ import (
 	"github.com/iwahbe/pulumi-go-provider/types"
 )
 
-type Context interface {
-	context.Context
-	Log(severity diag.Severity, msg string, args ...any)
-	LogStatus(severity diag.Severity, msg string, args ...any)
-}
-
 type GetSchemaRequest struct {
 	Version int
 }
@@ -324,8 +318,61 @@ type provider struct {
 	client  Provider
 }
 
-func (p *provider) ctx(ctx context.Context) Context {
-	return nil
+type Context interface {
+	context.Context
+	// Log logs a global message, including errors and warnings.
+	Log(severity diag.Severity, msg string)
+	// Logf logs a global message, including errors and warnings.
+	Logf(severity diag.Severity, msg string, args ...any)
+	// LogStatus logs a global status message, including errors and warnings. Status messages will
+	// appear in the `Info` column of the progress display, but not in the final output.
+	LogStatus(severity diag.Severity, msg string)
+	// LogStatusf logs a global status message, including errors and warnings. Status messages will
+	// appear in the `Info` column of the progress display, but not in the final output.
+	LogStatusf(severity diag.Severity, msg string, args ...any)
+	RuntimeInformation() RunInfo
+}
+
+type RunInfo struct {
+	PackageName string
+	Version     string
+}
+
+type pkgContext struct {
+	context.Context
+	provider *provider
+	urn      presource.URN
+}
+
+func (p *pkgContext) Log(severity diag.Severity, msg string) {
+	err := p.provider.host.Log(p, severity, p.urn, msg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to log %s: %s", severity, msg)
+	}
+}
+
+func (p *pkgContext) Logf(severity diag.Severity, msg string, args ...any) {
+	p.Log(severity, fmt.Sprintf(msg, args...))
+}
+func (p *pkgContext) LogStatus(severity diag.Severity, msg string) {
+	err := p.provider.host.LogStatus(p, severity, p.urn, msg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to log %s status: %s", severity, msg)
+	}
+}
+func (p *pkgContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
+	p.LogStatus(severity, fmt.Sprintf(msg, args...))
+}
+
+func (p *pkgContext) RuntimeInformation() RunInfo {
+	return RunInfo{
+		PackageName: p.provider.name,
+		Version:     p.provider.version,
+	}
+}
+
+func (p *provider) ctx(ctx context.Context, urn presource.URN) Context {
+	return &pkgContext{ctx, p, urn}
 }
 
 func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
@@ -337,7 +384,7 @@ func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
 }
 
 func (p *provider) GetSchema(ctx context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
-	r, err := p.client.GetSchema(p.ctx(ctx), GetSchemaRequest{
+	r, err := p.client.GetSchema(p.ctx(ctx, ""), GetSchemaRequest{
 		Version: int(req.GetVersion()),
 	})
 	if err != nil {
@@ -387,7 +434,7 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.CheckConfig(p.ctx(ctx), CheckRequest{
+	r, err := p.client.CheckConfig(p.ctx(ctx, presource.URN(req.GetUrn())), CheckRequest{
 		Urn:            presource.URN(req.GetUrn()),
 		Olds:           olds,
 		News:           news,
@@ -426,7 +473,7 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.DiffConfig(p.ctx(ctx), DiffRequest{
+	r, err := p.client.DiffConfig(p.ctx(ctx, presource.URN(req.GetUrn())), DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
@@ -444,7 +491,7 @@ func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*r
 	if err != nil {
 		return nil, err
 	}
-	err = p.client.Configure(p.ctx(ctx), ConfigureRequest{
+	err = p.client.Configure(p.ctx(ctx, ""), ConfigureRequest{
 		Variables: req.GetVariables(),
 		Args:      argMap,
 	})
@@ -464,7 +511,7 @@ func (p *provider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Inv
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.Invoke(p.ctx(ctx), InvokeRequest{
+	r, err := p.client.Invoke(p.ctx(ctx, ""), InvokeRequest{
 		Token: tokens.Type(req.GetTok()),
 		Args:  argMap,
 	})
@@ -499,7 +546,7 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 		return nil, err
 	}
 
-	r, err := p.client.Check(p.ctx(ctx), CheckRequest{
+	r, err := p.client.Check(p.ctx(ctx, presource.URN(req.GetUrn())), CheckRequest{
 		Urn:            presource.URN(req.GetUrn()),
 		Olds:           olds,
 		News:           news,
@@ -529,7 +576,7 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.Diff(p.ctx(ctx), DiffRequest{
+	r, err := p.client.Diff(p.ctx(ctx, presource.URN(req.GetUrn())), DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
@@ -548,7 +595,7 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.Create(p.ctx(ctx), CreateRequest{
+	r, err := p.client.Create(p.ctx(ctx, presource.URN(req.GetUrn())), CreateRequest{
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: props,
 		Timeout:    req.GetTimeout(),
@@ -578,7 +625,7 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.Read(p.ctx(ctx), ReadRequest{
+	r, err := p.client.Read(p.ctx(ctx, presource.URN(req.GetUrn())), ReadRequest{
 		ID:         req.GetId(),
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: propMap,
@@ -611,7 +658,7 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.client.Update(p.ctx(ctx), UpdateRequest{
+	r, err := p.client.Update(p.ctx(ctx, presource.URN(req.GetUrn())), UpdateRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          oldsMap,
@@ -638,7 +685,7 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 	if err != nil {
 		return nil, err
 	}
-	err = p.client.Delete(p.ctx(ctx), DeleteRequest{
+	err = p.client.Delete(p.ctx(ctx, presource.URN(req.GetUrn())), DeleteRequest{
 		ID:         req.GetId(),
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: props,
@@ -654,7 +701,7 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 	return comProvider.Construct(pctx, req, p.host.EngineConn(), func(ctx *pulumi.Context, typ, name string,
 		inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (*comProvider.ConstructResult, error) {
-		r, err := p.client.Construct(p.ctx(pctx), typ, name, ctx, inputs, opts)
+		r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -663,7 +710,7 @@ func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	err := p.client.Cancel(p.ctx(ctx))
+	err := p.client.Cancel(p.ctx(ctx, ""))
 	if err != nil {
 		return nil, err
 	}

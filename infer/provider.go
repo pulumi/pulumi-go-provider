@@ -51,3 +51,17 @@ func (prov *Provider) WithResources(resources ...InferedResource) *Provider {
 	prov.Provider.WithResources(sRes...)
 	return prov
 }
+
+func (prov *Provider) WithComponents(components ...InferedComponent) *Provider {
+	res := map[tokens.Type]t.ComponentResource{}
+	sRes := []schema.Resource{}
+	for _, r := range components {
+		typ, err := r.GetToken()
+		contract.AssertNoError(err)
+		res[typ] = r
+		sRes = append(sRes, r)
+	}
+	prov.dispatcher.WithComponentResources(res)
+	prov.Provider.WithResources(sRes...)
+	return prov
+}
