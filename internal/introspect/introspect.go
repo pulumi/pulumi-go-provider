@@ -99,23 +99,39 @@ func PropertiesToResource(s *structpb.Struct, res any) error {
 	return mapper.MapI(inputs, res)
 }
 
-func FindOutputProperties(r any) (map[string]bool, error) {
+func FindProperties(r any) (map[string]FieldTag, error) {
 	typ := reflect.TypeOf(r)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	contract.Assertf(typ.Kind() == reflect.Struct, "Expected struct, found %s (%T)", typ.Kind(), r)
-	m := map[string]bool{}
+	m := map[string]FieldTag{}
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
 		info, err := ParseTag(f)
 		if err != nil {
 			return nil, err
 		}
-		if info.Output {
-			m[info.Name] = true
+		if info.Internal {
+			continue
+		}
+		m[info.Name] = info
+	}
+	return m, nil
+}
+
+func FindOutputProperties(r any) (map[string]bool, error) {
+	props, err := FindProperties(r)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]bool{}
+	for k, v := range props {
+		if v.Output {
+			m[k] = true
 		}
 	}
+
 	return m, nil
 }
 

@@ -155,7 +155,7 @@ func (s *Server) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckRe
 		}
 
 		checkContext := r.NewContext(ctx, s.host, resource.URN(req.Urn), introspect.NewFieldMatcher(custom))
-		failures, nErr := res.Check(checkContext, new, int(req.SequenceNumber))
+		failures, nErr := res.Check(checkContext, new, int(0))
 		if err != nil {
 			return nil, nErr
 		}

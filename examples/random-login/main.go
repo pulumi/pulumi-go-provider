@@ -31,10 +31,10 @@ type RandomLoginArgs struct {
 }
 type RandomLoginOutput struct {
 	pulumi.ResourceState
-
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength,optional"`
 	// Outputs
-	Username pulumi.StringOutput `pulumi:"username" provider:"output"`
-	Password pulumi.StringOutput `pulumi:"password" provider:"output"`
+	Username pulumi.StringOutput `pulumi:"username"`
+	Password pulumi.StringOutput `pulumi:"password"`
 }
 
 func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, inputs RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
@@ -58,7 +58,7 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, inputs Ra
 	if err != nil {
 		return nil, err
 	}
-	comp.Password = password.Result.ToStringOutput()
+	comp.Password = password.Result
 
 	return comp, nil
 }
@@ -98,6 +98,8 @@ func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, prev
 	return name, RandomSaltState{
 		Salt:           salt,
 		SaltedPassword: fmt.Sprintf("%s%s", salt, input.Password),
+		Password:       input.Password,
+		SaltLength:     input.SaltLength,
 	}, nil
 }
 
@@ -120,9 +122,9 @@ func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news
 	if redoSalt {
 		// ctx.MarkComputed(&r.Salt)
 		// ctx.MarkComputed(&r.SaltedPassword)
-		// if preview {
-		// 	return RandomSaltState{}, nil
-		// }
+		if preview {
+			return RandomSaltState{}, nil
+		}
 		l := 4
 		if news.SaltLength != nil {
 			l = *news.SaltLength

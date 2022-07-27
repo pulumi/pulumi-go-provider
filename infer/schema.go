@@ -17,9 +17,11 @@ package infer
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	sch "github.com/iwahbe/pulumi-go-provider/middleware/schema"
@@ -92,6 +94,10 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 	}
 
 	// Must be a primitive type
+	t, err := underlyingType(t)
+	if err != nil {
+		return schema.TypeSpec{}, err
+	}
 	switch t.Kind() {
 	case reflect.Map:
 		if t.Key().Kind() != reflect.String {
@@ -114,10 +120,6 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 			Type:                 "array",
 			AdditionalProperties: &el,
 		}, nil
-	case reflect.Interface:
-		return schema.TypeSpec{
-			Ref: "pulumi.json#/Any",
-		}, nil
 	case reflect.Bool:
 		return primitive("boolean")
 	case reflect.Int, reflect.Int64, reflect.Int32:
@@ -126,13 +128,58 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 		return primitive("number")
 	case reflect.String:
 		return primitive("string")
+	case reflect.Interface:
+		return schema.TypeSpec{
+			Ref: "pulumi.json#/Any",
+		}, nil
 	default:
 		return schema.TypeSpec{}, fmt.Errorf("unknown type: '%s'", t.String())
 	}
 }
 
+func underlyingType(t reflect.Type) (reflect.Type, error) {
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	isInputType := t.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
+	_, isOutputType := reflect.New(t).Interface().(pulumi.Output)
+
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if isOutputType {
+		t = reflect.New(t).Elem().Interface().(pulumi.Output).ElementType()
+	} else if isInputType {
+		T := t.Name()
+		if strings.HasSuffix(T, "Input") {
+			T = strings.TrimSuffix(T, "Input")
+		} else {
+			return nil, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
+		}
+		toOutMethod, ok := t.MethodByName("To" + T + "Output")
+		if !ok {
+			return nil, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
+		}
+		outputT := toOutMethod.Type.Out(0)
+		//create new object of type outputT
+		strct := reflect.New(outputT).Elem().Interface()
+		out, ok := strct.(pulumi.Output)
+		if !ok {
+			return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
+				reflect.TypeOf(strct), T, t.Name())
+		}
+		t = out.ElementType()
+	}
+
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t, nil
+}
+
 func propertyListFromType[T any]() (props map[string]schema.PropertySpec, required []string, err error) {
-	typ := reflect.TypeOf(new(T)).Elem()
+	typ := reflect.TypeOf(new(T))
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
@@ -161,9 +208,9 @@ func propertyListFromType[T any]() (props map[string]schema.PropertySpec, requir
 			return nil, nil, fmt.Errorf("invalid type '%s' on '%T.%s': %w", fieldType, *new(T), field.Name, err)
 		}
 		if !tags.Optional {
-			required = append(required, field.Name)
+			required = append(required, tags.Name)
 		}
-		props[field.Name] = schema.PropertySpec{
+		props[tags.Name] = schema.PropertySpec{
 			TypeSpec:         serialized,
 			Secret:           tags.Secret,
 			ReplaceOnChanges: tags.ReplaceOnChanges,
@@ -197,7 +244,8 @@ func resourceReferenceToken(t reflect.Type) (tokens.Type, bool, error) {
 }
 
 func structReferenceToken(t reflect.Type) (tokens.Type, bool, error) {
-	if t.Kind() != reflect.Struct {
+	if t.Kind() != reflect.Struct ||
+		t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem()) {
 		return "", false, nil
 	}
 	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())

@@ -63,5 +63,16 @@ func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ str
 	if err != nil {
 		return nil, err
 	}
-	return r.Construct(ctx, name, typ, i, opts)
+	res, err := r.Construct(ctx, name, typ, i, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register the outputs
+	m := introspect.StructToMap(res)
+	err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
+	if err != nil {
+		return nil, err
+	}
+	return res, err
 }

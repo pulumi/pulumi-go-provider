@@ -39,7 +39,7 @@ type CustomResource[I any, O any] interface {
 
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx p.Context, name string, seqNum int, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (I, []p.CheckFailure, error)
+	Check(ctx p.Context, name string, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (I, []p.CheckFailure, error)
 }
 
 type CustomDiff[I, O any] interface {
@@ -109,8 +109,8 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	var r R
 	defer func() { rc.m[req.Urn] = &r }()
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
-		// We implement check manually, so call that
-		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.SequenceNumber, req.Olds, req.News)
+		// The user implemented check manually, so call that
+		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -143,7 +143,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 		default:
 			return p.CheckResponse{
 				Failures: failures,
-			}, fmt.Errorf("Unknown mapper error: %s", err.Error())
+			}, fmt.Errorf("Unknown mapper error: %w", err)
 		}
 	}
 	return p.CheckResponse{
@@ -177,9 +177,16 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 	for _, k := range req.IgnoreChanges {
 		ignored[k] = struct{}{}
 	}
+	inputProps, err := introspect.FindProperties(new(I))
+	if err != nil {
+		return p.DiffResponse{}, err
+	}
 	objDiff := req.News.Diff(req.Olds, func(prop resource.PropertyKey) bool {
-		_, ok := ignored[prop]
-		return ok
+		// Olds is an Output, but news is an Input. Output should be a superset of Input,
+		// so we need to filter out fields that are in Output but not Input.
+		_, ignore := ignored[prop]
+		_, isInput := inputProps[string(prop)]
+		return ignore || !isInput
 	})
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
 	diff := map[string]p.PropertyDiff{}
@@ -222,19 +229,24 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 
 	var input I
 	var err error
-	err = mapper.New(nil).Decode(req.Properties.Mappable(), &input)
+	err = mapper.New(&mapper.Opts{
+		IgnoreMissing: req.Preview,
+	}).Decode(req.Properties.Mappable(), &input)
 	if err != nil {
-		return p.CreateResponse{}, nil
+		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
 
 	id, o, err := (*r).Create(ctx, req.Urn.Name().String(), input, req.Preview)
+	if id == "" {
+		return p.CreateResponse{}, fmt.Errorf("empty id")
+	}
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
 
 	m, err := mapper.New(nil).Encode(o)
 	if err != nil {
-		return p.CreateResponse{}, err
+		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
 	return p.CreateResponse{
 		ID:         id,
@@ -288,11 +300,13 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	var news I
 	var olds O
 	var err error
-	err = mapper.New(nil).Decode(req.Olds.Mappable(), &olds)
+	err = mapper.New(&mapper.Opts{IgnoreMissing: req.Preview}).
+		Decode(req.Olds.Mappable(), &olds)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	err = mapper.New(nil).Decode(req.News.Mappable(), &news)
+	err = mapper.New(&mapper.Opts{IgnoreMissing: req.Preview}).
+		Decode(req.News.Mappable(), &news)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -304,8 +318,9 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
+	m := presource.NewPropertyMapFromMap(props)
 	return p.UpdateResponse{
-		Properties: presource.NewPropertyMapFromMap(props),
+		Properties: m,
 	}, nil
 }
 

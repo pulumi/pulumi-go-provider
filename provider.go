@@ -30,6 +30,7 @@ import (
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -60,10 +61,9 @@ type GetSchemaResponse struct {
 }
 
 type CheckRequest struct {
-	Urn            presource.URN
-	Olds           presource.PropertyMap
-	News           presource.PropertyMap
-	SequenceNumber int
+	Urn  presource.URN
+	Olds presource.PropertyMap
+	News presource.PropertyMap
 }
 
 type CheckFailure struct {
@@ -376,11 +376,18 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) Context {
 }
 
 func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
-	return nil, nil
+	return plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+		KeepUnknowns:  true,
+		SkipNulls:     true,
+		KeepResources: true,
+	})
 }
 
 func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
-	return nil, nil
+	return plugin.MarshalProperties(m, plugin.MarshalOptions{
+		KeepUnknowns: true,
+		SkipNulls:    true,
+	})
 }
 
 func (p *provider) GetSchema(ctx context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
@@ -435,10 +442,9 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 		return nil, err
 	}
 	r, err := p.client.CheckConfig(p.ctx(ctx, presource.URN(req.GetUrn())), CheckRequest{
-		Urn:            presource.URN(req.GetUrn()),
-		Olds:           olds,
-		News:           news,
-		SequenceNumber: int(req.GetSequenceNumber()),
+		Urn:  presource.URN(req.GetUrn()),
+		Olds: olds,
+		News: news,
 	})
 
 	if err != nil {
@@ -547,10 +553,9 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 	}
 
 	r, err := p.client.Check(p.ctx(ctx, presource.URN(req.GetUrn())), CheckRequest{
-		Urn:            presource.URN(req.GetUrn()),
-		Olds:           olds,
-		News:           news,
-		SequenceNumber: int(req.GetSequenceNumber()),
+		Urn:  presource.URN(req.GetUrn()),
+		Olds: olds,
+		News: news,
 	})
 	if err != nil {
 		return nil, err

@@ -1,5 +1,18 @@
 name: consume-random-login
 runtime: yaml
 resources:
-  component:
+  generator:
     type: random-login:RandomLogin
+    properties:
+      passwordLength: 8
+  salter:
+    type: random-login:RandomSalt
+    properties:
+      password: ${generator.password}
+      saltedLength: 4
+
+outputs:
+  username:
+    ${generator.username}
+  password:
+    ${salter.saltedPassword}
