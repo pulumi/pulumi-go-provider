@@ -23,6 +23,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -98,7 +99,9 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn presource.URN, call string) *R {
 	_, ok := rc.m[urn]
 	if !ok {
-		ctx.Logf(diag.Warning, "Missing expect call to %s before create for resource %q", call, urn)
+		if call != "Delete" {
+			ctx.Logf(diag.Warning, "Missing expect call to 'Check' before '%s' for resource %q", call, urn)
+		}
 		var r R
 		rc.m[urn] = &r
 	}
@@ -126,7 +129,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	// We have not implemented check, so do the smart thing by default
 	// We just check that we can de-serialize correctly
 	var i I
-	err := mapper.New(nil).Decode(req.News.Mappable(), &i)
+	_, err := rc.decode(req.News, &i, false)
 	if err == nil {
 		return p.CheckResponse{
 			Inputs: req.News,
@@ -159,11 +162,11 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 		var olds O
 		var news I
 		var err error
-		err = mapper.New(nil).Decode(req.Olds.Mappable(), &olds)
+		_, err = rc.decode(req.Olds, &olds, false)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		err = mapper.New(nil).Decode(req.Olds.Mappable(), &news)
+		_, err = rc.decode(req.Olds, &news, false)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -229,9 +232,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 
 	var input I
 	var err error
-	err = mapper.New(&mapper.Opts{
-		IgnoreMissing: req.Preview,
-	}).Decode(req.Properties.Mappable(), &input)
+	secrets, err := rc.decode(req.Properties, &input, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
@@ -244,13 +245,13 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, err
 	}
 
-	m, err := mapper.New(nil).Encode(o)
+	m, err := rc.encode(o, secrets)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
 	return p.CreateResponse{
 		ID:         id,
-		Properties: presource.NewPropertyMapFromMap(m),
+		Properties: m,
 	}, nil
 }
 
@@ -263,11 +264,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	var inputs I
 	var state O
 	var err error
-	err = mapper.New(nil).Decode(req.Inputs.Mappable(), &inputs)
+	inputSecrets, err := rc.decode(req.Inputs, &inputs, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	err = mapper.New(nil).Decode(req.Properties.Mappable(), &state)
+	stateSecrets, err := rc.decode(req.Properties, &state, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -275,19 +276,19 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	i, err := mapper.New(nil).Encode(inputs)
+	i, err := rc.encode(inputs, inputSecrets)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	s, err := mapper.New(nil).Encode(state)
+	s, err := rc.encode(state, stateSecrets)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
 
 	return p.ReadResponse{
 		ID:         id,
-		Properties: presource.NewPropertyMapFromMap(s),
-		Inputs:     presource.NewPropertyMapFromMap(i),
+		Properties: s,
+		Inputs:     i,
 	}, nil
 }
 
@@ -300,13 +301,11 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	var news I
 	var olds O
 	var err error
-	err = mapper.New(&mapper.Opts{IgnoreMissing: req.Preview}).
-		Decode(req.Olds.Mappable(), &olds)
+	_, err = rc.decode(req.Olds, &olds, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	err = mapper.New(&mapper.Opts{IgnoreMissing: req.Preview}).
-		Decode(req.News.Mappable(), &news)
+	secrets, err := rc.decode(req.News, &news, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -314,11 +313,11 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	props, err := mapper.New(nil).Encode(o)
+	m, err := rc.encode(o, secrets)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	m := presource.NewPropertyMapFromMap(props)
+
 	return p.UpdateResponse{
 		Properties: m,
 	}, nil
@@ -329,7 +328,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
 		var olds O
-		err := mapper.New(nil).Decode(req.Properties.Mappable(), &olds)
+		_, err := rc.decode(req.Properties, &olds, false)
 		if err != nil {
 			return err
 		}
@@ -337,4 +336,68 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	}
 	delete(rc.m, req.Urn)
 	return nil
+}
+
+func (*derivedResourceController[R, I, O]) decode(m presource.PropertyMap, dst interface{}, preview bool) ([]presource.PropertyKey, mapper.MappingError) {
+	m, secrets := extractSecrets(m)
+	return secrets, mapper.New(&mapper.Opts{IgnoreMissing: preview}).Decode(m.Mappable(), dst)
+}
+
+func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []presource.PropertyKey) (presource.PropertyMap, mapper.MappingError) {
+	props, err := mapper.New(nil).Encode(src)
+	if err != nil {
+		return nil, err
+	}
+	m := presource.NewPropertyMapFromMap(props)
+	for _, s := range secrets {
+		v, ok := m[s]
+		if !ok {
+			continue
+		}
+		m[s] = presource.NewSecretProperty(&presource.Secret{Element: v})
+	}
+	return m, nil
+}
+
+// Transform secret values into plain values, returning the new map and the list of keys
+// that contained secrets.
+func extractSecrets(m presource.PropertyMap) (presource.PropertyMap, []presource.PropertyKey) {
+	newMap := presource.PropertyMap{}
+	secrets := []presource.PropertyKey{}
+	var removeSecrets func(presource.PropertyValue) presource.PropertyValue
+	removeSecrets = func(v presource.PropertyValue) presource.PropertyValue {
+		switch {
+		case v.IsSecret():
+			return v.SecretValue().Element
+		case v.IsComputed():
+			return removeSecrets(v.Input().Element)
+		case v.IsOutput():
+			if !v.OutputValue().Known {
+				return presource.NewNullProperty()
+			}
+			return removeSecrets(v.OutputValue().Element)
+		case v.IsArray():
+			arr := make([]presource.PropertyValue, len(v.ArrayValue()))
+			for i, e := range v.ArrayValue() {
+				arr[i] = removeSecrets(e)
+			}
+			return presource.NewArrayProperty(arr)
+		case v.IsObject():
+			m := make(presource.PropertyMap, len(v.ObjectValue()))
+			for k, v := range v.ObjectValue() {
+				m[k] = removeSecrets(v)
+			}
+			return presource.NewObjectProperty(m)
+		default:
+			return v
+		}
+	}
+	for k, v := range m {
+		if v.ContainsSecrets() {
+			secrets = append(secrets, k)
+		}
+		newMap[k] = removeSecrets(v)
+	}
+	contract.Assertf(!newMap.ContainsSecrets(), "%d secrets removed", len(secrets))
+	return newMap, secrets
 }

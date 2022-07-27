@@ -4,7 +4,8 @@ resources:
   generator:
     type: random-login:RandomLogin
     properties:
-      passwordLength: 8
+      passwordLength:
+        Fn::Secret: 8
   salter:
     type: random-login:RandomSalt
     properties:
@@ -16,3 +17,5 @@ outputs:
     ${generator.username}
   password:
     ${salter.saltedPassword}
+  rawPassowrd:
+    ${salter.password}
