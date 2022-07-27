@@ -2,6 +2,10 @@
 
 A framework for building Go Providers for Pulumi
 
+_Note_: This library is in active development, and not everthing is hooked up. You should
+expect breaking changes as we fine tune the exposed APIs. We definitely appreciate
+community feedback, but you should probably wait to port any existing providers over.
+
 ## The "Hello, Pulumi" Provider
 
 Here we provide the code to create an entire native provider consumable from any of the
