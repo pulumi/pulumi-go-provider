@@ -150,6 +150,9 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 }
 
 func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error) {
+	if err == nil {
+		return nil, nil
+	}
 	failures := []p.CheckFailure{}
 	for _, err := range err.Failures() {
 		switch err := err.(type) {

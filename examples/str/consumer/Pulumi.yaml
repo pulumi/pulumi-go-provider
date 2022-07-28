@@ -14,7 +14,7 @@ variables:
       Function: str:regex:Replace
       Arguments:
         s: abc-abc--abc---abc
-        old: -+
+        pattern: -+
         new: <*>
       Return: out
   _:
