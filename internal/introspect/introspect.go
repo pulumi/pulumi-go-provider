@@ -144,9 +144,6 @@ func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
-		if typ == nil {
-			return "", fmt.Errorf("Cannot get token of nil type")
-		}
 	}
 
 	var name string

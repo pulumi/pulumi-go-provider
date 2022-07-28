@@ -46,13 +46,13 @@ func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
 	var r R
 	descriptions := getAnnotated(r)
 
-	properties, required, err := propertyListFromType[O]()
+	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)))
 	if err != nil {
 		var o O
 		return schema.ResourceSpec{}, fmt.Errorf("could not serialize output type %T: %w", o, err)
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType[I]()
+	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)))
 	if err != nil {
 		var i I
 		return schema.ResourceSpec{}, fmt.Errorf("could not serialize input type %T: %w", i, err)
@@ -184,18 +184,13 @@ func underlyingType(t reflect.Type) (reflect.Type, error) {
 	return t, nil
 }
 
-func propertyListFromType[T any]() (props map[string]schema.PropertySpec, required []string, err error) {
-	typ := reflect.TypeOf(new(T))
+func propertyListFromType(typ reflect.Type) (props map[string]schema.PropertySpec, required []string, err error) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	props = map[string]schema.PropertySpec{}
-	descriptions := map[string]string{}
-	if t, ok := (interface{})(*new(T)).(Annotated); ok {
-		a := introspect.NewAnnotator(t)
-		t.Annotate(&a)
-		descriptions = a.Descriptions
-	}
+	descriptions := getAnnotated(reflect.New(typ))
+
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		fieldType := field.Type
@@ -204,14 +199,14 @@ func propertyListFromType[T any]() (props map[string]schema.PropertySpec, requir
 		}
 		tags, err := introspect.ParseTag(field)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid fields '%s' on '%T': %w", field.Name, *new(T), err)
+			return nil, nil, fmt.Errorf("invalid fields '%s' on '%s': %w", field.Name, typ, err)
 		}
 		if tags.Internal {
 			continue
 		}
 		serialized, err := serializeTypeAsPropertyType(fieldType)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid type '%s' on '%T.%s': %w", fieldType, *new(T), field.Name, err)
+			return nil, nil, fmt.Errorf("invalid type '%s' on '%s.%s': %w", fieldType, typ, field.Name, err)
 		}
 		if !tags.Optional {
 			required = append(required, tags.Name)
@@ -242,4 +237,19 @@ func structReferenceToken(t reflect.Type) (tokens.Type, bool, error) {
 	}
 	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
 	return tk, true, err
+}
+
+func schemaNameForType(t reflect.Kind) string {
+	switch t {
+	case reflect.String:
+		return "string"
+	case reflect.Bool:
+		return "boolean"
+	case reflect.Float64:
+		return "number"
+	case reflect.Int:
+		return "integer"
+	default:
+		panic(fmt.Sprintf("unknown primitive type: %s", t))
+	}
 }

@@ -49,18 +49,26 @@ func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	return introspect.GetToken("pkg", f)
 }
 
-func (*derivedInvokeController[F, I, O]) GetSchema() (pschema.FunctionSpec, error) {
+func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
 	var f F
 	descriptions := getAnnotated(f)
 
-	input, err := objectSchema[I]()
+	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	output, err := objectSchema[O]()
+	output, err := objectSchema(reflect.TypeOf(new(O)))
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
+
+	if err := crawlTypes[I](reg); err != nil {
+		return pschema.FunctionSpec{}, err
+	}
+	if err := crawlTypes[O](reg); err != nil {
+		return pschema.FunctionSpec{}, err
+	}
+
 	return pschema.FunctionSpec{
 		Description: descriptions[""],
 		Inputs:      input,
@@ -68,18 +76,11 @@ func (*derivedInvokeController[F, I, O]) GetSchema() (pschema.FunctionSpec, erro
 	}, nil
 }
 
-func objectSchema[T any]() (*pschema.ObjectTypeSpec, error) {
-	var t T
-	descriptions := map[string]string{}
-	if t, ok := (interface{})(t).(Annotated); ok {
-		a := introspect.NewAnnotator(t)
-		t.Annotate(&a)
-		descriptions = a.Descriptions
-	}
-
-	props, required, err := propertyListFromType[T]()
+func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
+	descriptions := getAnnotated(reflect.New(t).Elem())
+	props, required, err := propertyListFromType(t)
 	if err != nil {
-		return nil, fmt.Errorf("could not serialize input type %T: %w", t, err)
+		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
 	}
 	for n, p := range props {
 		p.Description = descriptions[n]

@@ -17,8 +17,12 @@ package infer
 import (
 	"reflect"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 type EnumKind interface {
@@ -30,6 +34,7 @@ type Enum[T EnumKind] interface {
 }
 
 type EnumValue[T any] struct {
+	Name        string
 	Value       T
 	Description string
 }
@@ -96,6 +101,7 @@ func isEnum(t reflect.Type) (enum, bool) {
 		values[i] = EnumValue[any]{
 			Value:       coerceToBase(v.FieldByName("Value")),
 			Description: v.FieldByName("Description").String(),
+			Name:        v.FieldByName("Name").String(),
 		}
 	}
 	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
@@ -126,4 +132,90 @@ func coerceToBase(v reflect.Value) any {
 	default:
 		panic("Unexpected value")
 	}
+}
+
+// crawlTypes recursively examines fields of T, calling reg on them when appropriate.
+func crawlTypes[T any](reg schema.RegisterDerivativeType) error {
+	var i T
+	t := reflect.TypeOf(i)
+	// Crawl will process a type, calling reg is appropriate. It indicates if the type should be drilled past.
+	crawl := func(t reflect.Type) (bool, error) {
+		if enum, ok := isEnum(t); ok {
+			tSpec := pschema.ComplexTypeSpec{}
+			for _, v := range enum.values {
+				tSpec.Enum = append(tSpec.Enum, pschema.EnumValueSpec{
+					Name:        "",
+					Description: v.Description,
+					Value:       v.Value,
+				})
+			}
+			tSpec.Type = schemaNameForType(t.Kind())
+			// We never need to recurse into primitive types
+			_ = reg(tokens.Type(enum.token), tSpec)
+			return false, nil
+		}
+		if _, ok, err := resourceReferenceToken(t); ok {
+			// This will have already been registered, so we don't need to recurse here
+			return false, err
+		}
+		if t.Kind() == reflect.Struct {
+			spec, err := objectSchema(t)
+			if err != nil {
+				return false, err
+			}
+			tk, err := introspect.GetToken("pkg", reflect.New(t).Interface())
+			if err != nil {
+				return false, err
+			}
+			return reg(tk, pschema.ComplexTypeSpec{ObjectTypeSpec: *spec}), nil
+		}
+		return false, nil
+	}
+
+	// Drill will walk the types, calling crawl on types it finds.
+	var drill func(reflect.Type) error
+	drill = func(t reflect.Type) error {
+		switch t.Kind() {
+		case reflect.String, reflect.Float64, reflect.Int, reflect.Bool:
+			// Primitive types could be enums
+			_, err := crawl(t)
+			return err
+		case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
+			// Could hold a reference to other types
+			return drill(t.Elem())
+		case reflect.Struct:
+			for i := 0; i < t.NumField(); i++ {
+				f := t.Field(i)
+				info, err := introspect.ParseTag(f)
+				if err != nil {
+					return err
+				}
+				if info.Internal {
+					continue
+				}
+				typ := f.Type
+				for done := false; !done; {
+					switch typ.Kind() {
+					case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
+						// Could hold a reference to other types
+						typ = typ.Elem()
+					default:
+						done = true
+					}
+				}
+				further, err := crawl(typ)
+				if err != nil {
+					return err
+				}
+				if further {
+					err = drill(typ)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	}
+	return drill(t)
 }

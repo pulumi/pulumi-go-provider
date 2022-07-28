@@ -27,14 +27,20 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
+// When a resource is collecting it's schema, it should register all of the types it uses.
+// The function will return `true` if the user should recursively register register used
+// types. A return of `false` indicates that the type is already known, and children types
+// do not need to be drilled.
+type RegisterDerivativeType func(tk tokens.Type, typ schema.ComplexTypeSpec) (unknown bool)
+
 type Resource interface {
-	GetSchema() (schema.ResourceSpec, error)
 	GetToken() (tokens.Type, error)
+	GetSchema(RegisterDerivativeType) (schema.ResourceSpec, error)
 }
 
 type Function interface {
 	GetToken() (tokens.Type, error)
-	GetSchema() (schema.FunctionSpec, error)
+	GetSchema(RegisterDerivativeType) (schema.FunctionSpec, error)
 }
 
 type Provider struct {
@@ -86,10 +92,19 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		Version:   info.Version,
 		Resources: map[string]schema.ResourceSpec{},
 		Functions: map[string]schema.FunctionSpec{},
+		Types:     map[string]schema.ComplexTypeSpec{},
 	}
-
-	errs := addElement(s.resources, pkg.Resources, info.PackageName)
-	e := addElement(s.invokes, pkg.Functions, info.PackageName)
+	registerDerivative := func(tk tokens.Type, t schema.ComplexTypeSpec) bool {
+		tkString := tk.String()
+		_, ok := pkg.Types[tkString]
+		if ok {
+			return false
+		}
+		pkg.Types[tkString] = t
+		return true
+	}
+	errs := addElement(s.resources, pkg.Resources, info.PackageName, registerDerivative)
+	e := addElement(s.invokes, pkg.Functions, info.PackageName, registerDerivative)
 	errs.Errors = append(errs.Errors, e.Errors...)
 	if err := errs.ErrorOrNil(); err != nil {
 		return err
@@ -105,10 +120,11 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 
 type canGetSchema[T any] interface {
 	GetToken() (tokens.Type, error)
-	GetSchema() (T, error)
+	GetSchema(RegisterDerivativeType) (T, error)
 }
 
-func addElement[T canGetSchema[S], S any](els []T, m map[string]S, pkgName string) multierror.Error {
+func addElement[T canGetSchema[S], S any](els []T, m map[string]S,
+	pkgName string, reg RegisterDerivativeType) multierror.Error {
 	errs := multierror.Error{}
 	for _, f := range els {
 		tk, err := f.GetToken()
@@ -117,7 +133,7 @@ func addElement[T canGetSchema[S], S any](els []T, m map[string]S, pkgName strin
 			continue
 		}
 		tk = assignTo(tk, pkgName)
-		fun, err := f.GetSchema()
+		fun, err := f.GetSchema(reg)
 		if err != nil {
 			errs.Errors = append(errs.Errors, fmt.Errorf("failed to get schema for '%s': %w", tk, err))
 			continue

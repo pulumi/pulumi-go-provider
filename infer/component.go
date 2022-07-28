@@ -23,7 +23,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
-	schema "github.com/pulumi/pulumi-go-provider/middleware/schema"
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 type ComponentResource[I any, O pulumi.ComponentResource] interface {
@@ -41,9 +41,16 @@ func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() I
 
 type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.ComponentResource] struct{}
 
-func (rc *derivedComponentController[R, I, O]) GetSchema() (pschema.ResourceSpec, error) {
+func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+	pschema.ResourceSpec, error) {
 	r, err := getResourceSchema[R, I, O]()
 	if err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := crawlTypes[I](reg); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := crawlTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
 	r.IsComponent = true

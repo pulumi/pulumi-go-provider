@@ -89,7 +89,14 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 	m map[presource.URN]*R
 }
 
-func (rc *derivedResourceController[R, I, O]) GetSchema() (pschema.ResourceSpec, error) {
+func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+	pschema.ResourceSpec, error) {
+	if err := crawlTypes[I](reg); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := crawlTypes[O](reg); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
 	return getResourceSchema[R, I, O]()
 }
 

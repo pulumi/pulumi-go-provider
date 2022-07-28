@@ -18,6 +18,8 @@ import (
 	"reflect"
 	"testing"
 
+	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,10 +33,12 @@ const (
 func (MyEnum) Values() []EnumValue[MyEnum] {
 	return []EnumValue[MyEnum]{
 		{
+			Name:        "foo",
 			Value:       MyFoo,
 			Description: "The foo value",
 		},
 		{
+			Name:        "bar",
 			Value:       MyBar,
 			Description: "The bar value",
 		},
@@ -71,10 +75,12 @@ func TestIsEnum(t *testing.T) {
 			token: "pkg:infer:MyEnum",
 			values: []EnumValue[any]{
 				{
+					Name:        "foo",
 					Value:       string(MyFoo),
 					Description: "The foo value",
 				},
 				{
+					Name:        "bar",
 					Value:       string(MyBar),
 					Description: "The bar value",
 				},
@@ -111,6 +117,7 @@ func TestIsEnum(t *testing.T) {
 				c.typ = reflect.PointerTo(c.typ)
 			}
 			t.Run(c.typ.String(), func(t *testing.T) {
+				t.Parallel()
 				enum, ok := isEnum(c.typ)
 				if c.token == "" {
 					assert.False(t, ok)
@@ -122,4 +129,72 @@ func TestIsEnum(t *testing.T) {
 			})
 		}
 	}
+}
+
+type Foo struct {
+	Bar     *Bar   `pulumi:"bar"`
+	Enum    MyEnum `pulumi:"enum"`
+	Literal string
+}
+
+type Bar struct {
+	OtherEnum EnumByRef `pulumi:"other"`
+	Foo       Foo       `pulumi:"foo"`
+}
+
+func TestCrawlTypes(t *testing.T) {
+	t.Parallel()
+	m := map[string]pschema.ComplexTypeSpec{}
+	reg := func(typ tokens.Type, spec pschema.ComplexTypeSpec) bool {
+		_, ok := m[typ.String()]
+		if ok {
+			return false
+		}
+		m[typ.String()] = spec
+		return true
+	}
+	err := crawlTypes[Foo](reg)
+	assert.NoError(t, err)
+
+	assert.Equal(t,
+		map[string]pschema.ComplexTypeSpec{
+			"pkg:infer:Bar": pschema.ComplexTypeSpec{
+				ObjectTypeSpec: pschema.ObjectTypeSpec{
+					Properties: map[string]pschema.PropertySpec{
+						"foo": pschema.PropertySpec{
+							TypeSpec: pschema.TypeSpec{
+								Ref: "#/types/pkg:infer:Foo"},
+						},
+						"other": pschema.PropertySpec{
+							TypeSpec: pschema.TypeSpec{
+								Ref: "#/types/pkg:infer:EnumByRef"}}},
+					Required: []string{"other", "foo"}}},
+			"pkg:infer:EnumByRef": pschema.ComplexTypeSpec{
+				ObjectTypeSpec: pschema.ObjectTypeSpec{
+					Type: "number"},
+				Enum: []pschema.EnumValueSpec{
+					pschema.EnumValueSpec{
+						Description: "approximate of PI",
+						Value:       3.1415}}},
+			"pkg:infer:Foo": pschema.ComplexTypeSpec{
+				ObjectTypeSpec: pschema.ObjectTypeSpec{
+					Properties: map[string]pschema.PropertySpec{
+						"bar": pschema.PropertySpec{
+							TypeSpec: pschema.TypeSpec{
+								Ref: "#/types/pkg:infer:Bar"}},
+						"enum": pschema.PropertySpec{
+							TypeSpec: pschema.TypeSpec{
+								Ref: "#/types/pkg:infer:MyEnum"}}},
+					Required: []string{"bar", "enum"}}},
+			"pkg:infer:MyEnum": pschema.ComplexTypeSpec{
+				ObjectTypeSpec: pschema.ObjectTypeSpec{
+					Type: "string"},
+				Enum: []pschema.EnumValueSpec{
+					pschema.EnumValueSpec{
+						Description: "The foo value",
+						Value:       "foo"},
+					pschema.EnumValueSpec{
+						Description: "The bar value",
+						Value:       "bar"}}}},
+		m)
 }
