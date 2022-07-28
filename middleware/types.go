@@ -18,7 +18,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
-	p "github.com/iwahbe/pulumi-go-provider"
+	p "github.com/pulumi/pulumi-go-provider"
 )
 
 type CustomResource interface {

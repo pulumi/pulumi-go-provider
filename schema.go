@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	"github.com/iwahbe/pulumi-go-provider/resource"
-	"github.com/iwahbe/pulumi-go-provider/types"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/types"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"

@@ -21,8 +21,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	p "github.com/iwahbe/pulumi-go-provider"
-	t "github.com/iwahbe/pulumi-go-provider/middleware"
+	p "github.com/pulumi/pulumi-go-provider"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
 )
 
 type Provider struct {

@@ -28,10 +28,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	p "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	t "github.com/iwahbe/pulumi-go-provider/middleware"
-	"github.com/iwahbe/pulumi-go-provider/middleware/schema"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 type CustomResource[I any, O any] interface {

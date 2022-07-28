@@ -23,8 +23,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	"github.com/iwahbe/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/resource"
 )
 
 type ComponentResources map[tokens.Type]reflect.Type

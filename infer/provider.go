@@ -15,10 +15,10 @@
 package infer
 
 import (
-	p "github.com/iwahbe/pulumi-go-provider"
-	t "github.com/iwahbe/pulumi-go-provider/middleware"
-	"github.com/iwahbe/pulumi-go-provider/middleware/dispatch"
-	"github.com/iwahbe/pulumi-go-provider/middleware/schema"
+	p "github.com/pulumi/pulumi-go-provider"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
+	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )

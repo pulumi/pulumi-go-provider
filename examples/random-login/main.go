@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	p "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/infer"
-	r "github.com/iwahbe/pulumi-go-provider/resource"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
+	r "github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )

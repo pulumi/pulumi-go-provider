@@ -46,10 +46,10 @@ import (
 	nodejsgen "github.com/pulumi/pulumi/pkg/v3/codegen/nodejs"
 	pygen "github.com/pulumi/pulumi/pkg/v3/codegen/python"
 
-	"github.com/iwahbe/pulumi-go-provider/function"
-	"github.com/iwahbe/pulumi-go-provider/internal/server"
-	"github.com/iwahbe/pulumi-go-provider/resource"
-	"github.com/iwahbe/pulumi-go-provider/types"
+	"github.com/pulumi/pulumi-go-provider/function"
+	"github.com/pulumi/pulumi-go-provider/internal/server"
+	"github.com/pulumi/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 type GetSchemaRequest struct {

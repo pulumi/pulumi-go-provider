@@ -15,7 +15,7 @@
   "publisher": "Pulumi",
   "language": {
     "go": {
-      "importBasePath": "github.com/iwahbe/pulumi-go-provider/examples/command/sdk/go/command",
+      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/command/sdk/go/command",
       "generateResourceContainerTypes": true
     }
   },

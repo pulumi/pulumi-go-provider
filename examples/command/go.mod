@@ -1,13 +1,13 @@
-module github.com/iwahbe/pulumi-go-provider/examples/command
+module github.com/pulumi/pulumi-go-provider/examples/command
 
 go 1.18
 
-replace github.com/iwahbe/pulumi-go-provider => ../..
+replace github.com/pulumi/pulumi-go-provider => ../..
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pkg/sftp v1.13.5
-	github.com/iwahbe/pulumi-go-provider v0.0.0-00010101000000-000000000000
+	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
 	github.com/pulumi/pulumi/pkg/v3 v3.35.1
 	github.com/pulumi/pulumi/sdk/v3 v3.35.1
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838

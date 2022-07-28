@@ -20,10 +20,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
-	p "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	t "github.com/iwahbe/pulumi-go-provider/middleware"
-	schema "github.com/iwahbe/pulumi-go-provider/middleware/schema"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
+	schema "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 type ComponentResource[I any, O pulumi.ComponentResource] interface {

@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/iwahbe/pulumi-go-provider/examples/command/util"
-	r "github.com/iwahbe/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/examples/command/util"
+	r "github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )

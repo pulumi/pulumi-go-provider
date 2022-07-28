@@ -23,8 +23,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	sch "github.com/iwahbe/pulumi-go-provider/middleware/schema"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {

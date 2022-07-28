@@ -21,8 +21,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/iwahbe/pulumi-go-provider/function"
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/function"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )

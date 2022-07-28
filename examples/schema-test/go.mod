@@ -1,12 +1,12 @@
-module github.com/iwahbe/pulumi-go-provider/examples/schema-test
+module github.com/pulumi/pulumi-go-provider/examples/schema-test
 
-replace github.com/iwahbe/pulumi-go-provider => ../..
+replace github.com/pulumi/pulumi-go-provider => ../..
 
 go 1.18
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/iwahbe/pulumi-go-provider v0.0.0-00010101000000-000000000000
+	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
 	github.com/pulumi/pulumi/pkg/v3 v3.35.1
 )
 

@@ -21,8 +21,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
-	p "github.com/iwahbe/pulumi-go-provider"
-	t "github.com/iwahbe/pulumi-go-provider/middleware"
+	p "github.com/pulumi/pulumi-go-provider"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )

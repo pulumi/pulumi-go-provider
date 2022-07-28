@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/blang/semver"
-	provider "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/examples/command/local"
-	"github.com/iwahbe/pulumi-go-provider/examples/command/remote"
+	provider "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/examples/command/local"
+	"github.com/pulumi/pulumi-go-provider/examples/command/remote"
 	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 )
@@ -22,7 +22,7 @@ func main() {
 			&remote.Connection{}),
 		provider.GoOptions(goGen.GoPackageInfo{
 			GenerateResourceContainerTypes: true,
-			ImportBasePath:                 "github.com/iwahbe/pulumi-go-provider/examples/command/sdk/go/command",
+			ImportBasePath:                 "github.com/pulumi/pulumi-go-provider/examples/command/sdk/go/command",
 		}),
 		provider.PartialSpec(schema.PackageSpec{
 			DisplayName: "Command",

@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/blang/semver"
-	p "github.com/iwahbe/pulumi-go-provider"
-	r "github.com/iwahbe/pulumi-go-provider/resource"
+	p "github.com/pulumi/pulumi-go-provider"
+	r "github.com/pulumi/pulumi-go-provider/resource"
 )
 
 type Enum int

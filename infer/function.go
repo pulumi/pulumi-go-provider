@@ -22,10 +22,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
-	p "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	t "github.com/iwahbe/pulumi-go-provider/middleware"
-	"github.com/iwahbe/pulumi-go-provider/middleware/schema"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 type Fn[I any, O any] interface {

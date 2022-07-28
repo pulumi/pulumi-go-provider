@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	p "github.com/iwahbe/pulumi-go-provider"
+	p "github.com/pulumi/pulumi-go-provider"
 )
 
 type Scaffold struct {

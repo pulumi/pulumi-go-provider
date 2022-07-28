@@ -7,9 +7,9 @@ import (
 
 	"github.com/blang/semver"
 
-	p "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/examples/str/regex"
-	"github.com/iwahbe/pulumi-go-provider/function"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/examples/str/regex"
+	"github.com/pulumi/pulumi-go-provider/function"
 )
 
 func main() {
