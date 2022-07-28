@@ -32,7 +32,7 @@ type Resource interface {
 	GetToken() (tokens.Type, error)
 }
 
-type Invokes interface {
+type Function interface {
 	GetToken() (tokens.Type, error)
 	GetSchema() (schema.FunctionSpec, error)
 }
@@ -41,7 +41,7 @@ type Provider struct {
 	p.Provider
 
 	resources []Resource
-	invokes   []Invokes
+	invokes   []Function
 	schema    string
 }
 
@@ -60,7 +60,7 @@ func (s *Provider) WithResources(resources ...Resource) *Provider {
 	return s
 }
 
-func (s *Provider) WithInvokes(invokes ...Invokes) *Provider {
+func (s *Provider) WithInvokes(invokes ...Function) *Provider {
 	s.schema = ""
 	s.invokes = append(s.invokes, invokes...)
 	return s

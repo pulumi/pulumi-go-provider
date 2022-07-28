@@ -8,5 +8,5 @@ Each example folder contains:
 You can build the provider and then run the `consumer/Pulumi.yaml` example against it with the folling 1-liner:
 
 ```sh
-go build ./... && NAME="$(basename ${PWD%/*})" pulumi plugin install resource ${NAME} v0.1.0 -f ${NAME} --reinstall && cd consumer && pulumi up && cd ..
+go build ./... && pulumi plugin install resource $(basename $PWD) v0.1.0 -f $(basename $PWD) --reinstall && (cd consumer && pulumi up)
 ```

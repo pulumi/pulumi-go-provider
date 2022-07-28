@@ -34,7 +34,7 @@ type Fn[I any, O any] interface {
 
 type InferedFunction interface {
 	t.Invoke
-	schema.Invokes
+	schema.Function
 }
 
 func Function[F Fn[I, O], I, O any]() InferedFunction {

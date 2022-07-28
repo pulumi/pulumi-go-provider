@@ -65,3 +65,18 @@ func (prov *Provider) WithComponents(components ...InferedComponent) *Provider {
 	prov.Provider.WithResources(sRes...)
 	return prov
 }
+
+func (prov *Provider) WithFunctions(fns ...InferedFunction) *Provider {
+	res := map[tokens.Type]t.Invoke{}
+	sRes := []schema.Function{}
+	for _, r := range fns {
+		typ, err := r.GetToken()
+		contract.AssertNoError(err)
+		res[typ] = r
+		sRes = append(sRes, r)
+	}
+	prov.dispatcher.WithInvokes(res)
+	prov.Provider.WithInvokes(sRes...)
+	return prov
+
+}
