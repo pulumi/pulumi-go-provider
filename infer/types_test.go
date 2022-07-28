@@ -158,42 +158,42 @@ func TestCrawlTypes(t *testing.T) {
 
 	assert.Equal(t,
 		map[string]pschema.ComplexTypeSpec{
-			"pkg:infer:Bar": pschema.ComplexTypeSpec{
+			"pkg:infer:Bar": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{
 					Properties: map[string]pschema.PropertySpec{
-						"foo": pschema.PropertySpec{
+						"foo": {
 							TypeSpec: pschema.TypeSpec{
 								Ref: "#/types/pkg:infer:Foo"},
 						},
-						"other": pschema.PropertySpec{
+						"other": {
 							TypeSpec: pschema.TypeSpec{
 								Ref: "#/types/pkg:infer:EnumByRef"}}},
 					Required: []string{"other", "foo"}}},
-			"pkg:infer:EnumByRef": pschema.ComplexTypeSpec{
+			"pkg:infer:EnumByRef": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{
 					Type: "number"},
 				Enum: []pschema.EnumValueSpec{
-					pschema.EnumValueSpec{
+					{
 						Description: "approximate of PI",
 						Value:       3.1415}}},
-			"pkg:infer:Foo": pschema.ComplexTypeSpec{
+			"pkg:infer:Foo": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{
 					Properties: map[string]pschema.PropertySpec{
-						"bar": pschema.PropertySpec{
+						"bar": {
 							TypeSpec: pschema.TypeSpec{
 								Ref: "#/types/pkg:infer:Bar"}},
-						"enum": pschema.PropertySpec{
+						"enum": {
 							TypeSpec: pschema.TypeSpec{
 								Ref: "#/types/pkg:infer:MyEnum"}}},
 					Required: []string{"bar", "enum"}}},
-			"pkg:infer:MyEnum": pschema.ComplexTypeSpec{
+			"pkg:infer:MyEnum": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{
 					Type: "string"},
 				Enum: []pschema.EnumValueSpec{
-					pschema.EnumValueSpec{
+					{
 						Description: "The foo value",
 						Value:       "foo"},
-					pschema.EnumValueSpec{
+					{
 						Description: "The bar value",
 						Value:       "bar"}}}},
 		m)
