@@ -228,7 +228,7 @@ func NewFieldMatcher(i any) FieldMatcher {
 	for v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
-	contract.Assertf(v.Kind() == reflect.Struct, "FieldMatcher must contain a struct.")
+	contract.Assertf(v.Kind() == reflect.Struct, "FieldMatcher must contain a struct, found a %s.", v.Type())
 	return FieldMatcher{
 		value: v,
 	}

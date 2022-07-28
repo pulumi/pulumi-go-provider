@@ -27,14 +27,24 @@ import (
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
-	var r R
-	descriptions := map[string]string{}
-	if r, ok := (interface{})(r).(Annotated); ok {
+func getAnnotated(i any) map[string]string {
+	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get
+	// value(i) = *R{}, so we reinflate the underlying value
+	if v := reflect.ValueOf(i); v.Kind() == reflect.Pointer && v.IsNil() {
+		i = reflect.New(v.Type().Elem()).Interface()
+	}
+
+	if r, ok := i.(Annotated); ok {
 		a := introspect.NewAnnotator(r)
 		r.Annotate(&a)
-		descriptions = a.Descriptions
+		return a.Descriptions
 	}
+	return map[string]string{}
+}
+
+func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
+	var r R
+	descriptions := getAnnotated(r)
 
 	properties, required, err := propertyListFromType[O]()
 	if err != nil {

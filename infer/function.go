@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -50,12 +51,7 @@ func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 
 func (*derivedInvokeController[F, I, O]) GetSchema() (pschema.FunctionSpec, error) {
 	var f F
-	descriptions := map[string]string{}
-	if f, ok := (interface{})(f).(Annotated); ok {
-		a := introspect.NewAnnotator(f)
-		f.Annotate(&a)
-		descriptions = a.Descriptions
-	}
+	descriptions := getAnnotated(f)
 
 	input, err := objectSchema[I]()
 	if err != nil {
@@ -108,6 +104,10 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeReq
 		}, nil
 	}
 	var f F
+	// If F is a *struct, we need to rehydrate the underlying struct
+	if v := reflect.ValueOf(f); v.Kind() == reflect.Pointer && v.IsNil() {
+		f = reflect.New(v.Type().Elem()).Interface().(F)
+	}
 	o, err := f.Call(ctx, i)
 	if err != nil {
 		return p.InvokeResponse{}, err

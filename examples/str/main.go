@@ -16,10 +16,10 @@ func main() {
 	err := p.RunProvider("str", semver.Version{Minor: 1},
 		infer.NewProvider().
 			WithFunctions(
-				infer.Function[Replace, ReplaceArgs, Ret](),
-				infer.Function[Print, In, Empty](),
-				infer.Function[GiveMeAString, Empty, Ret](),
-				infer.Function[regex.Replace, regex.ReplaceArgs, regex.Ret](),
+				infer.Function[*Replace, ReplaceArgs, Ret](),
+				infer.Function[*Print, In, Empty](),
+				infer.Function[*GiveMeAString, Empty, Ret](),
+				infer.Function[*regex.Replace, regex.ReplaceArgs, regex.Ret](),
 			))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
