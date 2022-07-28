@@ -1,7 +1,7 @@
 .PHONY: build build_examples install_examples lint lint-copyright lint-golang test
 
 build:
-	go build github.com/iwahbe/pulumi-go-provider
+	go build ./...
 
 test: build
 	go test ./...

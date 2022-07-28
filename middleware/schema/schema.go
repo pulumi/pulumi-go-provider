@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	p "github.com/iwahbe/pulumi-go-provider"
 	t "github.com/iwahbe/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -31,10 +32,16 @@ type Resource interface {
 	GetToken() (tokens.Type, error)
 }
 
+type Invokes interface {
+	GetToken() (tokens.Type, error)
+	GetSchema() (schema.FunctionSpec, error)
+}
+
 type Provider struct {
 	p.Provider
 
 	resources []Resource
+	invokes   []Invokes
 	schema    string
 }
 
@@ -50,6 +57,12 @@ func Wrap(provider p.Provider) *Provider {
 func (s *Provider) WithResources(resources ...Resource) *Provider {
 	s.schema = ""
 	s.resources = append(s.resources, resources...)
+	return s
+}
+
+func (s *Provider) WithInvokes(invokes ...Invokes) *Provider {
+	s.schema = ""
+	s.invokes = append(s.invokes, invokes...)
 	return s
 }
 
@@ -72,25 +85,46 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		Name:      info.PackageName,
 		Version:   info.Version,
 		Resources: map[string]schema.ResourceSpec{},
+		Functions: map[string]schema.FunctionSpec{},
 	}
-	for _, r := range s.resources {
-		tk, err := r.GetToken()
-		if err != nil {
-			return err
-		}
-		tk = assignTo(tk, info.PackageName)
-		res, err := r.GetSchema()
-		if err != nil {
-			return fmt.Errorf("failed to get schema for '%s': %w", tk, err)
-		}
-		pkg.Resources[tk.String()] = renamePackage(res, info.PackageName)
+
+	errs := addElement(s.resources, pkg.Resources, info.PackageName)
+	e := addElement(s.invokes, pkg.Functions, info.PackageName)
+	errs.Errors = append(errs.Errors, e.Errors...)
+	if err := errs.ErrorOrNil(); err != nil {
+		return err
 	}
+
 	bytes, err := json.Marshal(pkg)
 	if err != nil {
 		return err
 	}
 	s.schema = string(bytes)
 	return nil
+}
+
+type canGetSchema[T any] interface {
+	GetToken() (tokens.Type, error)
+	GetSchema() (T, error)
+}
+
+func addElement[T canGetSchema[S], S any](els []T, m map[string]S, pkgName string) multierror.Error {
+	errs := multierror.Error{}
+	for _, f := range els {
+		tk, err := f.GetToken()
+		if err != nil {
+			errs.Errors = append(errs.Errors, err)
+			continue
+		}
+		tk = assignTo(tk, pkgName)
+		fun, err := f.GetSchema()
+		if err != nil {
+			errs.Errors = append(errs.Errors, fmt.Errorf("failed to get schema for '%s': %w", tk, err))
+			continue
+		}
+		m[tk.String()] = renamePackage(fun, pkgName)
+	}
+	return multierror.Error{}
 }
 
 func assignTo(tk tokens.Type, pkg string) tokens.Type {

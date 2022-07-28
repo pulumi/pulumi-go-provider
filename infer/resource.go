@@ -31,7 +31,7 @@ import (
 	p "github.com/iwahbe/pulumi-go-provider"
 	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
 	t "github.com/iwahbe/pulumi-go-provider/middleware"
-	schema "github.com/iwahbe/pulumi-go-provider/middleware/schema"
+	"github.com/iwahbe/pulumi-go-provider/middleware/schema"
 )
 
 type CustomResource[I any, O any] interface {
@@ -40,12 +40,14 @@ type CustomResource[I any, O any] interface {
 
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx p.Context, name string, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (I, []p.CheckFailure, error)
+	Check(ctx p.Context, name string, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (
+		I, []p.CheckFailure, error)
 }
 
 type CustomDiff[I, O any] interface {
 	// Maybe oldInputs can be of type I
-	Diff(ctx p.Context, id string, olds O, news I, ignoreChanges []resource.PropertyKey) (p.DiffResponse, error)
+	Diff(ctx p.Context, id string, olds O, news I, ignoreChanges []resource.PropertyKey) (
+		p.DiffResponse, error)
 }
 
 type CustomUpdate[I, O any] interface {
@@ -135,6 +137,19 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 			Inputs: req.News,
 		}, nil
 	}
+
+	failures, e := checkFailureFromMapError(err)
+	if err != nil {
+		return p.CheckResponse{}, e
+	}
+
+	return p.CheckResponse{
+		Inputs:   req.News,
+		Failures: failures,
+	}, nil
+}
+
+func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error) {
 	failures := []p.CheckFailure{}
 	for _, err := range err.Failures() {
 		switch err := err.(type) {
@@ -144,15 +159,10 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 				Reason:   err.Reason(),
 			})
 		default:
-			return p.CheckResponse{
-				Failures: failures,
-			}, fmt.Errorf("Unknown mapper error: %w", err)
+			return failures, fmt.Errorf("unknown mapper error: %w", err)
 		}
 	}
-	return p.CheckResponse{
-		Inputs:   req.News,
-		Failures: failures,
-	}, nil
+	return failures, nil
 }
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
@@ -338,12 +348,14 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	return nil
 }
 
-func (*derivedResourceController[R, I, O]) decode(m presource.PropertyMap, dst interface{}, preview bool) ([]presource.PropertyKey, mapper.MappingError) {
+func (*derivedResourceController[R, I, O]) decode(m presource.PropertyMap, dst interface{}, preview bool) (
+	[]presource.PropertyKey, mapper.MappingError) {
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{IgnoreMissing: preview}).Decode(m.Mappable(), dst)
 }
 
-func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []presource.PropertyKey) (presource.PropertyMap, mapper.MappingError) {
+func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []presource.PropertyKey) (
+	presource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(nil).Encode(src)
 	if err != nil {
 		return nil, err
