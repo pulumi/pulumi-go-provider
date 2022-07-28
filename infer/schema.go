@@ -73,13 +73,9 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	if isEnum(t) {
-		enum, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
-		if err != nil {
-			return schema.TypeSpec{}, err
-		}
+	if enum, ok := isEnum(t); ok {
 		return schema.TypeSpec{
-			Ref: "#/types/" + enum.String(),
+			Ref: "#/types/" + enum.token,
 		}, nil
 	}
 	if tk, ok, err := resourceReferenceToken(t); ok {
@@ -228,20 +224,6 @@ func propertyListFromType[T any]() (props map[string]schema.PropertySpec, requir
 		}
 	}
 	return props, required, nil
-}
-
-func isEnum(t reflect.Type) bool {
-	var isEnum bool
-	switch t.Kind() {
-	case reflect.String:
-		isEnum = t.String() != reflect.String.String()
-	case reflect.Bool:
-	case reflect.Int:
-		isEnum = t.String() != reflect.Int.String()
-	case reflect.Float64:
-		isEnum = t.String() != reflect.Float64.String()
-	}
-	return isEnum
 }
 
 func resourceReferenceToken(t reflect.Type) (tokens.Type, bool, error) {
