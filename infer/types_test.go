@@ -41,6 +41,21 @@ func (MyEnum) Values() []EnumValue[MyEnum] {
 	}
 }
 
+type EnumByRef float64
+
+const (
+	PiRef EnumByRef = 3.1415
+)
+
+func (*EnumByRef) Values() []EnumValue[EnumByRef] {
+	return []EnumValue[EnumByRef]{
+		{
+			Value:       PiRef,
+			Description: "approximate of PI",
+		},
+	}
+}
+
 type NotAnEnum bool
 
 func TestIsEnum(t *testing.T) {
@@ -66,35 +81,45 @@ func TestIsEnum(t *testing.T) {
 			},
 		},
 		{
-			typ:   reflect.TypeOf(new(MyEnum)),
-			token: "pkg:infer:MyEnum",
+			typ: reflect.TypeOf(NotAnEnum(false)),
+		},
+		{
+			typ:   reflect.TypeOf(PiRef),
+			token: "pkg:infer:EnumByRef",
 			values: []EnumValue[any]{
 				{
-					Value:       string(MyFoo),
-					Description: "The foo value",
-				},
-				{
-					Value:       string(MyBar),
-					Description: "The bar value",
+					Value:       float64(PiRef),
+					Description: "approximate of PI",
 				},
 			},
 		},
 		{
-			typ: reflect.TypeOf(NotAnEnum(false)),
+			typ:   reflect.TypeOf(new(**EnumByRef)),
+			token: "pkg:infer:EnumByRef",
+			values: []EnumValue[any]{
+				{
+					Value:       float64(PiRef),
+					Description: "approximate of PI",
+				},
+			},
 		},
 	}
 	for _, c := range cases {
-		c := c
-		t.Run(c.typ.Name(), func(t *testing.T) {
-			enum, ok := isEnum(c.typ)
-			if c.token == "" {
-				assert.False(t, ok)
-				return
+		for _, ptr := range []bool{true, false} {
+			c := c
+			if ptr {
+				c.typ = reflect.PointerTo(c.typ)
 			}
-			assert.True(t, ok)
-			assert.Equal(t, c.token, enum.token)
-			assert.Equal(t, c.values, enum.values)
-
-		})
+			t.Run(c.typ.String(), func(t *testing.T) {
+				enum, ok := isEnum(c.typ)
+				if c.token == "" {
+					assert.False(t, ok)
+					return
+				}
+				assert.True(t, ok)
+				assert.Equal(t, c.token, enum.token)
+				assert.Equal(t, c.values, enum.values)
+			})
+		}
 	}
 }

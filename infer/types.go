@@ -47,7 +47,18 @@ type enum struct {
 }
 
 func isEnum(t reflect.Type) (enum, bool) {
+	// To Simplify, we ensure that `t` is not a pointer type.
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	// Look for the "Value" method
 	m, ok := t.MethodByName("Values")
+	if !ok {
+		// If it is not defined on T, maybe it is defined on *T
+		m, ok = reflect.PointerTo(t).MethodByName("Values")
+	}
+
 	// The input is the receiver.
 	if !ok || m.Type.NumIn() != 1 ||
 		m.Type.NumOut() != 1 || m.Type.Out(0).Kind() != reflect.Slice {
@@ -61,15 +72,30 @@ func isEnum(t reflect.Type) (enum, bool) {
 		return enum{}, false
 	}
 
-	// We have found an enum. Now we call the Values() method on it and convert the result
-	// back.
-	result := m.Func.Call([]reflect.Value{reflect.New(t).Elem()})[0]
+	// We have found an enum.
+	// Now we construct the receiver, careful to distinguish between T and *T
+
+	// If we should call via a pointer, set `t` to *T
+	for target := m.Type.In(0); target.Kind() == reflect.Pointer; {
+		target = target.Elem()
+		t = reflect.PointerTo(t)
+	}
+	v := reflect.New(t).Elem()
+	// Re-hydrate the value, ensuring we don't have a nil pointer.
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		v = reflect.New(v.Type().Elem())
+	}
+
+	// Call the function on the receiver.
+	result := m.Func.Call([]reflect.Value{v})[0]
+
+	// Iterate through the returned values, constructing a EnumValue of a known type: any.
 	values := make([]EnumValue[any], result.Len())
 	for i := 0; i < result.Len(); i++ {
 		v := result.Index(i)
 		values[i] = EnumValue[any]{
 			Value:       coerceToBase(v.FieldByName("Value")),
-			Description: v.FieldByName("Description").Interface().(string),
+			Description: v.FieldByName("Description").String(),
 		}
 	}
 	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
