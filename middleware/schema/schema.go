@@ -95,12 +95,12 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		Types:     map[string]schema.ComplexTypeSpec{},
 	}
 	registerDerivative := func(tk tokens.Type, t schema.ComplexTypeSpec) bool {
-		tkString := tk.String()
+		tkString := assignTo(tk, info.PackageName).String()
 		_, ok := pkg.Types[tkString]
 		if ok {
 			return false
 		}
-		pkg.Types[tkString] = t
+		pkg.Types[tkString] = renamePackage(t, info.PackageName)
 		return true
 	}
 	errs := addElement(s.resources, pkg.Resources, info.PackageName, registerDerivative)

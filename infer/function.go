@@ -89,6 +89,7 @@ func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 		Description: descriptions[""],
 		Properties:  props,
 		Required:    required,
+		Type:        "object",
 	}, nil
 }
 

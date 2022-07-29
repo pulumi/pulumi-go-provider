@@ -136,7 +136,7 @@ func coerceToBase(v reflect.Value) any {
 
 type Crawler func(t reflect.Type) (drill bool, err error)
 
-// crawlTypes recursivly crawles T, calling the crawler on each new type it finds.
+// crawlTypes recursively crawles T, calling the crawler on each new type it finds.
 func crawlTypes[T any](crawler Crawler) error {
 	var i T
 	t := reflect.TypeOf(i)
