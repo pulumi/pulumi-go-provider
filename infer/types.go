@@ -134,12 +134,63 @@ func coerceToBase(v reflect.Value) any {
 	}
 }
 
-// crawlTypes recursively examines fields of T, calling reg on them when appropriate.
-func crawlTypes[T any](reg schema.RegisterDerivativeType) error {
+type Crawler func(t reflect.Type) (drill bool, err error)
+
+// crawlTypes recursivly crawles T, calling the crawler on each new type it finds.
+func crawlTypes[T any](crawler Crawler) error {
 	var i T
 	t := reflect.TypeOf(i)
-	// Crawl will process a type, calling reg is appropriate. It indicates if the type should be drilled past.
-	crawl := func(t reflect.Type) (bool, error) {
+	// Drill will walk the types, calling crawl on types it finds.
+	var drill func(reflect.Type) error
+	drill = func(t reflect.Type) error {
+		switch t.Kind() {
+		case reflect.String, reflect.Float64, reflect.Int, reflect.Bool:
+			// Primitive types could be enums
+			_, err := crawler(t)
+			return err
+		case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
+			// Could hold a reference to other types
+			return drill(t.Elem())
+		case reflect.Struct:
+			for i := 0; i < t.NumField(); i++ {
+				f := t.Field(i)
+				info, err := introspect.ParseTag(f)
+				if err != nil {
+					return err
+				}
+				if info.Internal {
+					continue
+				}
+				typ := f.Type
+				for done := false; !done; {
+					switch typ.Kind() {
+					case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
+						// Could hold a reference to other types
+						typ = typ.Elem()
+					default:
+						done = true
+					}
+				}
+				further, err := crawler(typ)
+				if err != nil {
+					return err
+				}
+				if further {
+					err = drill(typ)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	}
+	return drill(t)
+}
+
+// registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
+func registerTypes[T any](reg schema.RegisterDerivativeType) error {
+	crawler := func(t reflect.Type) (bool, error) {
 		if enum, ok := isEnum(t); ok {
 			tSpec := pschema.ComplexTypeSpec{}
 			for _, v := range enum.values {
@@ -171,51 +222,5 @@ func crawlTypes[T any](reg schema.RegisterDerivativeType) error {
 		}
 		return false, nil
 	}
-
-	// Drill will walk the types, calling crawl on types it finds.
-	var drill func(reflect.Type) error
-	drill = func(t reflect.Type) error {
-		switch t.Kind() {
-		case reflect.String, reflect.Float64, reflect.Int, reflect.Bool:
-			// Primitive types could be enums
-			_, err := crawl(t)
-			return err
-		case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
-			// Could hold a reference to other types
-			return drill(t.Elem())
-		case reflect.Struct:
-			for i := 0; i < t.NumField(); i++ {
-				f := t.Field(i)
-				info, err := introspect.ParseTag(f)
-				if err != nil {
-					return err
-				}
-				if info.Internal {
-					continue
-				}
-				typ := f.Type
-				for done := false; !done; {
-					switch typ.Kind() {
-					case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
-						// Could hold a reference to other types
-						typ = typ.Elem()
-					default:
-						done = true
-					}
-				}
-				further, err := crawl(typ)
-				if err != nil {
-					return err
-				}
-				if further {
-					err = drill(typ)
-					if err != nil {
-						return err
-					}
-				}
-			}
-		}
-		return nil
-	}
-	return drill(t)
+	return crawlTypes[T](crawler)
 }

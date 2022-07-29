@@ -123,8 +123,8 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 			return schema.TypeSpec{}, err
 		}
 		return schema.TypeSpec{
-			Type:                 "array",
-			AdditionalProperties: &el,
+			Type:  "array",
+			Items: &el,
 		}, nil
 	case reflect.Bool:
 		return primitive("boolean")

@@ -62,10 +62,10 @@ func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivative
 		return pschema.FunctionSpec{}, err
 	}
 
-	if err := crawlTypes[I](reg); err != nil {
+	if err := registerTypes[I](reg); err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	if err := crawlTypes[O](reg); err != nil {
+	if err := registerTypes[O](reg); err != nil {
 		return pschema.FunctionSpec{}, err
 	}
 

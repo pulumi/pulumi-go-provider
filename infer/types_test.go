@@ -153,7 +153,7 @@ func TestCrawlTypes(t *testing.T) {
 		m[typ.String()] = spec
 		return true
 	}
-	err := crawlTypes[Foo](reg)
+	err := registerTypes[Foo](reg)
 	assert.NoError(t, err)
 
 	assert.Equal(t,

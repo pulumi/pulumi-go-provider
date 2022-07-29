@@ -47,10 +47,10 @@ func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDeri
 	if err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := crawlTypes[I](reg); err != nil {
+	if err := registerTypes[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := crawlTypes[O](reg); err != nil {
+	if err := registerTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
 	r.IsComponent = true

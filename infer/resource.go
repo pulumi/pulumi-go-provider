@@ -91,10 +91,10 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
-	if err := crawlTypes[I](reg); err != nil {
+	if err := registerTypes[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := crawlTypes[O](reg); err != nil {
+	if err := registerTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
 	return getResourceSchema[R, I, O]()
@@ -108,7 +108,7 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn presource.URN, call string) *R {
 	_, ok := rc.m[urn]
 	if !ok {
-		if call != "Delete" {
+		if call != "Delete" && call != "Read" {
 			ctx.Logf(diag.Warning, "Missing expect call to 'Check' before '%s' for resource %q", call, urn)
 		}
 		var r R
@@ -126,17 +126,17 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
-		m, err := mapper.New(nil).Encode(i)
+		inputs, err := rc.encode(i, nil, false)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
 		return p.CheckResponse{
-			Inputs:   presource.NewPropertyMapFromMap(m),
+			Inputs:   inputs,
 			Failures: failures,
 		}, nil
 	}
-	// We have not implemented check, so do the smart thing by default
-	// We just check that we can de-serialize correctly
+	// The user has not implemented check, so do the smart thing by default We just check
+	// that we can de-serialize correctly
 	var i I
 	_, err := rc.decode(req.News, &i, false)
 	if err == nil {
@@ -146,7 +146,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	}
 
 	failures, e := checkFailureFromMapError(err)
-	if err != nil {
+	if e != nil {
 		return p.CheckResponse{}, e
 	}
 
@@ -258,14 +258,14 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 	}
 
 	id, o, err := (*r).Create(ctx, req.Urn.Name().String(), input, req.Preview)
-	if id == "" {
-		return p.CreateResponse{}, fmt.Errorf("empty id")
-	}
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
+	if id == "" && !req.Preview {
+		return p.CreateResponse{}, fmt.Errorf("internal error: '%s' was created without an id", req.Urn)
+	}
 
-	m, err := rc.encode(o, secrets)
+	m, err := rc.encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
@@ -284,11 +284,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	var inputs I
 	var state O
 	var err error
-	inputSecrets, err := rc.decode(req.Inputs, &inputs, false)
+	inputSecrets, err := rc.decode(req.Inputs, &inputs, true)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	stateSecrets, err := rc.decode(req.Properties, &state, false)
+	stateSecrets, err := rc.decode(req.Properties, &state, true)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -296,11 +296,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	i, err := rc.encode(inputs, inputSecrets)
+	i, err := rc.encode(inputs, inputSecrets, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	s, err := rc.encode(state, stateSecrets)
+	s, err := rc.encode(state, stateSecrets, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -333,7 +333,7 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	m, err := rc.encode(o, secrets)
+	m, err := rc.encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -358,15 +358,19 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	return nil
 }
 
-func (*derivedResourceController[R, I, O]) decode(m presource.PropertyMap, dst interface{}, preview bool) (
+func (rc *derivedResourceController[R, I, O]) decode(m presource.PropertyMap, dst interface{}, preview bool) (
 	[]presource.PropertyKey, mapper.MappingError) {
 	m, secrets := extractSecrets(m)
-	return secrets, mapper.New(&mapper.Opts{IgnoreMissing: preview}).Decode(m.Mappable(), dst)
+	return secrets, mapper.New(&mapper.Opts{
+		IgnoreMissing: preview,
+	}).Decode(m.Mappable(), dst)
 }
 
-func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []presource.PropertyKey) (
+func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []presource.PropertyKey, preview bool) (
 	presource.PropertyMap, mapper.MappingError) {
-	props, err := mapper.New(nil).Encode(src)
+	props, err := mapper.New(&mapper.Opts{
+		IgnoreMissing: preview,
+	}).Encode(src)
 	if err != nil {
 		return nil, err
 	}
