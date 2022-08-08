@@ -82,5 +82,6 @@ func (prov *Provider) WithFunctions(fns ...InferedFunction) *Provider {
 
 func (prov *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
 	prov.Provider.WithModuleMap(m)
+	prov.dispatcher.WithModuleMap(m)
 	return prov
 }

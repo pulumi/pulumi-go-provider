@@ -15,6 +15,8 @@
 package dispatch
 
 import (
+	"fmt"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -26,26 +28,68 @@ import (
 )
 
 type Provider struct {
+	// The underlying provider if any
 	p.Provider
-	customs    map[string]t.CustomResource
-	components map[string]t.ComponentResource
-	invokes    map[string]t.Invoke
+
+	// The actual items given to the provider to dispatch.
+	customs    map[tokens.Type]t.CustomResource
+	components map[tokens.Type]t.ComponentResource
+	invokes    map[tokens.Type]t.Invoke
+
+	// Maps of the above items noramalized to remove the package name and to account for
+	// the module map. These can be nil and are lazily regenerated on demand.
+	normalizedCustoms    map[string]t.CustomResource
+	normalizedComponents map[string]t.ComponentResource
+	normalizedInvokes    map[string]t.Invoke
+
+	// A map of token name replacements. Given map{k: v}, pkg:k:Name will be replaced with
+	// pkg:v:Name.
+	moduleMap map[tokens.ModuleName]tokens.ModuleName
 }
 
+// Create a new Dispatch provider around another provider. If `provider` is nil then an
+// empty provider will be used.
 func Wrap(provider p.Provider) *Provider {
 	if provider == nil {
 		provider = &t.Scaffold{}
 	}
 	return &Provider{
 		Provider:   provider,
-		customs:    map[string]t.CustomResource{},
-		components: map[string]t.ComponentResource{},
-		invokes:    map[string]t.Invoke{},
+		customs:    map[tokens.Type]t.CustomResource{},
+		components: map[tokens.Type]t.ComponentResource{},
+		invokes:    map[tokens.Type]t.Invoke{},
+		moduleMap:  map[tokens.ModuleName]tokens.ModuleName{},
 	}
 }
 
-func normalize(tk tokens.Type) string {
-	return tk.Module().Name().String() + tokens.TokenDelimiter + tk.Name().String()
+func (d *Provider) normalize(tk tokens.Type) string {
+	// Normalize components
+	if d.normalizedComponents == nil {
+		d.normalizedComponents = map[string]t.ComponentResource{}
+		for k, v := range d.components {
+			d.normalizedComponents[d.normalize(k)] = v
+		}
+	}
+	// Normalize custom resources
+	if d.normalizedCustoms == nil {
+		d.normalizedCustoms = map[string]t.CustomResource{}
+		for k, v := range d.customs {
+			d.normalizedCustoms[d.normalize(k)] = v
+		}
+	}
+	// Normalize invokes
+	if d.normalizedInvokes == nil {
+		d.normalizedInvokes = map[string]t.Invoke{}
+		for k, v := range d.invokes {
+			d.normalizedInvokes[d.normalize(k)] = v
+		}
+	}
+
+	m := tk.Module().Name()
+	if mod, ok := d.moduleMap[m]; ok {
+		m = mod
+	}
+	return m.String() + tokens.TokenDelimiter + tk.Name().String()
 }
 
 func (d *Provider) fixupError(tk string, err error) error {
@@ -56,29 +100,42 @@ func (d *Provider) fixupError(tk string, err error) error {
 }
 
 func (d *Provider) WithCustomResources(resources map[tokens.Type]t.CustomResource) *Provider {
+	d.normalizedCustoms = nil
 	for k, v := range resources {
-		d.customs[normalize(k)] = v
+		d.customs[k] = v
 	}
 	return d
 }
 
 func (d *Provider) WithComponentResources(components map[tokens.Type]t.ComponentResource) *Provider {
+	d.normalizedComponents = nil
 	for k, v := range components {
-		d.components[normalize(k)] = v
+		d.components[k] = v
 	}
 	return d
 }
 
 func (d *Provider) WithInvokes(invokes map[tokens.Type]t.Invoke) *Provider {
+	d.normalizedInvokes = nil
 	for k, v := range invokes {
-		d.invokes[normalize(k)] = v
+		d.invokes[k] = v
+	}
+	return d
+}
+
+func (d *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
+	d.normalizedComponents = nil
+	d.normalizedCustoms = nil
+	d.normalizedInvokes = nil
+	for k, v := range m {
+		d.moduleMap[k] = v
 	}
 	return d
 }
 
 func (d *Provider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-	tk := normalize(req.Token)
-	inv, ok := d.invokes[tk]
+	tk := d.normalize(req.Token)
+	inv, ok := d.normalizedInvokes[tk]
 	if ok {
 		return inv.Invoke(ctx, req)
 	}
@@ -87,8 +144,8 @@ func (d *Provider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse,
 }
 
 func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	tk := normalize(req.Urn.Type())
-	r, ok := d.customs[tk]
+	tk := d.normalize(req.Urn.Type())
+	r, ok := d.normalizedCustoms[tk]
 	if ok {
 		return r.Check(ctx, req)
 	}
@@ -97,8 +154,8 @@ func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, er
 }
 
 func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	tk := normalize(req.Urn.Type())
-	r, ok := d.customs[tk]
+	tk := d.normalize(req.Urn.Type())
+	r, ok := d.normalizedCustoms[tk]
 	if ok {
 		return r.Diff(ctx, req)
 	}
@@ -108,8 +165,8 @@ func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error
 }
 
 func (d *Provider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	tk := normalize(req.Urn.Type())
-	r, ok := d.customs[tk]
+	tk := d.normalize(req.Urn.Type())
+	r, ok := d.normalizedCustoms[tk]
 	if ok {
 		return r.Create(ctx, req)
 	}
@@ -118,8 +175,8 @@ func (d *Provider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse,
 }
 
 func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-	tk := normalize(req.Urn.Type())
-	r, ok := d.customs[tk]
+	tk := d.normalize(req.Urn.Type())
+	r, ok := d.normalizedCustoms[tk]
 	if ok {
 		return r.Read(ctx, req)
 	}
@@ -128,8 +185,8 @@ func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error
 }
 
 func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	tk := normalize(req.Urn.Type())
-	r, ok := d.customs[tk]
+	tk := d.normalize(req.Urn.Type())
+	r, ok := d.normalizedCustoms[tk]
 	if ok {
 		return r.Update(ctx, req)
 	}
@@ -138,8 +195,8 @@ func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse,
 }
 
 func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
-	tk := normalize(req.Urn.Type())
-	r, ok := d.customs[tk]
+	tk := d.normalize(req.Urn.Type())
+	r, ok := d.normalizedCustoms[tk]
 	if ok {
 		return r.Delete(ctx, req)
 	}
@@ -148,8 +205,8 @@ func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
 
 func (d *Provider) Construct(pctx p.Context, typ string, name string,
 	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	tk := normalize(tokens.Type(typ))
-	r, ok := d.components[tk]
+	tk := d.normalize(tokens.Type(typ))
+	r, ok := d.normalizedComponents[tk]
 	if ok {
 		return r.Construct(pctx, typ, name, ctx, inputs, opts)
 	}
