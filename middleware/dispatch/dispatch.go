@@ -48,7 +48,7 @@ func normalize(tk tokens.Type) string {
 	return tk.Module().Name().String() + tokens.TokenDelimiter + tk.Name().String()
 }
 
-func fixupError(tk string, err error) error {
+func (d *Provider) fixupError(tk string, err error) error {
 	if status.Code(err) == codes.Unimplemented {
 		err = status.Errorf(codes.NotFound, "Type '%s' not found", tk)
 	}
@@ -83,7 +83,7 @@ func (d *Provider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse,
 		return inv.Invoke(ctx, req)
 	}
 	r, err := d.Provider.Invoke(ctx, req)
-	return r, fixupError(tk, err)
+	return r, d.fixupError(tk, err)
 }
 
 func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
@@ -93,7 +93,7 @@ func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, er
 		return r.Check(ctx, req)
 	}
 	c, err := d.Provider.Check(ctx, req)
-	return c, fixupError(tk, err)
+	return c, d.fixupError(tk, err)
 }
 
 func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
@@ -103,7 +103,7 @@ func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error
 		return r.Diff(ctx, req)
 	}
 	diff, err := d.Provider.Diff(ctx, req)
-	return diff, fixupError(tk, err)
+	return diff, d.fixupError(tk, err)
 
 }
 
@@ -114,7 +114,7 @@ func (d *Provider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse,
 		return r.Create(ctx, req)
 	}
 	c, err := d.Provider.Create(ctx, req)
-	return c, fixupError(tk, err)
+	return c, d.fixupError(tk, err)
 }
 
 func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
@@ -124,7 +124,7 @@ func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error
 		return r.Read(ctx, req)
 	}
 	read, err := d.Provider.Read(ctx, req)
-	return read, fixupError(tk, err)
+	return read, d.fixupError(tk, err)
 }
 
 func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
@@ -134,7 +134,7 @@ func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse,
 		return r.Update(ctx, req)
 	}
 	up, err := d.Provider.Update(ctx, req)
-	return up, fixupError(tk, err)
+	return up, d.fixupError(tk, err)
 }
 
 func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
@@ -143,7 +143,7 @@ func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
 	if ok {
 		return r.Delete(ctx, req)
 	}
-	return fixupError(tk, d.Provider.Delete(ctx, req))
+	return d.fixupError(tk, d.Provider.Delete(ctx, req))
 }
 
 func (d *Provider) Construct(pctx p.Context, typ string, name string,
@@ -154,5 +154,5 @@ func (d *Provider) Construct(pctx p.Context, typ string, name string,
 		return r.Construct(pctx, typ, name, ctx, inputs, opts)
 	}
 	con, err := d.Provider.Construct(pctx, typ, name, ctx, inputs, opts)
-	return con, fixupError(typ, err)
+	return con, d.fixupError(typ, err)
 }

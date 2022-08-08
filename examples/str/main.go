@@ -8,23 +8,29 @@ import (
 	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 
 	"github.com/pulumi/pulumi-go-provider/examples/str/regex"
 )
 
 func main() {
-	err := p.RunProvider("str", semver.Version{Minor: 1},
-		infer.NewProvider().
-			WithFunctions(
-				infer.Function[*Replace, ReplaceArgs, Ret](),
-				infer.Function[*Print, In, Empty](),
-				infer.Function[*GiveMeAString, Empty, Ret](),
-				infer.Function[*regex.Replace, regex.ReplaceArgs, regex.Ret](),
-			))
+	err := p.RunProvider("str", semver.Version{Minor: 1}, provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
+}
+
+func provider() p.Provider {
+	return infer.NewProvider().
+		WithFunctions(
+			infer.Function[*Replace, ReplaceArgs, Ret](),
+			infer.Function[*Print, In, Empty](),
+			infer.Function[*GiveMeAString, Empty, Ret](),
+			infer.Function[*regex.Replace, regex.ReplaceArgs, regex.Ret](),
+		).WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+		"str": "index",
+	})
 }
 
 type Replace struct{}
@@ -46,6 +52,12 @@ type ReplaceArgs struct {
 	S   string `pulumi:"s"`
 	Old string `pulumi:"old"`
 	New string `pulumi:"new"`
+}
+
+func (ra *ReplaceArgs) Annotate(a infer.Annotator) {
+	a.Describe(&ra.S, "The string where the replacement takes place.")
+	a.Describe(&ra.Old, "The string to replace.")
+	a.Describe(&ra.New, "The string to replace `Old` with.")
 }
 
 type Ret struct {

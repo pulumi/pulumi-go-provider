@@ -49,6 +49,8 @@ type Provider struct {
 	resources []Resource
 	invokes   []Function
 	schema    string
+
+	moduleMap map[tokens.ModuleName]tokens.ModuleName
 }
 
 func Wrap(provider p.Provider) *Provider {
@@ -56,7 +58,8 @@ func Wrap(provider p.Provider) *Provider {
 		provider = &t.Scaffold{}
 	}
 	return &Provider{
-		Provider: provider,
+		Provider:  provider,
+		moduleMap: map[tokens.ModuleName]tokens.ModuleName{},
 	}
 }
 
@@ -69,6 +72,13 @@ func (s *Provider) WithResources(resources ...Resource) *Provider {
 func (s *Provider) WithInvokes(invokes ...Function) *Provider {
 	s.schema = ""
 	s.invokes = append(s.invokes, invokes...)
+	return s
+}
+
+func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
+	for k, v := range m {
+		s.moduleMap[k] = v
+	}
 	return s
 }
 
@@ -95,16 +105,16 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		Types:     map[string]schema.ComplexTypeSpec{},
 	}
 	registerDerivative := func(tk tokens.Type, t schema.ComplexTypeSpec) bool {
-		tkString := assignTo(tk, info.PackageName).String()
+		tkString := assignTo(tk, info.PackageName, s.moduleMap).String()
 		_, ok := pkg.Types[tkString]
 		if ok {
 			return false
 		}
-		pkg.Types[tkString] = renamePackage(t, info.PackageName)
+		pkg.Types[tkString] = renamePackage(t, info.PackageName, s.moduleMap)
 		return true
 	}
-	errs := addElement(s.resources, pkg.Resources, info.PackageName, registerDerivative)
-	e := addElement(s.invokes, pkg.Functions, info.PackageName, registerDerivative)
+	errs := addElement(s.resources, pkg.Resources, info.PackageName, registerDerivative, s.moduleMap)
+	e := addElement(s.invokes, pkg.Functions, info.PackageName, registerDerivative, s.moduleMap)
 	errs.Errors = append(errs.Errors, e.Errors...)
 	if err := errs.ErrorOrNil(); err != nil {
 		return err
@@ -124,7 +134,8 @@ type canGetSchema[T any] interface {
 }
 
 func addElement[T canGetSchema[S], S any](els []T, m map[string]S,
-	pkgName string, reg RegisterDerivativeType) multierror.Error {
+	pkgName string, reg RegisterDerivativeType,
+	modMap map[tokens.ModuleName]tokens.ModuleName) multierror.Error {
 	errs := multierror.Error{}
 	for _, f := range els {
 		tk, err := f.GetToken()
@@ -132,22 +143,26 @@ func addElement[T canGetSchema[S], S any](els []T, m map[string]S,
 			errs.Errors = append(errs.Errors, err)
 			continue
 		}
-		tk = assignTo(tk, pkgName)
+		tk = assignTo(tk, pkgName, modMap)
 		fun, err := f.GetSchema(reg)
 		if err != nil {
 			errs.Errors = append(errs.Errors, fmt.Errorf("failed to get schema for '%s': %w", tk, err))
 			continue
 		}
-		m[tk.String()] = renamePackage(fun, pkgName)
+		m[tk.String()] = renamePackage(fun, pkgName, modMap)
 	}
 	return multierror.Error{}
 }
 
-func assignTo(tk tokens.Type, pkg string) tokens.Type {
-	return tokens.NewTypeToken(tokens.NewModuleToken(tokens.Package(pkg), tk.Module().Name()), tk.Name())
+func assignTo(tk tokens.Type, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) tokens.Type {
+	mod := tk.Module().Name()
+	if m, ok := modMap[mod]; ok {
+		mod = m
+	}
+	return tokens.NewTypeToken(tokens.NewModuleToken(tokens.Package(pkg), mod), tk.Name())
 }
 
-func fixReference(ref, pkg string) string {
+func fixReference(ref, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) string {
 	if !strings.HasPrefix(ref, "#/") {
 		// Not an internal reference, so we don't rewrite
 		return ref
@@ -164,12 +179,12 @@ func fixReference(ref, pkg string) string {
 		// Not a valid token, so again we just leave it
 		return ref
 	}
-	return kind + string(assignTo(tk, pkg))
+	return kind + string(assignTo(tk, pkg, modMap))
 }
 
 // renamePackage sets internal package references to point to the package with the name
 // `pkg`.
-func renamePackage[T any](typ T, pkg string) T {
+func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) T {
 	var rename func(reflect.Value)
 	rename = func(v reflect.Value) {
 		switch v.Kind() {
@@ -181,7 +196,7 @@ func renamePackage[T any](typ T, pkg string) T {
 		case reflect.Struct:
 			if v.Type() == reflect.TypeOf(schema.TypeSpec{}) {
 				field := v.FieldByName("Ref")
-				rewritten := fixReference(field.String(), pkg)
+				rewritten := fixReference(field.String(), pkg, modMap)
 				field.SetString(rewritten)
 			}
 			for i := 0; i < v.Type().NumField(); i++ {

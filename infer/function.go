@@ -51,7 +51,7 @@ func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 
 func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
 	var f F
-	descriptions := getAnnotated(f)
+	descriptions := getAnnotated(reflect.TypeOf(f))
 
 	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
@@ -77,13 +77,14 @@ func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivative
 }
 
 func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
-	descriptions := getAnnotated(reflect.New(t).Elem())
+	descriptions := getAnnotated(t)
 	props, required, err := propertyListFromType(t)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
 	}
 	for n, p := range props {
 		p.Description = descriptions[n]
+		props[n] = p
 	}
 	return &pschema.ObjectTypeSpec{
 		Description: descriptions[""],

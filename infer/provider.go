@@ -78,5 +78,9 @@ func (prov *Provider) WithFunctions(fns ...InferedFunction) *Provider {
 	prov.dispatcher.WithInvokes(res)
 	prov.Provider.WithInvokes(sRes...)
 	return prov
+}
 
+func (prov *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
+	prov.Provider.WithModuleMap(m)
+	return prov
 }

@@ -27,14 +27,15 @@ import (
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-func getAnnotated(i any) map[string]string {
+func getAnnotated(t reflect.Type) map[string]string {
 	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get
 	// value(i) = *R{}, so we reinflate the underlying value
-	if v := reflect.ValueOf(i); v.Kind() == reflect.Pointer && v.IsNil() {
-		i = reflect.New(v.Type().Elem()).Interface()
+	i := reflect.New(t).Elem()
+	if i.Kind() == reflect.Pointer && i.IsNil() {
+		i = reflect.New(i.Type().Elem())
 	}
 
-	if r, ok := i.(Annotated); ok {
+	if r, ok := i.Interface().(Annotated); ok {
 		a := introspect.NewAnnotator(r)
 		r.Annotate(&a)
 		return a.Descriptions
@@ -44,7 +45,7 @@ func getAnnotated(i any) map[string]string {
 
 func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
 	var r R
-	descriptions := getAnnotated(r)
+	descriptions := getAnnotated(reflect.TypeOf(r))
 
 	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)))
 	if err != nil {
@@ -189,7 +190,7 @@ func propertyListFromType(typ reflect.Type) (props map[string]schema.PropertySpe
 		typ = typ.Elem()
 	}
 	props = map[string]schema.PropertySpec{}
-	descriptions := getAnnotated(reflect.New(typ))
+	descriptions := getAnnotated(typ)
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
