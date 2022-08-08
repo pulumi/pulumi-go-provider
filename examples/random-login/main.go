@@ -11,18 +11,25 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer"
 	r "github.com/pulumi/pulumi-go-provider/resource"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func main() {
-	err := p.RunProvider("random-login", semver.Version{Minor: 1},
-		infer.NewProvider().
-			WithResources(infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()).
-			WithComponents(infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput]()))
+	err := p.RunProvider("random-login", semver.Version{Minor: 1}, provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
+}
+
+func provider() p.Provider {
+	return infer.NewProvider().
+		WithResources(infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()).
+		WithComponents(infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput]()).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+			"random-login": "index",
+		})
 }
 
 type RandomLogin struct{}
@@ -85,7 +92,6 @@ func makeSalt(length int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
-
 }
 
 func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, preview bool) (string, RandomSaltState, error) {
@@ -94,6 +100,8 @@ func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, prev
 		l = *input.SaltLength
 	}
 	salt := makeSalt(l)
+
+	fmt.Printf("Running the create")
 
 	return name, RandomSaltState{
 		Salt:           salt,

@@ -72,6 +72,7 @@ type Annotator interface {
 	SetDefault(i any, defaultValue any)
 }
 
+// Annotated is used to describe the fields of an object or a resource.
 type Annotated interface {
 	Annotate(Annotator)
 }
@@ -135,7 +136,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 			Failures: failures,
 		}, nil
 	}
-	// The user has not implemented check, so do the smart thing by default We just check
+	// The user has not implemented check, so do the smart thing by default; We just check
 	// that we can de-serialize correctly
 	var i I
 	_, err := rc.decode(req.News, &i, false)

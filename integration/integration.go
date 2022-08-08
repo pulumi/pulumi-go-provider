@@ -17,12 +17,15 @@ package integration
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
+	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
 )
@@ -142,4 +145,199 @@ func (s *server) Delete(req p.DeleteRequest) error {
 func (s *server) Construct(typ string, name string,
 	ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
 	return s.p.Construct(s.ctx(presource.URN(typ)), typ, name, ctx, inputs, opts)
+}
+
+// TODO: Add support for diff verification
+type Operation struct {
+	// The inputs for the operation
+	Inputs presource.PropertyMap
+	// The expected output for the operation. If ExpectedOutput is nil, no check will be made.
+	ExpectedOutput presource.PropertyMap
+	// A function called on the output of this operation.
+	Hook func(inputs, output presource.PropertyMap)
+	// If the test should expect the operation to signal an error.
+	ExpectFailure bool
+	// If CheckFailures is non-nil, expect the check step to fail with the provided output.
+	CheckFailures []p.CheckFailure
+}
+
+// Steps describing the lifecycle of a resource.
+type LifeCycleTest struct {
+	Resource tokens.Type
+	Create   Operation
+	Updates  []Operation
+}
+
+// Run a resource through it's lifecycle asserting that its output is as expected.
+// The resource is
+// 1. Previewed
+// 2. Created
+// 2. Previewed and Updated for each update in the Updates list.
+// 3. Deleted
+func (l LifeCycleTest) Run(t *testing.T, server Server) {
+	urn := presource.NewURN("test", "provider", "", l.Resource, "test")
+
+	runCreate := func(op Operation) (p.CreateResponse, bool) {
+		// Here we do the create and the initial setup
+		checkResponse, err := server.Check(p.CheckRequest{
+			Urn:  urn,
+			Olds: nil,
+			News: op.Inputs,
+		})
+		assert.NoError(t, err, "resource check errored")
+		if len(op.CheckFailures) > 0 || len(checkResponse.Failures) > 0 {
+			assert.ElementsMatch(t, op.CheckFailures, checkResponse.Failures,
+				"check failures mismatch on create")
+			return p.CreateResponse{}, false
+		}
+
+		_, err = server.Create(p.CreateRequest{
+			Urn:        urn,
+			Properties: checkResponse.Inputs.Copy(),
+			Preview:    true,
+		})
+		// We allow the failure from ExpectFailure to hit at either the preview or the Create.
+		if op.ExpectFailure && err != nil {
+			return p.CreateResponse{}, false
+		}
+		createResponse, err := server.Create(p.CreateRequest{
+			Urn:        urn,
+			Properties: checkResponse.Inputs.Copy(),
+		})
+		if op.ExpectFailure {
+			assert.Error(t, err, "expected an error on create")
+			return p.CreateResponse{}, false
+		}
+		assert.NoError(t, err, "failed to run the create")
+		if err != nil {
+			return p.CreateResponse{}, false
+		}
+		if op.Hook != nil {
+			op.Hook(checkResponse.Inputs, createResponse.Properties.Copy())
+		}
+		if op.ExpectedOutput != nil {
+			assert.EqualValues(t, op.ExpectedOutput, createResponse.Properties, "create outputs")
+		}
+		return createResponse, true
+	}
+
+	createResponse, keepGoing := runCreate(l.Create)
+	if !keepGoing {
+		return
+	}
+
+	id := createResponse.ID
+	olds := createResponse.Properties
+	for i, update := range l.Updates {
+		// Perform the check
+		check, err := server.Check(p.CheckRequest{
+			Urn:  urn,
+			Olds: olds,
+			News: update.Inputs,
+		})
+
+		assert.NoErrorf(t, err, "check returned an error on update %d", i)
+		if err != nil {
+			return
+		}
+		if len(update.CheckFailures) > 0 || len(check.Failures) > 0 {
+			assert.ElementsMatchf(t, update.CheckFailures, check.Failures,
+				"check failures mismatch on update %d", i)
+			continue
+		}
+
+		diff, err := server.Diff(p.DiffRequest{
+			ID:   id,
+			Urn:  urn,
+			Olds: olds,
+			News: check.Inputs.Copy(),
+		})
+		assert.NoErrorf(t, err, "diff failed on update %d", i)
+		if err != nil {
+			return
+		}
+		if !diff.HasChanges {
+			// We don't have any changes, so we can just do nothing
+			continue
+		}
+		isDelete := false
+		for _, v := range diff.DetailedDiff {
+			switch v.Kind {
+			case p.AddReplace:
+				fallthrough
+			case p.DeleteReplace:
+				fallthrough
+			case p.UpdateReplace:
+				isDelete = true
+			}
+		}
+		if isDelete {
+			runDelete := func() {
+				err = server.Delete(p.DeleteRequest{
+					ID:         id,
+					Urn:        urn,
+					Properties: olds,
+				})
+				assert.NoError(t, err, "failed to delete the resource")
+			}
+			if diff.DeleteBeforeReplace {
+				runDelete()
+				result, keepGoing := runCreate(update)
+				if !keepGoing {
+					continue
+				}
+				id = result.ID
+				olds = result.Properties
+			} else {
+				result, keepGoing := runCreate(update)
+				if !keepGoing {
+					continue
+				}
+
+				runDelete()
+				// Set the new block
+				id = result.ID
+				olds = result.Properties
+			}
+		} else {
+
+			// Now perform the preview
+			_, err = server.Update(p.UpdateRequest{
+				ID:      id,
+				Urn:     urn,
+				Olds:    olds,
+				News:    check.Inputs.Copy(),
+				Preview: true,
+			})
+
+			if update.ExpectFailure && err != nil {
+				continue
+			}
+
+			result, err := server.Update(p.UpdateRequest{
+				ID:   id,
+				Urn:  urn,
+				Olds: olds,
+				News: check.Inputs.Copy(),
+			})
+			if update.ExpectFailure {
+				assert.Errorf(t, err, "expected failure on update %d", i)
+				continue
+			}
+			if update.Hook != nil {
+				update.Hook(check.Inputs, result.Properties.Copy())
+			}
+			if update.ExpectedOutput != nil {
+				assert.EqualValues(t, update.ExpectedOutput, result.Properties.Copy(), "expected output on update %d", i)
+			}
+			olds = result.Properties
+		}
+	}
+	err := server.Delete(p.DeleteRequest{
+		ID:         id,
+		Urn:        urn,
+		Properties: olds,
+	})
+	assert.NoError(t, err, "failed to delete the resource")
+
 }

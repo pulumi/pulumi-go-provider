@@ -2,17 +2,17 @@ module github.com/pulumi/pulumi-go-provider/examples/random-login
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 
-replace github.com/pulumi/pulumi/pkg/v3 => ../../../../pulumi/pulumi/pkg
-
-replace github.com/pulumi/pulumi/sdk/v3 => ../../../../pulumi/pulumi/sdk
+replace github.com/pulumi/pulumi-go-provider/integration => ../../integration
 
 go 1.18
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
+	github.com/pulumi/pulumi-go-provider/integration v0.0.0-00010101000000-000000000000
 	github.com/pulumi/pulumi-random/sdk/v4 v4.8.0
-	github.com/pulumi/pulumi/sdk/v3 v3.37.1
+	github.com/pulumi/pulumi/sdk/v3 v3.35.3
+	github.com/stretchr/testify v1.8.0
 )
 
 require (
@@ -112,7 +112,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/pulumi/pulumi/pkg/v3 v3.35.1 // indirect
+	github.com/pulumi/pulumi/pkg/v3 v3.35.3 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
@@ -125,7 +125,6 @@ require (
 	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/src-d/gcfg v1.4.0 // indirect
-	github.com/stretchr/testify v1.7.1 // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
