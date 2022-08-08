@@ -15,8 +15,6 @@
 package dispatch
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"

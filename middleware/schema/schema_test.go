@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +36,7 @@ func TestRenamePacakge(t *testing.T) {
 		},
 	}
 
-	p = renamePackage(p, "fizz")
+	p = renamePackage(p, "fizz", map[tokens.ModuleName]tokens.ModuleName{})
 	assert.Equal(t, "#/types/fizz:bar:Buzz", p.ObjectTypeSpec.Properties["foo"].Ref)
 
 	arr := []schema.PropertySpec{
@@ -50,6 +51,6 @@ func TestRenamePacakge(t *testing.T) {
 			},
 		},
 	}
-	arr = renamePackage(arr, "buzz")
+	arr = renamePackage(arr, "buzz", map[tokens.ModuleName]tokens.ModuleName{})
 	assert.Equal(t, "#/resources/buzz:fizz:Buzz", arr[1].Ref)
 }

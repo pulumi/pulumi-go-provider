@@ -137,6 +137,7 @@ func TestSchema(t *testing.T) {
 
 func TestInvokes(t *testing.T) {
 	server := integration.NewServer("str", semver.Version{Minor: 1}, provider())
+
 	r, err := server.Invoke(p.InvokeRequest{
 		Token: "str:index:Replace",
 		Args: presource.NewPropertyMapFromMap(map[string]interface{}{
@@ -147,5 +148,17 @@ func TestInvokes(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, r.Failures)
-	assert.Equal(t, "foo-bar", r.Return["out"])
+	assert.Equal(t, "foo-bar", r.Return["out"].StringValue())
+
+	r, err = server.Invoke(p.InvokeRequest{
+		Token: "str:regex:Replace",
+		Args: presource.NewPropertyMapFromMap(map[string]interface{}{
+			"s":       "fizz, buzz, zzz...",
+			"pattern": "z+",
+			"new":     "Z",
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Empty(t, r.Failures)
+	assert.Equal(t, "fiZ, buZ, Z...", r.Return["out"].StringValue())
 }

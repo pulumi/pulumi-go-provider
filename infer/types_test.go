@@ -160,6 +160,7 @@ func TestCrawlTypes(t *testing.T) {
 		map[string]pschema.ComplexTypeSpec{
 			"pkg:infer:Bar": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{
+					Type: "object",
 					Properties: map[string]pschema.PropertySpec{
 						"foo": {
 							TypeSpec: pschema.TypeSpec{
@@ -178,6 +179,7 @@ func TestCrawlTypes(t *testing.T) {
 						Value:       3.1415}}},
 			"pkg:infer:Foo": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{
+					Type: "object",
 					Properties: map[string]pschema.PropertySpec{
 						"bar": {
 							TypeSpec: pschema.TypeSpec{
