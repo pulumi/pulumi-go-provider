@@ -32,7 +32,7 @@ import (
 // A Function (also called Invoke) infered from code. `I` is the function input, and `O`
 // is the function output. Both must be structs.
 type Fn[I any, O any] interface {
-	// A function is a mapping between its
+	// A function is a mapping from `I` to `O`.
 	Call(ctx p.Context, input I) (output O, err error)
 }
 
