@@ -43,17 +43,17 @@ func getAnnotated(t reflect.Type) map[string]string {
 	return map[string]string{}
 }
 
-func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
+func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, error) {
 	var r R
 	descriptions := getAnnotated(reflect.TypeOf(r))
 
-	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)))
+	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent)
 	if err != nil {
 		var o O
 		return schema.ResourceSpec{}, fmt.Errorf("could not serialize output type %T: %w", o, err)
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)))
+	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent)
 	if err != nil {
 		var i I
 		return schema.ResourceSpec{}, fmt.Errorf("could not serialize input type %T: %w", i, err)
@@ -67,10 +67,11 @@ func getResourceSchema[R, I, O any]() (schema.ResourceSpec, error) {
 		},
 		InputProperties: inputProperties,
 		RequiredInputs:  requiredInputs,
+		IsComponent:     isComponent,
 	}, nil
 }
 
-func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
+func serializeTypeAsPropertyType(t reflect.Type, indicatePlain bool) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -96,21 +97,22 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 		}, nil
 	}
 
-	primitive := func(t string) (schema.TypeSpec, error) {
-		return schema.TypeSpec{Type: t}, nil
-	}
-
 	// Must be a primitive type
-	t, err := underlyingType(t)
+	t, inputy, err := underlyingType(t)
 	if err != nil {
 		return schema.TypeSpec{}, err
 	}
+
+	primitive := func(t string) (schema.TypeSpec, error) {
+		return schema.TypeSpec{Type: t, Plain: !inputy && indicatePlain}, nil
+	}
+
 	switch t.Kind() {
 	case reflect.Map:
 		if t.Key().Kind() != reflect.String {
 			return schema.TypeSpec{}, fmt.Errorf("map keys must be strings, found %s", t.Key().String())
 		}
-		el, err := serializeTypeAsPropertyType(t.Elem())
+		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain)
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
@@ -119,7 +121,7 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 			AdditionalProperties: &el,
 		}, nil
 	case reflect.Array, reflect.Slice:
-		el, err := serializeTypeAsPropertyType(t.Elem())
+		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain)
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
@@ -144,7 +146,9 @@ func serializeTypeAsPropertyType(t reflect.Type) (schema.TypeSpec, error) {
 	}
 }
 
-func underlyingType(t reflect.Type) (reflect.Type, error) {
+// underlyingType find the non-inputty, non-ptr type of t. It returns the underlying type
+// and if t was an Inputty or Outputty type.
+func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	for t != nil && t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -162,18 +166,18 @@ func underlyingType(t reflect.Type) (reflect.Type, error) {
 		if strings.HasSuffix(T, "Input") {
 			T = strings.TrimSuffix(T, "Input")
 		} else {
-			return nil, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
+			return nil, false, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
 		}
 		toOutMethod, ok := t.MethodByName("To" + T + "Output")
 		if !ok {
-			return nil, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
+			return nil, false, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
 		}
 		outputT := toOutMethod.Type.Out(0)
 		//create new object of type outputT
 		strct := reflect.New(outputT).Elem().Interface()
 		out, ok := strct.(pulumi.Output)
 		if !ok {
-			return nil, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
+			return nil, false, fmt.Errorf("return type %s of method To%vOutput on type %v does not implement Output",
 				reflect.TypeOf(strct), T, t.Name())
 		}
 		t = out.ElementType()
@@ -182,10 +186,10 @@ func underlyingType(t reflect.Type) (reflect.Type, error) {
 	for t != nil && t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t, nil
+	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromType(typ reflect.Type) (props map[string]schema.PropertySpec, required []string, err error) {
+func propertyListFromType(typ reflect.Type, indicatePlain bool) (props map[string]schema.PropertySpec, required []string, err error) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
@@ -205,7 +209,7 @@ func propertyListFromType(typ reflect.Type) (props map[string]schema.PropertySpe
 		if tags.Internal {
 			continue
 		}
-		serialized, err := serializeTypeAsPropertyType(fieldType)
+		serialized, err := serializeTypeAsPropertyType(fieldType, indicatePlain)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid type '%s' on '%s.%s': %w", fieldType, typ, field.Name, err)
 		}

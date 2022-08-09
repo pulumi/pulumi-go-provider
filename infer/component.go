@@ -57,7 +57,7 @@ type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.Compo
 
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
-	r, err := getResourceSchema[R, I, O]()
+	r, err := getResourceSchema[R, I, O](true)
 	if err != nil {
 		return pschema.ResourceSpec{}, err
 	}
@@ -67,7 +67,6 @@ func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDeri
 	if err := registerTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r.IsComponent = true
 	return r, nil
 }
 

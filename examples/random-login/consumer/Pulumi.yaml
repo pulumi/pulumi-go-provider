@@ -4,6 +4,7 @@ resources:
   generator:
     type: random-login:RandomLogin
     properties:
+      petName: true
       passwordLength:
         Fn::Secret: 8
   salter:

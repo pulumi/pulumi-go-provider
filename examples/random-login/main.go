@@ -34,30 +34,43 @@ func provider() p.Provider {
 
 type RandomLogin struct{}
 type RandomLoginArgs struct {
-	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength,optional"`
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
+	PetName        bool               `pulumi:"petName"`
 }
+
 type RandomLoginOutput struct {
 	pulumi.ResourceState
-	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength,optional"`
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
+	PetName        bool               `pulumi:"petName"`
 	// Outputs
 	Username pulumi.StringOutput `pulumi:"username"`
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, inputs RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
+func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
 	comp := &RandomLoginOutput{}
 	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {
 		return nil, err
 	}
-	pet, err := random.NewRandomPet(ctx, name+"-pet", &random.RandomPetArgs{}, pulumi.Parent(comp))
-	if err != nil {
-		return nil, err
+	if args.PetName {
+		pet, err := random.NewRandomPet(ctx, name+"-pet", &random.RandomPetArgs{}, pulumi.Parent(comp))
+		if err != nil {
+			return nil, err
+		}
+		comp.Username = pet.ID().ToStringOutput()
+	} else {
+		id, err := random.NewRandomId(ctx, name+"-id", &random.RandomIdArgs{
+			ByteLength: pulumi.Int(8),
+		}, pulumi.Parent(comp))
+		if err != nil {
+			return nil, err
+		}
+		comp.Username = id.ID().ToStringOutput()
 	}
-	comp.Username = pet.ID().ToStringOutput()
 	var length pulumi.IntInput = pulumi.Int(16)
-	if inputs.PasswordLength != nil {
-		length = inputs.PasswordLength.ToIntPtrOutput().Elem()
+	if args.PasswordLength != nil {
+		length = args.PasswordLength.ToIntPtrOutput().Elem()
 	}
 	password, err := random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
 		Length: length,
