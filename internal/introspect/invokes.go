@@ -26,7 +26,7 @@ import (
 func InvokeInput(f reflect.Type) (input reflect.Type, hasContext bool, err error) {
 	contract.Assert(f.Kind() == reflect.Func)
 	isContext := func(t reflect.Type) bool { return t.Implements(reflect.TypeOf(new(context.Context)).Elem()) }
-	badTypeMsg := fmt.Errorf("Functions must be of the type func([context.Context, ], T). Found type %s", f.String())
+	badTypeMsg := fmt.Errorf("functions must be of the type func([context.Context, ], T), found type %s", f.String())
 	switch f.NumIn() {
 	case 0:
 		return nil, false, nil
@@ -49,7 +49,7 @@ func InvokeInput(f reflect.Type) (input reflect.Type, hasContext bool, err error
 // Retrieve the Output type of a function, if any.
 func InvokeOutput(f reflect.Type) (output reflect.Type, canError bool, err error) {
 	contract.Assert(f.Kind() == reflect.Func)
-	badTypeMsg := fmt.Errorf("Functions must be of the type func(T [, error]). Found type %s", f.String())
+	badTypeMsg := fmt.Errorf("functions must be of the type func(T [, error]), found type %s", f.String())
 	isError := func(t reflect.Type) bool { return t.Implements(reflect.TypeOf(new(error)).Elem()) }
 	switch f.NumOut() {
 	case 0:

@@ -30,11 +30,20 @@ type ComponentResource[I any, O pulumi.ComponentResource] interface {
 	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
+// A component resource inferred from code. To get an instance of an InferedComponent,
+// call the function Component.
 type InferedComponent interface {
 	t.ComponentResource
 	schema.Resource
+
+	isInferedComponent()
 }
 
+func (derivedComponentController[R, I, O]) isInferedComponent() {}
+
+// Define a component resource from go code. Here `R` is the component resource anchor,
+// `I` describes its inputs and `O` its outputs. To add descriptions to `R`, `I` and `O`,
+// see the `Annotated` trait defined in this module.
 func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferedComponent {
 	return &derivedComponentController[R, I, O]{}
 }

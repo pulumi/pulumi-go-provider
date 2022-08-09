@@ -25,11 +25,13 @@ import (
 
 var _ p.Provider = (*Provider)(nil)
 
+// A provider that serves resources inferred from go code.
 type Provider struct {
 	*schema.Provider
 	dispatcher *dispatch.Provider
 }
 
+// Create a new base provider to serve resources inferred from go code.
 func NewProvider() *Provider {
 	d := dispatch.Wrap(nil)
 	return &Provider{
@@ -38,6 +40,10 @@ func NewProvider() *Provider {
 	}
 }
 
+// Add inferred resources to the provider.
+//
+// To allow method chaining, WithResources mutates the instance it was called on and then
+// returns it.
 func (prov *Provider) WithResources(resources ...InferedResource) *Provider {
 	res := map[tokens.Type]t.CustomResource{}
 	sRes := []schema.Resource{}
@@ -52,6 +58,10 @@ func (prov *Provider) WithResources(resources ...InferedResource) *Provider {
 	return prov
 }
 
+// Add inferred component resources to the provider.
+//
+// To allow method chaining, WithComponents mutates the instance it was called on and then
+// returns it.
 func (prov *Provider) WithComponents(components ...InferedComponent) *Provider {
 	res := map[tokens.Type]t.ComponentResource{}
 	sRes := []schema.Resource{}
@@ -66,6 +76,10 @@ func (prov *Provider) WithComponents(components ...InferedComponent) *Provider {
 	return prov
 }
 
+// Add inferred functions (also mentioned as invokes) to the provider.
+//
+// To allow method chaining, WithFunctions mutates the instance it was called on and then
+// returns it.
 func (prov *Provider) WithFunctions(fns ...InferedFunction) *Provider {
 	res := map[tokens.Type]t.Invoke{}
 	sRes := []schema.Function{}
@@ -80,6 +94,16 @@ func (prov *Provider) WithFunctions(fns ...InferedFunction) *Provider {
 	return prov
 }
 
+// WithModuleMap provides a mapping between go modules and pulumi modules.
+//
+// For example, given a provider `pkg` with defines resources `foo.Foo`, `foo.Bar`, and
+// `fizz.Buzz` the provider will expose resources at `pkg:foo:Foo`, `pkg:foo:Bar` and
+// `pkg:fizz:Buzz`. Adding
+//
+//	`WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{"foo": "bar"})`
+//
+// will instead result in exposing the same resources at `pkg:bar:Foo`, `pkg:bar:Bar` and
+// `pkg:fizz:Buzz`.
 func (prov *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
 	prov.Provider.WithModuleMap(m)
 	prov.dispatcher.WithModuleMap(m)

@@ -26,6 +26,7 @@ linters:
     - unconvert
     - varcheck
     - paralleltest
+    - stylecheck
   disable:
     - staticcheck # Disabled due to OOM errors in golangci-lint@v1.18.0
     - megacheck # Disabled due to OOM errors in golangci-lint@v1.18.0

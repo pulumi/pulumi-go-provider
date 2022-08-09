@@ -20,7 +20,6 @@ import (
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
@@ -40,7 +39,7 @@ type CustomResource[I any, O any] interface {
 
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx p.Context, name string, oldInputs presource.PropertyMap, newInputs presource.PropertyMap) (
+	Check(ctx p.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
 		I, []p.CheckFailure, error)
 }
 
@@ -83,11 +82,11 @@ type InferedResource interface {
 }
 
 func Resource[R CustomResource[I, O], I, O any]() InferedResource {
-	return &derivedResourceController[R, I, O]{map[presource.URN]*R{}}
+	return &derivedResourceController[R, I, O]{map[resource.URN]*R{}}
 }
 
 type derivedResourceController[R CustomResource[I, O], I, O any] struct {
-	m map[presource.URN]*R
+	m map[resource.URN]*R
 }
 
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
@@ -106,7 +105,7 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 	return introspect.GetToken("pkg", r)
 }
 
-func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn presource.URN, call string) *R {
+func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn resource.URN, call string) *R {
 	_, ok := rc.m[urn]
 	if !ok {
 		if call != "Delete" && call != "Read" {
@@ -359,40 +358,40 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	return nil
 }
 
-func (rc *derivedResourceController[R, I, O]) decode(m presource.PropertyMap, dst interface{}, preview bool) (
-	[]presource.PropertyKey, mapper.MappingError) {
+func (rc *derivedResourceController[R, I, O]) decode(m resource.PropertyMap, dst interface{}, preview bool) (
+	[]resource.PropertyKey, mapper.MappingError) {
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,
 	}).Decode(m.Mappable(), dst)
 }
 
-func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []presource.PropertyKey, preview bool) (
-	presource.PropertyMap, mapper.MappingError) {
+func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []resource.PropertyKey, preview bool) (
+	resource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,
 	}).Encode(src)
 	if err != nil {
 		return nil, err
 	}
-	m := presource.NewPropertyMapFromMap(props)
+	m := resource.NewPropertyMapFromMap(props)
 	for _, s := range secrets {
 		v, ok := m[s]
 		if !ok {
 			continue
 		}
-		m[s] = presource.NewSecretProperty(&presource.Secret{Element: v})
+		m[s] = resource.NewSecretProperty(&resource.Secret{Element: v})
 	}
 	return m, nil
 }
 
 // Transform secret values into plain values, returning the new map and the list of keys
 // that contained secrets.
-func extractSecrets(m presource.PropertyMap) (presource.PropertyMap, []presource.PropertyKey) {
-	newMap := presource.PropertyMap{}
-	secrets := []presource.PropertyKey{}
-	var removeSecrets func(presource.PropertyValue) presource.PropertyValue
-	removeSecrets = func(v presource.PropertyValue) presource.PropertyValue {
+func extractSecrets(m resource.PropertyMap) (resource.PropertyMap, []resource.PropertyKey) {
+	newMap := resource.PropertyMap{}
+	secrets := []resource.PropertyKey{}
+	var removeSecrets func(resource.PropertyValue) resource.PropertyValue
+	removeSecrets = func(v resource.PropertyValue) resource.PropertyValue {
 		switch {
 		case v.IsSecret():
 			return v.SecretValue().Element
@@ -400,21 +399,21 @@ func extractSecrets(m presource.PropertyMap) (presource.PropertyMap, []presource
 			return removeSecrets(v.Input().Element)
 		case v.IsOutput():
 			if !v.OutputValue().Known {
-				return presource.NewNullProperty()
+				return resource.NewNullProperty()
 			}
 			return removeSecrets(v.OutputValue().Element)
 		case v.IsArray():
-			arr := make([]presource.PropertyValue, len(v.ArrayValue()))
+			arr := make([]resource.PropertyValue, len(v.ArrayValue()))
 			for i, e := range v.ArrayValue() {
 				arr[i] = removeSecrets(e)
 			}
-			return presource.NewArrayProperty(arr)
+			return resource.NewArrayProperty(arr)
 		case v.IsObject():
-			m := make(presource.PropertyMap, len(v.ObjectValue()))
+			m := make(resource.PropertyMap, len(v.ObjectValue()))
 			for k, v := range v.ObjectValue() {
 				m[k] = removeSecrets(v)
 			}
-			return presource.NewObjectProperty(m)
+			return resource.NewObjectProperty(m)
 		default:
 			return v
 		}

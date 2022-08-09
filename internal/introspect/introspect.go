@@ -139,7 +139,7 @@ func FindOutputProperties(r any) (map[string]bool, error) {
 func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 	typ := reflect.TypeOf(i)
 	if typ == nil {
-		return "", fmt.Errorf("Cannot get token of nil type")
+		return "", fmt.Errorf("cannot get token of nil type")
 	}
 
 	for typ.Kind() == reflect.Pointer {
@@ -159,10 +159,10 @@ func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 	}
 
 	if name == "" {
-		return "", fmt.Errorf("Type %T has no name", i)
+		return "", fmt.Errorf("type %T has no name", i)
 	}
 	if mod == "" {
-		return "", fmt.Errorf("Type %T has no module path", i)
+		return "", fmt.Errorf("type %T has no module path", i)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
 	mod = mod[strings.LastIndex(mod, "/")+1:]

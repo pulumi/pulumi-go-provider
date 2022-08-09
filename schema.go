@@ -187,7 +187,7 @@ func (info serializationInfo) serializeSchema(opts options) (schema.PackageSpec,
 	for _, fn := range opts.Functions {
 		typ := baseType(fn.F)
 		if typ.Kind() != reflect.Func {
-			return schema.PackageSpec{}, fmt.Errorf("Expected F to be a function, got a %s", typ.Kind())
+			return schema.PackageSpec{}, fmt.Errorf("expected F to be a function, got a %s", typ.Kind())
 		}
 		token, err := introspect.GetToken(tokens.Package(info.pkgname), fn.F)
 		if err != nil {
