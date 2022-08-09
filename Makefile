@@ -5,6 +5,9 @@ build:
 
 test: build
 	go test ./...
+	for d in examples/*; do if [ -d $$d ]; then \
+		cd $$d; go test ./... || exit $$?; \
+	cd -; fi; done
 
 lint: lint-golang lint-copyright
 lint-golang:

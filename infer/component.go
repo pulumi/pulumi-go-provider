@@ -26,25 +26,30 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+// A component resource.
 type ComponentResource[I any, O pulumi.ComponentResource] interface {
+	// Construct a componet resource
+	//
+	// ctx.RegisterResource needs to be called, but ctx.RegisterOutputs does not need to
+	// be called.
 	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
-// A component resource inferred from code. To get an instance of an InferedComponent,
+// A component resource inferred from code. To get an instance of an InferredComponent,
 // call the function Component.
-type InferedComponent interface {
+type InferredComponent interface {
 	t.ComponentResource
 	schema.Resource
 
-	isInferedComponent()
+	isInferredComponent()
 }
 
-func (derivedComponentController[R, I, O]) isInferedComponent() {}
+func (derivedComponentController[R, I, O]) isInferredComponent() {}
 
 // Define a component resource from go code. Here `R` is the component resource anchor,
 // `I` describes its inputs and `O` its outputs. To add descriptions to `R`, `I` and `O`,
 // see the `Annotated` trait defined in this module.
-func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferedComponent {
+func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferredComponent {
 	return &derivedComponentController[R, I, O]{}
 }
 

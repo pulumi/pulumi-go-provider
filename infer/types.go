@@ -25,14 +25,18 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+// The set of allowed enum underlying values.
 type EnumKind interface {
 	~string | ~float64 | ~bool | ~int
 }
 
+// An Enum in the Pulumi type system.
 type Enum[T EnumKind] interface {
+	// A list of all allowed values for the enum.
 	Values() []EnumValue[T]
 }
 
+// An EnumValue represents an allowed value for an Enum.
 type EnumValue[T any] struct {
 	Name        string
 	Value       T
@@ -51,6 +55,8 @@ type enum struct {
 	values []EnumValue[any]
 }
 
+// isEnum detects if a type implements Enum[T] without naming T. There is no function to
+// do this in the `reflect` package, so we implement this manually.
 func isEnum(t reflect.Type) (enum, bool) {
 	// To Simplify, we ensure that `t` is not a pointer type.
 	for t.Kind() == reflect.Pointer {

@@ -23,6 +23,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
+// Assert that Provider is a provider.
 var _ p.Provider = (*Provider)(nil)
 
 // A provider that serves resources inferred from go code.
@@ -44,7 +45,7 @@ func NewProvider() *Provider {
 //
 // To allow method chaining, WithResources mutates the instance it was called on and then
 // returns it.
-func (prov *Provider) WithResources(resources ...InferedResource) *Provider {
+func (prov *Provider) WithResources(resources ...InferredResource) *Provider {
 	res := map[tokens.Type]t.CustomResource{}
 	sRes := []schema.Resource{}
 	for _, r := range resources {
@@ -62,7 +63,7 @@ func (prov *Provider) WithResources(resources ...InferedResource) *Provider {
 //
 // To allow method chaining, WithComponents mutates the instance it was called on and then
 // returns it.
-func (prov *Provider) WithComponents(components ...InferedComponent) *Provider {
+func (prov *Provider) WithComponents(components ...InferredComponent) *Provider {
 	res := map[tokens.Type]t.ComponentResource{}
 	sRes := []schema.Resource{}
 	for _, r := range components {
@@ -80,7 +81,7 @@ func (prov *Provider) WithComponents(components ...InferedComponent) *Provider {
 //
 // To allow method chaining, WithFunctions mutates the instance it was called on and then
 // returns it.
-func (prov *Provider) WithFunctions(fns ...InferedFunction) *Provider {
+func (prov *Provider) WithFunctions(fns ...InferredFunction) *Provider {
 	res := map[tokens.Type]t.Invoke{}
 	sRes := []schema.Function{}
 	for _, r := range fns {

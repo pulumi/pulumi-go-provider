@@ -33,61 +33,139 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+// A resource that understands how to create itself. This is the minimum requirement for
+// defining a new custom resource.
+//
+// This interface should be implemented by the resource controller, with `I` the resource
+// inputs and `O` the full set of resource fields. It is recommended that `O` is a
+// superset of `I`, but it is not strictly required. The fields of `I` and `O` should
+// consist of non-pulumi types i.e. `string` and `int` instead of `pulumi.StringInput` and
+// `pulumi.IntOutput`.
+//
+// The behavior of a CustomResource resource can be extended by implementing any of the
+// following traits:
+// - CustomCheck
+// - CustomDiff
+// - CustomUpdate
+// - CustomRead
+// - CustomDelete
+//
+// Example:
+// TODO
 type CustomResource[I any, O any] interface {
 	Create(ctx p.Context, name string, input I, preview bool) (id string, output O, err error)
 }
 
+// A resource that understands how to check its inputs.
+//
+// By default, infer handles checks by ensuring that a inputs de-serialize correctly. This
+// is where you can extend that behavior. The returned input is given to subsequent calls
+// to `Create` and `Update`.
+//
+// Example:
+// TODO - Maybe a resource that has a regex. We could reject invalid regex before the up
+// actually happens.
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
 	Check(ctx p.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
 		I, []p.CheckFailure, error)
 }
 
+// A resource that understands how to diff itself given a new set of inputs.
+//
+// By default, infer handles diffs by structural equality among inputs. If CustomUpdate is
+// implemented, changes will result in updates. Otherwise changes will result in replaces.
+//
+// Example:
+// TODO - Indicate replacements for certain changes but not others.
 type CustomDiff[I, O any] interface {
 	// Maybe oldInputs can be of type I
 	Diff(ctx p.Context, id string, olds O, news I, ignoreChanges []resource.PropertyKey) (
 		p.DiffResponse, error)
 }
 
+// A resource that can adapt to new inputs with a delete and replace.
+//
+// There is no default behavior for CustomUpdate.
+//
+// Here the old state (as returned by Create or Update) as well as the new inputs are
+// passed. Update should return the new state of the resource. If preview is true, then
+// the update is part of `pulumi preview` and no changes should be made.
+//
+// Example:
+// TODO
 type CustomUpdate[I, O any] interface {
 	Update(ctx p.Context, id string, olds O, news I, preview bool) (O, error)
 }
 
+// A resource that can recover its state from the provider.
+//
+// There is no default behavior for CustomRead.
+//
+// Example:
+// TODO - Probably something to do with the file system.
 type CustomRead[I, O any] interface {
+	// Read accepts a resource id, and a best guess of the input and output state. It returns
+	// a normalized version of each, assuming it can be recovered.
 	Read(ctx p.Context, id string, inputs I, state O) (
 		canonicalID string, normalizedInputs I, normalizedState O, err error)
 }
 
+// A resource that knows how to delete itself.
+//
+// If a resource does not implement Delete, no code will be run on resource deletion.
 type CustomDelete[O any] interface {
+	// Delete is called before a resource is removed from pulumi state.
 	Delete(ctx p.Context, id string, props O) error
 }
 
+// The methods of Annotator must be called on pointers to fields of their receivers, or on
+// their receiver itself.
+//
+// func (*s Struct) Annotated(a Annotator) {
+//  a.Describe(&s, "A struct")            // Legal
+//	a.Describe(&s.field1, "A field")      // Legal
+//	a.Describe(s.field2, "A field")       // Not legal, since the pointer is missing.
+//	otherS := &Struct{}
+//	a.Describe(&otherS.field1, "A field") // Not legal, since describe is not called on its receiver.
+// }
 type Annotator interface {
-	// Annotate a a struct field with a text description.
+	// Annotate a struct field with a text description.
 	Describe(i any, description string)
 
-	// Annotate a a struct field with a default value. The default value must be a primitive
+	// Annotate a struct field with a default value. The default value must be a primitive
 	// type in the pulumi type system.
 	SetDefault(i any, defaultValue any)
 }
 
-// Annotated is used to describe the fields of an object or a resource.
+// Annotated is used to describe the fields of an object or a resource. Annotated can be
+// implemented by `CustomResource`s, the input and output types for all resources and
+// invokes, as well as other structs used the above.
 type Annotated interface {
 	Annotate(Annotator)
 }
 
-type InferedResource interface {
+// A resource inferred by the Resource function.
+//
+// This interface cannot be implemented directly. Instead consult the Resource function.
+type InferredResource interface {
 	t.CustomResource
 	schema.Resource
+
+	isInferredResource()
 }
 
-func Resource[R CustomResource[I, O], I, O any]() InferedResource {
+// Create a new InferredResource, where `R` is the resource controller, `I` is the
+// resources inputs and `O` is the resources outputs.
+func Resource[R CustomResource[I, O], I, O any]() InferredResource {
 	return &derivedResourceController[R, I, O]{map[resource.URN]*R{}}
 }
 
 type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 	m map[resource.URN]*R
 }
+
+func (derivedResourceController[R, I, O]) isInferredResource() {}
 
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
