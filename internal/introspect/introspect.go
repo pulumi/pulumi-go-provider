@@ -193,10 +193,19 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		pulumi[item] = true
 	}
 
+	var extType string
 	provider := map[string]bool{}
 	providerArray := strings.Split(providerTag, ",")
 	if hasProviderTag {
 		for _, item := range providerArray {
+			if strings.HasPrefix(item, "type=") {
+				extType = strings.TrimPrefix(item, "type=")
+				if parts := strings.Split(extType, ":"); len(parts) != 3 || len(strings.Split(parts[0], "@")) != 2 {
+					return FieldTag{}, fmt.Errorf(
+						`expected "type=" value of "[pkg]@[version]:module:name", found "%s"`, extType)
+				}
+				continue
+			}
 			provider[item] = true
 		}
 	}
@@ -204,20 +213,24 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 	return FieldTag{
 		Name:             name,
 		Optional:         pulumi["optional"],
-		Output:           provider["output"],
 		Secret:           provider["secret"],
 		ReplaceOnChanges: provider["replaceOnChanges"],
+		ExternalType:     extType,
+		Output:           provider["output"],
 	}, nil
 }
 
 type FieldTag struct {
-	Name     string // The name of the field in the Pulumi type system.
-	Optional bool   // If the field is optional in the Pulumi type system.
-	Internal bool   // If the field should exist in the Pulumi type system.
-	Output   bool   // If the field is an output type in the pulumi type system.
-	Secret   bool   // If the field is secret.
+	Name         string // The name of the field in the Pulumi type system.
+	Optional     bool   // If the field is optional in the Pulumi type system.
+	Internal     bool   // If the field should exist in the Pulumi type system.
+	Secret       bool   // If the field is secret.
+	ExternalType string // The name and version of the external type consumed in the field. The format is "[pkg]@[version]:[module]:type".
 	// NOTE: ReplaceOnChanges will only be obeyed when the default diff implementation is used.
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
+
+	// TODO Output will be depreciated when we rip out the old design
+	Output bool // If the field is an output type in the pulumi type system.
 }
 
 func NewFieldMatcher(i any) FieldMatcher {

@@ -1,3 +1,5 @@
+// This is intended to be an example of the enclosing SDK. Do not use this for
+// cryptography.
 package main
 
 import (
@@ -26,10 +28,39 @@ func main() {
 func provider() p.Provider {
 	return infer.NewProvider().
 		WithResources(infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()).
-		WithComponents(infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput]()).
+		WithComponents(
+			infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput](),
+			infer.Component[*MoreRandomPassword, MoreRandomPasswordArgs, *MoreRandomPasswordState](),
+		).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
 		})
+}
+
+type MoreRandomPassword struct{}
+type MoreRandomPasswordArgs struct {
+	Length *random.RandomInteger `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
+}
+type MoreRandomPasswordState struct {
+	pulumi.ResourceState
+	Length   *random.RandomInteger  `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
+	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
+}
+
+func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
+	comp := &MoreRandomPasswordState{}
+	err := ctx.RegisterComponentResource(typ, name, comp, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	comp.Password, err = random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
+		Length: args.Length.Result,
+	}, pulumi.Parent(comp))
+	if err != nil {
+		return nil, err
+	}
+	return comp, nil
 }
 
 type RandomLogin struct{}

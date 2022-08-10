@@ -10,6 +10,7 @@ import (
 	integration "github.com/pulumi/pulumi-go-provider/integration"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const schema = `{
@@ -23,6 +24,29 @@ const schema = `{
   },
   "provider": {},
   "resources": {
+    "random-login:index:MoreRandomPassword": {
+      "properties": {
+        "length": {
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomInteger:RandomInteger"
+        },
+        "password": {
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomPassword:RandomPassword"
+        }
+      },
+      "required": [
+        "length",
+        "password"
+      ],
+      "inputProperties": {
+        "length": {
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomInteger:RandomInteger"
+        }
+      },
+      "requiredInputs": [
+        "length"
+      ],
+      "isComponent": true
+    },
     "random-login:index:RandomLogin": {
       "properties": {
         "password": {
@@ -40,6 +64,8 @@ const schema = `{
         }
       },
       "required": [
+        "passwordLength",
+        "petName",
         "username",
         "password"
       ],
@@ -52,6 +78,10 @@ const schema = `{
           "plain": true
         }
       },
+      "requiredInputs": [
+        "passwordLength",
+        "petName"
+      ],
       "isComponent": true
     },
     "random-login:index:RandomSalt": {
@@ -92,7 +122,7 @@ const schema = `{
 func TestSchema(t *testing.T) {
 	server := integration.NewServer("random-login", semver.Version{Minor: 1}, provider())
 	s, err := server.GetSchema(p.GetSchemaRequest{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	blob := json.RawMessage{}
 	err = json.Unmarshal([]byte(s.Schema), &blob)
 	assert.NoError(t, err)

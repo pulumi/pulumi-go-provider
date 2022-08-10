@@ -398,7 +398,8 @@ func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDeriv
 	if err := registerTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	return getResourceSchema[R, I, O](false)
+	r, errs := getResourceSchema[R, I, O](false)
+	return r, errs.ErrorOrNil()
 }
 
 func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {

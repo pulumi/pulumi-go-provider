@@ -15,6 +15,8 @@
 package infer
 
 import (
+	"fmt"
+
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -58,7 +60,7 @@ type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.Compo
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
 	r, err := getResourceSchema[R, I, O](true)
-	if err != nil {
+	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
 	if err := registerTypes[I](reg); err != nil {
@@ -81,7 +83,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ str
 	var i I
 	err := inputs.CopyTo(&i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w", name, typ, err)
 	}
 	res, err := r.Construct(ctx, name, typ, i, opts)
 	if err != nil {

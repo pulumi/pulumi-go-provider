@@ -151,7 +151,7 @@ func addElement[T canGetSchema[S], S any](els []T, m map[string]S,
 		}
 		m[tk.String()] = renamePackage(fun, pkgName, modMap)
 	}
-	return multierror.Error{}
+	return errs
 }
 
 func assignTo(tk tokens.Type, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) tokens.Type {

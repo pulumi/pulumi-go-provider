@@ -211,7 +211,7 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			_ = reg(tokens.Type(enum.token), tSpec)
 			return false, nil
 		}
-		if _, ok, err := resourceReferenceToken(t); ok {
+		if _, ok, err := resourceReferenceToken(t, "", true); ok {
 			// This will have already been registered, so we don't need to recurse here
 			return false, err
 		}

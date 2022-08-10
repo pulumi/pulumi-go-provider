@@ -12,6 +12,15 @@ resources:
     properties:
       password: ${generator.password}
       saltedLength: 4
+  badPasswordLength:
+    type: random:RandomInteger
+    properties:
+      min: 3
+      max: 8
+  badPassword:
+    type: random-login:MoreRandomPassword
+    properties:
+      length: ${badPasswordLength}
 
 outputs:
   username:
