@@ -190,7 +190,8 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromType(typ reflect.Type, indicatePlain bool) (props map[string]schema.PropertySpec, required []string, err error) {
+func propertyListFromType(typ reflect.Type, indicatePlain bool) (
+	props map[string]schema.PropertySpec, required []string, err error) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}

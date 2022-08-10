@@ -219,8 +219,8 @@ type fieldGenerator struct {
 // computedness and secretness as appropriate.
 func (g *fieldGenerator) MarkMap(inputs, m resource.PropertyMap) {
 	// Flow secretness and computedness
-	for ouput, inputList := range g.deps {
-		output := resource.PropertyKey(ouput)
+	for output, inputList := range g.deps {
+		output := resource.PropertyKey(output)
 		for _, input := range inputList {
 			input := inputs[resource.PropertyKey(input)]
 			if input.IsComputed() && !m[output].IsComputed() {
@@ -269,7 +269,8 @@ func (g *fieldGenerator) InputField(a any) InputField {
 	// Couldn't find the field on the args, try the state
 	field, ok, err = g.stateMatcher.GetField(a)
 	if err == nil && ok {
-		g.err.Errors = append(g.err.Errors, fmt.Errorf("internal error: %v (%v) is an output field, not an input field", a, field.Name))
+		g.err.Errors = append(g.err.Errors,
+			fmt.Errorf("internal error: %v (%v) is an output field, not an input field", a, field.Name))
 	}
 
 	g.err.Errors = append(g.err.Errors, fmt.Errorf("internal error: could not find the input field for value %v", a))

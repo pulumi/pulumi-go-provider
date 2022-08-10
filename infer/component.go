@@ -30,7 +30,7 @@ import (
 
 // A component resource.
 type ComponentResource[I any, O pulumi.ComponentResource] interface {
-	// Construct a componet resource
+	// Construct a component resource
 	//
 	// ctx.RegisterResource needs to be called, but ctx.RegisterOutputs does not need to
 	// be called.

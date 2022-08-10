@@ -221,11 +221,12 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 }
 
 type FieldTag struct {
-	Name         string // The name of the field in the Pulumi type system.
-	Optional     bool   // If the field is optional in the Pulumi type system.
-	Internal     bool   // If the field should exist in the Pulumi type system.
-	Secret       bool   // If the field is secret.
-	ExternalType string // The name and version of the external type consumed in the field. The format is "[pkg]@[version]:[module]:type".
+	Name     string // The name of the field in the Pulumi type system.
+	Optional bool   // If the field is optional in the Pulumi type system.
+	Internal bool   // If the field should exist in the Pulumi type system.
+	Secret   bool   // If the field is secret.
+	// The format is "[pkg]@[version]:[module]:type".
+	ExternalType string // The name and version of the external type consumed in the field.
 	// NOTE: ReplaceOnChanges will only be obeyed when the default diff implementation is used.
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
 
