@@ -17,6 +17,7 @@ package infer
 import (
 	"fmt"
 
+	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -144,6 +145,228 @@ type Annotator interface {
 type Annotated interface {
 	Annotate(Annotator)
 }
+
+// An interface to help wire fields together.
+type FieldSelector interface {
+	// Create an input field. The argument to InputField must be a pointer to a field of
+	// the associated input type I.
+	//
+	// For example:
+	// ```go
+	// func (r *MyResource) WireDependencies(f infer.FieldSelector, args *MyArgs, state *MyState) {
+	//   f.InputField(&args.Field)
+	// }
+	// ```
+	InputField(any) InputField
+	// Create an output field. The argument to OutputField must be a pointer to a field of
+	// the associated output type O.
+	//
+	// For example:
+	// ```go
+	// func (r *MyResource) WireDependencies(f infer.FieldSelector, args *MyArgs, state *MyState) {
+	//   f.OutputField(&state.Field)
+	// }
+	// ```
+	OutputField(any) OutputField
+	// Seal the interface.
+	isFieldSelector()
+}
+
+func (*fieldGenerator) isFieldSelector() {}
+
+// A custom resource with the dataflow between its arguments (`I`) and outputs (`O`)
+// specified. If a CustomResource implements ExplicitDependencies then WireDependencies
+// will be called for each Create and Update call with `args` and `state` holding the
+// values they will have for that call.
+type ExplicitDependencies[I, O any] interface {
+	// WireDependencies specifies the dependencies between inputs and outputs.
+	WireDependencies(f FieldSelector, args *I, state *O)
+}
+
+// A field of the output (state).
+type OutputField interface {
+	// Specify that a state (output) field is always secret, regardless of its dependencies.
+	AlwaysSecret()
+	// Specify that a state (output) field is never secret, regardless of its dependencies.
+	NeverSecret()
+	// Specify that a state (output) Field uses data from some args (input) Fields.
+	DependsOn(dependencies ...InputField)
+
+	// Seal the interface.
+	isOutputField()
+}
+
+// A field of the input (args).
+type InputField interface {
+	// Seal the interface.
+	isInputField()
+}
+
+type fieldGenerator struct {
+	argsMatcher  introspect.FieldMatcher
+	stateMatcher introspect.FieldMatcher
+	err          multierror.Error
+
+	// The set of tags that should always be secret
+	alwaysSecret map[string]bool
+	// The set of tags that should never be secret
+	neverSecret map[string]bool
+	// A map from a field to its dependencies
+	deps map[string][]string
+}
+
+// MarkMap mutates m to comply with the result of the fieldGenerator, applying
+// computedness and secretness as appropriate.
+func (g *fieldGenerator) MarkMap(inputs, m resource.PropertyMap) {
+	// Flow secretness and computedness
+	for ouput, inputList := range g.deps {
+		output := resource.PropertyKey(ouput)
+		for _, input := range inputList {
+			input := inputs[resource.PropertyKey(input)]
+			if input.IsComputed() && !m[output].IsComputed() {
+				m[output] = resource.MakeComputed(m[output])
+				break
+			}
+			if input.IsSecret() && !m[output].IsSecret() {
+				m[output] = resource.MakeSecret(m[output])
+			}
+		}
+	}
+
+	// Create mandatory secrets
+	for s := range g.alwaysSecret {
+		s := resource.PropertyKey(s)
+		if m[s].IsComputed() {
+			break
+		}
+		if !m[s].IsSecret() {
+			v := m[s]
+			m[s] = resource.NewSecretProperty(&resource.Secret{Element: v})
+		}
+	}
+	// Remove never secrets
+	for s := range g.neverSecret {
+		s := resource.PropertyKey(s)
+		if m[s].IsComputed() {
+			break
+		}
+		if m[s].IsSecret() {
+			v := m[s]
+			m[s] = v.SecretValue().Element
+		}
+	}
+}
+
+func (g *fieldGenerator) InputField(a any) InputField {
+	field, ok, err := g.argsMatcher.GetField(a)
+	if err != nil {
+		g.err.Errors = append(g.err.Errors, err)
+		return &errField{}
+	}
+	if ok {
+		return &inputField{field}
+	}
+	// Couldn't find the field on the args, try the state
+	field, ok, err = g.stateMatcher.GetField(a)
+	if err == nil && ok {
+		g.err.Errors = append(g.err.Errors, fmt.Errorf("internal error: %v (%v) is an output field, not an input field", a, field.Name))
+	}
+
+	g.err.Errors = append(g.err.Errors, fmt.Errorf("internal error: could not find the input field for value %v", a))
+	return &errField{}
+}
+
+func (g *fieldGenerator) OutputField(a any) OutputField {
+	field, ok, err := g.stateMatcher.GetField(a)
+	if err != nil {
+		g.err.Errors = append(g.err.Errors, err)
+		return &errField{}
+	}
+	if ok {
+		return &outputField{g, field}
+	}
+	// Couldn't find the field on the state, try the args
+	field, ok, err = g.argsMatcher.GetField(a)
+	if err == nil && ok {
+		g.err.Errors = append(g.err.Errors, fmt.Errorf("%v (%v) is an input field, not an output field", a, field.Name))
+	}
+
+	g.err.Errors = append(g.err.Errors, fmt.Errorf("could not find the output field for value %v", a))
+	return &errField{}
+}
+
+func newFieldGenerator[I, O any](i *I, o *O) *fieldGenerator {
+	return &fieldGenerator{
+		argsMatcher:  introspect.NewFieldMatcher(i),
+		stateMatcher: introspect.NewFieldMatcher(o),
+		err: multierror.Error{
+			ErrorFormat: func(es []error) string {
+				return "wiring error: " + multierror.ListFormatFunc(es)
+			},
+		},
+
+		alwaysSecret: map[string]bool{},
+		neverSecret:  map[string]bool{},
+		deps:         map[string][]string{},
+	}
+}
+
+// The return value when an error happens. The error is reported when the errField is
+// created, so this type only exists so we can return a valid instance of
+// InputField/OutputField. The functions on errField do nothing.
+type errField struct{}
+
+func (*errField) AlwaysSecret()           {}
+func (*errField) NeverSecret()            {}
+func (*errField) DependsOn(...InputField) {}
+func (*errField) isInputField()           {}
+func (*errField) isOutputField()          {}
+
+type inputField struct {
+	field introspect.FieldTag
+}
+
+func (*inputField) isInputField() {}
+
+type outputField struct {
+	g     *fieldGenerator
+	field introspect.FieldTag
+}
+
+func (f *outputField) AlwaysSecret() {
+	name := f.field.Name
+	f.g.alwaysSecret[name] = true
+	if f.g.neverSecret[name] {
+		f.g.err.Errors = append(f.g.err.Errors,
+			fmt.Errorf("marked field %q as both always secret and never secret", name))
+	}
+}
+
+func (f *outputField) NeverSecret() {
+	name := f.field.Name
+	f.g.neverSecret[name] = true
+	if f.g.alwaysSecret[name] {
+		f.g.err.Errors = append(f.g.err.Errors,
+			fmt.Errorf("marked field %q as both always secret and never secret", name))
+	}
+}
+
+func (f *outputField) DependsOn(deps ...InputField) {
+	depNames := make([]string, 0, len(deps))
+	for _, d := range deps {
+		switch d := d.(type) {
+		case *inputField:
+			depNames = append(depNames, d.field.Name)
+		case *errField:
+			// The error was already reported, so do nothing
+		default:
+			panic(fmt.Sprintf("Unknown InputField type: %T", d))
+		}
+	}
+	name := f.field.Name
+	f.g.deps[name] = append(f.g.deps[name], depNames...)
+}
+func (*outputField) isOutputField() {}
 
 // A resource inferred by the Resource function.
 //
@@ -347,6 +570,16 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
+
+	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
+		fg := newFieldGenerator(&input, &o)
+		r.WireDependencies(fg, &input, &o)
+		if err = fg.err.ErrorOrNil(); err != nil {
+			return p.CreateResponse{}, err
+		}
+		fg.MarkMap(req.Properties, m)
+	}
+
 	return p.CreateResponse{
 		ID:         id,
 		Properties: m,
@@ -414,6 +647,14 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	m, err := rc.encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
+	}
+	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
+		fg := newFieldGenerator(&news, &o)
+		r.WireDependencies(fg, &news, &o)
+		if err = fg.err.ErrorOrNil(); err != nil {
+			return p.UpdateResponse{}, err
+		}
+		fg.MarkMap(req.News, m)
 	}
 
 	return p.UpdateResponse{

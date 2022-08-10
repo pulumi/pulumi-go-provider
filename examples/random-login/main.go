@@ -141,8 +141,6 @@ func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news
 
 	salt := olds.Salt
 	if redoSalt {
-		// ctx.MarkComputed(&r.Salt)
-		// ctx.MarkComputed(&r.SaltedPassword)
 		if preview {
 			return RandomSaltState{}, nil
 		}
@@ -152,9 +150,6 @@ func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news
 		}
 		salt = makeSalt(l)
 	}
-	if olds.Password != news.Password {
-		// ctx.MarkComputed(&r.SaltedPassword)
-	}
 
 	return RandomSaltState{
 		Salt:           salt,
@@ -162,4 +157,11 @@ func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news
 		Password:       news.Password,
 		SaltLength:     news.SaltLength,
 	}, nil
+}
+
+var _ = (infer.ExplicitDependencies[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil))
+
+func (r *RandomSalt) WireDependencies(f infer.FieldSelector, args *RandomSaltArgs, state *RandomSaltState) {
+	f.OutputField(&state.SaltedPassword).DependsOn(f.InputField(&args.Password), f.InputField(&args.SaltLength))
+	f.OutputField(&state.Salt).DependsOn(f.InputField(&args.SaltLength))
 }
