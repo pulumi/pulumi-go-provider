@@ -117,5 +117,213 @@
 //
 // ## Defining a custom resource
 //
-// As our example of a custom resource, we will implement a custom resource to represent a file in the local file system.
+// As our example of a custom resource, we will implement a custom resource to represent a
+// file in the local file system. This will take us through most of the functionality that
+// inferred custom resource support.
+//
+// Full working code for this example can be found in `examples/file/main.go`.
+//
+// We first declare the defining struct, its arguments and its state.
+//
+// ```go
+// type File struct{}
+//
+// type FileArgs struct {
+// 	Path    string `pulumi:"path,optional"`
+// 	Force   bool   `pulumi:"force,optional"`
+// 	Content string `pulumi:"content"`
+// }
+//
+// type FileState struct {
+// 	Path    string `pulumi:"path"`
+// 	Force   bool   `pulumi:"force"`
+// 	Content string `pulumi:"content"`
+// }
+// ```
+//
+// To add descriptions to the new resource, we implement the `Annotated` interface for
+// `File`, `FileArgs` and `FileState`. This will add descriptions to the resource, its
+// input fields and its output fields.
+//
+// ```go
+// func (f *File) Annotate(a infer.Annotator) {
+// 	a.Describe(&f, "A file projected into a pulumi resource")
+// }
+//
+//
+// func (f *FileArgs) Annotate(a infer.Annotator) {
+// 	a.Describe(&f.Content, "The content of the file.")
+// 	a.Describe(&f.Force, "If an already existing file should be deleted if it exists.")
+// 	a.Describe(&f.Path, "The path of the file. This defaults to the name of the pulumi resource.")
+// }
+//
+// func (f *FileState) Annotate(a infer.Annotator) {
+// 	a.Describe(&f.Content, "The content of the file.")
+// 	a.Describe(&f.Force, "If an already existing file should be deleted if it exists.")
+// 	a.Describe(&f.Path, "The path of the file.")
+// }
+// ```
+//
+// The only mandatory method for a `CustomResource` is `Create`.
+//
+// ```go
+// func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (id string, output FileState, err error) {
+// 	if !input.Force {
+// 		_, err := os.Stat(input.Path)
+// 		if !os.IsNotExist(err) {
+// 			return "", FileState{}, fmt.Errorf("file already exists; pass force=true to override")
+// 		}
+// 	}
+//
+// 	if preview { // Don't do the actual creating if in preview
+// 		return input.Path, FileState{}, nil
+// 	}
+//
+// 	f, err := os.Create(input.Path)
+// 	if err != nil {
+// 		return "", FileState{}, err
+// 	}
+// 	defer f.Close()
+// 	n, err := f.WriteString(input.Content)
+// 	if err != nil {
+// 		return "", FileState{}, err
+// 	}
+// 	if n != len(input.Content) {
+// 		return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
+// 	}
+// 	return input.Path, FileState{
+// 		Path:    input.Path,
+// 		Force:   input.Force,
+// 		Content: input.Content,
+// 	}, nil
+// }
+// ```
+//
+// We would like the file to be deleted when the custom resource is deleted. We can do
+// that by implementing the `Delete` method:
+//
+// ```go
+// func (*File) Delete(ctx p.Context, id string, props FileState) error {
+// 	err := os.Remove(props.Path)
+// 	if os.IsNotExist(err) {
+// 		ctx.Logf(diag.Warning, "file %q already deleted", props.Path)
+// 		err = nil
+// 	}
+// 	return err
+// }
+// ```
+//
+// Note that we can issue diagnostics to the user via the passed on `Context`. The
+// diagnostic messages are tied to the resource that the method is called on, and pulumi
+// will group them nicely:
+//
+// ```
+// Diagnostics:
+//   fs:index:File (managedFile):
+//     warning: file "managedFile" already deleted
+// ```
+//
+// The next method to implement is `Check`. We say in the description of `FileArgs.Path`
+// that it defaults to the name of the resource, but that isn't implement in `Create`.
+// Instead, we automatically fill the `FileArgs.Path` field from name if it isn't present
+// in our check implementation.
+//
+// ```go
+// func (*File) Check(ctx p.Context, name string, oldInputs, newInputs resource.PropertyMap) (FileArgs, []p.CheckFailure, error) {
+// 	if _, ok := newInputs["path"]; !ok {
+// 		newInputs["path"] = resource.NewStringProperty(name)
+// 	}
+// 	return infer.DefaultCheck[FileArgs](newInputs)
+// }
+// ```
+//
+// We still want to make sure our inputs are valid, so we make the adjustment for giving
+// "path" a default value and the call into `DefaultCheck`, which ensures that all fields
+// are valid given the constraints of their types.
+//
+// We want to allow our users to change the content of the file they are managing. To
+// allow updates, we need to implement the `Update` method:
+//
+// ```go
+// func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
+// 	if !preview && olds.Content != news.Content {
+// 		f, err := os.Create(olds.Path)
+// 		if err != nil {
+// 			return FileState{}, err
+// 		}
+// 		defer f.Close()
+// 		n, err := f.WriteString(news.Content)
+// 		if err != nil {
+// 			return FileState{}, err
+// 		}
+// 		if n != len(news.Content) {
+// 			return FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(news.Content))
+// 		}
+// 	}
+//
+// 	return FileState{
+// 		Path:    news.Path,
+// 		Force:   news.Force,
+// 		Content: news.Content,
+// 	}, nil
+//
+// }
+// ```
+//
+// The above code is pretty strait forward. Note that we don't handle when `FileArgs.Path`
+// changes, since thats not really an update to an existing file. Its more of a replace
+// operation. To tell pulumi that changes in `FileArgs.Content` and `FileArgs.Force` can
+// be handled by updates, but that changes to `FileArgs.Path` require a replace, we need
+// to override how diff works:
+//
+// ```go
+// func (*File) Diff(ctx p.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
+// 	diff := map[string]p.PropertyDiff{}
+// 	if news.Content != olds.Content {
+// 		diff["content"] = p.PropertyDiff{Kind: p.Update}
+// 	}
+// 	if news.Force != olds.Force {
+// 		diff["force"] = p.PropertyDiff{Kind: p.Update}
+// 	}
+// 	if news.Path != olds.Path {
+// 		diff["path"] = p.PropertyDiff{Kind: p.UpdateReplace}
+// 	}
+// 	return p.DiffResponse{
+// 		DeleteBeforeReplace: true,
+// 		HasChanges:          len(diff) > 0,
+// 		DetailedDiff:        diff,
+// 	}, nil
+// }
+// ```
+//
+// We check for each field, and if there is a change, we record it. Changes in
+// `news.Content` and `news.Force` result in an `Update`, but changes in `news.Path`
+// result in an `UpdateReplace`. Since the `id (file path) is globally unique, we also
+// tell Pulumi that it needs to perform deletes before the associated create.
+//
+// Last but not least, we want to be able to read state from the file system as is.
+// Unsurprisingly, we do this by implementing yet another method:
+//
+// ```go
+// func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (string, FileArgs, FileState, err error) {
+// 	path := id
+// 	byteContent, err := ioutil.ReadFile(path)
+// 	if err != nil {
+// 		return "", FileArgs{}, FileState{}, err
+// 	}
+// 	content := string(byteContent)
+// 	return path, FileArgs{
+// 			Path:    path,
+// 			Force:   inputs.Force && state.Force,
+// 			Content: content,
+// 		}, FileState{
+// 			Path:    path,
+// 			Force:   inputs.Force && state.Force,
+// 			Content: content,
+// 		}, nil
+// }
+// ```
+//
+// Here we get a partial view of the id, inputs and state and need to figure out the rest.
+// We return the correct id, args and state.
 package infer

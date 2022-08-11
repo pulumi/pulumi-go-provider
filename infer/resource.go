@@ -458,6 +458,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	}, nil
 }
 
+// Ensure that `inputs` can deserialize cleanly into `I`.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
 	var i I
 	_, err := decode(inputs, &i, false)

@@ -70,49 +70,28 @@ func (f *FileState) Annotate(a infer.Annotator) {
 }
 
 func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (id string, output FileState, err error) {
-	if preview {
-		if !input.Force {
-			_, err := os.Stat(input.Path)
-			if !os.IsNotExist(err) {
-				return "", FileState{}, fmt.Errorf("file already exists; pass force=true to override")
-			}
+	if !input.Force {
+		_, err := os.Stat(input.Path)
+		if !os.IsNotExist(err) {
+			return "", FileState{}, fmt.Errorf("file already exists; pass force=true to override")
 		}
-		// The file ID is its path, since that must be globally unique
+	}
+
+	if preview { // Don't do the actual creating if in preview
 		return input.Path, FileState{}, nil
 	}
 
 	f, err := os.Create(input.Path)
-	switch {
-	case os.IsExist(err) && input.Force:
-		f, err = os.Open(input.Path)
-		if err != nil {
-			return "", FileState{}, err
-		}
-		defer f.Close()
-		err = f.Truncate(0)
-		if err != nil {
-			return "", FileState{}, err
-		}
-		n, err := f.WriteString(input.Content)
-		if err != nil {
-			return "", FileState{}, err
-		}
-		if n != len(input.Content) {
-			return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
-		}
-	case os.IsExist(err):
-		return "", FileState{}, fmt.Errorf("file already exists; pass force=true to override")
-	case err != nil:
+	if err != nil {
 		return "", FileState{}, err
-	default:
-		defer f.Close()
-		n, err := f.WriteString(input.Content)
-		if err != nil {
-			return "", FileState{}, err
-		}
-		if n != len(input.Content) {
-			return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
-		}
+	}
+	defer f.Close()
+	n, err := f.WriteString(input.Content)
+	if err != nil {
+		return "", FileState{}, err
+	}
+	if n != len(input.Content) {
+		return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
 	}
 	return input.Path, FileState{
 		Path:    input.Path,
