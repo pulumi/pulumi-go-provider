@@ -1,0 +1,9 @@
+name: consume-random-login
+runtime: yaml
+resources:
+  managedFile:
+    type: fs:File
+    properties:
+      path: ${pulumi.cwd}/managed.txt
+      content: |
+        An important piece of information

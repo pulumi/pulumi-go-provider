@@ -37,10 +37,13 @@ func provider() p.Provider {
 		})
 }
 
+// TODO: Deserialization does not yet work for external resources. Right now, it looks
+// like this structure is only implementable in typescript, but that will need to change.
 type MoreRandomPassword struct{}
 type MoreRandomPasswordArgs struct {
 	Length *random.RandomInteger `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
 }
+
 type MoreRandomPasswordState struct {
 	pulumi.ResourceState
 	Length   *random.RandomInteger  `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`

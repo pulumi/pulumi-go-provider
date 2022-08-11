@@ -116,4 +116,6 @@
 // This is all it takes to serve a component provider.
 //
 // ## Defining a custom resource
+//
+// As our example of a custom resource, we will implement a custom resource to represent a file in the local file system.
 package infer

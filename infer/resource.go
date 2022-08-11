@@ -81,8 +81,7 @@ type CustomCheck[I any] interface {
 // TODO - Indicate replacements for certain changes but not others.
 type CustomDiff[I, O any] interface {
 	// Maybe oldInputs can be of type I
-	Diff(ctx p.Context, id string, olds O, news I, ignoreChanges []resource.PropertyKey) (
-		p.DiffResponse, error)
+	Diff(ctx p.Context, id string, olds O, news I) (p.DiffResponse, error)
 }
 
 // A resource that can adapt to new inputs with a delete and replace.
@@ -441,7 +440,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	// The user has not implemented check, so do the smart thing by default; We just check
 	// that we can de-serialize correctly
 	var i I
-	_, err := rc.decode(req.News, &i, false)
+	_, err := decode(req.News, &i, false)
 	if err == nil {
 		return p.CheckResponse{
 			Inputs: req.News,
@@ -457,6 +456,17 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 		Inputs:   req.News,
 		Failures: failures,
 	}, nil
+}
+
+func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
+	var i I
+	_, err := decode(inputs, &i, false)
+	if err == nil {
+		return i, nil, nil
+	}
+
+	failures, e := checkFailureFromMapError(err)
+	return i, failures, e
 }
 
 func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error) {
@@ -481,28 +491,29 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r := rc.getInstance(ctx, req.Urn, "Diff")
 
+	for _, ignoredChange := range req.IgnoreChanges {
+		req.News[ignoredChange] = req.Olds[ignoredChange]
+	}
+
 	if r, ok := ((interface{})(*r)).(CustomDiff[I, O]); ok {
 		var olds O
 		var news I
 		var err error
-		_, err = rc.decode(req.Olds, &olds, false)
+		_, err = decode(req.Olds, &olds, false)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		_, err = rc.decode(req.Olds, &news, false)
+		_, err = decode(req.News, &news, false)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		diff, err := r.Diff(ctx, req.ID, olds, news, req.IgnoreChanges)
+		diff, err := r.Diff(ctx, req.ID, olds, news)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
 		return diff, nil
 	}
-	ignored := map[resource.PropertyKey]struct{}{}
-	for _, k := range req.IgnoreChanges {
-		ignored[k] = struct{}{}
-	}
+
 	inputProps, err := introspect.FindProperties(new(I))
 	if err != nil {
 		return p.DiffResponse{}, err
@@ -510,9 +521,8 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 	objDiff := req.News.Diff(req.Olds, func(prop resource.PropertyKey) bool {
 		// Olds is an Output, but news is an Input. Output should be a superset of Input,
 		// so we need to filter out fields that are in Output but not Input.
-		_, ignore := ignored[prop]
 		_, isInput := inputProps[string(prop)]
-		return ignore || !isInput
+		return !isInput
 	})
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
 	diff := map[string]p.PropertyDiff{}
@@ -555,7 +565,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 
 	var input I
 	var err error
-	secrets, err := rc.decode(req.Properties, &input, req.Preview)
+	secrets, err := decode(req.Properties, &input, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
@@ -597,11 +607,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	var inputs I
 	var state O
 	var err error
-	inputSecrets, err := rc.decode(req.Inputs, &inputs, true)
+	inputSecrets, err := decode(req.Inputs, &inputs, true)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	stateSecrets, err := rc.decode(req.Properties, &state, true)
+	stateSecrets, err := decode(req.Properties, &state, true)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -634,11 +644,14 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	var news I
 	var olds O
 	var err error
-	_, err = rc.decode(req.Olds, &olds, req.Preview)
+	for _, ignoredChange := range req.IgnoreChanges {
+		req.News[ignoredChange] = req.Olds[ignoredChange]
+	}
+	_, err = decode(req.Olds, &olds, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	secrets, err := rc.decode(req.News, &news, req.Preview)
+	secrets, err := decode(req.News, &news, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -669,7 +682,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
 		var olds O
-		_, err := rc.decode(req.Properties, &olds, false)
+		_, err := decode(req.Properties, &olds, false)
 		if err != nil {
 			return err
 		}
@@ -679,7 +692,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	return nil
 }
 
-func (rc *derivedResourceController[R, I, O]) decode(m resource.PropertyMap, dst interface{}, preview bool) (
+func decode(m resource.PropertyMap, dst interface{}, preview bool) (
 	[]resource.PropertyKey, mapper.MappingError) {
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{
