@@ -55,7 +55,8 @@
 // construct the component resource:
 //
 // ```go
-// func (r *Login) Construct(ctx *pulumi.Context, name, typ string, args LoginArgs, opts pulumi.ResourceOption) (*LoginState, error) {
+// func (r *Login) Construct(ctx *pulumi.Context, name, typ string, args LoginArgs, opts pulumi.ResourceOption) (
+//  *LoginState, error) {
 // 	comp := &LoginState{}
 // 	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 // 	if err != nil {
@@ -167,7 +168,8 @@
 // The only mandatory method for a `CustomResource` is `Create`.
 //
 // ```go
-// func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (id string, output FileState, err error) {
+// func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (
+//  id string, output FileState, err error) {
 // 	if !input.Force {
 // 		_, err := os.Stat(input.Path)
 // 		if !os.IsNotExist(err) {
@@ -229,7 +231,8 @@
 // in our check implementation.
 //
 // ```go
-// func (*File) Check(ctx p.Context, name string, oldInputs, newInputs resource.PropertyMap) (FileArgs, []p.CheckFailure, error) {
+// func (*File) Check(ctx p.Context, name string, oldInputs, newInputs resource.PropertyMap) (
+//  FileArgs, []p.CheckFailure, error) {
 // 	if _, ok := newInputs["path"]; !ok {
 // 		newInputs["path"] = resource.NewStringProperty(name)
 // 	}
@@ -305,7 +308,8 @@
 // Unsurprisingly, we do this by implementing yet another method:
 //
 // ```go
-// func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (string, FileArgs, FileState, err error) {
+// func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (
+//  string, FileArgs, FileState, err error) {
 // 	path := id
 // 	byteContent, err := ioutil.ReadFile(path)
 // 	if err != nil {
