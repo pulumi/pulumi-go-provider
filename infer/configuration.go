@@ -19,8 +19,10 @@ import (
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -64,6 +66,14 @@ func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resource
 
 func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var t T
+	if v := reflect.ValueOf(t); v.Kind() == reflect.Pointer && v.IsNil() {
+		t = reflect.New(v.Type().Elem()).Interface().(T)
+	}
+
+	r, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	if mErr != nil {
+		return p.CheckResponse{}, fmt.Errorf("could not get config secrets: %w", mErr)
+	}
 
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that
@@ -81,17 +91,23 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		}, nil
 	}
 
-	_, err := decode(req.News, &t, false)
+	value := reflect.ValueOf(t)
+	for value.Kind() == reflect.Pointer && value.Elem().Kind() == reflect.Pointer {
+		value = value.Elem()
+	}
 
-	failures, e := checkFailureFromMapError(err)
+	var err mapper.MappingError
+	if value.Kind() != reflect.Pointer {
+		_, err = decode(req.News, &t, false)
+	} else {
+		_, err = decode(req.News, value.Interface(), false)
+	}
+
+	failures, e := checkConfigFailures(err, ctx.RuntimeInformation().PackageName)
 	if e != nil {
 		return p.CheckResponse{}, e
 	}
 
-	r, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
-	if mErr != nil {
-		return p.CheckResponse{}, fmt.Errorf("could not get config secrets: %w", mErr)
-	}
 	ip := r.InputProperties
 	op := r.Properties
 	if ip == nil {
@@ -119,13 +135,50 @@ func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse
 
 func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	t := new(T)
+	ctx.Logf(diag.Info, "envs: %v", req.Variables)
 	if typ := reflect.TypeOf(t).Elem(); typ.Kind() == reflect.Pointer {
-		reflect.ValueOf(t).Set(reflect.New(typ).Elem())
+		reflect.ValueOf(t).Elem().Set(reflect.New(typ.Elem()))
+		_, err := decode(req.Args, reflect.ValueOf(t).Elem().Interface(), false)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := decode(req.Args, t, false)
+		if err != nil {
+			return err
+		}
 	}
-	_, err := decode(req.Args, t, false)
-	if err != nil {
-		return err
-	}
+
 	c.t = t
 	return nil
+}
+
+func checkConfigFailures(err mapper.MappingError, pkgName string) ([]p.CheckFailure, error) {
+	if err == nil {
+		return nil, nil
+	}
+	failures := []p.CheckFailure{}
+	for _, err := range err.Failures() {
+		switch err := err.(type) {
+		case *mapper.MissingError:
+			tk := fmt.Sprintf("%s:%s", pkgName, err.Field())
+			reason := fmt.Sprintf("missing required configuration key %[1]s.\n"+
+				"\tSet a value using the command `pulumi config set %[1]s <value>`",
+				tk)
+
+			failures = append(failures, p.CheckFailure{
+				Property: err.Field(),
+				Reason:   reason,
+			})
+
+		case mapper.FieldError:
+			failures = append(failures, p.CheckFailure{
+				Property: err.Field(),
+				Reason:   err.Reason(),
+			})
+		default:
+			return failures, fmt.Errorf("unknown mapper error: %w", err)
+		}
+	}
+	return failures, nil
 }

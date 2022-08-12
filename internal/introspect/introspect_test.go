@@ -20,8 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
-	"github.com/pulumi/pulumi-go-provider/resource"
 )
 
 type MyStruct struct {
@@ -30,7 +30,7 @@ type MyStruct struct {
 	Fizz *int   `pulumi:"fizz"`
 }
 
-func (m *MyStruct) Annotate(a resource.Annotator) {
+func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.Describe(&m, "This is MyStruct, but also your struct.")
 	a.Describe(&m.Fizz, "Fizz is not MyStruct.Foo.")
 	a.SetDefault(&m.Foo, "Fizz")

@@ -29,20 +29,35 @@ import (
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-func getAnnotated(t reflect.Type) map[string]string {
+func getAnnotated(t reflect.Type) introspect.Annotator {
 	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get
 	// value(i) = *R{}, so we reinflate the underlying value
+	for t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
 	i := reflect.New(t).Elem()
 	if i.Kind() == reflect.Pointer && i.IsNil() {
 		i = reflect.New(i.Type().Elem())
 	}
 
+	if i.Kind() != reflect.Pointer {
+		v := reflect.New(i.Type())
+		v.Elem().Set(i)
+		i = v
+	}
+
 	if r, ok := i.Interface().(Annotated); ok {
 		a := introspect.NewAnnotator(r)
 		r.Annotate(&a)
-		return a.Descriptions
+		return a
 	}
-	return map[string]string{}
+
+	// We want public fields to be filled in so we can index them without a nil check.
+	return introspect.Annotator{
+		Descriptions: map[string]string{},
+		Defaults:     map[string]any{},
+		DefaultEnvs:  map[string][]string{},
+	}
 }
 
 func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, multierror.Error) {
@@ -65,7 +80,7 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	return schema.ResourceSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
 			Properties:  properties,
-			Description: descriptions[""],
+			Description: descriptions.Descriptions[""],
 			Required:    required,
 		},
 		InputProperties: inputProperties,
@@ -196,7 +211,7 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 		typ = typ.Elem()
 	}
 	props = map[string]schema.PropertySpec{}
-	descriptions := getAnnotated(typ)
+	annotations := getAnnotated(typ)
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -218,12 +233,19 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 		if !tags.Optional {
 			required = append(required, tags.Name)
 		}
-		props[tags.Name] = schema.PropertySpec{
+		spec := &schema.PropertySpec{
 			TypeSpec:         serialized,
 			Secret:           tags.Secret,
 			ReplaceOnChanges: tags.ReplaceOnChanges,
-			Description:      descriptions[tags.Name],
+			Description:      annotations.Descriptions[tags.Name],
+			Default:          annotations.Defaults[tags.Name],
 		}
+		if envs := annotations.DefaultEnvs[tags.Name]; len(envs) > 0 {
+			spec.DefaultInfo = &schema.DefaultSpec{
+				Environment: envs,
+			}
+		}
+		props[tags.Name] = *spec
 	}
 	return props, required, nil
 }

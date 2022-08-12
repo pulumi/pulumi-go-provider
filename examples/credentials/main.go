@@ -24,12 +24,20 @@ func provider() p.Provider {
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"credentials": "index",
 		}).
-		WithConfig(infer.Config[Config]())
+		WithConfig(infer.Config[*Config]())
 }
 
 type Config struct {
 	User     string `pulumi:"user"`
 	Password string `pulumi:"password" provider:"secret"`
+}
+
+var _ = (infer.Annotated)((*Config)(nil))
+
+func (c *Config) Annotate(a infer.Annotator) {
+	a.Describe(&c.User, "The username. Its important but not secret.")
+	a.Describe(&c.Password, "The password. It is very secret.")
+	a.SetDefault(&c.Password, "", "FOO")
 }
 
 type User struct{}

@@ -23,6 +23,7 @@ func NewAnnotator(resource any) Annotator {
 	return Annotator{
 		Descriptions: map[string]string{},
 		Defaults:     map[string]any{},
+		DefaultEnvs:  map[string][]string{},
 		matcher:      NewFieldMatcher(resource),
 	}
 }
@@ -31,6 +32,7 @@ func NewAnnotator(resource any) Annotator {
 type Annotator struct {
 	Descriptions map[string]string
 	Defaults     map[string]any
+	DefaultEnvs  map[string][]string
 
 	matcher FieldMatcher
 }
@@ -76,7 +78,8 @@ func (a *Annotator) Describe(i any, description string) {
 
 // Annotate a a struct field with a default value. The default value must be a primitive
 // type in the pulumi type system.
-func (a *Annotator) SetDefault(i any, defaultValue any) {
+func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 	field := a.mustGetField(i)
 	a.Defaults[field.Name] = defaultValue
+	a.DefaultEnvs[field.Name] = append(a.DefaultEnvs[field.Name], env...)
 }

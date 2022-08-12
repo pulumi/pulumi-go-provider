@@ -135,7 +135,7 @@ type Annotator interface {
 
 	// Annotate a struct field with a default value. The default value must be a primitive
 	// type in the pulumi type system.
-	SetDefault(i any, defaultValue any)
+	SetDefault(i any, defaultValue any, env ...string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be
