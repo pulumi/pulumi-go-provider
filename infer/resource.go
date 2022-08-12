@@ -428,7 +428,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
-		inputs, err := rc.encode(i, nil, false)
+		inputs, err := encode(i, nil, false)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -491,6 +491,12 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r := rc.getInstance(ctx, req.Urn, "Diff")
+	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
+	return diff[R, I, O](ctx, req, r, !hasUpdate)
+}
+
+// Compute a diff request.
+func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace bool) (p.DiffResponse, error) {
 
 	for _, ignoredChange := range req.IgnoreChanges {
 		req.News[ignoredChange] = req.Olds[ignoredChange]
@@ -527,7 +533,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 	})
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
 	diff := map[string]p.PropertyDiff{}
-	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
+
 	for k, v := range pluginDiff {
 		set := func(kind p.DiffKind) {
 			diff[k] = p.PropertyDiff{
@@ -535,7 +541,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 				InputDiff: v.InputDiff,
 			}
 		}
-		if !hasUpdate {
+		if forceReplace {
 			// We force replaces if we don't have access to updates
 			v.Kind = v.Kind.AsReplace()
 		}
@@ -555,7 +561,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 		}
 	}
 	return p.DiffResponse{
-		DeleteBeforeReplace: !hasUpdate,
+		DeleteBeforeReplace: forceReplace,
 		HasChanges:          objDiff.AnyChanges(),
 		DetailedDiff:        diff,
 	}, nil
@@ -579,7 +585,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("internal error: '%s' was created without an id", req.Urn)
 	}
 
-	m, err := rc.encode(o, secrets, req.Preview)
+	m, err := encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
@@ -620,11 +626,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	i, err := rc.encode(inputs, inputSecrets, false)
+	i, err := encode(inputs, inputSecrets, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	s, err := rc.encode(state, stateSecrets, false)
+	s, err := encode(state, stateSecrets, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -660,7 +666,7 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	m, err := rc.encode(o, secrets, req.Preview)
+	m, err := encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -701,7 +707,7 @@ func decode(m resource.PropertyMap, dst interface{}, preview bool) (
 	}).Decode(m.Mappable(), dst)
 }
 
-func (*derivedResourceController[R, I, O]) encode(src interface{}, secrets []resource.PropertyKey, preview bool) (
+func encode(src interface{}, secrets []resource.PropertyKey, preview bool) (
 	resource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,

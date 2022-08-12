@@ -6,7 +6,6 @@ import (
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -17,11 +16,12 @@ import (
 //
 // `T` has the same properties as an input or output type for a custom resource, and is
 // responsive to the same interfaces.
+//
+// `T` can implement CustomDiff and CustomCheck.
 func Config[T any]() InferredConfig {
 	return &config[T]{}
 }
 
-// A Config value infered from Go code.
 type InferredConfig interface {
 	schema.Resource
 	underlyingType() reflect.Type
@@ -50,6 +50,23 @@ func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resource
 
 func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var t T
+
+	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
+		// The user implemented check manually, so call that
+		i, failures, err := t.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
+		if err != nil {
+			return p.CheckResponse{}, err
+		}
+		inputs, err := encode(i, nil, false)
+		if err != nil {
+			return p.CheckResponse{}, err
+		}
+		return p.CheckResponse{
+			Inputs:   inputs,
+			Failures: failures,
+		}, nil
+	}
+
 	_, err := decode(req.News, &t, false)
 
 	failures, e := checkFailureFromMapError(err)
@@ -82,39 +99,8 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 	}, nil
 }
 
-func (*config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-
-	objDiff := req.News.Diff(req.Olds)
-	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
-	diff := map[string]p.PropertyDiff{}
-	for k, v := range pluginDiff {
-		set := func(kind p.DiffKind) {
-			diff[k] = p.PropertyDiff{
-				Kind:      kind,
-				InputDiff: v.InputDiff,
-			}
-		}
-
-		switch v.Kind {
-		case plugin.DiffAdd:
-			set(p.Add)
-		case plugin.DiffAddReplace:
-			set(p.AddReplace)
-		case plugin.DiffDelete:
-			set(p.Delete)
-		case plugin.DiffDeleteReplace:
-			set(p.DeleteReplace)
-		case plugin.DiffUpdate:
-			set(p.Update)
-		case plugin.DiffUpdateReplace:
-			set(p.UpdateReplace)
-		}
-	}
-	return p.DiffResponse{
-		DeleteBeforeReplace: false,
-		HasChanges:          objDiff.AnyChanges(),
-		DetailedDiff:        diff,
-	}, nil
+func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	return diff[T, T, T](ctx, req, c.t, true)
 }
 
 func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
