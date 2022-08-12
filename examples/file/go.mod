@@ -1,4 +1,4 @@
-module github.com/pulumi/pulumi-go-provider/examples/random-login
+module github.com/pulumi/pulumi-go-provider/examples/file
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 

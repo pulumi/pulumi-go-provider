@@ -6,58 +6,87 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 
-	p "github.com/iwahbe/pulumi-go-provider"
-	"github.com/iwahbe/pulumi-go-provider/examples/str/regex"
-	"github.com/iwahbe/pulumi-go-provider/function"
+	"github.com/pulumi/pulumi-go-provider/examples/str/regex"
 )
 
 func main() {
-	err := p.Run("str", semver.Version{Minor: 1},
-		p.Functions(
-			function.New(Replace,
-				"Replace returns a copy of the string s with all\n"+
-					"non-overlapping instances of old replaced by new.\n"+
-					"If old is empty, it matches at the beginning of the string\n"+
-					"and after each UTF-8 sequence, yielding up to k+1 replacements\n"+
-					"for a k-rune string."),
-			function.New(regex.Replace,
-				"Replace returns a copy of `s`, replacing matches of the `old`\n"+
-					"with the replacement string `new`."),
-			function.New(Print,
-				"Print to stdout"),
-			function.New(GiveMeAString,
-				"Return a string, withing any inputs"),
-		),
-	)
+	err := p.RunProvider("str", semver.Version{Minor: 1}, provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 }
 
-func Replace(input ReplaceIn) Ret {
-	return Ret{strings.ReplaceAll(input.S, input.Old, input.New)}
+func provider() p.Provider {
+	return infer.NewProvider().
+		WithFunctions(
+			infer.Function[*Replace, ReplaceArgs, Ret](),
+			infer.Function[*Print, In, Empty](),
+			infer.Function[*GiveMeAString, Empty, Ret](),
+			infer.Function[*regex.Replace, regex.ReplaceArgs, regex.Ret](),
+		).WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+		"str": "index",
+	})
 }
 
-type ReplaceIn struct {
+type Replace struct{}
+
+func (Replace) Call(ctx p.Context, args ReplaceArgs) (Ret, error) {
+	return Ret{strings.ReplaceAll(args.S, args.Old, args.New)}, nil
+}
+
+func (r *Replace) Annotate(a infer.Annotator) {
+	a.Describe(r,
+		"Replace returns a copy of the string s with all\n"+
+			"non-overlapping instances of old replaced by new.\n"+
+			"If old is empty, it matches at the beginning of the string\n"+
+			"and after each UTF-8 sequence, yielding up to k+1 replacements\n"+
+			"for a k-rune string.")
+}
+
+type ReplaceArgs struct {
 	S   string `pulumi:"s"`
 	Old string `pulumi:"old"`
 	New string `pulumi:"new"`
+}
+
+func (ra *ReplaceArgs) Annotate(a infer.Annotator) {
+	a.Describe(&ra.S, "The string where the replacement takes place.")
+	a.Describe(&ra.Old, "The string to replace.")
+	a.Describe(&ra.New, "The string to replace `Old` with.")
 }
 
 type Ret struct {
 	Out string `pulumi:"out"`
 }
 
-func Print(input In) {
-	fmt.Print(input.S)
+type Print struct{}
+
+func (p *Print) Annotate(a infer.Annotator) {
+	a.Describe(p, "Print to stdout")
+}
+
+type Empty struct{}
+
+func (Print) Call(ctx p.Context, args In) (Empty, error) {
+	fmt.Print(args.S)
+	return Empty{}, nil
 }
 
 type In struct {
 	S string `pulumi:"s"`
 }
 
-func GiveMeAString() Ret {
-	return Ret{"A string"}
+type GiveMeAString struct{}
+
+func (GiveMeAString) Call(ctx p.Context, args Empty) (Ret, error) {
+	return Ret{"A string"}, nil
+}
+
+func (g *GiveMeAString) Annotate(a infer.Annotator) {
+	a.Describe(g, "Return a string, withing any inputs")
 }

@@ -1,0 +1,17 @@
+name: dnastore
+runtime: yaml
+resources:
+  me:
+    type: dna-store:DNAStore
+    properties:
+      data: [1, 2, 3, 4]
+      filedir: ${pulumi.cwd}/data
+      metadata:
+        sampleType: human
+        tags:
+          important: not at all
+    # get:
+    #   id: ${pulumi.cwd}/data/me
+outputs:
+  data: ${me.data}
+  important: ${me.metadata.tags["important"]}

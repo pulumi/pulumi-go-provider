@@ -99,23 +99,39 @@ func PropertiesToResource(s *structpb.Struct, res any) error {
 	return mapper.MapI(inputs, res)
 }
 
-func FindOutputProperties(r any) (map[string]bool, error) {
+func FindProperties(r any) (map[string]FieldTag, error) {
 	typ := reflect.TypeOf(r)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	contract.Assertf(typ.Kind() == reflect.Struct, "Expected struct, found %s (%T)", typ.Kind(), r)
-	m := map[string]bool{}
+	m := map[string]FieldTag{}
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
 		info, err := ParseTag(f)
 		if err != nil {
 			return nil, err
 		}
-		if info.Output {
-			m[info.Name] = true
+		if info.Internal {
+			continue
+		}
+		m[info.Name] = info
+	}
+	return m, nil
+}
+
+func FindOutputProperties(r any) (map[string]bool, error) {
+	props, err := FindProperties(r)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]bool{}
+	for k, v := range props {
+		if v.Output {
+			m[k] = true
 		}
 	}
+
 	return m, nil
 }
 
@@ -123,14 +139,11 @@ func FindOutputProperties(r any) (map[string]bool, error) {
 func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 	typ := reflect.TypeOf(i)
 	if typ == nil {
-		return "", fmt.Errorf("Cannot get token of nil type")
+		return "", fmt.Errorf("cannot get token of nil type")
 	}
 
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
-		if typ == nil {
-			return "", fmt.Errorf("Cannot get token of nil type")
-		}
 	}
 
 	var name string
@@ -146,10 +159,10 @@ func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 	}
 
 	if name == "" {
-		return "", fmt.Errorf("Type %T has no name", i)
+		return "", fmt.Errorf("type %T has no name", i)
 	}
 	if mod == "" {
-		return "", fmt.Errorf("Type %T has no module path", i)
+		return "", fmt.Errorf("type %T has no module path", i)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
 	mod = mod[strings.LastIndex(mod, "/")+1:]
@@ -180,10 +193,19 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		pulumi[item] = true
 	}
 
+	var extType string
 	provider := map[string]bool{}
 	providerArray := strings.Split(providerTag, ",")
 	if hasProviderTag {
 		for _, item := range providerArray {
+			if strings.HasPrefix(item, "type=") {
+				extType = strings.TrimPrefix(item, "type=")
+				if parts := strings.Split(extType, ":"); len(parts) != 3 || len(strings.Split(parts[0], "@")) != 2 {
+					return FieldTag{}, fmt.Errorf(
+						`expected "type=" value of "[pkg]@[version]:module:name", found "%s"`, extType)
+				}
+				continue
+			}
 			provider[item] = true
 		}
 	}
@@ -191,9 +213,10 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 	return FieldTag{
 		Name:             name,
 		Optional:         pulumi["optional"],
-		Output:           provider["output"],
 		Secret:           provider["secret"],
 		ReplaceOnChanges: provider["replaceOnChanges"],
+		ExternalType:     extType,
+		Output:           provider["output"],
 	}, nil
 }
 
@@ -201,10 +224,14 @@ type FieldTag struct {
 	Name     string // The name of the field in the Pulumi type system.
 	Optional bool   // If the field is optional in the Pulumi type system.
 	Internal bool   // If the field should exist in the Pulumi type system.
-	Output   bool   // If the field is an output type in the pulumi type system.
 	Secret   bool   // If the field is secret.
+	// The format is "[pkg]@[version]:[module]:type".
+	ExternalType string // The name and version of the external type consumed in the field.
 	// NOTE: ReplaceOnChanges will only be obeyed when the default diff implementation is used.
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
+
+	// TODO Output will be depreciated when we rip out the old design
+	Output bool // If the field is an output type in the pulumi type system.
 }
 
 func NewFieldMatcher(i any) FieldMatcher {
@@ -212,7 +239,7 @@ func NewFieldMatcher(i any) FieldMatcher {
 	for v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
-	contract.Assertf(v.Kind() == reflect.Struct, "FieldMatcher must contain a struct.")
+	contract.Assertf(v.Kind() == reflect.Struct, "FieldMatcher must contain a struct, found a %s.", v.Type())
 	return FieldMatcher{
 		value: v,
 	}

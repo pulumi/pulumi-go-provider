@@ -1,10 +1,13 @@
 .PHONY: build build_examples install_examples lint lint-copyright lint-golang test
 
 build:
-	go build github.com/iwahbe/pulumi-go-provider
+	go build ./...
 
 test: build
 	go test ./...
+	for d in examples/*; do if [ -d $$d ]; then \
+		cd $$d; go test ./... || exit $$?; \
+	cd -; fi; done
 
 lint: lint-golang lint-copyright
 lint-golang:
@@ -16,8 +19,8 @@ build_examples: build
 	@for ex in ${wildcard examples/*}; do \
 		if [ -d $$ex ]; then \
 		cd $$ex; \
-		echo "Building github.com/iwahbe/pulumi-go-provider/$$ex"; \
-		go build github.com/iwahbe/pulumi-go-provider/$$ex || exit 1; \
+		echo "Building github.com/pulumi/pulumi-go-provider/$$ex"; \
+		go build github.com/pulumi/pulumi-go-provider/$$ex || exit 1; \
 		cd -; \
 		fi; \
 	done
@@ -34,6 +37,6 @@ install_examples: build_examples
 		mkdir -p ~/.pulumi/plugins/resource-$$1-$$2; \
 		cp $$1 ~/.pulumi/plugins/resource-$$1-$$2/pulumi-resource-$$1 || exit 1; \
 		cd sdk/go/$${1//-/} || exit 1;\
-		go mod init && go mod edit -replace github.com/iwahbe/pulumi-go-provider=../../../../ && go mod tidy || exit 1; \
+		go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy || exit 1; \
 		cd ../../../../../; \
 	done

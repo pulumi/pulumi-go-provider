@@ -1,3 +1,5 @@
+// This is intended to be an example of the enclosing SDK. Do not use this for
+// cryptography.
 package main
 
 import (
@@ -7,64 +9,123 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	p "github.com/iwahbe/pulumi-go-provider"
-	r "github.com/iwahbe/pulumi-go-provider/resource"
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
-	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func main() {
-	err := p.Run("random-login", semver.Version{Minor: 1},
-		p.Components(&RandomLogin{}),
-		p.Resources(&RandomSalt{}),
-		p.PartialSpec(schema.PackageSpec{}),
-	)
+	err := p.RunProvider("random-login", semver.Version{Minor: 1}, provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
-type RandomLogin struct {
-	pulumi.ResourceState
-
-	// Outputs
-	Username pulumi.StringOutput `pulumi:"username" provider:"output"`
-	Password pulumi.StringOutput `pulumi:"password" provider:"output"`
-
-	// Inputs
-	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength,optional"`
+func provider() p.Provider {
+	return infer.NewProvider().
+		WithResources(infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()).
+		WithComponents(
+			infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput](),
+			infer.Component[*MoreRandomPassword, MoreRandomPasswordArgs, *MoreRandomPasswordState](),
+		).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+			"random-login": "index",
+		})
 }
 
-func (r *RandomLogin) Construct(name string, ctx *pulumi.Context) error {
-	pet, err := random.NewRandomPet(ctx, name+"-pet", &random.RandomPetArgs{}, pulumi.Parent(r))
+// TODO: Deserialization does not yet work for external resources. Right now, it looks
+// like this structure is only implementable in typescript, but that will need to change.
+type MoreRandomPassword struct{}
+type MoreRandomPasswordArgs struct {
+	Length *random.RandomInteger `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
+}
+
+type MoreRandomPasswordState struct {
+	pulumi.ResourceState
+	Length   *random.RandomInteger  `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
+	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
+}
+
+func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
+	comp := &MoreRandomPasswordState{}
+	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	r.Username = pet.ID().ToStringOutput()
+
+	comp.Password, err = random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
+		Length: args.Length.Result,
+	}, pulumi.Parent(comp))
+	if err != nil {
+		return nil, err
+	}
+	return comp, nil
+}
+
+type RandomLogin struct{}
+type RandomLoginArgs struct {
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
+	PetName        bool               `pulumi:"petName"`
+}
+
+type RandomLoginOutput struct {
+	pulumi.ResourceState
+	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
+	PetName        bool               `pulumi:"petName"`
+	// Outputs
+	Username pulumi.StringOutput `pulumi:"username"`
+	Password pulumi.StringOutput `pulumi:"password"`
+}
+
+func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
+	comp := &RandomLoginOutput{}
+	err := ctx.RegisterComponentResource(typ, name, comp, opts)
+	if err != nil {
+		return nil, err
+	}
+	if args.PetName {
+		pet, err := random.NewRandomPet(ctx, name+"-pet", &random.RandomPetArgs{}, pulumi.Parent(comp))
+		if err != nil {
+			return nil, err
+		}
+		comp.Username = pet.ID().ToStringOutput()
+	} else {
+		id, err := random.NewRandomId(ctx, name+"-id", &random.RandomIdArgs{
+			ByteLength: pulumi.Int(8),
+		}, pulumi.Parent(comp))
+		if err != nil {
+			return nil, err
+		}
+		comp.Username = id.ID().ToStringOutput()
+	}
 	var length pulumi.IntInput = pulumi.Int(16)
-	if r.PasswordLength != nil {
-		length = r.PasswordLength.ToIntPtrOutput().Elem()
+	if args.PasswordLength != nil {
+		length = args.PasswordLength.ToIntPtrOutput().Elem()
 	}
 	password, err := random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
 		Length: length,
-	}, pulumi.Parent(r))
+	}, pulumi.Parent(comp))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	r.Password = password.Result.ToStringOutput()
+	comp.Password = password.Result
 
-	return nil
+	return comp, nil
 }
 
-type RandomSalt struct {
+type RandomSalt struct{}
 
-	// Outputs
-	Salt           string `pulumi:"salt" provider:"output"`
-	SaltedPassword string `pulumi:"saltedPassword" provider:"output"`
+type RandomSaltState struct {
+	Salt           string `pulumi:"salt"`
+	SaltedPassword string `pulumi:"saltedPassword"`
+	Password       string `pulumi:"password"`
+	SaltLength     *int   `pulumi:"saltedLength,optional"`
+}
 
-	// Inputs
+type RandomSaltArgs struct {
 	Password   string `pulumi:"password"`
 	SaltLength *int   `pulumi:"saltedLength,optional"`
 }
@@ -77,53 +138,58 @@ func makeSalt(length int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
-
 }
 
-func (r *RandomSalt) Create(ctx r.Context, name string, preview bool) (string, error) {
+func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, preview bool) (string, RandomSaltState, error) {
 	l := 4
-	if r.SaltLength != nil {
-		l = *r.SaltLength
+	if input.SaltLength != nil {
+		l = *input.SaltLength
 	}
-	r.Salt = makeSalt(l)
+	salt := makeSalt(l)
 
-	r.SaltedPassword = fmt.Sprintf("%s%s", r.Salt, r.Password)
+	fmt.Printf("Running the create")
 
-	return name, nil
+	return name, RandomSaltState{
+		Salt:           salt,
+		SaltedPassword: fmt.Sprintf("%s%s", salt, input.Password),
+		Password:       input.Password,
+		SaltLength:     input.SaltLength,
+	}, nil
 }
 
-func (r *RandomSalt) Delete(ctx r.Context, id string) error {
-	// We don't manage external state, so just do nothing
-	return nil
-}
+var _ = (infer.CustomUpdate[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil))
 
-var _ = (r.Update)((*RandomSalt)(nil))
-
-func (r *RandomSalt) Update(ctx r.Context, id string, newSalt any, ignoreChanges []string, preview bool) error {
-	new := newSalt.(*RandomSalt)
+func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news RandomSaltArgs, preview bool) (RandomSaltState, error) {
 	var redoSalt bool
-	if r.SaltLength != nil && new.SaltLength != nil {
-		redoSalt = *r.SaltLength != *new.SaltLength
-	} else if r.SaltLength != nil || new.SaltLength != nil {
+	if olds.SaltLength != nil && news.SaltLength != nil {
+		redoSalt = *olds.SaltLength != *news.SaltLength
+	} else if olds.SaltLength != nil || news.SaltLength != nil {
 		redoSalt = true
 	}
-	r.SaltLength = new.SaltLength
 
+	salt := olds.Salt
 	if redoSalt {
-		ctx.MarkComputed(&r.Salt)
-		ctx.MarkComputed(&r.SaltedPassword)
-		return nil
-		l := 4
-		if r.SaltLength != nil {
-			l = *r.SaltLength
+		if preview {
+			return RandomSaltState{}, nil
 		}
-		r.Salt = makeSalt(l)
+		l := 4
+		if news.SaltLength != nil {
+			l = *news.SaltLength
+		}
+		salt = makeSalt(l)
 	}
-	if r.Password != new.Password {
-		ctx.MarkComputed(&r.SaltedPassword)
-	}
-	r.Password = new.Password
 
-	r.SaltedPassword = fmt.Sprintf("%s%s", r.Salt, r.Password)
-	return nil
+	return RandomSaltState{
+		Salt:           salt,
+		SaltedPassword: fmt.Sprintf("%s%s", salt, news.Password),
+		Password:       news.Password,
+		SaltLength:     news.SaltLength,
+	}, nil
+}
+
+var _ = (infer.ExplicitDependencies[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil))
+
+func (r *RandomSalt) WireDependencies(f infer.FieldSelector, args *RandomSaltArgs, state *RandomSaltState) {
+	f.OutputField(&state.SaltedPassword).DependsOn(f.InputField(&args.Password), f.InputField(&args.SaltLength))
+	f.OutputField(&state.Salt).DependsOn(f.InputField(&args.SaltLength))
 }

@@ -1,0 +1,31 @@
+name: consume-random-login
+runtime: yaml
+resources:
+  generator:
+    type: random-login:RandomLogin
+    properties:
+      petName: true
+      passwordLength:
+        Fn::Secret: 8
+  salter:
+    type: random-login:RandomSalt
+    properties:
+      password: ${generator.password}
+      saltedLength: 4
+  badPasswordLength:
+    type: random:RandomInteger
+    properties:
+      min: 3
+      max: 8
+  badPassword:
+    type: random-login:MoreRandomPassword
+    properties:
+      length: ${badPasswordLength}
+
+outputs:
+  username:
+    ${generator.username}
+  password:
+    ${salter.saltedPassword}
+  rawPassowrd:
+    ${salter.password}

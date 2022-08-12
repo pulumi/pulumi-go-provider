@@ -15,15 +15,13 @@
 package introspect_test
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/iwahbe/pulumi-go-provider/internal/introspect"
-	"github.com/iwahbe/pulumi-go-provider/resource"
+	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 )
 
 type MyStruct struct {
@@ -32,7 +30,7 @@ type MyStruct struct {
 	Fizz *int   `pulumi:"fizz"`
 }
 
-func (m *MyStruct) Annotate(a resource.Annotator) {
+func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.Describe(&m, "This is MyStruct, but also your struct.")
 	a.Describe(&m.Fizz, "Fizz is not MyStruct.Foo.")
 	a.SetDefault(&m.Foo, "Fizz")
@@ -96,56 +94,4 @@ func TestAnnotate(t *testing.T) {
 	assert.Equal(t, "Fizz", a.Defaults["foo"])
 	assert.Equal(t, "Fizz is not MyStruct.Foo.", a.Descriptions["fizz"])
 	assert.Equal(t, "This is MyStruct, but also your struct.", a.Descriptions[""])
-}
-
-func Empty() {}
-
-func BetweenStructs(FnInput) FnOutput                       { return FnOutput{} }
-func FullValues(context.Context, FnInput) (FnOutput, error) { return FnOutput{}, nil }
-func OnlyMetadata(context.Context) error                    { return nil }
-
-type FnInput struct{}
-type FnOutput struct{}
-
-func TestFunctions(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		f          any
-		in         reflect.Type
-		hasContext bool
-		out        reflect.Type
-		canError   bool
-	}{
-		{
-			f: Empty,
-		},
-		{
-			f:   BetweenStructs,
-			in:  reflect.TypeOf(FnInput{}),
-			out: reflect.TypeOf(FnOutput{}),
-		},
-		{
-			f:          OnlyMetadata,
-			hasContext: true,
-			canError:   true,
-		},
-	}
-
-	for _, c := range cases { //nolint:paralleltest
-		c := c
-		typ := reflect.TypeOf(c.f)
-		t.Run(typ.String(), func(t *testing.T) {
-			t.Parallel()
-			in, hasContext, err := introspect.InvokeInput(typ)
-			require.NoError(t, err)
-			assert.Equal(t, c.in, in)
-			assert.Equal(t, c.hasContext, hasContext)
-
-			out, canError, err := introspect.InvokeOutput(typ)
-			require.NoError(t, err)
-			assert.Equal(t, c.out, out)
-			assert.Equal(t, c.canError, canError)
-
-		})
-	}
 }

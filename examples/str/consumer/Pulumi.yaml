@@ -1,0 +1,32 @@
+name: test-str
+runtime: yaml
+variables:
+  replaced:
+    Fn::Invoke:
+      Function: str:Replace
+      Arguments:
+        s: abc---abc---abc
+        old: ---
+        new: <*>
+      Return: out
+  rrreplaced:
+    Fn::Invoke:
+      Function: str:regex:Replace
+      Arguments:
+        s: abc-abc--abc---abc
+        pattern: -+
+        new: <*>
+      Return: out
+  _:
+    Fn::Invoke:
+      Function: str:Print
+      Arguments:
+        s: I can indeed be printed
+  aString:
+    Fn::Invoke:
+      Function: str:GiveMeAString
+      Return: out
+outputs:
+  replace: ${replaced}
+  regex-replaced: ${rrreplaced}
+  aString: ${aString}
