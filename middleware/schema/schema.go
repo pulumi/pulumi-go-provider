@@ -125,7 +125,8 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 	errs.Errors = append(errs.Errors, e.Errors...)
 
 	if s.provider != nil {
-		_, prov, err := addElement[Resource, schema.ResourceSpec](info.PackageName, registerDerivative, s.moduleMap, s.provider)
+		_, prov, err := addElement[Resource, schema.ResourceSpec](
+			info.PackageName, registerDerivative, s.moduleMap, s.provider)
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 		}
@@ -162,7 +163,8 @@ func addElements[T canGetSchema[S], S any](els []T, m map[string]S,
 	return errs
 }
 
-func addElement[T canGetSchema[S], S any](pkgName string, reg RegisterDerivativeType, modMap map[tokens.ModuleName]tokens.ModuleName, f T) (tokens.Type, S, error) {
+func addElement[T canGetSchema[S], S any](pkgName string, reg RegisterDerivativeType,
+	modMap map[tokens.ModuleName]tokens.ModuleName, f T) (tokens.Type, S, error) {
 	var s S
 	tk, err := f.GetToken()
 	if err != nil {
