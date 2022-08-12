@@ -15,8 +15,11 @@
 package infer
 
 import (
+	"fmt"
+
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
+	mContext "github.com/pulumi/pulumi-go-provider/middleware/context"
 	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -28,17 +31,59 @@ var _ p.Provider = (*Provider)(nil)
 
 // A provider that serves resources inferred from go code.
 type Provider struct {
-	*schema.Provider
+	p.Provider
+	schema     *schema.Provider
 	dispatcher *dispatch.Provider
+	config     InferredConfig
 }
+
+type configKeyType int
+
+var configKey configKeyType = 0
 
 // Create a new base provider to serve resources inferred from go code.
 func NewProvider() *Provider {
 	d := dispatch.Wrap(nil)
-	return &Provider{
+	s := schema.Wrap(d)
+	ret := &Provider{
 		dispatcher: d,
-		Provider:   schema.Wrap(d),
+		schema:     s,
 	}
+	ret.Provider = mContext.Wrap(s, func(ctx p.Context) p.Context {
+		if ret.config == nil {
+			return ctx
+		}
+		return p.CtxWithValue(ctx, configKey, ret.config)
+	})
+	return ret
+}
+
+// Retrieve the configuration of this provider.
+//
+// Note: Config will panic if the type of T does not match the type of the config or if
+// the provider has not supplied a config.
+func GetConfig[T any](ctx p.Context) T {
+	cv := ctx.Value(configKey)
+
+	var t T
+	if cv == nil {
+		panic(fmt.Sprintf("Config[%T] called on a provider without a config", t))
+	}
+	c := cv.(InferredConfig)
+	if c, ok := c.(*config[T]); ok {
+		if c.t == nil {
+			c.t = &t
+		}
+		return *c.t
+	}
+	if c, ok := c.(*config[*T]); ok {
+		if c.t == nil {
+			refT := &t
+			c.t = &refT
+		}
+		return **c.t
+	}
+	panic(fmt.Sprintf("Config[%T] called but the correct config type is %s", t, c.underlyingType()))
 }
 
 // Add inferred resources to the provider.
@@ -55,7 +100,7 @@ func (prov *Provider) WithResources(resources ...InferredResource) *Provider {
 		sRes = append(sRes, r)
 	}
 	prov.dispatcher.WithCustomResources(res)
-	prov.Provider.WithResources(sRes...)
+	prov.schema.WithResources(sRes...)
 	return prov
 }
 
@@ -73,7 +118,7 @@ func (prov *Provider) WithComponents(components ...InferredComponent) *Provider 
 		sRes = append(sRes, r)
 	}
 	prov.dispatcher.WithComponentResources(res)
-	prov.Provider.WithResources(sRes...)
+	prov.schema.WithResources(sRes...)
 	return prov
 }
 
@@ -91,7 +136,7 @@ func (prov *Provider) WithFunctions(fns ...InferredFunction) *Provider {
 		sRes = append(sRes, r)
 	}
 	prov.dispatcher.WithInvokes(res)
-	prov.Provider.WithInvokes(sRes...)
+	prov.schema.WithInvokes(sRes...)
 	return prov
 }
 
@@ -106,7 +151,35 @@ func (prov *Provider) WithFunctions(fns ...InferredFunction) *Provider {
 // will instead result in exposing the same resources at `pkg:bar:Foo`, `pkg:bar:Bar` and
 // `pkg:fizz:Buzz`.
 func (prov *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
-	prov.Provider.WithModuleMap(m)
+	prov.schema.WithModuleMap(m)
 	prov.dispatcher.WithModuleMap(m)
 	return prov
+}
+
+// Give the provider global state. This will define a provider resource.
+func (prov *Provider) WithConfig(config InferredConfig) *Provider {
+	prov.config = config
+	prov.schema.WithProviderResource(config)
+	return prov
+}
+
+func (prov *Provider) CheckConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+	if prov.config != nil {
+		return prov.config.checkConfig(ctx, req)
+	}
+	return prov.Provider.CheckConfig(ctx, req)
+}
+
+func (prov *Provider) DiffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	if prov.config != nil {
+		return prov.config.diffConfig(ctx, req)
+	}
+	return prov.Provider.DiffConfig(ctx, req)
+}
+
+func (prov *Provider) Configure(ctx p.Context, req p.ConfigureRequest) error {
+	if prov.config != nil {
+		return prov.config.configure(ctx, req)
+	}
+	return prov.Provider.Configure(ctx, req)
 }

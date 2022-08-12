@@ -49,6 +49,7 @@ type Provider struct {
 	resources []Resource
 	invokes   []Function
 	schema    string
+	provider  Resource
 
 	moduleMap map[tokens.ModuleName]tokens.ModuleName
 }
@@ -79,6 +80,12 @@ func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Pro
 	for k, v := range m {
 		s.moduleMap[k] = v
 	}
+	return s
+}
+
+func (s *Provider) WithProviderResource(provider Resource) *Provider {
+	s.schema = ""
+	s.provider = provider
 	return s
 }
 
@@ -113,13 +120,20 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		pkg.Types[tkString] = renamePackage(t, info.PackageName, s.moduleMap)
 		return true
 	}
-	errs := addElement(s.resources, pkg.Resources, info.PackageName, registerDerivative, s.moduleMap)
-	e := addElement(s.invokes, pkg.Functions, info.PackageName, registerDerivative, s.moduleMap)
+	errs := addElements(s.resources, pkg.Resources, info.PackageName, registerDerivative, s.moduleMap)
+	e := addElements(s.invokes, pkg.Functions, info.PackageName, registerDerivative, s.moduleMap)
 	errs.Errors = append(errs.Errors, e.Errors...)
+
+	if s.provider != nil {
+		_, prov, err := addElement[Resource, schema.ResourceSpec](info.PackageName, registerDerivative, s.moduleMap, s.provider)
+		if err != nil {
+			errs.Errors = append(errs.Errors, err)
+		}
+		pkg.Provider = prov
+	}
 	if err := errs.ErrorOrNil(); err != nil {
 		return err
 	}
-
 	bytes, err := json.Marshal(pkg)
 	if err != nil {
 		return err
@@ -133,25 +147,33 @@ type canGetSchema[T any] interface {
 	GetSchema(RegisterDerivativeType) (T, error)
 }
 
-func addElement[T canGetSchema[S], S any](els []T, m map[string]S,
+func addElements[T canGetSchema[S], S any](els []T, m map[string]S,
 	pkgName string, reg RegisterDerivativeType,
 	modMap map[tokens.ModuleName]tokens.ModuleName) multierror.Error {
 	errs := multierror.Error{}
 	for _, f := range els {
-		tk, err := f.GetToken()
+		tk, element, err := addElement[T, S](pkgName, reg, modMap, f)
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 			continue
 		}
-		tk = assignTo(tk, pkgName, modMap)
-		fun, err := f.GetSchema(reg)
-		if err != nil {
-			errs.Errors = append(errs.Errors, fmt.Errorf("failed to get schema for '%s': %w", tk, err))
-			continue
-		}
-		m[tk.String()] = renamePackage(fun, pkgName, modMap)
+		m[tk.String()] = element
 	}
 	return errs
+}
+
+func addElement[T canGetSchema[S], S any](pkgName string, reg RegisterDerivativeType, modMap map[tokens.ModuleName]tokens.ModuleName, f T) (tokens.Type, S, error) {
+	var s S
+	tk, err := f.GetToken()
+	if err != nil {
+		return "", s, err
+	}
+	tk = assignTo(tk, pkgName, modMap)
+	fun, err := f.GetSchema(reg)
+	if err != nil {
+		return "", s, fmt.Errorf("failed to get schema for '%s': %w", tk, err)
+	}
+	return tk, renamePackage(fun, pkgName, modMap), nil
 }
 
 func assignTo(tk tokens.Type, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) tokens.Type {

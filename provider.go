@@ -175,9 +175,6 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 type ConfigureRequest struct {
 	Variables map[string]string
 	Args      presource.PropertyMap
-	// TODO: these options should be handled by the library, not by the provider
-	// AcceptSecrets   bool
-	// AcceptResources bool
 }
 
 type InvokeRequest struct {
@@ -351,6 +348,31 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 		PackageName: p.provider.name,
 		Version:     p.provider.version,
 	}
+}
+
+type valueCtx struct {
+	Context
+	key, value any
+}
+
+func (v *valueCtx) Value(key any) any {
+	if key == v.key {
+		return v.value
+	}
+	return v.Context.Value(key)
+}
+
+// Add a value to a Context. This is the moral equivalent to context.WithValue from the Go
+// standard library.
+func CtxWithValue(ctx Context, key, value any) Context {
+	if ctx, ok := ctx.(*pkgContext); ok {
+		return &pkgContext{
+			Context:  context.WithValue(ctx.Context, key, value),
+			provider: ctx.provider,
+			urn:      ctx.urn,
+		}
+	}
+	return &valueCtx{ctx, key, value}
 }
 
 func (p *provider) ctx(ctx context.Context, urn presource.URN) Context {
