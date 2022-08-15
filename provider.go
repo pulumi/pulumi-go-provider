@@ -361,7 +361,7 @@ type wrapCtx struct {
 }
 
 // replaceContext replaces the embedded context.Context in a Context.
-func replaceContext(ctx Context, new context.Context) Context {
+func replaceContext(ctx Context, new context.Context) Context { //nolint:revive
 	switch ctx := ctx.(type) {
 	case *wrapCtx:
 		ctx.Context = new
