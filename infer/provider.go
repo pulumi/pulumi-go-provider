@@ -37,9 +37,9 @@ type Provider struct {
 	config     InferredConfig
 }
 
-type configKeyType int
+type configKeyType struct{}
 
-var configKey configKeyType = 0
+var configKey configKeyType
 
 // Create a new base provider to serve resources inferred from go code.
 func NewProvider() *Provider {
