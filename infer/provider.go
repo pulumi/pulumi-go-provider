@@ -19,6 +19,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
+	"github.com/pulumi/pulumi-go-provider/middleware/cancel"
 	mContext "github.com/pulumi/pulumi-go-provider/middleware/context"
 	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -49,12 +50,13 @@ func NewProvider() *Provider {
 		dispatcher: d,
 		schema:     s,
 	}
-	ret.Provider = mContext.Wrap(s, func(ctx p.Context) p.Context {
+	withConfig := mContext.Wrap(s, func(ctx p.Context) p.Context {
 		if ret.config == nil {
 			return ctx
 		}
 		return p.CtxWithValue(ctx, configKey, ret.config)
 	})
+	ret.Provider = cancel.Wrap(withConfig)
 	return ret
 }
 
