@@ -157,10 +157,10 @@ func (c *cancelProvider) Construct(pctx p.Context, typ string, name string,
 
 // A data structure which provides amortized O(1) insertion, removal, and draining.
 type inOutCache[T any] struct {
-	values     []*entry[T] // An unorderd list of stored values
+	values     []*entry[T] // An unorderd list of stored values or tombstone (nil) entries.
 	tombstones []int       // An unordered list of empty slots in values
 	m          sync.Mutex
-	inDrain    bool
+	inDrain    bool // Wheither the cache is currently being drained. inDrain=true implies m can be ignored.
 }
 
 type entry[T any] struct {
