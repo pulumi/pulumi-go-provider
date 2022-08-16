@@ -145,9 +145,15 @@ func (c *cancelProvider) Construct(pctx p.Context, typ string, name string,
 
 // A data structure which provides amortized O(1) insertion, removal, and draining.
 type inOutCache[T any] struct {
-	values     []*T  // An unorderd list of stored values
-	tombstones []int // An unordered list of empty slots in values
+	values     []*entry[T] // An unorderd list of stored values
+	tombstones []int       // An unordered list of empty slots in values
 	m          sync.Mutex
+	inDrain    bool
+}
+
+type entry[T any] struct {
+	evict func() bool
+	value T
 }
 
 // Insert a new element into the inOutCahce. The new element can be ejected by calling
@@ -158,36 +164,53 @@ func (h *inOutCache[T]) insert(t T) (evict func() (missing bool)) {
 	defer h.m.Unlock()
 	var i int
 	if len(h.tombstones) == 0 {
-		h.values = append(h.values, &t)
-		i = len(h.values) - 1
+		i = len(h.values)
 	} else {
 		i = h.tombstones[len(h.tombstones)-1]
 		h.tombstones = h.tombstones[:len(h.tombstones)-1]
-		h.values[i] = &t
 	}
-	return func() bool {
-		h.m.Lock()
-		defer h.m.Unlock()
-		gone := h.values[i] == nil
+
+	el := &entry[T]{
+		value: t,
+	}
+	el.evict = func() bool {
+		if !h.inDrain {
+			h.m.Lock()
+			defer h.m.Unlock()
+		}
+		gone := el.evict == nil
+		if gone {
+			return true
+		}
+		el.evict = nil
 		h.values[i] = nil
 		h.tombstones = append(h.tombstones, i)
 		return gone
+
 	}
+
+	if len(h.tombstones) == 0 {
+		h.values = append(h.values, el)
+	} else {
+		h.values[i] = el
+	}
+	return el.evict
 }
 
 // Remove all values from the inOutCache.
 func (h *inOutCache[T]) drain() []T {
 	h.m.Lock()
 	defer h.m.Unlock()
+	h.inDrain = true
+	defer func() { h.inDrain = false }()
 	values := []T{}
 	// We reset tombstones.
-	h.tombstones = h.tombstones[:0]
 	for i, v := range h.values {
 		if v != nil {
-			values = append(values, *v)
+			v.evict()
+			values = append(values, v.value)
 			h.values[i] = nil
 		}
-		h.tombstones = append(h.tombstones, i)
 	}
 	return values
 }
