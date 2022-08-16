@@ -25,6 +25,8 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	p "github.com/pulumi/pulumi-go-provider"
 )
@@ -43,10 +45,20 @@ type cancelProvider struct {
 }
 
 func (c *cancelProvider) Cancel(ctx p.Context) error {
+	c.canceled = true
 	for _, f := range c.cancelFuncs.drain() {
 		f()
 	}
-	return c.inner.Cancel(ctx)
+
+	// We consider this a valid implementation of the Cancel RPC request. We still pass on
+	// the request so downstream provides *may* rely on the Cancel call, but we catch an
+	// Unimplemented error, making implementing the Cancel call optional for downstream
+	// providers.
+	err := c.inner.Cancel(ctx)
+	if status.Code(err) == codes.Unimplemented {
+		return nil
+	}
+	return err
 }
 
 const noTimeout float64 = 0
