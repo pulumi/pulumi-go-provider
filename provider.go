@@ -25,6 +25,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
@@ -231,6 +232,26 @@ type DeleteRequest struct {
 	Urn        presource.URN         // the Pulumi URN for this resource.
 	Properties presource.PropertyMap // the current properties on the resource.
 	Timeout    float64               // the delete request timeout represented in seconds.
+}
+
+// Provide a structured error for missing provider keys.
+func ConfigMissingKeys(missing map[string]string) error {
+	if len(missing) == 0 {
+		return nil
+	}
+	rpcMissing := make([]*rpc.ConfigureErrorMissingKeys_MissingKey, 0, len(missing))
+	for k, v := range missing {
+		rpcMissing = append(rpcMissing, &rpc.ConfigureErrorMissingKeys_MissingKey{
+			Name:        k,
+			Description: v,
+		})
+	}
+	return rpcerror.WithDetails(
+		rpcerror.New(codes.InvalidArgument, "required configuration keys were missing"),
+		&rpc.ConfigureErrorMissingKeys{
+			MissingKeys: rpcMissing,
+		},
+	)
 }
 
 type Provider interface {

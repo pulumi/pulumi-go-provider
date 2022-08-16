@@ -98,12 +98,12 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 
 	var err mapper.MappingError
 	if value.Kind() != reflect.Pointer {
-		_, err = decode(req.News, &t, false)
+		_, err = decode(req.News, &t, true)
 	} else {
-		_, err = decode(req.News, value.Interface(), false)
+		_, err = decode(req.News, value.Interface(), true)
 	}
 
-	failures, e := checkConfigFailures(err, ctx.RuntimeInformation().PackageName)
+	failures, e := checkFailureFromMapError(err)
 	if e != nil {
 		return p.CheckResponse{}, e
 	}
@@ -130,55 +130,51 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 }
 
 func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	if c.t == nil {
+		c.t = new(T)
+	}
 	return diff[T, T, T](ctx, req, c.t, true)
 }
 
 func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
-	t := new(T)
-	ctx.Logf(diag.Info, "envs: %v", req.Variables)
-	if typ := reflect.TypeOf(t).Elem(); typ.Kind() == reflect.Pointer {
-		reflect.ValueOf(t).Elem().Set(reflect.New(typ.Elem()))
-		_, err := decode(req.Args, reflect.ValueOf(t).Elem().Interface(), false)
-		if err != nil {
-			return err
-		}
+	if c.t == nil {
+		c.t = new(T)
+	}
+	ctx.Logf(diag.Info, "req.vars = %v, req.args = %v", req.Variables, req.Args)
+	var err mapper.MappingError
+	if typ := reflect.TypeOf(c.t).Elem(); typ.Kind() == reflect.Pointer {
+		reflect.ValueOf(c.t).Elem().Set(reflect.New(typ.Elem()))
+		_, err = decode(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
 	} else {
-		_, err := decode(req.Args, t, false)
-		if err != nil {
-			return err
-		}
+		_, err = decode(req.Args, c.t, false)
+	}
+	if err != nil {
+		return c.handleConfigFailures(ctx, err)
 	}
 
-	c.t = t
 	return nil
 }
 
-func checkConfigFailures(err mapper.MappingError, pkgName string) ([]p.CheckFailure, error) {
+func (c *config[T]) handleConfigFailures(ctx p.Context, err mapper.MappingError) error {
 	if err == nil {
-		return nil, nil
+		return nil
 	}
-	failures := []p.CheckFailure{}
+
+	pkgName := ctx.RuntimeInformation().PackageName
+	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	if mErr != nil {
+		return mErr
+	}
+
+	missing := map[string]string{}
 	for _, err := range err.Failures() {
 		switch err := err.(type) {
 		case *mapper.MissingError:
 			tk := fmt.Sprintf("%s:%s", pkgName, err.Field())
-			reason := fmt.Sprintf("missing required configuration key %[1]s.\n"+
-				"\tSet a value using the command `pulumi config set %[1]s <value>`",
-				tk)
-
-			failures = append(failures, p.CheckFailure{
-				Property: err.Field(),
-				Reason:   reason,
-			})
-
-		case mapper.FieldError:
-			failures = append(failures, p.CheckFailure{
-				Property: err.Field(),
-				Reason:   err.Reason(),
-			})
+			missing[tk] = schema.InputProperties[err.Field()].Description
 		default:
-			return failures, fmt.Errorf("unknown mapper error: %w", err)
+			return fmt.Errorf("unknown mapper error: %w", err)
 		}
 	}
-	return failures, nil
+	return p.ConfigMissingKeys(missing)
 }
