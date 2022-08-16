@@ -16,10 +16,10 @@ package infer
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
@@ -136,11 +136,96 @@ func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse
 	return diff[T, T, T](ctx, req, c.t, true)
 }
 
+// Fetch an environmental or default value for a missing key.
+func substatuteEnvAsKey(k resource.PropertyKey, prop pschema.PropertySpec) (resource.PropertyValue, bool, error) {
+	assign := func(value any) (resource.PropertyValue, error) {
+		switch prop.Type {
+		case "bool":
+			switch value := value.(type) {
+			case bool:
+				return resource.NewBoolProperty(value), nil
+			case string:
+				if value == "true" {
+					return resource.NewBoolProperty(true), nil
+				} else if value == "false" {
+					return resource.NewBoolProperty(false), nil
+				}
+			}
+		case "string":
+			return resource.NewStringProperty(fmt.Sprintf("%v", value)), nil
+		case "integer":
+			switch value := value.(type) {
+			case int:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int16:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int32:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int64:
+				return resource.NewNumberProperty(float64(value)), nil
+			}
+		case "number":
+			switch value := value.(type) {
+			case int:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int16:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int32:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int64:
+				return resource.NewNumberProperty(float64(value)), nil
+			case float32:
+				return resource.NewNumberProperty(float64(value)), nil
+			case float64:
+				return resource.NewNumberProperty(value), nil
+			}
+		case "array", "object":
+			return resource.PropertyValue{}, fmt.Errorf("environmental variables do not support %ss", prop.Type)
+		case "":
+			return resource.PropertyValue{}, fmt.Errorf("environmental variables cannot be reference type")
+		default:
+			return resource.PropertyValue{}, fmt.Errorf("internal error: invalid property type: %q", prop.Type)
+		}
+		return resource.PropertyValue{}, fmt.Errorf(
+			"cannot convert config value %s: %[1]q from %[1]T to %s", k, value, prop.Type)
+	}
+	if info := prop.DefaultInfo; info != nil {
+		for _, env := range info.Environment {
+			if value, ok := os.LookupEnv(env); ok {
+				v, err := assign(value)
+				return v, true, err
+			}
+		}
+	}
+	if prop.Default != nil {
+		v, err := assign(prop.Default)
+		return v, true, err
+	}
+	return resource.PropertyValue{}, false, nil
+}
+
 func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	if c.t == nil {
 		c.t = new(T)
 	}
-	ctx.Logf(diag.Info, "req.vars = %v, req.args = %v", req.Variables, req.Args)
+	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	if mErr != nil {
+		return mErr
+	}
+
+	for k, prop := range schema.InputProperties {
+		k := resource.PropertyKey(k)
+		if _, ok := req.Args[k]; !ok {
+			v, ok, err := substatuteEnvAsKey(k, prop)
+			if err != nil {
+				return err
+			}
+			if ok {
+				req.Args[k] = v
+			}
+		}
+	}
+
 	var err mapper.MappingError
 	if typ := reflect.TypeOf(c.t).Elem(); typ.Kind() == reflect.Pointer {
 		reflect.ValueOf(c.t).Elem().Set(reflect.New(typ.Elem()))
