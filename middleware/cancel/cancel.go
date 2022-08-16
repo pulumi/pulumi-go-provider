@@ -174,10 +174,11 @@ type entry[T any] struct {
 func (h *inOutCache[T]) insert(t T) (evict func() (missing bool)) {
 	h.m.Lock()
 	defer h.m.Unlock()
-	var i int
+	var i int // The index in values of the new entry.
 	if len(h.tombstones) == 0 {
-		i = len(h.values)
+		i = len(h.values) // We extend values.
 	} else {
+		// There is an empty slot in values, so use that.
 		i = h.tombstones[len(h.tombstones)-1]
 		h.tombstones = h.tombstones[:len(h.tombstones)-1]
 	}
@@ -201,6 +202,7 @@ func (h *inOutCache[T]) insert(t T) (evict func() (missing bool)) {
 
 	}
 
+	// Push the value
 	if len(h.tombstones) == 0 {
 		h.values = append(h.values, el)
 	} else {
@@ -209,19 +211,19 @@ func (h *inOutCache[T]) insert(t T) (evict func() (missing bool)) {
 	return el.evict
 }
 
-// Remove all values from the inOutCache.
+// Remove all values from the inOutCache, and return them.
 func (h *inOutCache[T]) drain() []T {
 	h.m.Lock()
 	defer h.m.Unlock()
+	// Setting inDrain indicates a trusted actor holds the mutex, indicating that evict
+	// functions don't need to grab the mutex before executing.
 	h.inDrain = true
 	defer func() { h.inDrain = false }()
-	values := []T{}
-	// We reset tombstones.
-	for i, v := range h.values {
+	values := []T{} // Values currently in the cache.
+	for _, v := range h.values {
 		if v != nil {
 			v.evict()
 			values = append(values, v.value)
-			h.values[i] = nil
 		}
 	}
 	return values
