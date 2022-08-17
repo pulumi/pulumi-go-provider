@@ -51,7 +51,6 @@ func TestParseTag(t *testing.T) {
 				Name:     "foo",
 				Optional: true,
 				Secret:   true,
-				Output:   true,
 			},
 		},
 		{
