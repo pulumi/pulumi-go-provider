@@ -18,6 +18,7 @@ import (
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
@@ -196,6 +197,9 @@ func crawlTypes[T any](crawler Crawler) error {
 // registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
 func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 	crawler := func(t reflect.Type) (bool, error) {
+		if t == reflect.TypeOf(resource.Asset{}) || t == reflect.TypeOf(resource.Archive{}) {
+			return false, nil
+		}
 		if enum, ok := isEnum(t); ok {
 			tSpec := pschema.ComplexTypeSpec{}
 			for _, v := range enum.values {

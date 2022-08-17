@@ -21,6 +21,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -115,6 +116,17 @@ func serializeTypeAsPropertyType(t reflect.Type, indicatePlain bool, extType str
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+	if t == reflect.TypeOf(resource.Asset{}) {
+		return schema.TypeSpec{
+			Ref: "pulumi.json#/Asset",
+		}, nil
+	}
+	if t == reflect.TypeOf(resource.Archive{}) {
+		return schema.TypeSpec{
+			Ref: "pulumi.json#/Archive",
+		}, nil
+	}
+
 	if enum, ok := isEnum(t); ok {
 		return schema.TypeSpec{
 			Ref: "#/types/" + enum.token,
