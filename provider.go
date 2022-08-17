@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/blang/semver"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
@@ -350,17 +351,45 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 	}
 }
 
-type valueCtx struct {
-	Context
-	key, value any
+type wrapCtx struct {
+	context.Context
+	log                func(severity diag.Severity, msg string)
+	logf               func(severity diag.Severity, msg string, args ...any)
+	logStatus          func(severity diag.Severity, msg string)
+	logStatusf         func(severity diag.Severity, msg string, args ...any)
+	runtimeInformation func() RunInfo
 }
 
-func (v *valueCtx) Value(key any) any {
-	if key == v.key {
-		return v.value
+// replaceContext replaces the embedded context.Context in a Context.
+func replaceContext(ctx Context, new context.Context) Context { //nolint:revive
+	switch ctx := ctx.(type) {
+	case *wrapCtx:
+		ctx.Context = new
+		return ctx
+	case *pkgContext:
+		ctx.Context = new
+		return ctx
+	default:
+		return &wrapCtx{
+			Context:            new,
+			log:                ctx.Log,
+			logf:               ctx.Logf,
+			logStatus:          ctx.LogStatus,
+			logStatusf:         ctx.LogStatusf,
+			runtimeInformation: ctx.RuntimeInformation,
+		}
 	}
-	return v.Context.Value(key)
 }
+
+func (c *wrapCtx) Log(severity diag.Severity, msg string) { c.log(severity, msg) }
+func (c *wrapCtx) Logf(severity diag.Severity, msg string, args ...any) {
+	c.logf(severity, msg, args...)
+}
+func (c *wrapCtx) LogStatus(severity diag.Severity, msg string) { c.logStatus(severity, msg) }
+func (c *wrapCtx) LogStatusf(severity diag.Severity, msg string, args ...any) {
+	c.logStatusf(severity, msg, args...)
+}
+func (c *wrapCtx) RuntimeInformation() RunInfo { return c.runtimeInformation() }
 
 // Add a value to a Context. This is the moral equivalent to context.WithValue from the Go
 // standard library.
@@ -372,7 +401,17 @@ func CtxWithValue(ctx Context, key, value any) Context {
 			urn:      ctx.urn,
 		}
 	}
-	return &valueCtx{ctx, key, value}
+	return replaceContext(ctx, context.WithValue(ctx, key, value))
+}
+
+func CtxWithCancel(ctx Context) (Context, context.CancelFunc) {
+	c, cancel := context.WithCancel(ctx)
+	return replaceContext(ctx, c), cancel
+}
+
+func CtxWithTimeout(ctx Context, timeout time.Duration) (Context, context.CancelFunc) {
+	c, cancel := context.WithTimeout(ctx, timeout)
+	return replaceContext(ctx, c), cancel
 }
 
 func (p *provider) ctx(ctx context.Context, urn presource.URN) Context {

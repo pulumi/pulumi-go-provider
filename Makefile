@@ -5,6 +5,7 @@ build:
 
 test: build
 	go test ./...
+	cd integration && go test ./...
 	for d in examples/*; do if [ -d $$d ]; then \
 		cd $$d; go test ./... || exit $$?; \
 	cd -; fi; done
