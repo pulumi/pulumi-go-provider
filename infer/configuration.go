@@ -137,7 +137,7 @@ func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse
 }
 
 // Fetch an environmental or default value for a missing key.
-func substatuteEnvAsKey(k resource.PropertyKey, prop pschema.PropertySpec) (resource.PropertyValue, bool, error) {
+func fetchEnvDefault(k resource.PropertyKey, prop pschema.PropertySpec) (resource.PropertyValue, bool, error) {
 	assign := func(value any) (resource.PropertyValue, error) {
 		switch prop.Type {
 		case "bool":
@@ -216,7 +216,7 @@ func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	for k, prop := range schema.InputProperties {
 		k := resource.PropertyKey(k)
 		if _, ok := req.Args[k]; !ok {
-			v, ok, err := substatuteEnvAsKey(k, prop)
+			v, ok, err := fetchEnvDefault(k, prop)
 			if err != nil {
 				return err
 			}
