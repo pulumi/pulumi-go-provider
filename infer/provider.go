@@ -158,6 +158,11 @@ func (prov *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *
 	return prov
 }
 
+func (prov *Provider) WithLanguageMap(languages map[string]any) *Provider {
+	prov.schema.WithLanguageMap(languages)
+	return prov
+}
+
 // Give the provider global state. This will define a provider resource.
 func (prov *Provider) WithConfig(config InferredConfig) *Provider {
 	prov.config = config

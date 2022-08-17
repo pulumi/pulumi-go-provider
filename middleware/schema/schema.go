@@ -50,6 +50,7 @@ type Provider struct {
 	invokes   []Function
 	schema    string
 	provider  Resource
+	languages map[string]any
 
 	moduleMap map[tokens.ModuleName]tokens.ModuleName
 }
@@ -61,6 +62,7 @@ func Wrap(provider p.Provider) *Provider {
 	return &Provider{
 		Provider:  provider,
 		moduleMap: map[tokens.ModuleName]tokens.ModuleName{},
+		languages: map[string]any{},
 	}
 }
 
@@ -89,6 +91,14 @@ func (s *Provider) WithProviderResource(provider Resource) *Provider {
 	return s
 }
 
+func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
+	s.schema = ""
+	for k, v := range languages {
+		s.languages[k] = v
+	}
+	return s
+}
+
 func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	if s.schema == "" {
 		err := s.generateSchema(ctx)
@@ -110,6 +120,14 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		Resources: map[string]schema.ResourceSpec{},
 		Functions: map[string]schema.FunctionSpec{},
 		Types:     map[string]schema.ComplexTypeSpec{},
+		Language:  map[string]schema.RawMessage{},
+	}
+	for k, v := range s.languages {
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		pkg.Language[k] = bytes
 	}
 	registerDerivative := func(tk tokens.Type, t schema.ComplexTypeSpec) bool {
 		tkString := assignTo(tk, info.PackageName, s.moduleMap).String()
