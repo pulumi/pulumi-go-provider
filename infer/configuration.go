@@ -16,10 +16,10 @@ package infer
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
@@ -98,12 +98,12 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 
 	var err mapper.MappingError
 	if value.Kind() != reflect.Pointer {
-		_, err = decode(req.News, &t, false)
+		_, err = decode(req.News, &t, true)
 	} else {
-		_, err = decode(req.News, value.Interface(), false)
+		_, err = decode(req.News, value.Interface(), true)
 	}
 
-	failures, e := checkConfigFailures(err, ctx.RuntimeInformation().PackageName)
+	failures, e := checkFailureFromMapError(err)
 	if e != nil {
 		return p.CheckResponse{}, e
 	}
@@ -130,55 +130,136 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 }
 
 func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	if c.t == nil {
+		c.t = new(T)
+	}
 	return diff[T, T, T](ctx, req, c.t, true)
 }
 
-func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
-	t := new(T)
-	ctx.Logf(diag.Info, "envs: %v", req.Variables)
-	if typ := reflect.TypeOf(t).Elem(); typ.Kind() == reflect.Pointer {
-		reflect.ValueOf(t).Elem().Set(reflect.New(typ.Elem()))
-		_, err := decode(req.Args, reflect.ValueOf(t).Elem().Interface(), false)
-		if err != nil {
-			return err
+// Fetch an environmental or default value for a missing key.
+func fetchEnvDefault(k resource.PropertyKey, prop pschema.PropertySpec) (resource.PropertyValue, bool, error) {
+	assign := func(value any) (resource.PropertyValue, error) {
+		switch prop.Type {
+		case "bool":
+			switch value := value.(type) {
+			case bool:
+				return resource.NewBoolProperty(value), nil
+			case string:
+				if value == "true" {
+					return resource.NewBoolProperty(true), nil
+				} else if value == "false" {
+					return resource.NewBoolProperty(false), nil
+				}
+			}
+		case "string":
+			return resource.NewStringProperty(fmt.Sprintf("%v", value)), nil
+		case "integer":
+			switch value := value.(type) {
+			case int:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int16:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int32:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int64:
+				return resource.NewNumberProperty(float64(value)), nil
+			}
+		case "number":
+			switch value := value.(type) {
+			case int:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int16:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int32:
+				return resource.NewNumberProperty(float64(value)), nil
+			case int64:
+				return resource.NewNumberProperty(float64(value)), nil
+			case float32:
+				return resource.NewNumberProperty(float64(value)), nil
+			case float64:
+				return resource.NewNumberProperty(value), nil
+			}
+		case "array", "object":
+			return resource.PropertyValue{}, fmt.Errorf("environmental variables do not support %ss", prop.Type)
+		case "":
+			return resource.PropertyValue{}, fmt.Errorf("environmental variables cannot be reference type")
+		default:
+			return resource.PropertyValue{}, fmt.Errorf("internal error: invalid property type: %q", prop.Type)
 		}
-	} else {
-		_, err := decode(req.Args, t, false)
-		if err != nil {
-			return err
+		return resource.PropertyValue{}, fmt.Errorf(
+			"cannot convert config value %s: %[1]q from %[1]T to %s", k, value, prop.Type)
+	}
+	if info := prop.DefaultInfo; info != nil {
+		for _, env := range info.Environment {
+			if value, ok := os.LookupEnv(env); ok {
+				v, err := assign(value)
+				return v, true, err
+			}
+		}
+	}
+	if prop.Default != nil {
+		v, err := assign(prop.Default)
+		return v, true, err
+	}
+	return resource.PropertyValue{}, false, nil
+}
+
+func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
+	if c.t == nil {
+		c.t = new(T)
+	}
+	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	if mErr != nil {
+		return mErr
+	}
+
+	for k, prop := range schema.InputProperties {
+		k := resource.PropertyKey(k)
+		if _, ok := req.Args[k]; !ok {
+			v, ok, err := fetchEnvDefault(k, prop)
+			if err != nil {
+				return err
+			}
+			if ok {
+				req.Args[k] = v
+			}
 		}
 	}
 
-	c.t = t
+	var err mapper.MappingError
+	if typ := reflect.TypeOf(c.t).Elem(); typ.Kind() == reflect.Pointer {
+		reflect.ValueOf(c.t).Elem().Set(reflect.New(typ.Elem()))
+		_, err = decode(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
+	} else {
+		_, err = decode(req.Args, c.t, false)
+	}
+	if err != nil {
+		return c.handleConfigFailures(ctx, err)
+	}
+
 	return nil
 }
 
-func checkConfigFailures(err mapper.MappingError, pkgName string) ([]p.CheckFailure, error) {
+func (c *config[T]) handleConfigFailures(ctx p.Context, err mapper.MappingError) error {
 	if err == nil {
-		return nil, nil
+		return nil
 	}
-	failures := []p.CheckFailure{}
+
+	pkgName := ctx.RuntimeInformation().PackageName
+	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	if mErr != nil {
+		return mErr
+	}
+
+	missing := map[string]string{}
 	for _, err := range err.Failures() {
 		switch err := err.(type) {
 		case *mapper.MissingError:
 			tk := fmt.Sprintf("%s:%s", pkgName, err.Field())
-			reason := fmt.Sprintf("missing required configuration key %[1]s.\n"+
-				"\tSet a value using the command `pulumi config set %[1]s <value>`",
-				tk)
-
-			failures = append(failures, p.CheckFailure{
-				Property: err.Field(),
-				Reason:   reason,
-			})
-
-		case mapper.FieldError:
-			failures = append(failures, p.CheckFailure{
-				Property: err.Field(),
-				Reason:   err.Reason(),
-			})
+			missing[tk] = schema.InputProperties[err.Field()].Description
 		default:
-			return failures, fmt.Errorf("unknown mapper error: %w", err)
+			return fmt.Errorf("unknown mapper error: %w", err)
 		}
 	}
-	return failures, nil
+	return p.ConfigMissingKeys(missing)
 }
