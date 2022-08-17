@@ -206,8 +206,8 @@ func (prov *Provider) WithHomepage(homepage string) *Provider {
 	return prov
 }
 
-func (prov *Provider) WithRepository(repoUrl string) *Provider {
-	prov.schema.WithRepository(repoUrl)
+func (prov *Provider) WithRepository(repoURL string) *Provider {
+	prov.schema.WithRepository(repoURL)
 	return prov
 }
 

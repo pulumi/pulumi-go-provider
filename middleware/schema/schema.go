@@ -63,7 +63,7 @@ type Provider struct {
 	homepage          string
 	repository        string
 	publisher         string
-	logoUrl           string
+	logoURL           string
 	license           string
 	pluginDownloadURL string
 
@@ -150,9 +150,9 @@ func (s *Provider) WithHomepage(homepage string) *Provider {
 	return s
 }
 
-func (s *Provider) WithRepository(repoUrl string) *Provider {
+func (s *Provider) WithRepository(repoURL string) *Provider {
 	s.schema = ""
-	s.repository = repoUrl
+	s.repository = repoURL
 	return s
 }
 
@@ -164,7 +164,7 @@ func (s *Provider) WithPublisher(publisher string) *Provider {
 
 func (s *Provider) WithLogoURL(logoURL string) *Provider {
 	s.schema = ""
-	s.logoUrl = logoURL
+	s.logoURL = logoURL
 	return s
 }
 
@@ -192,7 +192,7 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		Homepage:          s.homepage,
 		Repository:        s.repository,
 		Publisher:         s.publisher,
-		LogoURL:           s.logoUrl,
+		LogoURL:           s.logoURL,
 		License:           s.license,
 		PluginDownloadURL: s.pluginDownloadURL,
 		Resources:         map[string]schema.ResourceSpec{},
