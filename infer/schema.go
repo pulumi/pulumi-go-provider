@@ -45,19 +45,41 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 		v.Elem().Set(i)
 		i = v
 	}
+	t = i.Type()
 
-	if r, ok := i.Interface().(Annotated); ok {
-		a := introspect.NewAnnotator(r)
-		r.Annotate(&a)
-		return a
+	merge := func(dst *introspect.Annotator, src introspect.Annotator) {
+		for k, v := range src.Descriptions {
+			(*dst).Descriptions[k] = v
+		}
+		for k, v := range src.Defaults {
+			(*dst).Defaults[k] = v
+		}
+		for k, v := range src.DefaultEnvs {
+			(*dst).DefaultEnvs[k] = v
+		}
 	}
 
-	// We want public fields to be filled in so we can index them without a nil check.
-	return introspect.Annotator{
+	ret := introspect.Annotator{
 		Descriptions: map[string]string{},
 		Defaults:     map[string]any{},
 		DefaultEnvs:  map[string][]string{},
 	}
+	if t.Elem().Kind() == reflect.Struct {
+		for _, f := range reflect.VisibleFields(t.Elem()) {
+			if f.Anonymous && f.IsExported() {
+				r := getAnnotated(f.Type)
+				merge(&ret, r)
+			}
+		}
+	}
+
+	if r, ok := i.Interface().(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		merge(&ret, a)
+	}
+
+	return ret
 }
 
 func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, multierror.Error) {
@@ -213,8 +235,7 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 	props = map[string]schema.PropertySpec{}
 	annotations := getAnnotated(typ)
 
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
+	for _, field := range reflect.VisibleFields(typ) {
 		fieldType := field.Type
 		for fieldType.Kind() == reflect.Pointer {
 			fieldType = fieldType.Elem()

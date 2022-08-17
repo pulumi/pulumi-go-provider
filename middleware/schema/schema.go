@@ -223,8 +223,8 @@ func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens
 				rewritten := fixReference(field.String(), pkg, modMap)
 				field.SetString(rewritten)
 			}
-			for i := 0; i < v.Type().NumField(); i++ {
-				f := v.Field(i)
+			for _, f := range reflect.VisibleFields(v.Type()) {
+				f := v.FieldByIndex(f.Index)
 				rename(f)
 			}
 		case reflect.Array, reflect.Slice:

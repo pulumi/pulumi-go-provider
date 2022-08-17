@@ -158,8 +158,7 @@ func crawlTypes[T any](crawler Crawler) error {
 			// Could hold a reference to other types
 			return drill(t.Elem())
 		case reflect.Struct:
-			for i := 0; i < t.NumField(); i++ {
-				f := t.Field(i)
+			for _, f := range reflect.VisibleFields(t) {
 				info, err := introspect.ParseTag(f)
 				if err != nil {
 					return err
