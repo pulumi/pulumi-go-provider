@@ -614,6 +614,12 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 			return p.CreateResponse{}, err
 		}
 		fg.MarkMap(req.Properties, m)
+	} else if req.Properties.ContainsUnknowns() {
+		for k, v := range m {
+			if !v.IsComputed() {
+				m[k] = resource.MakeComputed(v)
+			}
+		}
 	}
 
 	return p.CreateResponse{
@@ -694,6 +700,12 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 			return p.UpdateResponse{}, err
 		}
 		fg.MarkMap(req.News, m)
+	} else if req.News.ContainsUnknowns() {
+		for k, v := range m {
+			if !v.IsComputed() {
+				m[k] = resource.MakeComputed(v)
+			}
+		}
 	}
 
 	return p.UpdateResponse{
