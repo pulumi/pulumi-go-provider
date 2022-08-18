@@ -492,11 +492,27 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r := rc.getInstance(ctx, req.Urn, "Diff")
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
-	return diff[R, I, O](ctx, req, r, !hasUpdate)
+	var forceReplace func(string) bool
+	if hasUpdate {
+		schema, err := rc.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) { return false })
+		if err != nil {
+			return p.DiffResponse{}, err
+		}
+		forceReplace = func(s string) bool {
+			if schema.InputProperties == nil {
+				return false
+			}
+			return schema.InputProperties[s].ReplaceOnChanges
+		}
+	} else {
+		// No update => every change is a replace
+		forceReplace = func(string) bool { return true }
+	}
+	return diff[R, I, O](ctx, req, r, forceReplace)
 }
 
 // Compute a diff request.
-func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace bool) (p.DiffResponse, error) {
+func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func(string) bool) (p.DiffResponse, error) {
 
 	for _, ignoredChange := range req.IgnoreChanges {
 		req.News[ignoredChange] = req.Olds[ignoredChange]
@@ -541,7 +557,7 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace bool
 				InputDiff: v.InputDiff,
 			}
 		}
-		if forceReplace {
+		if forceReplace(k) {
 			// We force replaces if we don't have access to updates
 			v.Kind = v.Kind.AsReplace()
 		}
@@ -561,9 +577,10 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace bool
 		}
 	}
 	return p.DiffResponse{
-		DeleteBeforeReplace: forceReplace,
-		HasChanges:          objDiff.AnyChanges(),
-		DetailedDiff:        diff,
+		// TODO: how shoould we set this?
+		// DeleteBeforeReplace: ???,
+		HasChanges:   objDiff.AnyChanges(),
+		DetailedDiff: diff,
 	}, nil
 }
 

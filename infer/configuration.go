@@ -133,7 +133,7 @@ func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse
 	if c.t == nil {
 		c.t = new(T)
 	}
-	return diff[T, T, T](ctx, req, c.t, true)
+	return diff[T, T, T](ctx, req, c.t, func(string) bool { return true })
 }
 
 // Fetch an environmental or default value for a missing key.

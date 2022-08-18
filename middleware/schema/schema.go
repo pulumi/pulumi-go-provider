@@ -46,10 +46,26 @@ type Function interface {
 type Provider struct {
 	p.Provider
 
+	// Resources from which to derive the schema
 	resources []Resource
 	invokes   []Function
-	schema    string
 	provider  Resource
+
+	// The cached schema. All With* methods should set schema to "", so we regenerate it
+	// on the next request.
+	schema string
+
+	// Non-inferrable schema fields
+	languages         map[string]any
+	description       string
+	displayName       string
+	keywords          []string
+	homepage          string
+	repository        string
+	publisher         string
+	logoURL           string
+	license           string
+	pluginDownloadURL string
 
 	moduleMap map[tokens.ModuleName]tokens.ModuleName
 }
@@ -61,6 +77,7 @@ func Wrap(provider p.Provider) *Provider {
 	return &Provider{
 		Provider:  provider,
 		moduleMap: map[tokens.ModuleName]tokens.ModuleName{},
+		languages: map[string]any{},
 	}
 }
 
@@ -89,6 +106,68 @@ func (s *Provider) WithProviderResource(provider Resource) *Provider {
 	return s
 }
 
+func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
+	s.schema = ""
+	for k, v := range languages {
+		s.languages[k] = v
+	}
+	return s
+}
+
+func (s *Provider) WithDescription(description string) *Provider {
+	s.schema = ""
+	s.description = description
+	return s
+}
+
+func (s *Provider) WithLicense(license string) *Provider {
+	s.schema = ""
+	s.license = license
+	return s
+}
+
+func (s *Provider) WithPluginDownloadURL(pluginDownloadURL string) *Provider {
+	s.schema = ""
+	s.pluginDownloadURL = pluginDownloadURL
+	return s
+}
+
+func (s *Provider) WithDisplayName(name string) *Provider {
+	s.schema = ""
+	s.displayName = name
+	return s
+}
+
+func (s *Provider) WithKeywords(keywords []string) *Provider {
+	s.schema = ""
+	s.keywords = append(s.keywords, keywords...)
+	return s
+}
+
+func (s *Provider) WithHomepage(homepage string) *Provider {
+	s.schema = ""
+	s.homepage = homepage
+	return s
+}
+
+func (s *Provider) WithRepository(repoURL string) *Provider {
+	s.schema = ""
+	s.repository = repoURL
+	return s
+}
+
+func (s *Provider) WithPublisher(publisher string) *Provider {
+	s.schema = ""
+	s.publisher = publisher
+	return s
+}
+
+func (s *Provider) WithLogoURL(logoURL string) *Provider {
+	s.schema = ""
+	s.logoURL = logoURL
+	return s
+}
+
 func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	if s.schema == "" {
 		err := s.generateSchema(ctx)
@@ -105,11 +184,28 @@ func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchema
 func (s *Provider) generateSchema(ctx p.Context) error {
 	info := ctx.RuntimeInformation()
 	pkg := schema.PackageSpec{
-		Name:      info.PackageName,
-		Version:   info.Version,
-		Resources: map[string]schema.ResourceSpec{},
-		Functions: map[string]schema.FunctionSpec{},
-		Types:     map[string]schema.ComplexTypeSpec{},
+		Name:              info.PackageName,
+		Version:           info.Version,
+		DisplayName:       s.displayName,
+		Description:       s.description,
+		Keywords:          s.keywords,
+		Homepage:          s.homepage,
+		Repository:        s.repository,
+		Publisher:         s.publisher,
+		LogoURL:           s.logoURL,
+		License:           s.license,
+		PluginDownloadURL: s.pluginDownloadURL,
+		Resources:         map[string]schema.ResourceSpec{},
+		Functions:         map[string]schema.FunctionSpec{},
+		Types:             map[string]schema.ComplexTypeSpec{},
+		Language:          map[string]schema.RawMessage{},
+	}
+	for k, v := range s.languages {
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		pkg.Language[k] = bytes
 	}
 	registerDerivative := func(tk tokens.Type, t schema.ComplexTypeSpec) bool {
 		tkString := assignTo(tk, info.PackageName, s.moduleMap).String()
@@ -223,8 +319,8 @@ func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens
 				rewritten := fixReference(field.String(), pkg, modMap)
 				field.SetString(rewritten)
 			}
-			for i := 0; i < v.Type().NumField(); i++ {
-				f := v.Field(i)
+			for _, f := range reflect.VisibleFields(v.Type()) {
+				f := v.FieldByIndex(f.Index)
 				rename(f)
 			}
 		case reflect.Array, reflect.Slice:

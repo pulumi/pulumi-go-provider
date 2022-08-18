@@ -158,6 +158,11 @@ func (prov *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *
 	return prov
 }
 
+func (prov *Provider) WithLanguageMap(languages map[string]any) *Provider {
+	prov.schema.WithLanguageMap(languages)
+	return prov
+}
+
 // Give the provider global state. This will define a provider resource.
 func (prov *Provider) WithConfig(config InferredConfig) *Provider {
 	prov.config = config
@@ -184,4 +189,44 @@ func (prov *Provider) Configure(ctx p.Context, req p.ConfigureRequest) error {
 		return prov.config.configure(ctx, req)
 	}
 	return prov.Provider.Configure(ctx, req)
+}
+
+func (prov *Provider) WithDisplayName(name string) *Provider {
+	prov.schema.WithDisplayName(name)
+	return prov
+}
+
+func (prov *Provider) WithKeywords(keywords []string) *Provider {
+	prov.schema.WithKeywords(keywords)
+	return prov
+}
+
+func (prov *Provider) WithHomepage(homepage string) *Provider {
+	prov.schema.WithHomepage(homepage)
+	return prov
+}
+
+func (prov *Provider) WithRepository(repoURL string) *Provider {
+	prov.schema.WithRepository(repoURL)
+	return prov
+}
+
+func (prov *Provider) WithPublisher(publisher string) *Provider {
+	prov.schema.WithPublisher(publisher)
+	return prov
+}
+
+func (prov *Provider) WithLogoURL(logoURL string) *Provider {
+	prov.schema.WithLogoURL(logoURL)
+	return prov
+}
+
+func (prov *Provider) WithLicense(license string) *Provider {
+	prov.schema.WithLicense(license)
+	return prov
+}
+
+func (prov *Provider) WithDescription(description string) *Provider {
+	prov.schema.WithDescription(description)
+	return prov
 }

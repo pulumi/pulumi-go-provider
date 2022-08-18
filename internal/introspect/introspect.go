@@ -41,8 +41,7 @@ func StructToMap(i any) map[string]interface{} {
 	for value.Type().Kind() == reflect.Pointer {
 		value = value.Elem()
 	}
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
+	for _, field := range reflect.VisibleFields(typ) {
 		if !field.IsExported() {
 			continue
 		}
@@ -52,7 +51,7 @@ func StructToMap(i any) map[string]interface{} {
 			continue
 		}
 
-		m[tag] = value.Field(i).Interface()
+		m[tag] = value.FieldByIndex(field.Index).Interface()
 	}
 	return m
 }
@@ -106,8 +105,7 @@ func FindProperties(r any) (map[string]FieldTag, error) {
 	}
 	contract.Assertf(typ.Kind() == reflect.Struct, "Expected struct, found %s (%T)", typ.Kind(), r)
 	m := map[string]FieldTag{}
-	for i := 0; i < typ.NumField(); i++ {
-		f := typ.Field(i)
+	for _, f := range reflect.VisibleFields(typ) {
 		info, err := ParseTag(f)
 		if err != nil {
 			return nil, err
@@ -117,21 +115,6 @@ func FindProperties(r any) (map[string]FieldTag, error) {
 		}
 		m[info.Name] = info
 	}
-	return m, nil
-}
-
-func FindOutputProperties(r any) (map[string]bool, error) {
-	props, err := FindProperties(r)
-	if err != nil {
-		return nil, err
-	}
-	m := map[string]bool{}
-	for k, v := range props {
-		if v.Output {
-			m[k] = true
-		}
-	}
-
 	return m, nil
 }
 
@@ -182,7 +165,7 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 	if hasProviderTag && !hasPulumiTag {
 		return FieldTag{}, fmt.Errorf("you must put to the `pulumi` tag to use the `provider` tag")
 	}
-	if !hasPulumiTag {
+	if !hasPulumiTag || !field.IsExported() {
 		return FieldTag{Internal: true}, nil
 	}
 
@@ -216,7 +199,6 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		Secret:           provider["secret"],
 		ReplaceOnChanges: provider["replaceOnChanges"],
 		ExternalType:     extType,
-		Output:           provider["output"],
 	}, nil
 }
 
@@ -229,9 +211,6 @@ type FieldTag struct {
 	ExternalType string // The name and version of the external type consumed in the field.
 	// NOTE: ReplaceOnChanges will only be obeyed when the default diff implementation is used.
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
-
-	// TODO Output will be depreciated when we rip out the old design
-	Output bool // If the field is an output type in the pulumi type system.
 }
 
 func NewFieldMatcher(i any) FieldMatcher {
@@ -251,9 +230,9 @@ type FieldMatcher struct {
 
 func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 	hostType := f.value.Type()
-	for i := 0; i < hostType.NumField(); i++ {
-		f := f.value.Field(i)
-		fType := hostType.Field(i)
+	for _, i := range reflect.VisibleFields(hostType) {
+		f := f.value.FieldByIndex(i.Index)
+		fType := hostType.FieldByIndex(i.Index)
 		if f.Addr().Interface() == field {
 			f, error := ParseTag(fType)
 			return f, true, error
