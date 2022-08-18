@@ -385,11 +385,20 @@ type wrapCtx struct {
 func replaceContext(ctx Context, new context.Context) Context { //nolint:revive
 	switch ctx := ctx.(type) {
 	case *wrapCtx:
-		ctx.Context = new
-		return ctx
+		return &wrapCtx{
+			Context:            new,
+			log:                ctx.log,
+			logf:               ctx.logf,
+			logStatus:          ctx.logStatus,
+			logStatusf:         ctx.logStatusf,
+			runtimeInformation: ctx.runtimeInformation,
+		}
 	case *pkgContext:
-		ctx.Context = new
-		return ctx
+		return &pkgContext{
+			Context:  new,
+			provider: ctx.provider,
+			urn:      ctx.urn,
+		}
 	default:
 		return &wrapCtx{
 			Context:            new,
@@ -415,13 +424,6 @@ func (c *wrapCtx) RuntimeInformation() RunInfo { return c.runtimeInformation() }
 // Add a value to a Context. This is the moral equivalent to context.WithValue from the Go
 // standard library.
 func CtxWithValue(ctx Context, key, value any) Context {
-	if ctx, ok := ctx.(*pkgContext); ok {
-		return &pkgContext{
-			Context:  context.WithValue(ctx.Context, key, value),
-			provider: ctx.provider,
-			urn:      ctx.urn,
-		}
-	}
 	return replaceContext(ctx, context.WithValue(ctx, key, value))
 }
 
