@@ -100,7 +100,9 @@ type CustomUpdate[I, O any] interface {
 
 // A resource that can recover its state from the provider.
 //
-// There is no default behavior for CustomRead.
+// If CustomRead is not implemented, it will default to checking that the inputs and state
+// fit into I and O respectively. If they do, then the values will be returned as is.
+// Otherwise an error will be returned.
 //
 // Example:
 // TODO - Probably something to do with the file system.
@@ -630,10 +632,6 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 
 func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
 	r := rc.getInstance(ctx, req.Urn, "Read")
-	read, ok := ((interface{})(*r)).(CustomRead[I, O])
-	if !ok {
-		return p.ReadResponse{}, status.Errorf(codes.Unimplemented, "Read is not implemented for resource %s", req.Urn)
-	}
 	var inputs I
 	var state O
 	var err error
@@ -644,6 +642,18 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	stateSecrets, err := decode(req.Properties, &state, true)
 	if err != nil {
 		return p.ReadResponse{}, err
+	}
+	read, ok := ((interface{})(*r)).(CustomRead[I, O])
+	if !ok {
+		// Default read implementation:
+		//
+		// We have already confirmed that we deserialize state and properties correctly.
+		// We now just return them as is.
+		return p.ReadResponse{
+			ID:         req.ID,
+			Properties: req.Properties,
+			Inputs:     req.Inputs,
+		}, nil
 	}
 	id, inputs, state, err := read.Read(ctx, req.ID, inputs, state)
 	if err != nil {
