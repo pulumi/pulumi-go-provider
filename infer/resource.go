@@ -739,14 +739,14 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 }
 
 func decode(m resource.PropertyMap, dst interface{}, preview bool) (
-	[]resource.PropertyKey, mapper.MappingError) {
+	[]resource.PropertyPath, mapper.MappingError) {
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,
 	}).Decode(m.Mappable(), dst)
 }
 
-func encode(src interface{}, secrets []resource.PropertyKey, preview bool) (
+func encode(src interface{}, secrets []resource.PropertyPath, preview bool) (
 	resource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,
@@ -754,44 +754,41 @@ func encode(src interface{}, secrets []resource.PropertyKey, preview bool) (
 	if err != nil {
 		return nil, err
 	}
-	m := resource.NewPropertyMapFromMap(props)
-	for _, s := range secrets {
-		v, ok := m[s]
-		if !ok {
-			continue
-		}
-		m[s] = resource.NewSecretProperty(&resource.Secret{Element: v})
-	}
-	return m, nil
+	return insertSecrets(resource.NewPropertyMapFromMap(props), secrets), nil
 }
 
 // Transform secret values into plain values, returning the new map and the list of keys
 // that contained secrets.
-func extractSecrets(m resource.PropertyMap) (resource.PropertyMap, []resource.PropertyKey) {
+func extractSecrets(m resource.PropertyMap) (resource.PropertyMap, []resource.PropertyPath) {
 	newMap := resource.PropertyMap{}
-	secrets := []resource.PropertyKey{}
-	var removeSecrets func(resource.PropertyValue) resource.PropertyValue
-	removeSecrets = func(v resource.PropertyValue) resource.PropertyValue {
+	secrets := []resource.PropertyPath{}
+	var removeSecrets func(resource.PropertyValue, resource.PropertyPath) resource.PropertyValue
+	removeSecrets = func(v resource.PropertyValue, path resource.PropertyPath) resource.PropertyValue {
 		switch {
 		case v.IsSecret():
-			return v.SecretValue().Element
+			// To allow full fidelity reconstructing maps, we extract nested secrets
+			// first. We then extract the top level secret. We need this ordering to
+			// re-embed nested secrets.
+			el := removeSecrets(v.SecretValue().Element, path)
+			secrets = append(secrets, path)
+			return el
 		case v.IsComputed():
-			return removeSecrets(v.Input().Element)
+			return removeSecrets(v.Input().Element, path)
 		case v.IsOutput():
 			if !v.OutputValue().Known {
 				return resource.NewNullProperty()
 			}
-			return removeSecrets(v.OutputValue().Element)
+			return removeSecrets(v.OutputValue().Element, path)
 		case v.IsArray():
 			arr := make([]resource.PropertyValue, len(v.ArrayValue()))
 			for i, e := range v.ArrayValue() {
-				arr[i] = removeSecrets(e)
+				arr[i] = removeSecrets(e, append(path, i))
 			}
 			return resource.NewArrayProperty(arr)
 		case v.IsObject():
 			m := make(resource.PropertyMap, len(v.ObjectValue()))
 			for k, v := range v.ObjectValue() {
-				m[k] = removeSecrets(v)
+				m[k] = removeSecrets(v, append(path, string(k)))
 			}
 			return resource.NewObjectProperty(m)
 		default:
@@ -799,11 +796,20 @@ func extractSecrets(m resource.PropertyMap) (resource.PropertyMap, []resource.Pr
 		}
 	}
 	for k, v := range m {
-		if v.ContainsSecrets() {
-			secrets = append(secrets, k)
-		}
-		newMap[k] = removeSecrets(v)
+		newMap[k] = removeSecrets(v, resource.PropertyPath{string(k)})
 	}
 	contract.Assertf(!newMap.ContainsSecrets(), "%d secrets removed", len(secrets))
 	return newMap, secrets
+}
+
+func insertSecrets(props resource.PropertyMap, secrets []resource.PropertyPath) resource.PropertyMap {
+	m := resource.NewObjectProperty(props)
+	for _, s := range secrets {
+		v, ok := s.Get(m)
+		if !ok {
+			continue
+		}
+		s.Set(m, resource.MakeSecret(v))
+	}
+	return m.ObjectValue()
 }

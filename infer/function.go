@@ -133,24 +133,16 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeReq
 }
 
 func (*derivedInvokeController[F, I, O]) decode(m presource.PropertyMap, dst interface{}) (
-	[]presource.PropertyKey, mapper.MappingError) {
+	[]presource.PropertyPath, mapper.MappingError) {
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{}).Decode(m.Mappable(), dst)
 }
 
-func (*derivedInvokeController[F, I, O]) encode(src interface{}, secrets []presource.PropertyKey) (
+func (*derivedInvokeController[F, I, O]) encode(src interface{}, secrets []presource.PropertyPath) (
 	presource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(nil).Encode(src)
 	if err != nil {
 		return nil, err
 	}
-	m := presource.NewPropertyMapFromMap(props)
-	for _, s := range secrets {
-		v, ok := m[s]
-		if !ok {
-			continue
-		}
-		m[s] = presource.NewSecretProperty(&presource.Secret{Element: v})
-	}
-	return m, nil
+	return insertSecrets(presource.NewPropertyMapFromMap(props), secrets), nil
 }
