@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -383,14 +384,15 @@ type InferredResource interface {
 // Create a new InferredResource, where `R` is the resource controller, `I` is the
 // resources inputs and `O` is the resources outputs.
 func Resource[R CustomResource[I, O], I, O any]() InferredResource {
-	return &derivedResourceController[R, I, O]{map[resource.URN]*R{}}
+	return &derivedResourceController[R, I, O]{m: map[resource.URN]*R{}}
 }
 
 type derivedResourceController[R CustomResource[I, O], I, O any] struct {
-	m map[resource.URN]*R
+	m    map[resource.URN]*R
+	lock sync.Mutex
 }
 
-func (derivedResourceController[R, I, O]) isInferredResource() {}
+func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
@@ -410,6 +412,8 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 }
 
 func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn resource.URN, call string) *R {
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
 	_, ok := rc.m[urn]
 	if !ok {
 		if call != "Delete" && call != "Read" {
@@ -423,7 +427,11 @@ func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn res
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var r R
-	defer func() { rc.m[req.Urn] = &r }()
+	defer func() {
+		rc.lock.Lock()
+		defer rc.lock.Unlock()
+		rc.m[req.Urn] = &r
+	}()
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that
 		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
@@ -734,6 +742,8 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 		}
 		return del.Delete(ctx, req.ID, olds)
 	}
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
 	delete(rc.m, req.Urn)
 	return nil
 }
