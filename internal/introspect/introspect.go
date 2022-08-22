@@ -20,12 +20,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func StructToMap(i any) map[string]interface{} {
@@ -58,44 +54,6 @@ func StructToMap(i any) map[string]interface{} {
 
 type ToPropertiesOptions struct {
 	ComputedKeys []string
-}
-
-func ResourceToProperties(r any, opts *ToPropertiesOptions) (*structpb.Struct, error) {
-	if opts == nil {
-		opts = &ToPropertiesOptions{}
-	}
-	mapper := mapper.New(
-		&mapper.Opts{IgnoreMissing: true, IgnoreUnrecognized: true},
-	)
-
-	props, err := mapper.Encode(r)
-	if err != nil {
-		return nil, err
-	}
-
-	propsMap := resource.NewPropertyMapFromMap(props)
-
-	for _, computed := range opts.ComputedKeys {
-		propsMap[resource.PropertyKey(computed)] = resource.MakeComputed(resource.NewStringProperty(""))
-	}
-
-	return plugin.MarshalProperties(propsMap, plugin.MarshalOptions{
-		KeepUnknowns: true,
-		SkipNulls:    true,
-	})
-}
-
-func PropertiesToResource(s *structpb.Struct, res any) error {
-	inputProps, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
-		SkipNulls:        true,
-		SkipInternalKeys: true,
-	})
-	if err != nil {
-		return err
-	}
-	inputs := inputProps.Mappable()
-
-	return mapper.MapI(inputs, res)
 }
 
 func FindProperties(r any) (map[string]FieldTag, error) {
