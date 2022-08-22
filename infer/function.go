@@ -19,9 +19,7 @@ import (
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -104,7 +102,7 @@ func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 
 func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 	var i I
-	secrets, mapErr := r.decode(req.Args, &i)
+	secrets, mapErr := decode(req.Args, &i, false)
 	mapFailures, err := checkFailureFromMapError(mapErr)
 	if err != nil {
 		return p.InvokeResponse{}, err
@@ -123,26 +121,11 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeReq
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
-	m, err := r.encode(o, secrets)
+	m, err := encode(o, secrets, false)
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
 	return p.InvokeResponse{
 		Return: m,
 	}, nil
-}
-
-func (*derivedInvokeController[F, I, O]) decode(m presource.PropertyMap, dst interface{}) (
-	[]presource.PropertyPath, mapper.MappingError) {
-	m, secrets := extractSecrets(m)
-	return secrets, mapper.New(&mapper.Opts{}).Decode(m.Mappable(), dst)
-}
-
-func (*derivedInvokeController[F, I, O]) encode(src interface{}, secrets []presource.PropertyPath) (
-	presource.PropertyMap, mapper.MappingError) {
-	props, err := mapper.New(nil).Encode(src)
-	if err != nil {
-		return nil, err
-	}
-	return insertSecrets(presource.NewPropertyMapFromMap(props), secrets), nil
 }
