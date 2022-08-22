@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"reflect"
 	"testing"
 
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -139,4 +140,41 @@ func TestNestedSecrets(t *testing.T) {
 	m = insertSecrets(m, secrets)
 
 	assert.Equal(t, original, m)
+}
+
+type outerStruct struct {
+	Foo   string                 `pulumi:"foo"`
+	Bar   int                    `pulumi:"bar"`
+	Pi    float64                `pulumi:"pi"`
+	Fizz  []string               `pulumi:"fizz"`
+	Inner *innerStruct           `pulumi:"inner"`
+	Data  map[string]innerStruct `pulumi:"data"`
+}
+
+type innerStruct struct {
+	Fizz string  `pulumi:"fizz,optional"`
+	Bar  float64 `pulumi:"bar"`
+}
+
+func TestTypedUnknowns(t *testing.T) {
+	t.Parallel()
+	m := r.PropertyMap{
+		"foo": r.MakeOutput(r.NewStringProperty("")),
+		"bar": r.MakeOutput(r.NewStringProperty("")),
+		"pi": r.NewOutputProperty(r.Output{
+			Element: r.NewNumberProperty(3.14159),
+			Known:   true,
+		}),
+		"fizz":  r.MakeOutput(r.NewStringProperty("")),
+		"inner": r.MakeOutput(r.NewStringProperty("")),
+		"data":  r.MakeOutput(r.NewStringProperty("")),
+	}
+	m = typeUnknowns(r.NewObjectProperty(m), reflect.TypeOf(new(outerStruct))).ObjectValue()
+	assert.True(t, m["foo"].OutputValue().Element.IsString(), "String")
+	assert.True(t, m["bar"].OutputValue().Element.IsNumber(), "Number")
+	assert.Equal(t, 3.14159, m["pi"].OutputValue().Element.NumberValue(), "pi")
+	assert.True(t, m["fizz"].OutputValue().Element.IsArray(), "Array")
+	assert.True(t, m["inner"].OutputValue().Element.IsObject(), "Object")
+	assert.Len(t, m["inner"].OutputValue().Element.ObjectValue(), 1)
+	assert.True(t, m["data"].OutputValue().Element.IsObject(), "Map")
 }

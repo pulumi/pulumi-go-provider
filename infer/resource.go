@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
@@ -450,7 +451,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	// The user has not implemented check, so do the smart thing by default; We just check
 	// that we can de-serialize correctly
 	var i I
-	_, err := decode(req.News, &i, false)
+	_, err := decode(req.News, &i, req.News.ContainsUnknowns())
 	if err == nil {
 		return p.CheckResponse{
 			Inputs: req.News,
@@ -471,7 +472,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 // Ensure that `inputs` can deserialize cleanly into `I`.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
 	var i I
-	_, err := decode(inputs, &i, false)
+	_, err := decode(inputs, &i, inputs.ContainsUnknowns())
 	if err == nil {
 		return i, nil, nil
 	}
@@ -532,11 +533,11 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 		var olds O
 		var news I
 		var err error
-		_, err = decode(req.Olds, &olds, false)
+		_, err = decode(req.Olds, &olds, req.Olds.ContainsUnknowns())
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		_, err = decode(req.News, &news, false)
+		_, err = decode(req.News, &news, req.News.ContainsUnknowns())
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -748,12 +749,97 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	return nil
 }
 
-func decode(m resource.PropertyMap, dst interface{}, preview bool) (
+func decode(m resource.PropertyMap, dst any, preview bool) (
 	[]resource.PropertyPath, mapper.MappingError) {
+	if m.ContainsUnknowns() {
+		m = typeUnknowns(resource.NewObjectProperty(m), reflect.TypeOf(dst)).ObjectValue()
+	}
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,
 	}).Decode(m.Mappable(), dst)
+}
+
+// typeUnknowns produces a map with identical values to m module unknown values have the
+// correct type to be desierialized to dst.
+func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyValue {
+	for dst.Kind() == reflect.Pointer {
+		dst = dst.Elem()
+	}
+	if m.IsSecret() {
+		return resource.MakeSecret(typeUnknowns(m.SecretValue().Element, dst))
+	}
+	if m.IsOutput() {
+		v := m.OutputValue()
+		if !v.Known {
+			switch dst.Kind() {
+			case reflect.Struct:
+				e := resource.NewObjectProperty(resource.PropertyMap{})
+				v.Element = typeUnknowns(e, dst)
+			case reflect.Map:
+				v.Element = resource.NewObjectProperty(resource.PropertyMap{})
+			case reflect.String:
+				v.Element = resource.NewStringProperty("")
+			case reflect.Bool:
+				v.Element = resource.NewBoolProperty(false)
+			case reflect.Int, reflect.Int64, reflect.Float32, reflect.Float64:
+				v.Element = resource.NewNumberProperty(0)
+			case reflect.Array, reflect.Slice:
+				v.Element = resource.NewArrayProperty([]resource.PropertyValue{})
+			}
+		}
+		return resource.NewOutputProperty(v)
+	}
+
+	switch dst.Kind() {
+	case reflect.Array, reflect.Slice:
+		var results []resource.PropertyValue
+		if m.IsArray() {
+			results = make([]resource.PropertyValue, len(m.ArrayValue()))
+			for i, v := range m.ArrayValue() {
+				results[i] = typeUnknowns(v, dst.Elem())
+			}
+		}
+		return resource.NewArrayProperty(results)
+	case reflect.Map:
+		var result resource.PropertyMap
+		if m.IsObject() {
+			result = make(resource.PropertyMap, len(m.ObjectValue()))
+			for k, v := range m.ObjectValue() {
+				result[k] = typeUnknowns(v, dst.Elem())
+			}
+		}
+		return resource.NewObjectProperty(result)
+	case reflect.Struct:
+		var result resource.PropertyMap
+		obj := resource.PropertyMap{}
+		if m.IsObject() {
+			obj = m.ObjectValue()
+		}
+		result = make(resource.PropertyMap, len(obj))
+		for _, field := range reflect.VisibleFields(dst) {
+			tag, err := introspect.ParseTag(field)
+			if err != nil || tag.Internal {
+				continue
+			}
+			v, ok := obj[resource.PropertyKey(tag.Name)]
+			if !ok {
+				if tag.Optional {
+					continue
+				} else {
+					// Create a new unknown output, which we will then type
+					v = resource.NewOutputProperty(resource.Output{
+						Element: resource.NewNullProperty(),
+						Known:   false,
+					})
+				}
+			}
+			result[resource.PropertyKey(tag.Name)] = typeUnknowns(v, field.Type)
+		}
+		return resource.NewObjectProperty(result)
+	default:
+		return m
+	}
 }
 
 func encode(src interface{}, secrets []resource.PropertyPath, preview bool) (
