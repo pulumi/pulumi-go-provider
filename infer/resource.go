@@ -126,13 +126,13 @@ type CustomDelete[O any] interface {
 // The methods of Annotator must be called on pointers to fields of their receivers, or on
 // their receiver itself.
 //
-// func (*s Struct) Annotated(a Annotator) {
-//  a.Describe(&s, "A struct")            // Legal
-//	a.Describe(&s.field1, "A field")      // Legal
-//	a.Describe(s.field2, "A field")       // Not legal, since the pointer is missing.
-//	otherS := &Struct{}
-//	a.Describe(&otherS.field1, "A field") // Not legal, since describe is not called on its receiver.
-// }
+//	func (*s Struct) Annotated(a Annotator) {
+//		a.Describe(&s, "A struct")            // Legal
+//		a.Describe(&s.field1, "A field")      // Legal
+//		a.Describe(s.field2, "A field")       // Not legal, since the pointer is missing.
+//		otherS := &Struct{}
+//		a.Describe(&otherS.field1, "A field") // Not legal, since describe is not called on its receiver.
+//	}
 type Annotator interface {
 	// Annotate a struct field with a text description.
 	Describe(i any, description string)
