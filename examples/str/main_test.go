@@ -17,7 +17,7 @@ const schema = `{
   "config": {},
   "provider": {},
   "functions": {
-    "str:index:GiveMeAString": {
+    "str:index:giveMeAString": {
       "description": "Return a string, withing any inputs",
       "inputs": {
         "type": "object"
@@ -34,7 +34,7 @@ const schema = `{
         ]
       }
     },
-    "str:index:Print": {
+    "str:index:print": {
       "description": "Print to stdout",
       "inputs": {
         "properties": {
@@ -51,7 +51,7 @@ const schema = `{
         "type": "object"
       }
     },
-    "str:index:Replace": {
+    "str:index:replace": {
       "description": "Replace returns a copy of the string s with all\nnon-overlapping instances of old replaced by new.\nIf old is empty, it matches at the beginning of the string\nand after each UTF-8 sequence, yielding up to k+1 replacements\nfor a k-rune string.",
       "inputs": {
         "properties": {
@@ -87,7 +87,7 @@ const schema = `{
         ]
       }
     },
-    "str:regex:Replace": {
+    "str:regex:replace": {
       "description": "Replace returns a copy of ` + "`s`" + `, replacing matches of the ` + "`old`" + `\nwith the replacement string ` + "`new`" + `.",
       "inputs": {
         "properties": {
@@ -139,7 +139,7 @@ func TestInvokes(t *testing.T) {
 	server := integration.NewServer("str", semver.Version{Minor: 1}, provider())
 
 	r, err := server.Invoke(p.InvokeRequest{
-		Token: "str:index:Replace",
+		Token: "str:index:replace",
 		Args: presource.NewPropertyMapFromMap(map[string]interface{}{
 			"s":   "foo!bar",
 			"old": "!",
@@ -151,7 +151,7 @@ func TestInvokes(t *testing.T) {
 	assert.Equal(t, "foo-bar", r.Return["out"].StringValue())
 
 	r, err = server.Invoke(p.InvokeRequest{
-		Token: "str:regex:Replace",
+		Token: "str:regex:replace",
 		Args: presource.NewPropertyMapFromMap(map[string]interface{}{
 			"s":       "fizz, buzz, zzz...",
 			"pattern": "z+",
