@@ -33,6 +33,7 @@ func TestFnTokens(t *testing.T) {
 	for _, c := range cases {
 		c := c
 		t.Run(string(c.input), func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, c.expected, fnToken(c.input))
 		})
 	}
