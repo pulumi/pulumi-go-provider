@@ -17,6 +17,7 @@ package infer
 import (
 	"fmt"
 	"reflect"
+	"unicode"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -53,7 +54,24 @@ func (derivedInvokeController[F, I, O]) isInferredFunction() {}
 
 func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	var f F
-	return introspect.GetToken("pkg", f)
+	tk, err := introspect.GetToken("pkg", f)
+	if err != nil {
+		return "", err
+	}
+	return fnToken(tk), nil
+}
+
+func fnToken(tk tokens.Type) tokens.Type {
+	name := []rune(tk.Name().String())
+	for i, r := range name {
+		if !unicode.IsUpper(r) {
+			break
+		}
+		if i == 0 || len(name) == i+1 || unicode.IsUpper(name[i+1]) {
+			name[i] = unicode.ToLower(r)
+		}
+	}
+	return tokens.NewTypeToken(tk.Module(), tokens.TypeName(name))
 }
 
 func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
