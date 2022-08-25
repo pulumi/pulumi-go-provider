@@ -25,9 +25,10 @@ import (
 )
 
 type MyStruct struct {
-	Foo  string `pulumi:"foo,optional" provider:"secret,output"`
-	Bar  int    `provider:"secret"`
-	Fizz *int   `pulumi:"fizz"`
+	Foo     string `pulumi:"foo,optional" provider:"secret,output"`
+	Bar     int    `provider:"secret"`
+	Fizz    *int   `pulumi:"fizz"`
+	ExtType string `pulumi:"typ" provider:"type=example@1.2.3:m1:m2"`
 }
 
 func (m *MyStruct) Annotate(a infer.Annotator) {
@@ -61,6 +62,18 @@ func TestParseTag(t *testing.T) {
 			Field: "Fizz",
 			Expected: introspect.FieldTag{
 				Name: "fizz",
+			},
+		},
+		{
+			Field: "ExtType",
+			Expected: introspect.FieldTag{
+				Name: "typ",
+				ExplicitRef: &introspect.ExplicitType{
+					Pkg:     "example",
+					Version: "v1.2.3",
+					Module:  "m1",
+					Name:    "m2",
+				},
 			},
 		},
 	}

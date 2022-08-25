@@ -94,6 +94,7 @@ func (s *Provider) WithInvokes(invokes ...Function) *Provider {
 }
 
 func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
+	s.schema = ""
 	for k, v := range m {
 		s.moduleMap[k] = v
 	}

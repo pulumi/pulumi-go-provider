@@ -164,7 +164,8 @@ func crawlTypes[T any](crawler Crawler) error {
 				if err != nil {
 					return err
 				}
-				if info.Internal {
+				// The type is internal or it is a reference to an external package
+				if info.Internal || (info.ExplicitRef != nil && info.ExplicitRef.Pkg != "") {
 					continue
 				}
 				typ := f.Type
@@ -214,7 +215,7 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			_ = reg(tokens.Type(enum.token), tSpec)
 			return false, nil
 		}
-		if _, ok, err := resourceReferenceToken(t, "", true); ok {
+		if _, ok, err := resourceReferenceToken(t, nil, true); ok {
 			// This will have already been registered, so we don't need to recurse here
 			return false, err
 		}
