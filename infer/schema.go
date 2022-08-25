@@ -110,7 +110,9 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	}, errs
 }
 
-func serializeTypeAsPropertyType(t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType) (schema.TypeSpec, error) {
+func serializeTypeAsPropertyType(
+	t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType,
+) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -278,7 +280,9 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 	return props, required, nil
 }
 
-func resourceReferenceToken(t reflect.Type, extTag *introspect.ExplicitType, allowMissingExtType bool) (schema.TypeSpec, bool, error) {
+func resourceReferenceToken(
+	t reflect.Type, extTag *introspect.ExplicitType, allowMissingExtType bool,
+) (schema.TypeSpec, bool, error) {
 	ptrT := reflect.PointerTo(t)
 	implements := func(typ reflect.Type) bool {
 		return t.Implements(typ) || ptrT.Implements(typ)
