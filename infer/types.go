@@ -198,6 +198,10 @@ func crawlTypes[T any](crawler Crawler) error {
 // registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
 func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 	crawler := func(t reflect.Type) (bool, error) {
+		t, _, err := underlyingType(t)
+		if err != nil {
+			return false, err
+		}
 		if t == reflect.TypeOf(resource.Asset{}) || t == reflect.TypeOf(resource.Archive{}) {
 			return false, nil
 		}
