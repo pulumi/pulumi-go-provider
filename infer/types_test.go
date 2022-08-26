@@ -132,9 +132,17 @@ func TestIsEnum(t *testing.T) {
 }
 
 type Foo struct {
-	Bar     *Bar   `pulumi:"bar"`
-	Enum    MyEnum `pulumi:"enum"`
-	Literal string
+	Bar      *Bar   `pulumi:"bar"`
+	Enum     MyEnum `pulumi:"enum"`
+	Literal  string
+	External External `pulumi:"external,optional" provider:"type=example@0.1.2:mod:Internal"`
+}
+
+// This type should never show up in the schema
+type Internal struct{}
+
+type External struct {
+	Internal Internal `pulumi:"internal"`
 }
 
 type Bar struct {
@@ -186,7 +194,12 @@ func TestCrawlTypes(t *testing.T) {
 								Ref: "#/types/pkg:infer:Bar"}},
 						"enum": {
 							TypeSpec: pschema.TypeSpec{
-								Ref: "#/types/pkg:infer:MyEnum"}}},
+								Ref: "#/types/pkg:infer:MyEnum"}},
+						"external": {
+							TypeSpec: pschema.TypeSpec{
+								Ref: "/example/v0.1.2/schema.json#/types/example:mod:Internal",
+							},
+						}},
 					Required: []string{"bar", "enum"}}},
 			"pkg:infer:MyEnum": {
 				ObjectTypeSpec: pschema.ObjectTypeSpec{

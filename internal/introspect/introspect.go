@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
@@ -134,16 +135,38 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		pulumi[item] = true
 	}
 
-	var extType string
+	var explRef *ExplicitType
 	provider := map[string]bool{}
 	providerArray := strings.Split(providerTag, ",")
 	if hasProviderTag {
 		for _, item := range providerArray {
 			if strings.HasPrefix(item, "type=") {
-				extType = strings.TrimPrefix(item, "type=")
-				if parts := strings.Split(extType, ":"); len(parts) != 3 || len(strings.Split(parts[0], "@")) != 2 {
-					return FieldTag{}, fmt.Errorf(
-						`expected "type=" value of "[pkg]@[version]:module:name", found "%s"`, extType)
+				const typeErrMsg = `expected "type=" value of "[pkg@version:]module:name", found "%s"`
+				extType := strings.TrimPrefix(item, "type=")
+				parts := strings.Split(extType, ":")
+				switch len(parts) {
+				case 2:
+					explRef = &ExplicitType{
+						Module: parts[0],
+						Name:   parts[1],
+					}
+				case 3:
+					external := strings.Split(parts[0], "@")
+					if len(external) != 2 {
+						return FieldTag{}, fmt.Errorf(typeErrMsg, extType)
+					}
+					s, err := semver.ParseTolerant(external[1])
+					if err != nil {
+						return FieldTag{}, fmt.Errorf(`"type=" version must be valid semver: %w`, err)
+					}
+					explRef = &ExplicitType{
+						Pkg:     external[0],
+						Version: "v" + s.String(),
+						Module:  parts[1],
+						Name:    parts[2],
+					}
+				default:
+					return FieldTag{}, fmt.Errorf(typeErrMsg, extType)
 				}
 				continue
 			}
@@ -156,17 +179,24 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		Optional:         pulumi["optional"],
 		Secret:           provider["secret"],
 		ReplaceOnChanges: provider["replaceOnChanges"],
-		ExternalType:     extType,
+		ExplicitRef:      explRef,
 	}, nil
 }
 
+// An explicitly specified type ref token.
+type ExplicitType struct {
+	Pkg     string
+	Version string
+	Module  string
+	Name    string
+}
+
 type FieldTag struct {
-	Name     string // The name of the field in the Pulumi type system.
-	Optional bool   // If the field is optional in the Pulumi type system.
-	Internal bool   // If the field should exist in the Pulumi type system.
-	Secret   bool   // If the field is secret.
-	// The format is "[pkg]@[version]:[module]:type".
-	ExternalType string // The name and version of the external type consumed in the field.
+	Name        string        // The name of the field in the Pulumi type system.
+	Optional    bool          // If the field is optional in the Pulumi type system.
+	Internal    bool          // If the field should exist in the Pulumi type system.
+	Secret      bool          // If the field is secret.
+	ExplicitRef *ExplicitType // The name and version of the external type consumed in the field.
 	// NOTE: ReplaceOnChanges will only be obeyed when the default diff implementation is used.
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
 }
@@ -191,6 +221,9 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 	for _, i := range reflect.VisibleFields(hostType) {
 		f := f.value.FieldByIndex(i.Index)
 		fType := hostType.FieldByIndex(i.Index)
+		if !fType.IsExported() {
+			continue
+		}
 		if f.Addr().Interface() == field {
 			f, error := ParseTag(fType)
 			return f, true, error
