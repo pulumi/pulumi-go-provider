@@ -17,11 +17,6 @@ const schema = `{
   "name": "random-login",
   "version": "0.1.0",
   "config": {},
-  "types": {
-    "random-login:pulumi:StringOutput": {
-      "type": "object"
-    }
-  },
   "provider": {},
   "resources": {
     "random-login:index:MoreRandomPassword": {

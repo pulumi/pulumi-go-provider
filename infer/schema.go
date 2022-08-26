@@ -22,8 +22,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -112,7 +110,9 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	}, errs
 }
 
-func serializeTypeAsPropertyType(t reflect.Type, indicatePlain bool, extType string) (schema.TypeSpec, error) {
+func serializeTypeAsPropertyType(
+	t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType,
+) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -126,7 +126,6 @@ func serializeTypeAsPropertyType(t reflect.Type, indicatePlain bool, extType str
 			Ref: "pulumi.json#/Archive",
 		}, nil
 	}
-
 	if enum, ok := isEnum(t); ok {
 		return schema.TypeSpec{
 			Ref: "#/types/" + enum.token,
@@ -138,13 +137,11 @@ func serializeTypeAsPropertyType(t reflect.Type, indicatePlain bool, extType str
 		}
 		return tk, nil
 	}
-	if tk, ok, err := structReferenceToken(t); ok {
+	if tk, ok, err := structReferenceToken(t, extType); ok {
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
-		return schema.TypeSpec{
-			Ref: "#/types/" + tk.String(),
-		}, nil
+		return tk, nil
 	}
 
 	// Must be a primitive type
@@ -203,7 +200,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 		t = t.Elem()
 	}
 	isInputType := t.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
-	_, isOutputType := reflect.New(t).Interface().(pulumi.Output)
+	isOutputType := t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem())
 
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -259,7 +256,7 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 		if tags.Internal {
 			continue
 		}
-		serialized, err := serializeTypeAsPropertyType(fieldType, indicatePlain, tags.ExternalType)
+		serialized, err := serializeTypeAsPropertyType(fieldType, indicatePlain, tags.ExplicitRef)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid type '%s' on '%s.%s': %w", fieldType, typ, field.Name, err)
 		}
@@ -283,7 +280,9 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 	return props, required, nil
 }
 
-func resourceReferenceToken(t reflect.Type, extTag string, allowMissingExtType bool) (schema.TypeSpec, bool, error) {
+func resourceReferenceToken(
+	t reflect.Type, extTag *introspect.ExplicitType, allowMissingExtType bool,
+) (schema.TypeSpec, bool, error) {
 	ptrT := reflect.PointerTo(t)
 	implements := func(typ reflect.Type) bool {
 		return t.Implements(typ) || ptrT.Implements(typ)
@@ -297,36 +296,46 @@ func resourceReferenceToken(t reflect.Type, extTag string, allowMissingExtType b
 		}, true, err
 	case implements(reflect.TypeOf(new(pulumi.Resource)).Elem()):
 		// This is an external resource
-		if extTag == "" {
+		if extTag == nil {
 			if allowMissingExtType {
 				return schema.TypeSpec{}, true, nil
 			}
 			return schema.TypeSpec{}, true, fmt.Errorf("missing type= tag on foreign resource %s", t)
 		}
-		parts := strings.Split(extTag, ":") // pkg@version:module:name
-		contract.Assertf(len(parts) == 3, "invalid type= tag; got %q", extTag)
-		head := strings.Split(parts[0], "@") // pkg@version
-		contract.Assertf(len(head) == 2, "invalid type= head; got %q", parts[0])
-		pkgName := head[0]
-		pkgVersion := head[1]
-		module := parts[1]
-		name := parts[2]
-		tk := fmt.Sprintf("%s:%s:%s", pkgName, module, name)
+		tk := fmt.Sprintf("%s:%s:%s", extTag.Pkg, extTag.Module, extTag.Name)
 		return schema.TypeSpec{
-			Ref: fmt.Sprintf("/%s/%s/schema.json#/resources/%s", pkgName, pkgVersion, tk),
+			Ref: fmt.Sprintf("/%s/%s/schema.json#/resources/%s", extTag.Pkg, extTag.Version, tk),
 		}, true, nil
 	default:
 		return schema.TypeSpec{}, false, nil
 	}
 }
 
-func structReferenceToken(t reflect.Type) (tokens.Type, bool, error) {
+func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (schema.TypeSpec, bool, error) {
+	if t.Kind() == reflect.Struct && extTag != nil {
+		if extTag.Pkg != "" {
+			return schema.TypeSpec{
+				Ref: fmt.Sprintf("/%s/%s/schema.json#/types/%s:%s:%s",
+					extTag.Pkg, extTag.Version,
+					extTag.Pkg, extTag.Module, extTag.Name,
+				),
+			}, true, nil
+		}
+		return schema.TypeSpec{
+			Ref: fmt.Sprintf("#/types/pkg:%s:%s", extTag.Module, extTag.Name),
+		}, true, nil
+	}
 	if t.Kind() != reflect.Struct ||
 		t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem()) {
-		return "", false, nil
+		return schema.TypeSpec{}, false, nil
 	}
 	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
-	return tk, true, err
+	if err != nil {
+		return schema.TypeSpec{}, true, err
+	}
+	return schema.TypeSpec{
+		Ref: "#/types/" + tk.String(),
+	}, true, nil
 }
 
 func schemaNameForType(t reflect.Kind) string {

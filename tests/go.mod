@@ -1,10 +1,10 @@
-module github.com/pulumi/pulumi-go-provider/examples/str
+module github.com/pulumi/pulumi-go-provider/tests
 
-go 1.18
+go 1.19
 
-replace github.com/pulumi/pulumi-go-provider => ../..
+replace github.com/pulumi/pulumi-go-provider => ../.
 
-replace github.com/pulumi/pulumi-go-provider/integration => ../../integration
+replace github.com/pulumi/pulumi-go-provider/integration => ../integration
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
