@@ -251,19 +251,41 @@ func (s *Provider) mergeSchemas() error {
 
 	var merge func(dst, src reflect.Value)
 	merge = func(dst, src reflect.Value) {
-		contract.Assertf(dst.CanAddr(), "We need to be able to assign to dst")
+		contract.Assertf(dst.IsValid(), "dst not valid")
+		contract.Assertf(dst.CanAddr(), "we need to be able to assign to dst (%s)", dst)
 		switch dst.Type().Kind() {
 		// These types we just copy over
 		case reflect.Bool, reflect.String, reflect.Array, reflect.Slice, reflect.Interface,
 			reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8,
 			reflect.Float64, reflect.Float32:
-			if dst.IsNil() && !src.IsNil() {
+			if dst.IsZero() && !src.IsZero() {
 				dst.Set(src)
 			}
 		case reflect.Pointer:
+			if src.IsNil() {
+				return
+			}
+			if dst.IsNil() {
+				dst.Set(src)
+				return
+			}
 			merge(dst.Elem(), src.Elem())
+		case reflect.Map:
+			if src.IsNil() {
+				return
+			}
+			if dst.IsNil() {
+				dst.Set(src)
+			} else {
+				for iter := src.MapRange(); iter.Next(); {
+					dst.SetMapIndex(iter.Key(), iter.Value())
+				}
+			}
 		case reflect.Struct:
 			for i := 0; i < dst.Type().NumField(); i++ {
+				if !dst.Type().Field(i).IsExported() {
+					continue
+				}
 				merge(dst.Field(i), src.Field(i))
 			}
 		}
