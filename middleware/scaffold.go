@@ -23,6 +23,9 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
+// Scaffold is a Provider that allows overriding calls by setting a field. If the field
+// associated with a Provider method call is not set, "not yet implemented" is returned.
+// Every Provider method has an associated field in Scaffold.
 type Scaffold struct {
 	GetSchemaFn func(p.Context, p.GetSchemaRequest) (p.GetSchemaResponse, error)
 	CancelFn    func(p.Context) error

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// A provider that dispatches provider level calls such as `Create` to resource level
+// invocations.
 package dispatch
 
 import (
@@ -27,6 +29,7 @@ import (
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 )
 
+// A provider that dispatches URN based methods to their appropriate go instance.
 type Provider struct {
 	// The underlying provider if any
 	p.Provider
@@ -102,6 +105,7 @@ func Wrap(provider p.Provider) *Provider {
 	}
 }
 
+// Normalize tokens via the module map.
 func (d *Provider) normalize(tk tokens.Type) string {
 	fix := func(tk tokens.Type) string {
 		m := tk.Module().Name()
@@ -128,13 +132,7 @@ func (d *Provider) normalize(tk tokens.Type) string {
 	return fix(tk)
 }
 
-func (d *Provider) fixupError(tk string, err error) error {
-	if status.Code(err) == codes.Unimplemented {
-		err = status.Errorf(codes.NotFound, "Type '%s' not found", tk)
-	}
-	return err
-}
-
+// Add custom resources to be dispatched to.
 func (d *Provider) WithCustomResources(resources map[tokens.Type]t.CustomResource) *Provider {
 	d.normalizedCustoms.Reset()
 	for k, v := range resources {
@@ -143,6 +141,7 @@ func (d *Provider) WithCustomResources(resources map[tokens.Type]t.CustomResourc
 	return d
 }
 
+// Add component resources to be dispatched to.
 func (d *Provider) WithComponentResources(components map[tokens.Type]t.ComponentResource) *Provider {
 	d.normalizedComponents.Reset()
 	for k, v := range components {
@@ -151,6 +150,7 @@ func (d *Provider) WithComponentResources(components map[tokens.Type]t.Component
 	return d
 }
 
+// Add invokes to be dispatched to.
 func (d *Provider) WithInvokes(invokes map[tokens.Type]t.Invoke) *Provider {
 	d.normalizedInvokes.Reset()
 	for k, v := range invokes {
@@ -248,4 +248,11 @@ func (d *Provider) Construct(pctx p.Context, typ string, name string,
 	}
 	con, err := d.Provider.Construct(pctx, typ, name, ctx, inputs, opts)
 	return con, d.fixupError(typ, err)
+}
+
+func (d *Provider) fixupError(tk string, err error) error {
+	if status.Code(err) == codes.Unimplemented {
+		err = status.Errorf(codes.NotFound, "Type '%s' not found", tk)
+	}
+	return err
 }

@@ -1,4 +1,5 @@
 # pulumi-go-provider
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pulumi/pulumi-go-provider)](https://goreportcard.com/report/github.com/pulumi/pulumi-go-provider)
 
@@ -11,95 +12,73 @@ community feedback, but you should probably wait to port any existing providers 
 ## The "Hello, Pulumi" Provider
 
 Here we provide the code to create an entire native provider consumable from any of the
-Pulumi languages (TypeScript, Python, Go, C#, Java and Pulumi YAML). The binary generated
-from this file has the capability to serve the provider as well as run schema generation.
+Pulumi languages (TypeScript, Python, Go, C#, Java and Pulumi YAML).
 
 ```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/blang/semver"
-	p "github.com/pulumi/pulumi-go-provider"
-	r "github.com/pulumi/pulumi-go-provider/resource"
-)
-
 func main() {
-	// Here we list the facilities that the provider will support.
-	p.Run("hello", semver.Version{Minor: 1},
-		// This provider only supports a single custom resource, so this section is brief.
-		p.Resources(&HelloWorld{}))
+	p.RunProvider("greetings", semver.Version{Minor: 1},
+		// We tell the provider what resources it needs to support.
+		// In this case, a single custom resource.
+		infer.NewProvider().WithResources(
+			infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
+		))
 }
 
-// This is how we define a custom resource.
-type HelloWorld struct {
-	// Fields that have a `pulumi` tag are used by the provider framework. Fields marked
-	// `optional` are optional, so they should have a pointer ahead of their type.
-	Name *string `pulumi:"name,optional"`
-	// Fields with `provider:"output" are outputs in the Pulumi type system, otherwise
-	// they are inputs.`
-	Phrase string `pulumi:"phrase" provider:"output"`
+// Each resource has a controlling struct.
+type HelloWorld struct{}
+
+// Each resource has in input struct, defining what arguments it accepts.
+type HelloWorldArgs struct {
+	// Fields projected into Pulumi must be public and hava a `pulumi:"..."` tag.
+	// The pulumi tag doesn't need to match the field name, but its generally a
+	// good idea.
+	Name string `pulumi:"name"`
+	// Fields marked `optional` are optional, so they should have a pointer
+	// ahead of their type.
+	Loud *bool `pulumi:"loud,optional"`
 }
 
-// The r.Custom interface is what defines the base of a custom resource. It has 2 methods,
-// Create and Delete. Create is called to create a new resource.
-func (r *HelloWorld) Create(ctx r.Context, name string, preview bool) (r.ID, error) {
-	// We indicate we will not know the output of r.Phrase during preview.
-	ctx.MarkComputed(&r.Phrase)
-	n := name
-	// Inputs are already on the struct when Create is called.
-	if r.Name != nil {
-		n = *r.Name
+// Each resource has a state, describing the fields that exist on the created resource.
+type HelloWorldState struct {
+	// It is generally a good idea to embed args in outputs, but it isn't strictly necessary.
+	HelloWorldArgs
+	// Here we define a required output called message.
+	Message string `pulumi:"message"`
+}
+
+// All resources must implement Create at a minumum.
+func (HelloWorld) Create(ctx p.Context, name string, input HelloWorldArgs, preview bool) (string, HelloWorldState, error) {
+	state := HelloWorldState{HelloWorldArgs: input}
+	if preview {
+		return name, state, nil
 	}
-
-	// And we add outputs by assigning them to the their fields before we return.
-	r.Phrase = fmt.Sprintf("Hello, %s!", n)
-
-	// name is the name component of the resource URN. We pass that as the ID here, but we
-	// should append randomness to it later.
-	return name, nil
+	state.Message = fmt.Sprintf("Hello, %s", input.Name)
+	if input.Loud != nil && *input.Loud {
+		state.Message = strings.ToUpper(state.Message)
+	}
+	return name, state, nil
 }
-
-// We don't need to do anything to delete this resource, but this is where we would do it.
-func (r *HelloWorld) Delete(ctx r.Context, id r.ID) error {
-	return nil
-}
-
 ```
 
 The framework is doing a lot of work for us here. Since we didn't implement `Diff` it is
 assumed to be structural. The diff will require a replace if any field changes, since we
-didn't implement update. `Check` will always pass and `Read` will always fail as
-unimplemented. All of these methods are available as interfaces in the `resource` module,
-and implementing them will replace the default behavior.
+didn't implement `Update`. `Check` will confirm that our inputs can be serialized into
+`HelloWorldArgs` and `Read` will do the same. `Delete` is a no-op.
 
-## Translating Go into the Pulumi type system
+## Library structure
 
-The goal of the library is to allow you to write idiomatic Go as much as possible. To that
-end, your Go code is translated into the Pulumi type system automatically. Here are some
-useful rules:
+The library is designed to allow as many use cases as possible while still keeping simple
+things simple. The library comes in 4 parts:
 
-- Tokens are generated directly from type names. A resource defined with the struct `Bar`
-  in the `foo` module will get assigned the token `${pkg}:foo:Bar`.
-- Custom resources don't interact with Pulumi Input/Output types. They should have raw types and must
-  manually manage dealing with `nil` values.
-- Component resources do deal with Pulumi Input/Output types. They should only have raw
-  fields when the types are `plain`.
+1. A base abstraction for a Pulumi Provider and the facilities to drive it. This is the
+   `Provider` interface and the `RunProvider` function respectively. The rest of the
+   library is written against the `Provider` interface.
+2. Middleware layers built on top of the `Provider` interface. Middleware layers handle
+   things like token dispatch, schema generation, cancel propagation, ect.
+3. A testing framework found in the `integration` folder. This allows unit and integration
+   tests against `Provider`s.
+4. A top layer called `infer`, which generates full providers from Go types and methods.
+   `infer` is the expected entry-point into the library. It is the fastest way to get
+   started with a provider in go.[^1]
 
-### Struct tags
-
-This library determines how to serialize Go types via struct tags. It uses 2 namespaces:
-`pulumi` and `provider`. Under the `pulumi` namespace, we support the following tags:
-
-- `name` - Name is the fist tag in the after `pulumi:`. It is required for any field used by
-  the provider. For example `pulumi:"foo"` tags a field with the name `foo`.
-- `optional` - Marking a field as optional in the Pulumi type system. To mark `foo` as an
-  optional field, we would write: `pulumi:"foo,optional"`.
-
-The rest of the supported tags are under the `provider` namespace:
-
-- `output` - Marks a field as an output instead of an input.
-- `secret` - Marks a field as secret. This will effect schema generation, but not the
-  internal behavior of the resource.
-- `replaceOnChanges` - Marks the resource as needing a replace whenever the field changes.
+[^1]: The "Hello, Pulumi" example shows the `infer` layer.
