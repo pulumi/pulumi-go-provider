@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// The schema middleware provides facilities to respond to GetSchema. It handles combining
+// multiple resources and functions into a coherent and correct schema. It correctly sets
+// the `name` field and the first segment of each token to match the provider name.
 package schema
 
 import (
@@ -37,13 +40,23 @@ import (
 // do not need to be drilled.
 type RegisterDerivativeType func(tk tokens.Type, typ schema.ComplexTypeSpec) (unknown bool)
 
+// A Resource that can generate its own schema definition.
 type Resource interface {
+	// Return the Resource's type token. The first segment of the token is ignored.
 	GetToken() (tokens.Type, error)
+	// Return the Resource's schema definition. The passed in function should be called on
+	// types transitively referenced by the resource. See the documentation of
+	// RegisterDerivativeType for more details.
 	GetSchema(RegisterDerivativeType) (schema.ResourceSpec, error)
 }
 
+// A Function that can generate its own schema definition.
 type Function interface {
+	// Return the Function's type token. The first segment of the token is ignored.
 	GetToken() (tokens.Type, error)
+	// Return the Function's schema definition. The passed in function should be called on
+	// types transitively referenced by the function. See the documentation of
+	// RegisterDerivativeType for more details.
 	GetSchema(RegisterDerivativeType) (schema.FunctionSpec, error)
 }
 
@@ -103,6 +116,8 @@ func (s *Provider) invalidateCache() {
 	s.combinedSchema = nil
 }
 
+// Wrap a provider with the facilities to serve GetSchema. If provider is nil, the
+// returned provider will return "not yet implemented" for all methods besides GetSchema.
 func Wrap(provider p.Provider) *Provider {
 	if provider == nil {
 		provider = &t.Scaffold{}
@@ -114,18 +129,24 @@ func Wrap(provider p.Provider) *Provider {
 	}
 }
 
+// Add resources to the generated schema.
 func (s *Provider) WithResources(resources ...Resource) *Provider {
 	s.invalidateCache()
 	s.resources = append(s.resources, resources...)
 	return s
 }
 
+// Add functions to the generated schema.
 func (s *Provider) WithInvokes(invokes ...Function) *Provider {
 	s.invalidateCache()
 	s.invokes = append(s.invokes, invokes...)
 	return s
 }
 
+// Map modules in the generated schema.
+//
+// For example, with the map {"foo": "bar"}, the token "pkg:foo:Name" would be present in
+// the schema as "pkg:bar:Name".
 func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
 	s.invalidateCache()
 	for k, v := range m {
@@ -134,12 +155,14 @@ func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Pro
 	return s
 }
 
+// Add a provider resource to the generated schema.
 func (s *Provider) WithProviderResource(provider Resource) *Provider {
 	s.invalidateCache()
 	s.provider = provider
 	return s
 }
 
+// Add to the languages section of the schema.
 func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
 	s.invalidateCache()
 	for k, v := range languages {
@@ -148,12 +171,14 @@ func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
 	return s
 }
 
+// Add a description.
 func (s *Provider) WithDescription(description string) *Provider {
 	s.invalidateCache()
 	s.description = description
 	return s
 }
 
+// Add a license.
 func (s *Provider) WithLicense(license string) *Provider {
 	s.invalidateCache()
 	s.license = license
