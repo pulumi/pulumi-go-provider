@@ -254,13 +254,6 @@ func (s *Provider) mergeSchemas() error {
 		contract.Assertf(dst.IsValid(), "dst not valid")
 		contract.Assertf(dst.CanAddr(), "we need to be able to assign to dst (%s)", dst)
 		switch dst.Type().Kind() {
-		// These types we just copy over
-		case reflect.Bool, reflect.String, reflect.Array, reflect.Slice, reflect.Interface,
-			reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8,
-			reflect.Float64, reflect.Float32:
-			if dst.IsZero() && !src.IsZero() {
-				dst.Set(src)
-			}
 		case reflect.Pointer:
 			if src.IsNil() {
 				return
@@ -281,17 +274,22 @@ func (s *Provider) mergeSchemas() error {
 					dst.SetMapIndex(iter.Key(), iter.Value())
 				}
 			}
-		case reflect.Struct:
-			for i := 0; i < dst.Type().NumField(); i++ {
-				if !dst.Type().Field(i).IsExported() {
-					continue
-				}
-				merge(dst.Field(i), src.Field(i))
+			// These types we just copy over
+		default:
+			if !src.IsZero() {
+				dst.Set(src)
 			}
 		}
 	}
 	combined := s.lowerSchema.spec
-	merge(reflect.ValueOf(&combined).Elem(), reflect.ValueOf(s.schema.spec))
+	dst := reflect.ValueOf(&combined).Elem()
+	src := reflect.ValueOf(s.schema.spec)
+	for i := 0; i < dst.Type().NumField(); i++ {
+		if !dst.Type().Field(i).IsExported() {
+			continue
+		}
+		merge(dst.Field(i), src.Field(i))
+	}
 	var err error
 	s.combinedSchema, err = newCacheFromSpec(combined)
 	return err
