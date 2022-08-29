@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
@@ -17,7 +16,7 @@ import (
 )
 
 func main() {
-	err := p.RunProvider("random-login", semver.Version{Minor: 1}, provider())
+	err := p.RunProvider("random-login", "0.1.0", provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)

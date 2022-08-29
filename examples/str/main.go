@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -14,7 +13,7 @@ import (
 )
 
 func main() {
-	err := p.RunProvider("str", semver.Version{Minor: 1}, provider())
+	err := p.RunProvider("str", "0.1.0", provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)

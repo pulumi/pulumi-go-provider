@@ -20,7 +20,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -297,8 +297,8 @@ type Provider interface {
 		ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
-func RunProvider(name string, version semver.Version, provider Provider) error {
-	return pprovider.Main(name, newProvider(name, version.String(), provider))
+func RunProvider(name, version string, provider Provider) error {
+	return pprovider.Main(name, newProvider(name, version, provider))
 }
 
 func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {

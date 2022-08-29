@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
 func main() {
-	err := p.RunProvider("credentials", semver.Version{Minor: 1}, provider())
+	err := p.RunProvider("credentials", "0.1.0", provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
