@@ -150,13 +150,20 @@ func crawlTypes[T any](crawler Crawler) error {
 	// Drill will walk the types, calling crawl on types it finds.
 	var drill func(reflect.Type) error
 	drill = func(t reflect.Type) error {
+		nT, inputty, err := underlyingType(t)
+		if err != nil {
+			return err
+		}
+		if inputty {
+			t = nT
+		}
 		switch t.Kind() {
 		case reflect.String, reflect.Float64, reflect.Int, reflect.Bool:
 			// Primitive types could be enums
 			_, err := crawler(t)
 			return err
 		case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
-			// Could hold a reference to other types
+			// Holds a reference to other types
 			return drill(t.Elem())
 		case reflect.Struct:
 			for _, f := range reflect.VisibleFields(t) {
@@ -175,7 +182,15 @@ func crawlTypes[T any](crawler Crawler) error {
 						// Could hold a reference to other types
 						typ = typ.Elem()
 					default:
-						done = true
+						nT, inputty, err := underlyingType(typ)
+						if err != nil {
+							return err
+						}
+						if inputty {
+							typ = nT
+						} else {
+							done = true
+						}
 					}
 				}
 				further, err := crawler(typ)
@@ -198,9 +213,10 @@ func crawlTypes[T any](crawler Crawler) error {
 // registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
 func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 	crawler := func(t reflect.Type) (bool, error) {
-		t, _, err := underlyingType(t)
-		if err != nil {
+		if nT, inputty, err := underlyingType(t); err != nil {
 			return false, err
+		} else if inputty {
+			t = nT
 		}
 		if t == reflect.TypeOf(resource.Asset{}) || t == reflect.TypeOf(resource.Archive{}) {
 			return false, nil
@@ -234,7 +250,7 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			}
 			return reg(tk, pschema.ComplexTypeSpec{ObjectTypeSpec: *spec}), nil
 		}
-		return false, nil
+		return true, nil
 	}
 	return crawlTypes[T](crawler)
 }
