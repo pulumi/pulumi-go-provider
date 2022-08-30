@@ -24,10 +24,14 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
-	p "github.com/pulumi/pulumi-go-provider"
-	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	p "github.com/pulumi/pulumi-go-provider"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
 )
 
 // When a resource is collecting it's schema, it should register all of the types it uses.
@@ -56,6 +60,28 @@ type Function interface {
 	GetSchema(RegisterDerivativeType) (schema.FunctionSpec, error)
 }
 
+type cache struct {
+	spec      schema.PackageSpec
+	marshaled string
+}
+
+func newCacheFromSpec(spec schema.PackageSpec) (*cache, error) {
+	bytes, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	return &cache{spec, string(bytes)}, nil
+}
+
+func newCacheFromMarshaled(marshaled string) (*cache, error) {
+	c := &cache{marshaled: marshaled}
+	return c, json.Unmarshal([]byte(marshaled), &c.spec)
+}
+
+func (c *cache) isEmpty() bool {
+	return c == nil
+}
+
 type Provider struct {
 	p.Provider
 
@@ -66,7 +92,9 @@ type Provider struct {
 
 	// The cached schema. All With* methods should set schema to "", so we regenerate it
 	// on the next request.
-	schema string
+	schema         *cache
+	lowerSchema    *cache
+	combinedSchema *cache
 
 	// Non-inferrable schema fields
 	languages         map[string]any
@@ -81,6 +109,11 @@ type Provider struct {
 	pluginDownloadURL string
 
 	moduleMap map[tokens.ModuleName]tokens.ModuleName
+}
+
+func (s *Provider) invalidateCache() {
+	s.schema = nil
+	s.combinedSchema = nil
 }
 
 // Wrap a provider with the facilities to serve GetSchema. If provider is nil, the
@@ -98,14 +131,14 @@ func Wrap(provider p.Provider) *Provider {
 
 // Add resources to the generated schema.
 func (s *Provider) WithResources(resources ...Resource) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.resources = append(s.resources, resources...)
 	return s
 }
 
 // Add functions to the generated schema.
 func (s *Provider) WithInvokes(invokes ...Function) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.invokes = append(s.invokes, invokes...)
 	return s
 }
@@ -115,7 +148,7 @@ func (s *Provider) WithInvokes(invokes ...Function) *Provider {
 // For example, with the map {"foo": "bar"}, the token "pkg:foo:Name" would be present in
 // the schema as "pkg:bar:Name".
 func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	for k, v := range m {
 		s.moduleMap[k] = v
 	}
@@ -124,14 +157,14 @@ func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Pro
 
 // Add a provider resource to the generated schema.
 func (s *Provider) WithProviderResource(provider Resource) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.provider = provider
 	return s
 }
 
 // Add to the languages section of the schema.
 func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	for k, v := range languages {
 		s.languages[k] = v
 	}
@@ -140,74 +173,155 @@ func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
 
 // Add a description.
 func (s *Provider) WithDescription(description string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.description = description
 	return s
 }
 
 // Add a license.
 func (s *Provider) WithLicense(license string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.license = license
 	return s
 }
 
 func (s *Provider) WithPluginDownloadURL(pluginDownloadURL string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.pluginDownloadURL = pluginDownloadURL
 	return s
 }
 
 func (s *Provider) WithDisplayName(name string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.displayName = name
 	return s
 }
 
 func (s *Provider) WithKeywords(keywords []string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.keywords = append(s.keywords, keywords...)
 	return s
 }
 
 func (s *Provider) WithHomepage(homepage string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.homepage = homepage
 	return s
 }
 
 func (s *Provider) WithRepository(repoURL string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.repository = repoURL
 	return s
 }
 
 func (s *Provider) WithPublisher(publisher string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.publisher = publisher
 	return s
 }
 
 func (s *Provider) WithLogoURL(logoURL string) *Provider {
-	s.schema = ""
+	s.invalidateCache()
 	s.logoURL = logoURL
 	return s
 }
 
 func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
-	if s.schema == "" {
-		err := s.generateSchema(ctx)
+	if s.schema.isEmpty() {
+		spec, err := s.generateSchema(ctx)
+		if err != nil {
+			return p.GetSchemaResponse{}, err
+		}
+		s.schema, err = newCacheFromSpec(spec)
 		if err != nil {
 			return p.GetSchemaResponse{}, err
 		}
 	}
+	lower, err := s.Provider.GetSchema(ctx, req)
+	if err == nil {
+		// We need to merge
+		// Make sure our caches are up to date
+		if s.lowerSchema.isEmpty() || s.lowerSchema.marshaled != lower.Schema {
+			s.combinedSchema = nil
+			s.lowerSchema, err = newCacheFromMarshaled(lower.Schema)
+			if err != nil {
+				return p.GetSchemaResponse{}, err
+			}
+		}
+	} else if status.Code(err) == codes.Unimplemented {
+		s.lowerSchema = nil
+	} else {
+		// There was an actual error, so we need to buble that up.
+		return p.GetSchemaResponse{}, err
+	}
+	err = s.mergeSchemas()
+	if err != nil {
+		return p.GetSchemaResponse{}, err
+	}
 	return p.GetSchemaResponse{
-		Schema: s.schema,
+		Schema: s.combinedSchema.marshaled,
 	}, nil
 }
 
+func (s *Provider) mergeSchemas() error {
+	contract.Assertf(!s.schema.isEmpty(), "we must have our own schema")
+	if s.combinedSchema != nil {
+		return nil
+	}
+	if s.lowerSchema == nil {
+		s.combinedSchema = s.schema
+		return nil
+	}
+
+	var merge func(dst, src reflect.Value)
+	merge = func(dst, src reflect.Value) {
+		contract.Assertf(dst.IsValid(), "dst not valid")
+		contract.Assertf(dst.CanAddr(), "we need to be able to assign to dst (%s)", dst)
+		switch dst.Type().Kind() {
+		case reflect.Pointer:
+			if src.IsNil() {
+				return
+			}
+			if dst.IsNil() {
+				dst.Set(src)
+				return
+			}
+			merge(dst.Elem(), src.Elem())
+		case reflect.Map:
+			if src.IsNil() {
+				return
+			}
+			if dst.IsNil() {
+				dst.Set(src)
+			} else {
+				for iter := src.MapRange(); iter.Next(); {
+					dst.SetMapIndex(iter.Key(), iter.Value())
+				}
+			}
+			// These types we just copy over
+		default:
+			if !src.IsZero() {
+				dst.Set(src)
+			}
+		}
+	}
+	combined := s.lowerSchema.spec
+	dst := reflect.ValueOf(&combined).Elem()
+	src := reflect.ValueOf(s.schema.spec)
+	for i := 0; i < dst.Type().NumField(); i++ {
+		if !dst.Type().Field(i).IsExported() {
+			continue
+		}
+		merge(dst.Field(i), src.Field(i))
+	}
+	var err error
+	s.combinedSchema, err = newCacheFromSpec(combined)
+	return err
+}
+
 // Generate a schema string from the currently present schema types.
-func (s *Provider) generateSchema(ctx p.Context) error {
+func (s *Provider) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 	info := ctx.RuntimeInformation()
 	pkg := schema.PackageSpec{
 		Name:              info.PackageName,
@@ -229,7 +343,7 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 	for k, v := range s.languages {
 		bytes, err := json.Marshal(v)
 		if err != nil {
-			return err
+			return schema.PackageSpec{}, err
 		}
 		pkg.Language[k] = bytes
 	}
@@ -255,14 +369,9 @@ func (s *Provider) generateSchema(ctx p.Context) error {
 		pkg.Provider = prov
 	}
 	if err := errs.ErrorOrNil(); err != nil {
-		return err
+		return schema.PackageSpec{}, err
 	}
-	bytes, err := json.Marshal(pkg)
-	if err != nil {
-		return err
-	}
-	s.schema = string(bytes)
-	return nil
+	return pkg, nil
 }
 
 type canGetSchema[T any] interface {
