@@ -131,6 +131,10 @@ func serializeTypeAsPropertyType(
 			Ref: "#/types/" + enum.token,
 		}, nil
 	}
+	t, inputy, err := underlyingType(t)
+	if err != nil {
+		return schema.TypeSpec{}, err
+	}
 	if tk, ok, err := resourceReferenceToken(t, extType, false); ok {
 		if err != nil {
 			return schema.TypeSpec{}, err
@@ -145,11 +149,6 @@ func serializeTypeAsPropertyType(
 	}
 
 	// Must be a primitive type
-	t, inputy, err := underlyingType(t)
-	if err != nil {
-		return schema.TypeSpec{}, err
-	}
-
 	primitive := func(t string) (schema.TypeSpec, error) {
 		return schema.TypeSpec{Type: t, Plain: !inputy && indicatePlain}, nil
 	}
@@ -209,12 +208,17 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	if isOutputType {
 		t = reflect.New(t).Elem().Interface().(pulumi.Output).ElementType()
 	} else if isInputType {
-		T := t.Name()
-		if strings.HasSuffix(T, "Input") {
-			T = strings.TrimSuffix(T, "Input")
-		} else {
-			return nil, false, fmt.Errorf("%v is an input type, but does not end in \"Input\"", T)
+		for t.Kind() == reflect.Pointer {
+			t = t.Elem()
 		}
+		T := strings.TrimSuffix(t.Name(), "Input")
+		switch t.Kind() {
+		case reflect.Map:
+			T = t.Elem().Name() + "Map"
+		case reflect.Array, reflect.Slice:
+			T = t.Elem().Name() + "Array"
+		}
+
 		toOutMethod, ok := t.MethodByName("To" + T + "Output")
 		if !ok {
 			return nil, false, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)

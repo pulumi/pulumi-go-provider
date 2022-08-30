@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
@@ -182,7 +181,7 @@ func (d *DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNA
 }
 
 func main() {
-	err := p.RunProvider("dna-store", semver.Version{Minor: 1},
+	err := p.RunProvider("dna-store", "0.1.0",
 		infer.NewProvider().WithResources(infer.Resource[*DNAStore, DNAStoreArgs, DNAStoreArgs]()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())

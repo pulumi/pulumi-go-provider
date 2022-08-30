@@ -16,11 +16,14 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/hashicorp/go-multierror"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -297,8 +300,65 @@ type Provider interface {
 		ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
 }
 
-func RunProvider(name string, version semver.Version, provider Provider) error {
-	return pprovider.Main(name, newProvider(name, version.String(), provider))
+// Run a provider with the given name and version.
+func RunProvider(name, version string, provider Provider) error {
+	return pprovider.Main(name, newProvider(name, version, provider))
+}
+
+// A context which prints its diagnostics, collecting all errors
+type errCollectingContext struct {
+	context.Context
+	errs   multierror.Error
+	info   RunInfo
+	stderr io.Writer
+}
+
+func (e *errCollectingContext) Log(severity diag.Severity, msg string) {
+	if severity == diag.Error {
+		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
+	}
+	fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
+}
+
+func (e *errCollectingContext) Logf(severity diag.Severity, msg string, args ...any) {
+	e.Log(severity, fmt.Sprintf(msg, args...))
+}
+
+func (e *errCollectingContext) LogStatus(severity diag.Severity, msg string) {
+	if severity == diag.Error {
+		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
+	}
+	fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
+}
+
+func (e *errCollectingContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
+	e.LogStatus(severity, fmt.Sprintf(msg, args...))
+}
+
+func (e *errCollectingContext) RuntimeInformation() RunInfo {
+	return e.info
+}
+
+// Retrieve the schema from the provider by invoking GetSchema on the provider.
+func GetSchema(ctx context.Context, name, version string, provider Provider) (schema.PackageSpec, error) {
+	collectingDiag := errCollectingContext{Context: ctx, stderr: os.Stderr, info: RunInfo{
+		PackageName: name,
+		Version:     version,
+	}}
+	s, err := provider.GetSchema(&collectingDiag, GetSchemaRequest{Version: 0})
+	var errs multierror.Error
+	if err != nil {
+		errs.Errors = append(errs.Errors, err)
+	}
+	for _, err := range collectingDiag.errs.Errors {
+		errs.Errors = append(errs.Errors, err)
+	}
+	spec := schema.PackageSpec{}
+	if err := errs.ErrorOrNil(); err != nil {
+		return spec, err
+	}
+	err = json.Unmarshal([]byte(s.Schema), &spec)
+	return spec, err
 }
 
 func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
@@ -772,14 +832,16 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 }
 
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	return comProvider.Construct(pctx, req, p.host.EngineConn(), func(ctx *pulumi.Context, typ, name string,
-		inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (*comProvider.ConstructResult, error) {
-		r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
-		if err != nil {
-			return nil, err
-		}
-		return comProvider.NewConstructResult(r)
-	})
+	return comProvider.Construct(pctx, req, p.host.EngineConn(),
+		func(ctx *pulumi.Context, typ, name string,
+			inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
+		) (*comProvider.ConstructResult, error) {
+			r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
+			if err != nil {
+				return nil, err
+			}
+			return comProvider.NewConstructResult(r)
+		})
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
