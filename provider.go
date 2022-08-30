@@ -832,14 +832,16 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 }
 
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	return comProvider.Construct(pctx, req, p.host.EngineConn(), func(ctx *pulumi.Context, typ, name string,
-		inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (*comProvider.ConstructResult, error) {
-		r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
-		if err != nil {
-			return nil, err
-		}
-		return comProvider.NewConstructResult(r)
-	})
+	return comProvider.Construct(pctx, req, p.host.EngineConn(),
+		func(ctx *pulumi.Context, typ, name string,
+			inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
+		) (*comProvider.ConstructResult, error) {
+			r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
+			if err != nil {
+				return nil, err
+			}
+			return comProvider.NewConstructResult(r)
+		})
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
