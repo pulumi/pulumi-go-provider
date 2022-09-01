@@ -88,169 +88,113 @@ func (c *rwMap[K, V]) Load(k K) (V, bool) {
 
 // Create a new Dispatch provider around another provider. If `provider` is nil then an
 // empty provider will be used.
-func Wrap(provider p.Provider) *Provider {
-	if provider == nil {
-		provider = &t.Scaffold{}
-	}
-	return &Provider{
-		Provider:   provider,
-		customs:    map[tokens.Type]t.CustomResource{},
-		components: map[tokens.Type]t.ComponentResource{},
-		invokes:    map[tokens.Type]t.Invoke{},
-		moduleMap:  map[tokens.ModuleName]tokens.ModuleName{},
-
-		normalizedCustoms:    newRWMap[string, t.CustomResource](),
-		normalizedComponents: newRWMap[string, t.ComponentResource](),
-		normalizedInvokes:    newRWMap[string, t.Invoke](),
-	}
-}
-
-// Normalize tokens via the module map.
-func (d *Provider) normalize(tk tokens.Type) string {
+func Wrap(provider p.Provider, opts Options) p.Provider {
 	fix := func(tk tokens.Type) string {
 		m := tk.Module().Name()
-		if mod, ok := d.moduleMap[m]; ok {
-			m = mod
+		if opts.ModuleMap != nil {
+			if mod, ok := opts.ModuleMap[m]; ok {
+				m = mod
+			}
 		}
 		return m.String() + tokens.TokenDelimiter + tk.Name().String()
 	}
-	d.normalizedComponents.Initialize(func(normalized map[string]t.ComponentResource) {
-		for k, v := range d.components {
-			normalized[fix(k)] = v
+	customs := map[string]t.CustomResource{}
+	for k, v := range opts.Customs {
+		customs[fix(k)] = v
+	}
+	components := map[string]t.ComponentResource{}
+	for k, v := range opts.Components {
+		components[fix(k)] = v
+	}
+	invokes := map[string]t.Invoke{}
+	for k, v := range opts.Invokes {
+		invokes[fix(k)] = v
+	}
+	new := provider
+	new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+		tk := fix(req.Token)
+		inv, ok := invokes[tk]
+		if ok {
+			return inv.Invoke(ctx, req)
 		}
-	})
-	d.normalizedCustoms.Initialize(func(normalized map[string]t.CustomResource) {
-		for k, v := range d.customs {
-			normalized[fix(k)] = v
+		r, err := provider.Invoke(ctx, req)
+		return r, fixupError(tk, err)
+	}
+	new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		tk := fix(req.Urn.Type())
+		r, ok := customs[tk]
+		if ok {
+			return r.Check(ctx, req)
 		}
-	})
-	d.normalizedInvokes.Initialize(func(normalized map[string]t.Invoke) {
-		for k, v := range d.invokes {
-			normalized[fix(k)] = v
+		c, err := provider.Check(ctx, req)
+		return c, fixupError(tk, err)
+	}
+	new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		tk := fix(req.Urn.Type())
+		r, ok := customs[tk]
+		if ok {
+			return r.Diff(ctx, req)
 		}
-	})
-	return fix(tk)
-}
-
-// Add custom resources to be dispatched to.
-func (d *Provider) WithCustomResources(resources map[tokens.Type]t.CustomResource) *Provider {
-	d.normalizedCustoms.Reset()
-	for k, v := range resources {
-		d.customs[k] = v
+		diff, err := provider.Diff(ctx, req)
+		return diff, fixupError(tk, err)
 	}
-	return d
-}
-
-// Add component resources to be dispatched to.
-func (d *Provider) WithComponentResources(components map[tokens.Type]t.ComponentResource) *Provider {
-	d.normalizedComponents.Reset()
-	for k, v := range components {
-		d.components[k] = v
+	new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		tk := fix(req.Urn.Type())
+		r, ok := customs[tk]
+		if ok {
+			return r.Create(ctx, req)
+		}
+		c, err := provider.Create(ctx, req)
+		return c, fixupError(tk, err)
 	}
-	return d
-}
-
-// Add invokes to be dispatched to.
-func (d *Provider) WithInvokes(invokes map[tokens.Type]t.Invoke) *Provider {
-	d.normalizedInvokes.Reset()
-	for k, v := range invokes {
-		d.invokes[k] = v
+	new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		tk := fix(req.Urn.Type())
+		r, ok := customs[tk]
+		if ok {
+			return r.Read(ctx, req)
+		}
+		read, err := provider.Read(ctx, req)
+		return read, fixupError(tk, err)
 	}
-	return d
-}
-
-func (d *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
-	d.normalizedComponents.Reset()
-	d.normalizedCustoms.Reset()
-	d.normalizedInvokes.Reset()
-	for k, v := range m {
-		d.moduleMap[k] = v
+	new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+		tk := fix(req.Urn.Type())
+		r, ok := customs[tk]
+		if ok {
+			return r.Update(ctx, req)
+		}
+		up, err := provider.Update(ctx, req)
+		return up, fixupError(tk, err)
 	}
-	return d
-}
-
-func (d *Provider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-	tk := d.normalize(req.Token)
-	inv, ok := d.normalizedInvokes.Load(tk)
-	if ok {
-		return inv.Invoke(ctx, req)
+	new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
+		tk := fix(req.Urn.Type())
+		r, ok := customs[tk]
+		if ok {
+			return r.Delete(ctx, req)
+		}
+		return fixupError(tk, provider.Delete(ctx, req))
 	}
-	r, err := d.Provider.Invoke(ctx, req)
-	return r, d.fixupError(tk, err)
-}
-
-func (d *Provider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	tk := d.normalize(req.Urn.Type())
-	r, ok := d.normalizedCustoms.Load(tk)
-	if ok {
-		return r.Check(ctx, req)
+	new.Construct = func(pctx p.Context, typ string, name string,
+		ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+		tk := fix(tokens.Type(typ))
+		r, ok := components[tk]
+		if ok {
+			return r.Construct(pctx, typ, name, ctx, inputs, opts)
+		}
+		con, err := provider.Construct(pctx, typ, name, ctx, inputs, opts)
+		return con, fixupError(typ, err)
 	}
-	c, err := d.Provider.Check(ctx, req)
-	return c, d.fixupError(tk, err)
+
+	return provider
 }
 
-func (d *Provider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	tk := d.normalize(req.Urn.Type())
-	r, ok := d.normalizedCustoms.Load(tk)
-	if ok {
-		return r.Diff(ctx, req)
-	}
-	diff, err := d.Provider.Diff(ctx, req)
-	return diff, d.fixupError(tk, err)
-
+type Options struct {
+	Customs    map[tokens.Type]t.CustomResource
+	Components map[tokens.Type]t.ComponentResource
+	Invokes    map[tokens.Type]t.Invoke
+	ModuleMap  map[tokens.ModuleName]tokens.ModuleName
 }
 
-func (d *Provider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	tk := d.normalize(req.Urn.Type())
-	r, ok := d.normalizedCustoms.Load(tk)
-	if ok {
-		return r.Create(ctx, req)
-	}
-	c, err := d.Provider.Create(ctx, req)
-	return c, d.fixupError(tk, err)
-}
-
-func (d *Provider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-	tk := d.normalize(req.Urn.Type())
-	r, ok := d.normalizedCustoms.Load(tk)
-	if ok {
-		return r.Read(ctx, req)
-	}
-	read, err := d.Provider.Read(ctx, req)
-	return read, d.fixupError(tk, err)
-}
-
-func (d *Provider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	tk := d.normalize(req.Urn.Type())
-	r, ok := d.normalizedCustoms.Load(tk)
-	if ok {
-		return r.Update(ctx, req)
-	}
-	up, err := d.Provider.Update(ctx, req)
-	return up, d.fixupError(tk, err)
-}
-
-func (d *Provider) Delete(ctx p.Context, req p.DeleteRequest) error {
-	tk := d.normalize(req.Urn.Type())
-	r, ok := d.normalizedCustoms.Load(tk)
-	if ok {
-		return r.Delete(ctx, req)
-	}
-	return d.fixupError(tk, d.Provider.Delete(ctx, req))
-}
-
-func (d *Provider) Construct(pctx p.Context, typ string, name string,
-	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	tk := d.normalize(tokens.Type(typ))
-	r, ok := d.normalizedComponents.Load(tk)
-	if ok {
-		return r.Construct(pctx, typ, name, ctx, inputs, opts)
-	}
-	con, err := d.Provider.Construct(pctx, typ, name, ctx, inputs, opts)
-	return con, d.fixupError(typ, err)
-}
-
-func (d *Provider) fixupError(tk string, err error) error {
+func fixupError(tk string, err error) error {
 	if status.Code(err) == codes.Unimplemented {
 		err = status.Errorf(codes.NotFound, "Type '%s' not found", tk)
 	}
