@@ -151,7 +151,8 @@ func Wrap(provider p.Provider) p.Provider {
 	}
 	if provider.Construct != nil {
 		new.Construct = func(pctx p.Context, typ string, name string,
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
 			pctx, end := cancel(pctx, noTimeout)
 			defer end()
 			return provider.Construct(pctx, typ, name, ctx, inputs, opts)

@@ -65,7 +65,8 @@ func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 			return provider.Delete(wrapper(ctx), req)
 		},
 		Construct: func(pctx p.Context, typ string, name string,
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
 			return provider.Construct(wrapper(pctx), typ, name, ctx, inputs, opts)
 		},
 	}

@@ -17,8 +17,6 @@
 package dispatch
 
 import (
-	"sync"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -28,63 +26,6 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 )
-
-// A provider that dispatches URN based methods to their appropriate go instance.
-type Provider struct {
-	// The underlying provider if any
-	p.Provider
-
-	// The actual items given to the provider to dispatch.
-	customs    map[tokens.Type]t.CustomResource
-	components map[tokens.Type]t.ComponentResource
-	invokes    map[tokens.Type]t.Invoke
-
-	// Maps of the above items noramalized to remove the package name and to account for
-	// the module map. These can be nil and are lazily regenerated on demand.
-	normalizedCustoms    rwMap[string, t.CustomResource]
-	normalizedComponents rwMap[string, t.ComponentResource]
-	normalizedInvokes    rwMap[string, t.Invoke]
-
-	// A map of token name replacements. Given map{k: v}, pkg:k:Name will be replaced with
-	// pkg:v:Name.
-	moduleMap map[tokens.ModuleName]tokens.ModuleName
-}
-
-type rwMap[K comparable, V any] struct {
-	m     *sync.RWMutex
-	store map[K]V
-}
-
-func newRWMap[K comparable, V any]() rwMap[K, V] {
-	return rwMap[K, V]{
-		m: new(sync.RWMutex),
-	}
-}
-
-func (c *rwMap[K, V]) Reset() {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.store = nil
-}
-
-func (c *rwMap[K, V]) Initialize(f func(map[K]V)) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	if c.store == nil {
-		c.store = map[K]V{}
-		f(c.store)
-	}
-}
-func (c *rwMap[K, V]) Load(k K) (V, bool) {
-	c.m.RLock()
-	defer c.m.RUnlock()
-	if c.store == nil {
-		var v V
-		return v, false
-	}
-	v, ok := c.store[k]
-	return v, ok
-}
 
 // Create a new Dispatch provider around another provider. If `provider` is nil then an
 // empty provider will be used.
@@ -192,7 +133,8 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		}
 
 		new.Construct = func(pctx p.Context, typ string, name string,
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
 			tk := fix(tokens.Type(typ))
 			r, ok := components[tk]
 			if ok {

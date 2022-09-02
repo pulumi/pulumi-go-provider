@@ -373,7 +373,8 @@ func (d Provider) WithDefaults() Provider {
 	}
 	if d.Construct == nil {
 		d.Construct = func(pctx Context, typ string, name string,
-			ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+			ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
 			return nil, nyi("Construct")
 		}
 	}
