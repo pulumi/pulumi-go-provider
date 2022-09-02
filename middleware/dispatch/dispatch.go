@@ -98,93 +98,113 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		}
 		return m.String() + tokens.TokenDelimiter + tk.Name().String()
 	}
-	customs := map[string]t.CustomResource{}
-	for k, v := range opts.Customs {
-		customs[fix(k)] = v
-	}
-	components := map[string]t.ComponentResource{}
-	for k, v := range opts.Components {
-		components[fix(k)] = v
-	}
-	invokes := map[string]t.Invoke{}
-	for k, v := range opts.Invokes {
-		invokes[fix(k)] = v
-	}
+
 	new := provider
-	new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-		tk := fix(req.Token)
-		inv, ok := invokes[tk]
-		if ok {
-			return inv.Invoke(ctx, req)
+	if len(opts.Invokes) > 0 {
+		invokes := map[string]t.Invoke{}
+		for k, v := range opts.Invokes {
+			invokes[fix(k)] = v
 		}
-		r, err := provider.Invoke(ctx, req)
-		return r, fixupError(tk, err)
+		new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+			tk := fix(req.Token)
+			inv, ok := invokes[tk]
+			if ok {
+				return inv.Invoke(ctx, req)
+			} else if provider.Invoke != nil {
+				return provider.Invoke(ctx, req)
+			}
+			return p.InvokeResponse{}, status.Errorf(codes.NotFound, "Invoke '%s' not found", tk)
+		}
 	}
-	new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-		tk := fix(req.Urn.Type())
-		r, ok := customs[tk]
-		if ok {
-			return r.Check(ctx, req)
+	if len(opts.Customs) > 0 {
+		customs := map[string]t.CustomResource{}
+		for k, v := range opts.Customs {
+			customs[fix(k)] = v
 		}
-		c, err := provider.Check(ctx, req)
-		return c, fixupError(tk, err)
+		notFound := func(tk string) error {
+			return status.Errorf(codes.NotFound, "Resource '%s' not found", tk)
+		}
+		new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+			tk := fix(req.Urn.Type())
+			r, ok := customs[tk]
+			if ok {
+				return r.Check(ctx, req)
+			} else if provider.Check != nil {
+				return provider.Check(ctx, req)
+			}
+			return p.CheckResponse{}, notFound(tk)
+		}
+		new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+			tk := fix(req.Urn.Type())
+			r, ok := customs[tk]
+			if ok {
+				return r.Diff(ctx, req)
+			} else if provider.Diff != nil {
+				return provider.Diff(ctx, req)
+			}
+			return p.DiffResponse{}, notFound(tk)
+		}
+		new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+			tk := fix(req.Urn.Type())
+			r, ok := customs[tk]
+			if ok {
+				return r.Create(ctx, req)
+			} else if provider.Create != nil {
+				return provider.Create(ctx, req)
+			}
+			return p.CreateResponse{}, notFound(tk)
+		}
+		new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+			tk := fix(req.Urn.Type())
+			r, ok := customs[tk]
+			if ok {
+				return r.Read(ctx, req)
+			} else if provider.Read != nil {
+				return provider.Read(ctx, req)
+			}
+			return p.ReadResponse{}, notFound(tk)
+		}
+		new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+			tk := fix(req.Urn.Type())
+			r, ok := customs[tk]
+			if ok {
+				return r.Update(ctx, req)
+			} else if provider.Update != nil {
+				return provider.Update(ctx, req)
+			}
+			return p.UpdateResponse{}, notFound(tk)
+		}
+		new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
+			tk := fix(req.Urn.Type())
+			r, ok := customs[tk]
+			if ok {
+				return r.Delete(ctx, req)
+			} else if provider.Delete != nil {
+				return provider.Delete(ctx, req)
+			}
+			return notFound(tk)
+		}
 	}
-	new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-		tk := fix(req.Urn.Type())
-		r, ok := customs[tk]
-		if ok {
-			return r.Diff(ctx, req)
+	if len(opts.Components) > 0 {
+		components := map[string]t.ComponentResource{}
+		for k, v := range opts.Components {
+			components[fix(k)] = v
 		}
-		diff, err := provider.Diff(ctx, req)
-		return diff, fixupError(tk, err)
-	}
-	new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-		tk := fix(req.Urn.Type())
-		r, ok := customs[tk]
-		if ok {
-			return r.Create(ctx, req)
+
+		new.Construct = func(pctx p.Context, typ string, name string,
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+			tk := fix(tokens.Type(typ))
+			r, ok := components[tk]
+			if ok {
+				return r.Construct(pctx, typ, name, ctx, inputs, opts)
+			} else if provider.Construct != nil {
+				return provider.Construct(pctx, typ, name, ctx, inputs, opts)
+			}
+			return nil, status.Errorf(codes.NotFound, "Component Resource '%s' not found", tk)
 		}
-		c, err := provider.Create(ctx, req)
-		return c, fixupError(tk, err)
-	}
-	new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-		tk := fix(req.Urn.Type())
-		r, ok := customs[tk]
-		if ok {
-			return r.Read(ctx, req)
-		}
-		read, err := provider.Read(ctx, req)
-		return read, fixupError(tk, err)
-	}
-	new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-		tk := fix(req.Urn.Type())
-		r, ok := customs[tk]
-		if ok {
-			return r.Update(ctx, req)
-		}
-		up, err := provider.Update(ctx, req)
-		return up, fixupError(tk, err)
-	}
-	new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
-		tk := fix(req.Urn.Type())
-		r, ok := customs[tk]
-		if ok {
-			return r.Delete(ctx, req)
-		}
-		return fixupError(tk, provider.Delete(ctx, req))
-	}
-	new.Construct = func(pctx p.Context, typ string, name string,
-		ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-		tk := fix(tokens.Type(typ))
-		r, ok := components[tk]
-		if ok {
-			return r.Construct(pctx, typ, name, ctx, inputs, opts)
-		}
-		con, err := provider.Construct(pctx, typ, name, ctx, inputs, opts)
-		return con, fixupError(typ, err)
 	}
 
-	return provider
+	return new
 }
 
 type Options struct {
@@ -192,11 +212,4 @@ type Options struct {
 	Components map[tokens.Type]t.ComponentResource
 	Invokes    map[tokens.Type]t.Invoke
 	ModuleMap  map[tokens.ModuleName]tokens.ModuleName
-}
-
-func fixupError(tk string, err error) error {
-	if status.Code(err) == codes.Unimplemented {
-		err = status.Errorf(codes.NotFound, "Type '%s' not found", tk)
-	}
-	return err
 }

@@ -52,85 +52,112 @@ func Wrap(provider p.Provider) p.Provider {
 			}
 		}
 	}
-	return p.Provider{
-		Cancel: func(ctx p.Context) error {
-			canceled = true
-			for _, f := range cancelFuncs.drain() {
-				f()
-			}
+	new := provider
+	new.Cancel = func(ctx p.Context) error {
+		canceled = true
+		for _, f := range cancelFuncs.drain() {
+			f()
+		}
 
-			// We consider this a valid implementation of the Cancel RPC request. We still pass on
-			// the request so downstream provides *may* rely on the Cancel call, but we catch an
-			// Unimplemented error, making implementing the Cancel call optional for downstream
-			// providers.
-			err := provider.Cancel(ctx)
+		// We consider this a valid implementation of the Cancel RPC request. We still pass on
+		// the request so downstream provides *may* rely on the Cancel call, but we catch an
+		// Unimplemented error, making implementing the Cancel call optional for downstream
+		// providers.
+		var err error
+		if provider.Cancel != nil {
+			err = provider.Cancel(ctx)
 			if status.Code(err) == codes.Unimplemented {
 				return nil
 			}
-			return err
-		},
-		GetSchema: func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+		}
+		return err
+	}
+	if provider.GetSchema != nil {
+		new.GetSchema = func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.GetSchema(ctx, req)
-		},
-		CheckConfig: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		}
+	}
+	if provider.CheckConfig != nil {
+		new.CheckConfig = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.CheckConfig(ctx, req)
-		},
-		DiffConfig: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		}
+	}
+	if provider.DiffConfig != nil {
+		new.DiffConfig = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.DiffConfig(ctx, req)
-		},
-		Configure: func(ctx p.Context, req p.ConfigureRequest) error {
+		}
+	}
+	if provider.Configure != nil {
+		new.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Configure(ctx, req)
-		},
-		Invoke: func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+		}
+	}
+	if provider.Invoke != nil {
+		new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Invoke(ctx, req)
-		},
-		Check: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		}
+	}
+	if provider.Check != nil {
+		new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Check(ctx, req)
-		},
-		Diff: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		}
+	}
+	if provider.Diff != nil {
+		new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Diff(ctx, req)
-		},
-		Create: func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		}
+	}
+	if provider.Create != nil {
+		new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			ctx, end := cancel(ctx, req.Timeout)
 			defer end()
 			return provider.Create(ctx, req)
-		},
-		Read: func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		}
+	}
+	if provider.Read != nil {
+		new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Read(ctx, req)
-		},
-		Update: func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+		}
+	}
+	if provider.Update != nil {
+		new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 			ctx, end := cancel(ctx, req.Timeout)
 			defer end()
 			return provider.Update(ctx, req)
-		},
-		Delete: func(ctx p.Context, req p.DeleteRequest) error {
+		}
+	}
+	if provider.Delete != nil {
+		new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
 			ctx, end := cancel(ctx, req.Timeout)
 			defer end()
 			return provider.Delete(ctx, req)
-		},
-		Construct: func(pctx p.Context, typ string, name string,
+		}
+	}
+	if provider.Construct != nil {
+		new.Construct = func(pctx p.Context, typ string, name string,
 			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
 			pctx, end := cancel(pctx, noTimeout)
 			defer end()
 			return provider.Construct(pctx, typ, name, ctx, inputs, opts)
-		},
+		}
 	}
+	return new
 }
 
 const noTimeout float64 = 0

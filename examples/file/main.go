@@ -21,11 +21,12 @@ func main() {
 }
 
 func provider() p.Provider {
-	return infer.NewProvider().
-		WithResources(infer.Resource[*File, FileArgs, FileState]()).
-		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+	return infer.Wrap(p.Provider{}, infer.Options{
+		Resources: []infer.InferredResource{infer.Resource[*File, FileArgs, FileState]()},
+		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"file": "index",
-		})
+		},
+	})
 }
 
 type File struct{}

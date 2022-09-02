@@ -97,6 +97,7 @@ func (s *state) invalidateCache() {
 }
 
 type Options struct {
+	Metadata
 	// Resources from which to derive the schema
 	Resources []Resource
 	// Invokes from which to derive the schema
@@ -104,7 +105,14 @@ type Options struct {
 	// The provider resource for the schema
 	Provider Resource
 
-	// Non-inferrable schema fields
+	// Map modules in the generated schema.
+	//
+	// For example, with the map {"foo": "bar"}, the token "pkg:foo:Name" would be present in
+	// the schema as "pkg:bar:Name".
+	ModuleMap map[tokens.ModuleName]tokens.ModuleName
+}
+
+type Metadata struct {
 	LanguageMap       map[string]any
 	Description       string
 	DisplayName       string
@@ -115,12 +123,6 @@ type Options struct {
 	LogoURL           string
 	License           string
 	PluginDownloadURL string
-
-	// Map modules in the generated schema.
-	//
-	// For example, with the map {"foo": "bar"}, the token "pkg:foo:Name" would be present in
-	// the schema as "pkg:bar:Name".
-	ModuleMap map[tokens.ModuleName]tokens.ModuleName
 }
 
 // Wrap a provider with the facilities to serve GetSchema. If provider is nil, the
@@ -146,24 +148,29 @@ func (s *state) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaRes
 			return p.GetSchemaResponse{}, err
 		}
 	}
-	lower, err := s.innerGetSchema(ctx, req)
-	if err == nil {
-		// We need to merge
-		// Make sure our caches are up to date
-		if s.lowerSchema.isEmpty() || s.lowerSchema.marshaled != lower.Schema {
-			s.combinedSchema = nil
-			s.lowerSchema, err = newCacheFromMarshaled(lower.Schema)
-			if err != nil {
-				return p.GetSchemaResponse{}, err
+	if s.innerGetSchema != nil {
+		lower, err := s.innerGetSchema(ctx, req)
+		if err == nil {
+			// We need to merge
+			// Make sure our caches are up to date
+			if s.lowerSchema.isEmpty() || s.lowerSchema.marshaled != lower.Schema {
+				s.combinedSchema = nil
+				s.lowerSchema, err = newCacheFromMarshaled(lower.Schema)
+				if err != nil {
+					return p.GetSchemaResponse{}, err
+				}
 			}
+		} else if status.Code(err) == codes.Unimplemented {
+			s.lowerSchema = nil
+		} else {
+			// There was an actual error, so we need to buble that up.
+			return p.GetSchemaResponse{}, err
 		}
-	} else if status.Code(err) == codes.Unimplemented {
-		s.lowerSchema = nil
 	} else {
-		// There was an actual error, so we need to buble that up.
-		return p.GetSchemaResponse{}, err
+		s.lowerSchema = nil
 	}
-	err = s.mergeSchemas()
+
+	err := s.mergeSchemas()
 	if err != nil {
 		return p.GetSchemaResponse{}, err
 	}

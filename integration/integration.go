@@ -51,7 +51,8 @@ func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
 	return &server{p.RunInfo{
 		PackageName: pkg,
 		Version:     version.String(),
-	}, provider, context.Background()}
+	}, provider.WithDefaults(),
+		context.Background()}
 }
 
 type server struct {

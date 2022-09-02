@@ -182,7 +182,9 @@ func (d *DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNA
 
 func main() {
 	err := p.RunProvider("dna-store", "0.1.0",
-		infer.NewProvider().WithResources(infer.Resource[*DNAStore, DNAStoreArgs, DNAStoreArgs]()))
+		infer.Wrap(p.Provider{}, infer.Options{
+			Resources: []infer.InferredResource{infer.Resource[*DNAStore, DNAStoreArgs, DNAStoreArgs]()},
+		}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
