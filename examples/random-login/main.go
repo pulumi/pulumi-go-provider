@@ -48,7 +48,7 @@ type MoreRandomPasswordState struct {
 	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
 }
 
-func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
+func (r *MoreRandomPassword) Construct(pctx p.Context, ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
 	comp := &MoreRandomPasswordState{}
 	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {
@@ -79,7 +79,7 @@ type RandomLoginOutput struct {
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
+func (r *RandomLogin) Construct(pctx p.Context, ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
 	comp := &RandomLoginOutput{}
 	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {

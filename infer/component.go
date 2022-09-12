@@ -34,7 +34,7 @@ type ComponentResource[I any, O pulumi.ComponentResource] interface {
 	//
 	// ctx.RegisterResource needs to be called, but ctx.RegisterOutputs does not need to
 	// be called.
-	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
+	Construct(pctx p.Context, ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
 // A component resource inferred from code. To get an instance of an InferredComponent,
@@ -85,7 +85,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ str
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w", name, typ, err)
 	}
-	res, err := r.Construct(ctx, name, typ, i, opts)
+	res, err := r.Construct(pctx, ctx, name, typ, i, opts)
 	if err != nil {
 		return nil, err
 	}

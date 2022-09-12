@@ -30,7 +30,7 @@ import (
 
 type Foo struct{ pulumi.ComponentResource }
 
-func (*Foo) Construct(ctx *pulumi.Context, name string, typ string, inputs FooArgs, opts pulumi.ResourceOption) (*Foo, error) {
+func (*Foo) Construct(p.Context, *pulumi.Context, string, string, FooArgs, pulumi.ResourceOption) (*Foo, error) {
 	return nil, nil
 }
 
