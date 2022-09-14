@@ -79,6 +79,9 @@ func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
 
 func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ string, name string,
 	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
+	if v := pctx.Value(configKey); v != nil {
+		p.PutEmbeddedData(ctx.Context(), configKey, v)
+	}
 	var r R
 	var i I
 	err := inputs.CopyTo(&i)

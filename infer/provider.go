@@ -25,6 +25,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // Assert that Provider is a provider.
@@ -62,16 +63,28 @@ func NewProvider() *Provider {
 
 // Retrieve the configuration of this provider.
 //
-// Note: Config will panic if the type of T does not match the type of the config or if
+// Note: GetConfig will panic if the type of T does not match the type of the config or if
 // the provider has not supplied a config.
 func GetConfig[T any](ctx p.Context) T {
-	cv := ctx.Value(configKey)
+	v := ctx.Value(configKey)
+	return getConfig[T](v, v != nil)
+}
 
+// Retrieve the configuration of this provider.
+//
+// Note: GetComponentConfig will panic if the type of T does not match the type of the config or if
+// the provider has not supplied a config.
+func GetComponentConfig[T any](ctx *pulumi.Context) T {
+	v, ok := p.GetEmbeddedData(ctx.Context(), configKey)
+	return getConfig[T](v, ok)
+}
+
+func getConfig[T any](v any, hasValue bool) T {
 	var t T
-	if cv == nil {
+	if v == nil {
 		panic(fmt.Sprintf("Config[%T] called on a provider without a config", t))
 	}
-	c := cv.(InferredConfig)
+	c := v.(InferredConfig)
 	if c, ok := c.(*config[T]); ok {
 		if c.t == nil {
 			c.t = &t

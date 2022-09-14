@@ -432,6 +432,13 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 	}
 }
 
+func (p *pkgContext) Value(key any) any {
+	if v, ok := GetEmbeddedData(p.Context, key); ok {
+		return v
+	}
+	return p.Context.Value(key)
+}
+
 type wrapCtx struct {
 	context.Context
 	log                func(severity diag.Severity, msg string)
@@ -498,7 +505,7 @@ func CtxWithTimeout(ctx Context, timeout time.Duration) (Context, context.Cancel
 }
 
 func (p *provider) ctx(ctx context.Context, urn presource.URN) Context {
-	return &pkgContext{ctx, p, urn}
+	return &pkgContext{putEmbeddedMap(ctx), p, urn}
 }
 
 func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
@@ -832,7 +839,7 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 }
 
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	return comProvider.Construct(pctx, req, p.host.EngineConn(),
+	return comProvider.Construct(putEmbeddedMap(pctx), req, p.host.EngineConn(),
 		func(ctx *pulumi.Context, typ, name string,
 			inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
 		) (*comProvider.ConstructResult, error) {
@@ -866,4 +873,28 @@ func (p *provider) Attach(ctx context.Context, req *rpc.PluginAttach) (*emptypb.
 	}
 	p.host = host
 	return &emptypb.Empty{}, nil
+}
+
+type embeddedData struct{}
+
+func getEmbeddedMap(ctx context.Context) map[any]any {
+	return ctx.Value(embeddedData{}).(map[any]any)
+}
+
+func putEmbeddedMap(ctx context.Context) context.Context {
+	return context.WithValue(ctx, embeddedData{}, map[any]any{})
+}
+
+func GetEmbeddedData(ctx context.Context, key any) (any, bool) {
+	data, ok := getEmbeddedMap(ctx)[key]
+	return data, ok
+}
+
+func PutEmbeddedData(ctx context.Context, key, value any) any {
+	data, hadData := GetEmbeddedData(ctx, key)
+	getEmbeddedMap(ctx)[key] = value
+	if hadData {
+		return data
+	}
+	return nil
 }

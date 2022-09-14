@@ -24,7 +24,7 @@ import (
 func TestCtx(t *testing.T) {
 	t.Parallel()
 	var ctx Context = &pkgContext{
-		Context: context.Background(),
+		Context: putEmbeddedMap(context.Background()),
 		urn:     "foo",
 	}
 
