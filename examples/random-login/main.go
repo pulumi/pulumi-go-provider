@@ -32,7 +32,8 @@ func provider() p.Provider {
 		).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
-		})
+		}).
+		WithConfig(infer.Config[Config]())
 }
 
 // TODO: Deserialization does not yet work for external resources. Right now, it looks
