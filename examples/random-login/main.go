@@ -62,7 +62,8 @@ func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, ar
 		Length: args.Length.Result,
 	}
 
-	config := infer.GetComponentConfig[Config](ctx)
+	pctx := infer.CtxFromPulumiContext(ctx)
+	config := infer.GetConfig[Config](pctx)
 	if config.Scream != nil {
 		pArgs.Lower = pulumi.BoolPtr(*config.Scream)
 	}
