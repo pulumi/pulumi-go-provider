@@ -31,6 +31,7 @@ type configKeyType struct{}
 
 var configKey configKeyType
 
+// Configure an inferred provider.
 type Options struct {
 	schema.Metadata
 	Resources  []InferredResource  // Inferred resources served by the provider.
@@ -98,6 +99,11 @@ func (o Options) schema() schema.Options {
 		Metadata:  o.Metadata,
 		ModuleMap: o.ModuleMap,
 	}
+}
+
+// Create a new inferred provider from `opts`.
+func Provider(opts Options) p.Provider {
+	return Wrap(p.Provider{}, opts)
 }
 
 func Wrap(provider p.Provider, opts Options) p.Provider {
