@@ -24,7 +24,7 @@ func main() {
 }
 
 func provider() p.Provider {
-	return infer.Wrap(p.Provider{}, infer.Options{
+	return infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()},
 		Components: []infer.InferredComponent{
 			infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput](),

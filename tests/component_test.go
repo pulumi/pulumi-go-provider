@@ -46,7 +46,7 @@ type Bundle struct {
 
 func provider() integration.Server {
 	return integration.NewServer("foo", semver.Version{Major: 1},
-		infer.Wrap(p.Provider{}, infer.Options{
+		infer.Provider(infer.Options{
 			Components: []infer.InferredComponent{infer.Component[*Foo, FooArgs, *Foo]()},
 		}),
 	)

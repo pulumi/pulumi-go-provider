@@ -18,7 +18,7 @@ func main() {
 }
 
 func provider() p.Provider {
-	return infer.Wrap(p.Provider{}, infer.Options{
+	return infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{infer.Resource[*User, UserArgs, UserState]()},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"credentials": "index",
