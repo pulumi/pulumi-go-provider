@@ -18,12 +18,13 @@ func main() {
 }
 
 func provider() p.Provider {
-	return infer.NewProvider().
-		WithResources(infer.Resource[*User, UserArgs, UserState]()).
-		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+	return infer.Provider(infer.Options{
+		Resources: []infer.InferredResource{infer.Resource[*User, UserArgs, UserState]()},
+		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"credentials": "index",
-		}).
-		WithConfig(infer.Config[*Config]())
+		},
+		Config: infer.Config[*Config](),
+	})
 }
 
 type Config struct {

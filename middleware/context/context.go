@@ -27,63 +27,47 @@ type Wrapper = func(p.Context) p.Context
 
 // Create a Provider that calls `wrapper` on each context passed into `provider`.
 func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
-	return &wrapProvider{provider, wrapper}
-}
-
-type wrapProvider struct {
-	inner p.Provider
-	w     Wrapper
-}
-
-func (s *wrapProvider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
-	return s.inner.GetSchema(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Cancel(ctx p.Context) error {
-	return s.inner.Cancel(s.w(ctx))
-}
-
-func (s *wrapProvider) CheckConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	return s.inner.CheckConfig(s.w(ctx), req)
-}
-
-func (s *wrapProvider) DiffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	return s.inner.DiffConfig(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Configure(ctx p.Context, req p.ConfigureRequest) error {
-	return s.inner.Configure(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-	return s.inner.Invoke(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	return s.inner.Check(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	return s.inner.Diff(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	return s.inner.Create(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-	return s.inner.Read(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	return s.inner.Update(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Delete(ctx p.Context, req p.DeleteRequest) error {
-	return s.inner.Delete(s.w(ctx), req)
-}
-
-func (s *wrapProvider) Construct(pctx p.Context, typ string, name string,
-	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	return s.inner.Construct(s.w(pctx), typ, name, ctx, inputs, opts)
+	return p.Provider{
+		GetSchema: func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+			return provider.GetSchema(wrapper(ctx), req)
+		},
+		Cancel: func(ctx p.Context) error {
+			return provider.Cancel(wrapper(ctx))
+		},
+		CheckConfig: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+			return provider.CheckConfig(wrapper(ctx), req)
+		},
+		DiffConfig: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+			return provider.DiffConfig(wrapper(ctx), req)
+		},
+		Configure: func(ctx p.Context, req p.ConfigureRequest) error {
+			return provider.Configure(wrapper(ctx), req)
+		},
+		Invoke: func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+			return provider.Invoke(wrapper(ctx), req)
+		},
+		Check: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+			return provider.Check(wrapper(ctx), req)
+		},
+		Diff: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+			return provider.Diff(wrapper(ctx), req)
+		},
+		Create: func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+			return provider.Create(wrapper(ctx), req)
+		},
+		Read: func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+			return provider.Read(wrapper(ctx), req)
+		},
+		Update: func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+			return provider.Update(wrapper(ctx), req)
+		},
+		Delete: func(ctx p.Context, req p.DeleteRequest) error {
+			return provider.Delete(wrapper(ctx), req)
+		},
+		Construct: func(pctx p.Context, typ string, name string,
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
+			return provider.Construct(wrapper(pctx), typ, name, ctx, inputs, opts)
+		},
+	}
 }

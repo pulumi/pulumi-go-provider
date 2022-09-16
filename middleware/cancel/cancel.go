@@ -32,128 +32,136 @@ import (
 )
 
 func Wrap(provider p.Provider) p.Provider {
-	return &cancelProvider{
-		inner:       provider,
-		cancelFuncs: inOutCache[context.CancelFunc]{},
+	var canceled bool
+	var cancelFuncs inOutCache[context.CancelFunc]
+	cancel := func(ctx p.Context, timeout float64) (p.Context, func()) {
+		var cancel context.CancelFunc
+		if timeout == noTimeout {
+			ctx, cancel = p.CtxWithCancel(ctx)
+		} else {
+			ctx, cancel = p.CtxWithTimeout(ctx, time.Second*time.Duration(timeout))
+		}
+		if canceled {
+			cancel()
+			return ctx, func() {}
+		}
+		evict := cancelFuncs.insert(cancel)
+		return ctx, func() {
+			if !evict() {
+				cancel()
+			}
+		}
 	}
-}
+	new := provider
+	new.Cancel = func(ctx p.Context) error {
+		canceled = true
+		for _, f := range cancelFuncs.drain() {
+			f()
+		}
 
-type cancelProvider struct {
-	inner       p.Provider
-	cancelFuncs inOutCache[context.CancelFunc]
-	canceled    bool // If Cancel has been called on this provider
-}
-
-func (c *cancelProvider) Cancel(ctx p.Context) error {
-	c.canceled = true
-	for _, f := range c.cancelFuncs.drain() {
-		f()
+		// We consider this a valid implementation of the Cancel RPC request. We still pass on
+		// the request so downstream provides *may* rely on the Cancel call, but we catch an
+		// Unimplemented error, making implementing the Cancel call optional for downstream
+		// providers.
+		var err error
+		if provider.Cancel != nil {
+			err = provider.Cancel(ctx)
+			if status.Code(err) == codes.Unimplemented {
+				return nil
+			}
+		}
+		return err
 	}
-
-	// We consider this a valid implementation of the Cancel RPC request. We still pass on
-	// the request so downstream provides *may* rely on the Cancel call, but we catch an
-	// Unimplemented error, making implementing the Cancel call optional for downstream
-	// providers.
-	err := c.inner.Cancel(ctx)
-	if status.Code(err) == codes.Unimplemented {
-		return nil
+	if provider.GetSchema != nil {
+		new.GetSchema = func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.GetSchema(ctx, req)
+		}
 	}
-	return err
+	if provider.CheckConfig != nil {
+		new.CheckConfig = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.CheckConfig(ctx, req)
+		}
+	}
+	if provider.DiffConfig != nil {
+		new.DiffConfig = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.DiffConfig(ctx, req)
+		}
+	}
+	if provider.Configure != nil {
+		new.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.Configure(ctx, req)
+		}
+	}
+	if provider.Invoke != nil {
+		new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.Invoke(ctx, req)
+		}
+	}
+	if provider.Check != nil {
+		new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.Check(ctx, req)
+		}
+	}
+	if provider.Diff != nil {
+		new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.Diff(ctx, req)
+		}
+	}
+	if provider.Create != nil {
+		new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+			ctx, end := cancel(ctx, req.Timeout)
+			defer end()
+			return provider.Create(ctx, req)
+		}
+	}
+	if provider.Read != nil {
+		new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
+			defer end()
+			return provider.Read(ctx, req)
+		}
+	}
+	if provider.Update != nil {
+		new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+			ctx, end := cancel(ctx, req.Timeout)
+			defer end()
+			return provider.Update(ctx, req)
+		}
+	}
+	if provider.Delete != nil {
+		new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
+			ctx, end := cancel(ctx, req.Timeout)
+			defer end()
+			return provider.Delete(ctx, req)
+		}
+	}
+	if provider.Construct != nil {
+		new.Construct = func(pctx p.Context, typ string, name string,
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
+			pctx, end := cancel(pctx, noTimeout)
+			defer end()
+			return provider.Construct(pctx, typ, name, ctx, inputs, opts)
+		}
+	}
+	return new
 }
 
 const noTimeout float64 = 0
-
-func (c *cancelProvider) cancel(ctx p.Context, timeout float64) (p.Context, func()) {
-	var cancel context.CancelFunc
-	if timeout == noTimeout {
-		ctx, cancel = p.CtxWithCancel(ctx)
-	} else {
-		ctx, cancel = p.CtxWithTimeout(ctx, time.Second*time.Duration(timeout))
-	}
-	if c.canceled {
-		cancel()
-		return ctx, func() {}
-	}
-	evict := c.cancelFuncs.insert(cancel)
-	return ctx, func() {
-		if !evict() {
-			cancel()
-		}
-	}
-}
-
-func (c *cancelProvider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.GetSchema(ctx, req)
-}
-
-func (c *cancelProvider) CheckConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.CheckConfig(ctx, req)
-}
-
-func (c *cancelProvider) DiffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.DiffConfig(ctx, req)
-}
-
-func (c *cancelProvider) Configure(ctx p.Context, req p.ConfigureRequest) error {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.Configure(ctx, req)
-}
-
-func (c *cancelProvider) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.Invoke(ctx, req)
-}
-
-func (c *cancelProvider) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.Check(ctx, req)
-}
-
-func (c *cancelProvider) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.Diff(ctx, req)
-}
-
-func (c *cancelProvider) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	ctx, end := c.cancel(ctx, req.Timeout)
-	defer end()
-	return c.inner.Create(ctx, req)
-}
-
-func (c *cancelProvider) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-	ctx, end := c.cancel(ctx, noTimeout)
-	defer end()
-	return c.inner.Read(ctx, req)
-}
-
-func (c *cancelProvider) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	ctx, end := c.cancel(ctx, req.Timeout)
-	defer end()
-	return c.inner.Update(ctx, req)
-}
-
-func (c *cancelProvider) Delete(ctx p.Context, req p.DeleteRequest) error {
-	ctx, end := c.cancel(ctx, req.Timeout)
-	defer end()
-	return c.inner.Delete(ctx, req)
-}
-
-func (c *cancelProvider) Construct(pctx p.Context, typ string, name string,
-	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	pctx, end := c.cancel(pctx, noTimeout)
-	defer end()
-	return c.inner.Construct(pctx, typ, name, ctx, inputs, opts)
-}
 
 // A data structure which provides amortized O(1) insertion, removal, and draining.
 type inOutCache[T any] struct {

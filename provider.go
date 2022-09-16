@@ -258,26 +258,26 @@ func ConfigMissingKeys(missing map[string]string) error {
 	)
 }
 
-type Provider interface {
+type Provider struct {
 	// Utility
 
 	// GetSchema fetches the schema for this resource provider.
-	GetSchema(Context, GetSchemaRequest) (GetSchemaResponse, error)
+	GetSchema func(Context, GetSchemaRequest) (GetSchemaResponse, error)
 	// Cancel signals the provider to gracefully shut down and abort any ongoing resource operations.
 	// Operations aborted in this way will return an error (e.g., `Update` and `Create` will either return a
 	// creation error or an initialization error). Since Cancel is advisory and non-blocking, it is up
 	// to the host to decide how long to wait after Cancel is called before (e.g.)
 	// hard-closing any gRPC connection.
-	Cancel(Context) error
+	Cancel func(Context) error
 
 	// Provider Config
-	CheckConfig(Context, CheckRequest) (CheckResponse, error)
-	DiffConfig(Context, DiffRequest) (DiffResponse, error)
+	CheckConfig func(Context, CheckRequest) (CheckResponse, error)
+	DiffConfig  func(Context, DiffRequest) (DiffResponse, error)
 	// NOTE: We opt into all options.
-	Configure(Context, ConfigureRequest) error
+	Configure func(Context, ConfigureRequest) error
 
 	// Invokes
-	Invoke(Context, InvokeRequest) (InvokeResponse, error)
+	Invoke func(Context, InvokeRequest) (InvokeResponse, error)
 	// TODO Stream invoke (are those used anywhere)
 
 	// Custom Resources
@@ -287,22 +287,103 @@ type Provider interface {
 	// inputs returned by a call to Check should preserve the original representation of the properties as present in
 	// the program inputs. Though this rule is not required for correctness, violations thereof can negatively impact
 	// the end-user experience, as the provider inputs are using for detecting and rendering diffs.
-	Check(Context, CheckRequest) (CheckResponse, error)
-	Diff(Context, DiffRequest) (DiffResponse, error)
-	Create(Context, CreateRequest) (CreateResponse, error)
-	Read(Context, ReadRequest) (ReadResponse, error)
-	Update(Context, UpdateRequest) (UpdateResponse, error)
-	Delete(Context, DeleteRequest) error
+	Check  func(Context, CheckRequest) (CheckResponse, error)
+	Diff   func(Context, DiffRequest) (DiffResponse, error)
+	Create func(Context, CreateRequest) (CreateResponse, error)
+	Read   func(Context, ReadRequest) (ReadResponse, error)
+	Update func(Context, UpdateRequest) (UpdateResponse, error)
+	Delete func(Context, DeleteRequest) error
 	// TODO Call
 
 	// Components Resources
-	Construct(pctx Context, typ string, name string,
+	Construct func(pctx Context, typ string, name string,
 		ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+}
+
+// Provide a default value for each function.
+//
+// Most default values return a NotYetImplemented error, which the engine knows to ignore.
+// Others are no-op functions.
+//
+// You should not need to call this function manually. It will be automatically called
+// before a provider is run.
+func (d Provider) WithDefaults() Provider {
+	nyi := func(fn string) error {
+		return status.Errorf(codes.Unimplemented, "%s is not implemented", fn)
+	}
+	if d.GetSchema == nil {
+		d.GetSchema = func(Context, GetSchemaRequest) (GetSchemaResponse, error) {
+			return GetSchemaResponse{}, nyi("GetSchema")
+		}
+	}
+	if d.Cancel == nil {
+		d.Cancel = func(ctx Context) error {
+			return nyi("Cancel")
+		}
+	}
+	if d.CheckConfig == nil {
+		d.CheckConfig = func(ctx Context, req CheckRequest) (CheckResponse, error) {
+			return CheckResponse{}, nyi("CheckConfig")
+		}
+	}
+	if d.DiffConfig == nil {
+		d.DiffConfig = func(ctx Context, req DiffRequest) (DiffResponse, error) {
+			return DiffResponse{}, nyi("DiffConfig")
+		}
+	}
+	if d.Configure == nil {
+		d.Configure = func(ctx Context, req ConfigureRequest) error {
+			return nyi("Configure")
+		}
+	}
+	if d.Invoke == nil {
+		d.Invoke = func(ctx Context, req InvokeRequest) (InvokeResponse, error) {
+			return InvokeResponse{}, nyi("Invoke")
+		}
+	}
+	if d.Check == nil {
+		d.Check = func(ctx Context, req CheckRequest) (CheckResponse, error) {
+			return CheckResponse{}, nyi("Check")
+		}
+	}
+	if d.Diff == nil {
+		d.Diff = func(ctx Context, req DiffRequest) (DiffResponse, error) {
+			return DiffResponse{}, nyi("Diff")
+		}
+	}
+	if d.Create == nil {
+		d.Create = func(ctx Context, req CreateRequest) (CreateResponse, error) {
+			return CreateResponse{}, nyi("Create")
+		}
+	}
+	if d.Read == nil {
+		d.Read = func(ctx Context, req ReadRequest) (ReadResponse, error) {
+			return ReadResponse{}, nyi("Read")
+		}
+	}
+	if d.Update == nil {
+		d.Update = func(ctx Context, req UpdateRequest) (UpdateResponse, error) {
+			return UpdateResponse{}, nyi("Update")
+		}
+	}
+	if d.Delete == nil {
+		d.Delete = func(ctx Context, req DeleteRequest) error {
+			return nyi("Delete")
+		}
+	}
+	if d.Construct == nil {
+		d.Construct = func(pctx Context, typ string, name string,
+			ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
+			return nil, nyi("Construct")
+		}
+	}
+	return d
 }
 
 // Run a provider with the given name and version.
 func RunProvider(name, version string, provider Provider) error {
-	return pprovider.Main(name, newProvider(name, version, provider))
+	return pprovider.Main(name, newProvider(name, version, provider.WithDefaults()))
 }
 
 // A context which prints its diagnostics, collecting all errors

@@ -24,15 +24,16 @@ func main() {
 }
 
 func provider() p.Provider {
-	return infer.NewProvider().
-		WithResources(infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()).
-		WithComponents(
+	return infer.Provider(infer.Options{
+		Resources: []infer.InferredResource{infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()},
+		Components: []infer.InferredComponent{
 			infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput](),
 			infer.Component[*MoreRandomPassword, MoreRandomPasswordArgs, *MoreRandomPasswordState](),
-		).
-		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+		},
+		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
-		})
+		},
+	})
 }
 
 // TODO: Deserialization does not yet work for external resources. Right now, it looks
