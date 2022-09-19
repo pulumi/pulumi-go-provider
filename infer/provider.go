@@ -128,12 +128,8 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 // the provider has not supplied a config.
 func GetConfig[T any](ctx p.Context) T {
 	v := ctx.Value(configKey)
-	return getConfig[T](v, v != nil)
-}
-
-func getConfig[T any](v any, hasValue bool) T {
 	var t T
-	if !hasValue {
+	if v == nil {
 		panic(fmt.Sprintf("Config[%T] called on a provider without a config", t))
 	}
 	c := v.(InferredConfig)

@@ -515,7 +515,8 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 }
 
 func (p *pkgContext) Value(key any) any {
-	if v, ok := getEmbeddedMap(p.Context, "internal error: misconfigured *pkgContext: Value")[key]; ok {
+	m := getEmbeddedMap(p.Context, "internal error: misconfigured *pkgContext: Value")
+	if v, ok := m[key]; ok {
 		return v
 	}
 	return p.Context.Value(key)
@@ -967,7 +968,32 @@ func getEmbeddedMap(ctx context.Context, caller string) map[any]any {
 }
 
 func putEmbeddedMap(ctx context.Context) context.Context {
-	return context.WithValue(ctx, embeddedData{}, map[any]any{})
+	m := map[any]any{}
+	return &mutableValueContext{
+		Context: context.WithValue(ctx, embeddedData{}, m),
+		m:       m,
+	}
+}
+
+// Provides lookup into a map.
+type mutableValueContext struct {
+	// The embedded context should be an instance of
+	// 	context.WithValue($ctx, `marker`, m)
+	// Where `m` is embedded in the other field.
+	//
+	// This allows context.Value(`marker`) to retrieve the mutable map while
+	// context.Value(`k`) will retrieve the key `k` from the map if present.
+	context.Context
+	m map[any]any
+}
+
+// Lookup a value, checking if the value is held in the mutable map before chaining to
+// derivative values.
+func (m *mutableValueContext) Value(key any) any {
+	if v, ok := m.m[key]; ok {
+		return v
+	}
+	return m.Context.Value(key)
 }
 
 // Give a context.Context passed to a p.Provider callback an embedded value.
@@ -975,10 +1001,8 @@ func putEmbeddedMap(ctx context.Context) context.Context {
 //
 // It `context.WithValue` is usable, it should be preferred.
 func PutEmbeddedData(ctx context.Context, key, value any) any {
-	data, hadData := getEmbeddedMap(ctx, "PutEmbeddedData")[key]
-	getEmbeddedMap(ctx, "PutEmbeddedData")[key] = value
-	if hadData {
-		return data
-	}
-	return nil
+	m := getEmbeddedMap(ctx, "PutEmbeddedData")
+	data := m[key]
+	m[key] = value
+	return data
 }
