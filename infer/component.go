@@ -78,27 +78,40 @@ func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
 	return introspect.GetToken("pkg", r)
 }
 
-func (rc *derivedComponentController[R, I, O]) Construct(pctx p.Context, typ string, name string,
-	ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	p.PutEmbeddedData(ctx.Context(), componentContextKey{}, pctx)
-	var r R
-	var i I
-	err := inputs.CopyTo(&i)
-	if err != nil {
-		return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w", name, typ, err)
-	}
-	res, err := r.Construct(ctx, name, typ, i, opts)
-	if err != nil {
-		return nil, err
-	}
+func (rc *derivedComponentController[R, I, O]) Construct(
+	ctx p.Context, req p.ConstructRequest,
+) (p.ConstructResponse, error) {
+	// Store the context in itself as a value, so we can retrieve the
+	// p.Context later.
+	ctx = p.CtxWithValue(ctx, componentContextKey{}, ctx)
+	return req.Construct(ctx,
+		func(
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
+			var r R
+			var i I
+			urn := req.URN
+			err := inputs.CopyTo(&i)
+			if err != nil {
+				return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
+					urn.Name(), urn.Type(), err)
+			}
+			res, err := r.Construct(ctx,
+				urn.Name().String(),
+				urn.Type().String(),
+				i, opts)
+			if err != nil {
+				return nil, err
+			}
 
-	// Register the outputs
-	m := introspect.StructToMap(res)
-	err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
-	if err != nil {
-		return nil, err
-	}
-	return res, err
+			// Register the outputs
+			m := introspect.StructToMap(res)
+			err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
+			if err != nil {
+				return nil, err
+			}
+			return res, err
+		})
 }
 
 type componentContextKey struct{}

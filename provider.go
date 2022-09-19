@@ -929,13 +929,27 @@ type ConstructFunc = func(*pulumi.Context, comProvider.ConstructInputs, pulumi.R
 type ConstructResponse struct{ inner *rpc.ConstructResponse }
 
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+	fmt.Printf("stack=%v\nproject=%v\nparent=%v\ntype=%v\nname=%v\n",
+		req.GetStack(),
+		req.GetProject(),
+		req.GetParent(),
+		req.GetType(),
+		req.GetName(),
+	)
+	// This returns the URN of the parent, we just need the type.
+	parent := tokens.Type(req.GetParent())
+	if parent != "" {
+		parent = presource.URN(parent).Type()
+	}
+
 	urn := presource.NewURN(
 		tokens.QName(req.GetStack()),
 		tokens.PackageName(req.GetProject()),
-		tokens.Type(req.GetParent()),
+		parent,
 		tokens.Type(req.GetType()),
 		tokens.QName(req.GetName()),
 	)
+	fmt.Printf("urn.Type() = %v\n", urn.Type())
 	f := func(ctx Context, construct ConstructFunc) (ConstructResponse, error) {
 		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
 			func(

@@ -23,8 +23,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -43,8 +41,7 @@ type Server interface {
 	Read(p.ReadRequest) (p.ReadResponse, error)
 	Update(p.UpdateRequest) (p.UpdateResponse, error)
 	Delete(p.DeleteRequest) error
-	Construct(typ string, name string,
-		ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+	Construct(p.ConstructRequest) (p.ConstructResponse, error)
 }
 
 func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
@@ -143,9 +140,8 @@ func (s *server) Delete(req p.DeleteRequest) error {
 	return s.p.Delete(s.ctx(req.Urn), req)
 }
 
-func (s *server) Construct(typ string, name string,
-	ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error) {
-	return s.p.Construct(s.ctx(presource.URN(typ)), typ, name, ctx, inputs, opts)
+func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) {
+	return s.p.Construct(s.ctx(req.URN), req)
 }
 
 // TODO: Add support for diff verification

@@ -16,9 +16,6 @@
 package context
 
 import (
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
-
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
@@ -64,10 +61,8 @@ func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 		Delete: func(ctx p.Context, req p.DeleteRequest) error {
 			return provider.Delete(wrapper(ctx), req)
 		},
-		Construct: func(pctx p.Context, typ string, name string,
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
-		) (pulumi.ComponentResource, error) {
-			return provider.Construct(wrapper(pctx), typ, name, ctx, inputs, opts)
+		Construct: func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+			return provider.Construct(wrapper(ctx), req)
 		},
 	}
 }
