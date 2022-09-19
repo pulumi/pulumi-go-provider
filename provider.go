@@ -29,7 +29,6 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -511,14 +510,6 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 	}
 }
 
-func (p *pkgContext) Value(key any) any {
-	m := getEmbeddedMap(p.Context, "internal error: misconfigured *pkgContext: Value")
-	if v, ok := m[key]; ok {
-		return v
-	}
-	return p.Context.Value(key)
-}
-
 type wrapCtx struct {
 	context.Context
 	log                func(severity diag.Severity, msg string)
@@ -585,7 +576,7 @@ func CtxWithTimeout(ctx Context, timeout time.Duration) (Context, context.Cancel
 }
 
 func (p *provider) ctx(ctx context.Context, urn presource.URN) Context {
-	return &pkgContext{putEmbeddedMap(ctx), p, urn}
+	return &pkgContext{ctx, p, urn}
 }
 
 func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
@@ -998,53 +989,4 @@ func (p *provider) Attach(ctx context.Context, req *rpc.PluginAttach) (*emptypb.
 	}
 	p.host = host
 	return &emptypb.Empty{}, nil
-}
-
-type embeddedData struct{}
-
-func getEmbeddedMap(ctx context.Context, caller string) map[any]any {
-	m := ctx.Value(embeddedData{})
-	contract.Assertf(m != nil,
-		"%s must be called on a context.Context passed in from a provider.Provider callback", caller)
-	return m.(map[any]any)
-}
-
-func putEmbeddedMap(ctx context.Context) context.Context {
-	m := map[any]any{}
-	return &mutableValueContext{
-		Context: context.WithValue(ctx, embeddedData{}, m),
-		m:       m,
-	}
-}
-
-// Provides lookup into a map.
-type mutableValueContext struct {
-	// The embedded context should be an instance of
-	// 	context.WithValue($ctx, `marker`, m)
-	// Where `m` is embedded in the other field.
-	//
-	// This allows context.Value(`marker`) to retrieve the mutable map while
-	// context.Value(`k`) will retrieve the key `k` from the map if present.
-	context.Context
-	m map[any]any
-}
-
-// Lookup a value, checking if the value is held in the mutable map before chaining to
-// derivative values.
-func (m *mutableValueContext) Value(key any) any {
-	if v, ok := m.m[key]; ok {
-		return v
-	}
-	return m.Context.Value(key)
-}
-
-// Give a context.Context passed to a p.Provider callback an embedded value.
-// This function is a mutation based version of `context.WithValue`.
-//
-// It `context.WithValue` is usable, it should be preferred.
-func PutEmbeddedData(ctx context.Context, key, value any) any {
-	m := getEmbeddedMap(ctx, "PutEmbeddedData")
-	data := m[key]
-	m[key] = value
-	return data
 }
