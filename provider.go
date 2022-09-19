@@ -922,11 +922,18 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 }
 
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+	urn := presource.NewURN(
+		tokens.QName(req.GetStack()),
+		tokens.PackageName(req.GetProject()),
+		tokens.Type(req.GetParent()),
+		tokens.Type(req.GetType()),
+		tokens.QName(req.GetName()),
+	)
 	return comProvider.Construct(putEmbeddedMap(pctx), req, p.host.EngineConn(),
 		func(ctx *pulumi.Context, typ, name string,
 			inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
 		) (*comProvider.ConstructResult, error) {
-			r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
+			r, err := p.client.Construct(p.ctx(pctx, urn), typ, name, ctx, inputs, opts)
 			if err != nil {
 				return nil, err
 			}
