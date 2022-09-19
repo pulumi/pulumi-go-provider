@@ -22,8 +22,8 @@ build_examples: build
 		if [ -d $$ex ]; then \
 		cd $$ex; \
 		echo "Building github.com/pulumi/pulumi-go-provider/$$ex"; \
-		go build github.com/pulumi/pulumi-go-provider/$$ex || exit 1; \
-		cd -; \
+		go build -o pulumi-resource-$${ex#examples/} github.com/pulumi/pulumi-go-provider/$$ex || exit 1; \
+		cd - > /dev/null; \
 		fi; \
 	done
 
@@ -42,3 +42,11 @@ install_examples: build_examples
 		go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy || exit 1; \
 		cd ../../../../../; \
 	done
+
+.PHONY: tidy
+tidy:
+	@for f in $$(find . -name go.mod); do\
+		cd $$(dirname $$f) || exit 1;\
+		echo "tidying $$f";\
+		go mod tidy || exit 1;\
+		cd - > /dev/null; done

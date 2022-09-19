@@ -29,6 +29,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -514,7 +515,7 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 }
 
 func (p *pkgContext) Value(key any) any {
-	if v, ok := getEmbeddedMap(p.Context)[key]; ok {
+	if v, ok := getEmbeddedMap(p.Context, "internal error: misconfigured *pkgContext: Value")[key]; ok {
 		return v
 	}
 	return p.Context.Value(key)
@@ -958,8 +959,11 @@ func (p *provider) Attach(ctx context.Context, req *rpc.PluginAttach) (*emptypb.
 
 type embeddedData struct{}
 
-func getEmbeddedMap(ctx context.Context) map[any]any {
-	return ctx.Value(embeddedData{}).(map[any]any)
+func getEmbeddedMap(ctx context.Context, caller string) map[any]any {
+	m := ctx.Value(embeddedData{})
+	contract.Assertf(m != nil,
+		"%s must be called on a context.Context passed in from a provider.Provider callback", caller)
+	return m.(map[any]any)
 }
 
 func putEmbeddedMap(ctx context.Context) context.Context {
@@ -971,8 +975,8 @@ func putEmbeddedMap(ctx context.Context) context.Context {
 //
 // It `context.WithValue` is usable, it should be preferred.
 func PutEmbeddedData(ctx context.Context, key, value any) any {
-	data, hadData := getEmbeddedMap(ctx)[key]
-	getEmbeddedMap(ctx)[key] = value
+	data, hadData := getEmbeddedMap(ctx, "PutEmbeddedData")[key]
+	getEmbeddedMap(ctx, "PutEmbeddedData")[key] = value
 	if hadData {
 		return data
 	}
