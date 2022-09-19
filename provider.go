@@ -924,7 +924,9 @@ type ConstructRequest struct {
 	Construct func(Context, ConstructFunc) (ConstructResponse, error)
 }
 
-type ConstructFunc = func(*pulumi.Context, comProvider.ConstructInputs, pulumi.ResourceOption) (pulumi.ComponentResource, error)
+type ConstructFunc = func(
+	*pulumi.Context, comProvider.ConstructInputs, pulumi.ResourceOption,
+) (pulumi.ComponentResource, error)
 
 type ConstructResponse struct{ inner *rpc.ConstructResponse }
 
