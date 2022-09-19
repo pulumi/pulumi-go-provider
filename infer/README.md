@@ -93,7 +93,7 @@ with `RunProvider`.
 
 ```go
 func main() {
-	err := p.RunProvider("", semver.Version{Minor: 1}, provider())
+	err := p.RunProvider("", "0.1.0", provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
@@ -101,8 +101,11 @@ func main() {
 }
 
 func provider() p.Provider {
-	return infer.NewProvider().
-		WithComponents(infer.Component[*Login, LoginArgs, *LoginState]())
+	return infer.Provider(infer.Options{
+		Components: []infer.InferredComponent{
+			infer.Component[*Login, LoginArgs, *LoginState](),
+		},
+	})
 }
 ```
 
@@ -301,7 +304,7 @@ Unsurprisingly, we do this by implementing yet another method:
 
 ```go
 func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (
- string, FileArgs, FileState, err error) {
+ string, FileArgs, FileState, error) {
 	path := id
 	byteContent, err := ioutil.ReadFile(path)
 	if err != nil {
