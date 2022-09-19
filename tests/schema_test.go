@@ -46,15 +46,25 @@ func (r *givenResource) GetSchema(f schema.RegisterDerivativeType) (pschema.Reso
 }
 
 func TestMergeSchema(t *testing.T) {
-	s1 := schema.Wrap(nil).WithDisplayName("bar").WithDescription("foo").
-		WithResources(
+	s1 := schema.Wrap(p.Provider{}, schema.Options{
+		Metadata: schema.Metadata{
+			DisplayName: "bar",
+			Description: "foo",
+		},
+		Resources: []schema.Resource{
 			&givenResource{"foo:index:foo", "from s1"},
 			&givenResource{"bar:index:bar", "from s1"},
-		)
-	s2 := schema.Wrap(s1).WithDisplayName("fizz").WithHomepage("buzz").
-		WithResources(
+		},
+	})
+	s2 := schema.Wrap(s1, schema.Options{
+		Metadata: schema.Metadata{
+			DisplayName: "fizz",
+			Homepage:    "buzz",
+		},
+		Resources: []schema.Resource{
 			&givenResource{"foo:index:foo", "from s2"},
-		)
+		},
+	})
 	server := integration.NewServer("pkg", semver.Version{Major: 2}, s2)
 	schema, err := server.GetSchema(p.GetSchemaRequest{})
 	require.NoError(t, err)

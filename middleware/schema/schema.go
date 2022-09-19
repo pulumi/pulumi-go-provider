@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	t "github.com/pulumi/pulumi-go-provider/middleware"
 )
 
 // When a resource is collecting it's schema, it should register all of the types it uses.
@@ -82,152 +81,63 @@ func (c *cache) isEmpty() bool {
 	return c == nil
 }
 
-type Provider struct {
-	p.Provider
-
-	// Resources from which to derive the schema
-	resources []Resource
-	invokes   []Function
-	provider  Resource
-
+type state struct {
+	Options
 	// The cached schema. All With* methods should set schema to "", so we regenerate it
 	// on the next request.
 	schema         *cache
 	lowerSchema    *cache
 	combinedSchema *cache
-
-	// Non-inferrable schema fields
-	languages         map[string]any
-	description       string
-	displayName       string
-	keywords          []string
-	homepage          string
-	repository        string
-	publisher         string
-	logoURL           string
-	license           string
-	pluginDownloadURL string
-
-	moduleMap map[tokens.ModuleName]tokens.ModuleName
+	innerGetSchema func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
 }
 
-func (s *Provider) invalidateCache() {
+func (s *state) invalidateCache() {
 	s.schema = nil
 	s.combinedSchema = nil
 }
 
+type Options struct {
+	Metadata
+	// Resources from which to derive the schema
+	Resources []Resource
+	// Invokes from which to derive the schema
+	Invokes []Function
+	// The provider resource for the schema
+	Provider Resource
+
+	// Map modules in the generated schema.
+	//
+	// For example, with the map {"foo": "bar"}, the token "pkg:foo:Name" would be present in
+	// the schema as "pkg:bar:Name".
+	ModuleMap map[tokens.ModuleName]tokens.ModuleName
+}
+
+type Metadata struct {
+	LanguageMap       map[string]any
+	Description       string
+	DisplayName       string
+	Keywords          []string
+	Homepage          string
+	Repository        string
+	Publisher         string
+	LogoURL           string
+	License           string
+	PluginDownloadURL string
+}
+
 // Wrap a provider with the facilities to serve GetSchema. If provider is nil, the
 // returned provider will return "not yet implemented" for all methods besides GetSchema.
-func Wrap(provider p.Provider) *Provider {
-	if provider == nil {
-		provider = &t.Scaffold{}
+func Wrap(provider p.Provider, opts Options) p.Provider {
+	new := provider
+	state := state{
+		Options:        opts,
+		innerGetSchema: provider.GetSchema,
 	}
-	return &Provider{
-		Provider:  provider,
-		moduleMap: map[tokens.ModuleName]tokens.ModuleName{},
-		languages: map[string]any{},
-	}
+	new.GetSchema = state.GetSchema
+	return new
 }
 
-// Add resources to the generated schema.
-func (s *Provider) WithResources(resources ...Resource) *Provider {
-	s.invalidateCache()
-	s.resources = append(s.resources, resources...)
-	return s
-}
-
-// Add functions to the generated schema.
-func (s *Provider) WithInvokes(invokes ...Function) *Provider {
-	s.invalidateCache()
-	s.invokes = append(s.invokes, invokes...)
-	return s
-}
-
-// Map modules in the generated schema.
-//
-// For example, with the map {"foo": "bar"}, the token "pkg:foo:Name" would be present in
-// the schema as "pkg:bar:Name".
-func (s *Provider) WithModuleMap(m map[tokens.ModuleName]tokens.ModuleName) *Provider {
-	s.invalidateCache()
-	for k, v := range m {
-		s.moduleMap[k] = v
-	}
-	return s
-}
-
-// Add a provider resource to the generated schema.
-func (s *Provider) WithProviderResource(provider Resource) *Provider {
-	s.invalidateCache()
-	s.provider = provider
-	return s
-}
-
-// Add to the languages section of the schema.
-func (s *Provider) WithLanguageMap(languages map[string]any) *Provider {
-	s.invalidateCache()
-	for k, v := range languages {
-		s.languages[k] = v
-	}
-	return s
-}
-
-// Add a description.
-func (s *Provider) WithDescription(description string) *Provider {
-	s.invalidateCache()
-	s.description = description
-	return s
-}
-
-// Add a license.
-func (s *Provider) WithLicense(license string) *Provider {
-	s.invalidateCache()
-	s.license = license
-	return s
-}
-
-func (s *Provider) WithPluginDownloadURL(pluginDownloadURL string) *Provider {
-	s.invalidateCache()
-	s.pluginDownloadURL = pluginDownloadURL
-	return s
-}
-
-func (s *Provider) WithDisplayName(name string) *Provider {
-	s.invalidateCache()
-	s.displayName = name
-	return s
-}
-
-func (s *Provider) WithKeywords(keywords []string) *Provider {
-	s.invalidateCache()
-	s.keywords = append(s.keywords, keywords...)
-	return s
-}
-
-func (s *Provider) WithHomepage(homepage string) *Provider {
-	s.invalidateCache()
-	s.homepage = homepage
-	return s
-}
-
-func (s *Provider) WithRepository(repoURL string) *Provider {
-	s.invalidateCache()
-	s.repository = repoURL
-	return s
-}
-
-func (s *Provider) WithPublisher(publisher string) *Provider {
-	s.invalidateCache()
-	s.publisher = publisher
-	return s
-}
-
-func (s *Provider) WithLogoURL(logoURL string) *Provider {
-	s.invalidateCache()
-	s.logoURL = logoURL
-	return s
-}
-
-func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+func (s *state) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	if s.schema.isEmpty() {
 		spec, err := s.generateSchema(ctx)
 		if err != nil {
@@ -238,24 +148,29 @@ func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchema
 			return p.GetSchemaResponse{}, err
 		}
 	}
-	lower, err := s.Provider.GetSchema(ctx, req)
-	if err == nil {
-		// We need to merge
-		// Make sure our caches are up to date
-		if s.lowerSchema.isEmpty() || s.lowerSchema.marshaled != lower.Schema {
-			s.combinedSchema = nil
-			s.lowerSchema, err = newCacheFromMarshaled(lower.Schema)
-			if err != nil {
-				return p.GetSchemaResponse{}, err
+	if s.innerGetSchema != nil {
+		lower, err := s.innerGetSchema(ctx, req)
+		if err == nil {
+			// We need to merge
+			// Make sure our caches are up to date
+			if s.lowerSchema.isEmpty() || s.lowerSchema.marshaled != lower.Schema {
+				s.combinedSchema = nil
+				s.lowerSchema, err = newCacheFromMarshaled(lower.Schema)
+				if err != nil {
+					return p.GetSchemaResponse{}, err
+				}
 			}
+		} else if status.Code(err) == codes.Unimplemented {
+			s.lowerSchema = nil
+		} else {
+			// There was an actual error, so we need to buble that up.
+			return p.GetSchemaResponse{}, err
 		}
-	} else if status.Code(err) == codes.Unimplemented {
-		s.lowerSchema = nil
 	} else {
-		// There was an actual error, so we need to buble that up.
-		return p.GetSchemaResponse{}, err
+		s.lowerSchema = nil
 	}
-	err = s.mergeSchemas()
+
+	err := s.mergeSchemas()
 	if err != nil {
 		return p.GetSchemaResponse{}, err
 	}
@@ -264,7 +179,7 @@ func (s *Provider) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchema
 	}, nil
 }
 
-func (s *Provider) mergeSchemas() error {
+func (s *state) mergeSchemas() error {
 	contract.Assertf(!s.schema.isEmpty(), "we must have our own schema")
 	if s.combinedSchema != nil {
 		return nil
@@ -321,26 +236,26 @@ func (s *Provider) mergeSchemas() error {
 }
 
 // Generate a schema string from the currently present schema types.
-func (s *Provider) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
+func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 	info := ctx.RuntimeInformation()
 	pkg := schema.PackageSpec{
 		Name:              info.PackageName,
 		Version:           info.Version,
-		DisplayName:       s.displayName,
-		Description:       s.description,
-		Keywords:          s.keywords,
-		Homepage:          s.homepage,
-		Repository:        s.repository,
-		Publisher:         s.publisher,
-		LogoURL:           s.logoURL,
-		License:           s.license,
-		PluginDownloadURL: s.pluginDownloadURL,
+		DisplayName:       s.DisplayName,
+		Description:       s.Description,
+		Keywords:          s.Keywords,
+		Homepage:          s.Homepage,
+		Repository:        s.Repository,
+		Publisher:         s.Publisher,
+		LogoURL:           s.LogoURL,
+		License:           s.License,
+		PluginDownloadURL: s.PluginDownloadURL,
 		Resources:         map[string]schema.ResourceSpec{},
 		Functions:         map[string]schema.FunctionSpec{},
 		Types:             map[string]schema.ComplexTypeSpec{},
 		Language:          map[string]schema.RawMessage{},
 	}
-	for k, v := range s.languages {
+	for k, v := range s.LanguageMap {
 		bytes, err := json.Marshal(v)
 		if err != nil {
 			return schema.PackageSpec{}, err
@@ -348,21 +263,21 @@ func (s *Provider) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 		pkg.Language[k] = bytes
 	}
 	registerDerivative := func(tk tokens.Type, t schema.ComplexTypeSpec) bool {
-		tkString := assignTo(tk, info.PackageName, s.moduleMap).String()
+		tkString := assignTo(tk, info.PackageName, s.ModuleMap).String()
 		_, ok := pkg.Types[tkString]
 		if ok {
 			return false
 		}
-		pkg.Types[tkString] = renamePackage(t, info.PackageName, s.moduleMap)
+		pkg.Types[tkString] = renamePackage(t, info.PackageName, s.ModuleMap)
 		return true
 	}
-	errs := addElements(s.resources, pkg.Resources, info.PackageName, registerDerivative, s.moduleMap)
-	e := addElements(s.invokes, pkg.Functions, info.PackageName, registerDerivative, s.moduleMap)
+	errs := addElements(s.Resources, pkg.Resources, info.PackageName, registerDerivative, s.ModuleMap)
+	e := addElements(s.Invokes, pkg.Functions, info.PackageName, registerDerivative, s.ModuleMap)
 	errs.Errors = append(errs.Errors, e.Errors...)
 
-	if s.provider != nil {
+	if s.Provider != nil {
 		_, prov, err := addElement[Resource, schema.ResourceSpec](
-			info.PackageName, registerDerivative, s.moduleMap, s.provider)
+			info.PackageName, registerDerivative, s.ModuleMap, s.Provider)
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 		}
