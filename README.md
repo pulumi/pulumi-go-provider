@@ -16,12 +16,12 @@ Pulumi languages (TypeScript, Python, Go, C#, Java and Pulumi YAML).
 
 ```go
 func main() {
-	p.RunProvider("greetings", semver.Version{Minor: 1},
+	p.RunProvider("greetings", "0.1.0",
 		// We tell the provider what resources it needs to support.
 		// In this case, a single custom resource.
-		infer.NewProvider().WithResources(
-			infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
-		))
+		infer.Provider(infer.Options{
+			Resources: infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
+		}))
 }
 
 // Each resource has a controlling struct.
