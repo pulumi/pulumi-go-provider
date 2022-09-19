@@ -2,7 +2,7 @@ name: dnastore
 runtime: yaml
 plugins:
   providers:
-    - name: dns-store
+    - name: dna-store
       path: ..
 
 
