@@ -334,7 +334,7 @@ func (d Provider) WithDefaults() Provider {
 	}
 	if d.Configure == nil {
 		d.Configure = func(ctx Context, req ConfigureRequest) error {
-			return nyi("Configure")
+			return nil
 		}
 	}
 	if d.Invoke == nil {
