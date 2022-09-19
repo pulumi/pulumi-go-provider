@@ -61,7 +61,7 @@ type DNAStoreArgs struct {
 
 type DNAStore struct{}
 
-func (d *DNAStore) Create(ctx p.Context, name string, input DNAStoreArgs, preview bool) (id string, output DNAStoreArgs, err error) {
+func (*DNAStore) Create(ctx p.Context, name string, input DNAStoreArgs, preview bool) (id string, output DNAStoreArgs, err error) {
 	path := filepath.Join(input.Storage, name)
 	ctx.Logf(diag.Warning, "path=%q", path)
 	retErr := func(msg string, args ...any) (string, DNAStoreArgs, error) {
@@ -107,7 +107,7 @@ func (d *DNAStore) Create(ctx p.Context, name string, input DNAStoreArgs, previe
 
 }
 
-func (d *DNAStore) Delete(ctx p.Context, id string, _ DNAStoreArgs) error {
+func (*DNAStore) Delete(ctx p.Context, id string, _ DNAStoreArgs) error {
 	err := os.Remove(id)
 	if err != nil && os.IsNotExist(err) {
 		return err
@@ -119,7 +119,7 @@ func (d *DNAStore) Delete(ctx p.Context, id string, _ DNAStoreArgs) error {
 	return nil
 }
 
-func (d *DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNAStoreArgs) (
+func (*DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNAStoreArgs) (
 	canonicalID string, normalizedInputs DNAStoreArgs, normalizedState DNAStoreArgs, err error) {
 	path := id
 	retErr := func(msg string, a ...any) (string, DNAStoreArgs, DNAStoreArgs, error) {

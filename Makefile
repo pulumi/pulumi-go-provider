@@ -1,9 +1,13 @@
-.PHONY: build build_examples install_examples lint lint-copyright lint-golang test
+.PHONY: build build_examples install_examples lint lint-copyright lint-golang
 
 build:
 	go build ./...
 
-test: build
+.PHONY: test
+test: test_unit test_examples
+
+.PHONY: test_unit
+test_unit: build
 	go test ./...
 	cd integration && go test ./...
 	cd tests && go test ./...
@@ -26,6 +30,28 @@ build_examples: build
 		cd - > /dev/null; \
 		fi; \
 	done
+
+.PHONY: test_examples
+export PULUMI_CONFIG_PASSPHRASE := "not-secret"
+# Runs up, update, destroy on all consumers.
+test_examples: build_examples
+	@for ex in ${wildcard examples/*}; do \
+		if [ -d $$ex ] && [ -d $$ex/consumer ]; then \
+		cd $$ex/consumer; \
+		mkdir $$PWD/state; \
+		pulumi login --cloud-url file://$$PWD/state || exit 1; \
+		pulumi stack init test || exit 1; \
+		pulumi up --yes || exit 1; \
+		pulumi up --yes || exit 1; \
+		pulumi destroy --yes || exit 1; \
+		pulumi stack rm --yes || exit 1; \
+		pulumi logout; \
+		rm -r $$PWD/state; \
+		cd - > /dev/null; \
+		fi; \
+	done; \
+	if [[ "$$CI" == "" ]]; then pulumi login; fi; \
+
 
 install_examples: build_examples
 	@for i in command,v0.3.2 random-login,v0.1.0 schema-test,v0.1.0 str,v0.1.0; do \
