@@ -514,7 +514,7 @@ func (p *pkgContext) RuntimeInformation() RunInfo {
 }
 
 func (p *pkgContext) Value(key any) any {
-	if v, ok := GetEmbeddedData(p.Context, key); ok {
+	if v, ok := getEmbeddedMap(p.Context)[key]; ok {
 		return v
 	}
 	return p.Context.Value(key)
@@ -966,13 +966,12 @@ func putEmbeddedMap(ctx context.Context) context.Context {
 	return context.WithValue(ctx, embeddedData{}, map[any]any{})
 }
 
-func GetEmbeddedData(ctx context.Context, key any) (any, bool) {
-	data, ok := getEmbeddedMap(ctx)[key]
-	return data, ok
-}
-
+// Give a context.Context passed to a p.Provider callback an embedded value.
+// This function is a mutation based version of `context.WithValue`.
+//
+// It `context.WithValue` is usable, it should be preferred.
 func PutEmbeddedData(ctx context.Context, key, value any) any {
-	data, hadData := GetEmbeddedData(ctx, key)
+	data, hadData := getEmbeddedMap(ctx)[key]
 	getEmbeddedMap(ctx)[key] = value
 	if hadData {
 		return data

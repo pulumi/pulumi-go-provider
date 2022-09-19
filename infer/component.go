@@ -108,8 +108,8 @@ type componentContextKey struct{}
 // This function is only valid when the *pulumi.Context was passed in from the infer
 // library.
 func CtxFromPulumiContext(ctx *pulumi.Context) p.Context {
-	v, ok := p.GetEmbeddedData(ctx.Context(), componentContextKey{})
-	contract.Assertf(ok,
+	v := ctx.Context().Value(componentContextKey{})
+	contract.Assertf(v != nil,
 		"CtxFromPulumiContext must be called on the pulumi.Context passed in to infer.Component.Construct")
 	return v.(p.Context)
 }
