@@ -17,7 +17,18 @@ const schema = `{
   "name": "random-login",
   "version": "0.1.0",
   "config": {},
-  "provider": {},
+  "provider": {
+    "properties": {
+      "itsasecret": {
+        "type": "boolean"
+      }
+    },
+    "inputProperties": {
+      "itsasecret": {
+        "type": "boolean"
+      }
+    }
+  },
   "resources": {
     "random-login:index:MoreRandomPassword": {
       "properties": {

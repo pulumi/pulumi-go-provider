@@ -30,6 +30,7 @@ func provider() p.Provider {
 			infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput](),
 			infer.Component[*MoreRandomPassword, MoreRandomPasswordArgs, *MoreRandomPasswordState](),
 		},
+		Config: infer.Config[Config](),
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
 		},
@@ -50,15 +51,25 @@ type MoreRandomPasswordState struct {
 }
 
 func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
-	comp := &MoreRandomPasswordState{}
+	comp := &MoreRandomPasswordState{
+		Length: args.Length,
+	}
 	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	comp.Password, err = random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
+	pArgs := &random.RandomPasswordArgs{
 		Length: args.Length.Result,
-	}, pulumi.Parent(comp))
+	}
+
+	pctx := infer.CtxFromPulumiContext(ctx)
+	config := infer.GetConfig[Config](pctx)
+	if config.Scream != nil {
+		pArgs.Lower = pulumi.BoolPtr(*config.Scream)
+	}
+
+	comp.Password, err = random.NewRandomPassword(ctx, name+"-password", pArgs, pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}
@@ -192,4 +203,8 @@ var _ = (infer.ExplicitDependencies[RandomSaltArgs, RandomSaltState])((*RandomSa
 func (r *RandomSalt) WireDependencies(f infer.FieldSelector, args *RandomSaltArgs, state *RandomSaltState) {
 	f.OutputField(&state.SaltedPassword).DependsOn(f.InputField(&args.Password), f.InputField(&args.SaltLength))
 	f.OutputField(&state.Salt).DependsOn(f.InputField(&args.SaltLength))
+}
+
+type Config struct {
+	Scream *bool `pulumi:"itsasecret,optional"`
 }

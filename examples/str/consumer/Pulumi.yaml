@@ -1,9 +1,15 @@
 name: test-str
 runtime: yaml
+
+plugins:
+  providers:
+    - name: str
+      path: ..
+
 variables:
   replaced:
     Fn::Invoke:
-      Function: str:Replace
+      Function: str:replace
       Arguments:
         s: abc---abc---abc
         old: ---
@@ -11,7 +17,7 @@ variables:
       Return: out
   rrreplaced:
     Fn::Invoke:
-      Function: str:regex:Replace
+      Function: str:regex:replace
       Arguments:
         s: abc-abc--abc---abc
         pattern: -+
@@ -19,12 +25,12 @@ variables:
       Return: out
   _:
     Fn::Invoke:
-      Function: str:Print
+      Function: str:print
       Arguments:
         s: I can indeed be printed
   aString:
     Fn::Invoke:
-      Function: str:GiveMeAString
+      Function: str:giveMeAString
       Return: out
 outputs:
   replace: ${replaced}

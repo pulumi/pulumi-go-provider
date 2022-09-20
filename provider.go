@@ -296,8 +296,7 @@ type Provider struct {
 	// TODO Call
 
 	// Components Resources
-	Construct func(pctx Context, typ string, name string,
-		ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption) (pulumi.ComponentResource, error)
+	Construct func(Context, ConstructRequest) (ConstructResponse, error)
 }
 
 // Provide a default value for each function.
@@ -333,7 +332,7 @@ func (d Provider) WithDefaults() Provider {
 	}
 	if d.Configure == nil {
 		d.Configure = func(ctx Context, req ConfigureRequest) error {
-			return nyi("Configure")
+			return nil
 		}
 	}
 	if d.Invoke == nil {
@@ -372,10 +371,8 @@ func (d Provider) WithDefaults() Provider {
 		}
 	}
 	if d.Construct == nil {
-		d.Construct = func(pctx Context, typ string, name string,
-			ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
-		) (pulumi.ComponentResource, error) {
-			return nil, nyi("Construct")
+		d.Construct = func(ctx Context, cr ConstructRequest) (ConstructResponse, error) {
+			return ConstructResponse{}, nyi("Construct")
 		}
 	}
 	return d
@@ -912,17 +909,62 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 
 }
 
+type ConstructRequest struct {
+	URN       presource.URN
+	Preview   bool
+	Construct func(Context, ConstructFunc) (ConstructResponse, error)
+}
+
+type ConstructFunc = func(
+	*pulumi.Context, comProvider.ConstructInputs, pulumi.ResourceOption,
+) (pulumi.ComponentResource, error)
+
+type ConstructResponse struct{ inner *rpc.ConstructResponse }
+
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	return comProvider.Construct(pctx, req, p.host.EngineConn(),
-		func(ctx *pulumi.Context, typ, name string,
-			inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
-		) (*comProvider.ConstructResult, error) {
-			r, err := p.client.Construct(p.ctx(pctx, ""), typ, name, ctx, inputs, opts)
-			if err != nil {
-				return nil, err
-			}
-			return comProvider.NewConstructResult(r)
-		})
+	fmt.Printf("stack=%v\nproject=%v\nparent=%v\ntype=%v\nname=%v\n",
+		req.GetStack(),
+		req.GetProject(),
+		req.GetParent(),
+		req.GetType(),
+		req.GetName(),
+	)
+	// This returns the URN of the parent, we just need the type.
+	parent := tokens.Type(req.GetParent())
+	if parent != "" {
+		parent = presource.URN(parent).Type()
+	}
+
+	urn := presource.NewURN(
+		tokens.QName(req.GetStack()),
+		tokens.PackageName(req.GetProject()),
+		parent,
+		tokens.Type(req.GetType()),
+		tokens.QName(req.GetName()),
+	)
+	fmt.Printf("urn.Type() = %v\n", urn.Type())
+	f := func(ctx Context, construct ConstructFunc) (ConstructResponse, error) {
+		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
+			func(
+				ctx *pulumi.Context, typ, name string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,
+			) (*comProvider.ConstructResult, error) {
+				r, err := construct(ctx, inputs, options)
+				if err != nil {
+					return nil, err
+				}
+				return comProvider.NewConstructResult(r)
+			})
+		if err != nil {
+			return ConstructResponse{}, err
+		}
+		return ConstructResponse{r}, nil
+	}
+	result, err := p.client.Construct(p.ctx(pctx, urn), ConstructRequest{
+		URN:       urn,
+		Preview:   req.GetDryRun(),
+		Construct: f,
+	})
+	return result.inner, err
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
