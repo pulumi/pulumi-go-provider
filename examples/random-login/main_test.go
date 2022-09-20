@@ -16,7 +16,13 @@ import (
 const schema = `{
   "name": "random-login",
   "version": "0.1.0",
-  "config": {},
+  "config": {
+    "variables": {
+      "itsasecret": {
+        "type": "boolean"
+      }
+    }
+  },
   "provider": {
     "properties": {
       "itsasecret": {
