@@ -124,16 +124,15 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 
 // Retrieve the configuration of this provider.
 //
-// Note: Config will panic if the type of T does not match the type of the config or if
+// Note: GetConfig will panic if the type of T does not match the type of the config or if
 // the provider has not supplied a config.
 func GetConfig[T any](ctx p.Context) T {
-	cv := ctx.Value(configKey)
-
+	v := ctx.Value(configKey)
 	var t T
-	if cv == nil {
+	if v == nil {
 		panic(fmt.Sprintf("Config[%T] called on a provider without a config", t))
 	}
-	c := cv.(InferredConfig)
+	c := v.(InferredConfig)
 	if c, ok := c.(*config[T]); ok {
 		if c.t == nil {
 			c.t = &t

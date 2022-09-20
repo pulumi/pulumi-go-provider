@@ -23,8 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -150,12 +148,10 @@ func Wrap(provider p.Provider) p.Provider {
 		}
 	}
 	if provider.Construct != nil {
-		new.Construct = func(pctx p.Context, typ string, name string,
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
-		) (pulumi.ComponentResource, error) {
-			pctx, end := cancel(pctx, noTimeout)
+		new.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+			ctx, end := cancel(ctx, noTimeout)
 			defer end()
-			return provider.Construct(pctx, typ, name, ctx, inputs, opts)
+			return provider.Construct(ctx, req)
 		}
 	}
 	return new

@@ -19,9 +19,6 @@
 
 **/sdk
 
-examples/command/command
-examples/random-login/random-login
-examples/dna-store/dna-store
-examples/str/str
+examples/**/pulumi-resource-*
 
 /.vscode

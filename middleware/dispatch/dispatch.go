@@ -18,8 +18,6 @@ package dispatch
 
 import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -132,17 +130,19 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			components[fix(k)] = v
 		}
 
-		new.Construct = func(pctx p.Context, typ string, name string,
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
-		) (pulumi.ComponentResource, error) {
-			tk := fix(tokens.Type(typ))
+		new.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+			urn := req.URN
+			tk := fix(urn.Type())
 			r, ok := components[tk]
 			if ok {
-				return r.Construct(pctx, typ, name, ctx, inputs, opts)
+				return r.Construct(ctx, req)
 			} else if provider.Construct != nil {
-				return provider.Construct(pctx, typ, name, ctx, inputs, opts)
+				return provider.Construct(ctx, req)
 			}
-			return nil, status.Errorf(codes.NotFound, "Component Resource '%s' not found", tk)
+			return p.ConstructResponse{},
+				status.Errorf(codes.NotFound,
+					"Component Resource '%s' (%s) (urn=%v) not found (in %v)",
+					urn.Name(), urn.Type(), urn, components)
 		}
 	}
 
