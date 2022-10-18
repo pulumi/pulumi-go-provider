@@ -32,7 +32,7 @@ build_examples: build
 	done
 
 .PHONY: test_examples
-export PULUMI_CONFIG_PASSPHRASE := "not-secret"
+export PULUMI_CONFIG_PASSPHRASE := not-secret
 # Runs up, update, destroy on all consumers.
 test_examples: build_examples
 	@for ex in ${wildcard examples/*}; do \
@@ -40,7 +40,7 @@ test_examples: build_examples
 		cd $$ex/consumer; \
 		mkdir $$PWD/state; \
 		pulumi login --cloud-url file://$$PWD/state || exit 1; \
-		pulumi stack init test || exit 1; \
+		pulumi stack init test$$(date '+%H-%M-%S') || exit 1; \
 		pulumi up --yes || exit 1; \
 		pulumi up --yes || exit 1; \
 		pulumi destroy --yes || exit 1; \

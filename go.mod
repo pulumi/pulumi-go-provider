@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.40.1-0.20220919114821-ae098e405919
-	github.com/pulumi/pulumi/sdk/v3 v3.40.1-0.20220919114821-ae098e405919
+	github.com/pulumi/pulumi/pkg/v3 v3.40.2-0.20220929093049-5eb393d91f3f
+	github.com/pulumi/pulumi/sdk/v3 v3.40.2-0.20220929093049-5eb393d91f3f
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 )

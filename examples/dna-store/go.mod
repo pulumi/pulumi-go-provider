@@ -6,7 +6,7 @@ go 1.18
 
 require (
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
-	github.com/pulumi/pulumi/sdk/v3 v3.40.1-0.20220919114821-ae098e405919
+	github.com/pulumi/pulumi/sdk/v3 v3.40.2-0.20220929093049-5eb393d91f3f
 )
 
 require (
@@ -46,7 +46,7 @@ require (
 	github.com/pgavlin/goldmark v1.1.33-0.20200616210433-b5eb04559386 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
-	github.com/pulumi/pulumi/pkg/v3 v3.40.1-0.20220919114821-ae098e405919 // indirect
+	github.com/pulumi/pulumi/pkg/v3 v3.40.2-0.20220929093049-5eb393d91f3f // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
