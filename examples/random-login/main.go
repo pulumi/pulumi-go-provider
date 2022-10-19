@@ -37,8 +37,6 @@ func provider() p.Provider {
 	})
 }
 
-// TODO: Deserialization does not yet work for external resources. Right now, it looks
-// like this structure is only implementable in typescript, but that will need to change.
 type MoreRandomPassword struct{}
 type MoreRandomPasswordArgs struct {
 	Length *random.RandomInteger `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
@@ -46,8 +44,9 @@ type MoreRandomPasswordArgs struct {
 
 type MoreRandomPasswordState struct {
 	pulumi.ResourceState
-	Length   *random.RandomInteger  `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
-	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
+	Length         *random.RandomInteger                      `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
+	Password       *random.RandomPassword                     `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
+	SaltedPassword infer.CustomResourceState[RandomSaltState] `pulumi:"saltedPassword"`
 }
 
 func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
@@ -70,6 +69,13 @@ func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, ar
 	}
 
 	comp.Password, err = random.NewRandomPassword(ctx, name+"-password", pArgs, pulumi.Parent(comp))
+	comp.SaltedPassword, err = infer.RegisterCustomResource[*RandomSalt, RandomSaltArgs, RandomSaltState](ctx, name+"password",
+		pulumi.Apply(pulumi.Cast[string](comp.Password.ID().ToIDOutput()), func(v string) RandomSaltArgs {
+			return RandomSaltArgs{
+				Password: v,
+			}
+		}),
+		pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}

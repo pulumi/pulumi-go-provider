@@ -16,7 +16,6 @@ package infer
 
 import (
 	"fmt"
-	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -160,9 +159,11 @@ func RegisterComponentResource[R ComponentResource[I, O], I any, O pulumi.Compon
 //
 // It is not necessary to call RegisterCustomResource for resources not defined in this
 // package.
-func RegisterCustomResource[R CustomResource[I, O], I any, O pulumi.CustomResource](
-	ctx *pulumi.Context, name string, args I, opts ...pulumi.ResourceOption) (O, error) {
-	var o O
+func RegisterCustomResource[R CustomResource[I, O], I, O any](
+	ctx *pulumi.Context, name string, args pulumi.Promise[I],
+	opts ...pulumi.ResourceOption,
+) (CustomResourceState[O], error) {
+	var o CustomResourceState[O]
 	pCtx := CtxFromPulumiContext(ctx)
 	token, err := Resource[R, I, O]().GetToken()
 	if err != nil {
@@ -189,4 +190,9 @@ func applyPackage(info p.RunInfo, t tokens.Type) tokens.Type {
 			t.Module().Name()),
 		t.Name(),
 	)
+}
+
+type CustomResourceState[O any] struct {
+	pulumi.CustomResource
+	pulumi.Promise[O]
 }
