@@ -16,10 +16,13 @@ package infer
 
 import (
 	"fmt"
+	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
@@ -125,4 +128,65 @@ func CtxFromPulumiContext(ctx *pulumi.Context) p.Context {
 	contract.Assertf(v != nil,
 		"CtxFromPulumiContext must be called on the pulumi.Context passed in to infer.Component.Construct")
 	return v.(p.Context)
+}
+
+// RegisterComponentResource registers a custom resource defined by the inferred provider
+// that it is called in.
+//
+// It is not necessary to call RegisterComponentResource for resources not defined in this
+// package.
+func RegisterComponentResource[R ComponentResource[I, O], I any, O pulumi.ComponentResource](
+	ctx *pulumi.Context, name string, args I, opts ...pulumi.ResourceOption) (O, error) {
+	var o O
+	pCtx := CtxFromPulumiContext(ctx)
+	token, err := Component[R, I, O]().GetToken()
+	if err != nil {
+		return o, err
+	}
+	token = applyPackage(pCtx.RuntimeInformation(), token)
+
+	inputs, mErr := mapper.New(nil).Encode(args)
+	if mErr != nil {
+		return o, mErr
+	}
+	err = ctx.RegisterRemoteComponentResource(token.String(), name,
+		pulumi.ToMap(resource.NewPropertyMapFromMap(inputs).Mappable()), o,
+		append(opts, pulumi.Version(pCtx.RuntimeInformation().Version))...)
+	return o, err
+}
+
+// RegisterCustomResource registers a custom resource defined by the inferred provider
+// that it is called in.
+//
+// It is not necessary to call RegisterCustomResource for resources not defined in this
+// package.
+func RegisterCustomResource[R CustomResource[I, O], I any, O pulumi.CustomResource](
+	ctx *pulumi.Context, name string, args I, opts ...pulumi.ResourceOption) (O, error) {
+	var o O
+	pCtx := CtxFromPulumiContext(ctx)
+	token, err := Resource[R, I, O]().GetToken()
+	if err != nil {
+		return o, err
+	}
+	token = applyPackage(pCtx.RuntimeInformation(), token)
+
+	inputs, mErr := mapper.New(nil).Encode(args)
+	if mErr != nil {
+		return o, mErr
+	}
+	err = ctx.RegisterResource(token.String(), name,
+		pulumi.ToMap(resource.NewPropertyMapFromMap(inputs).Mappable()), o,
+		append(opts, pulumi.Version(pCtx.RuntimeInformation().Version))...)
+	return o, err
+}
+
+func applyPackage(info p.RunInfo, t tokens.Type) tokens.Type {
+	return tokens.NewTypeToken(
+		tokens.NewModuleToken(
+			tokens.NewPackageToken(
+				tokens.PackageName(info.PackageName),
+			),
+			t.Module().Name()),
+		t.Name(),
+	)
 }
