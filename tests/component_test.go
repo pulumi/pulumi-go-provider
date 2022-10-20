@@ -124,7 +124,7 @@ const componentSchema = `{
         "foo:tests:Foo": {
             "inputProperties": {
                 "bar": {
-                    "$ref": "#/types/foo:tests:BarState"
+                    "$ref": "#/resources/foo:tests:Bar"
                 },
                 "bundle": {
                     "$ref": "#/types/foo:tests:Bundle"
