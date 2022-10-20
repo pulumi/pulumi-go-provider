@@ -46,7 +46,7 @@ type Resource interface {
 	// Return the Resource's schema definition. The passed in function should be called on
 	// types transitively referenced by the resource. See the documentation of
 	// RegisterDerivativeType for more details.
-	GetSchema(RegisterDerivativeType) (schema.ResourceSpec, error)
+	GetSchema(RegisterDerivativeType) (schema.ResourceSpec, Associated, error)
 }
 
 // A Function that can generate its own schema definition.
@@ -56,7 +56,18 @@ type Function interface {
 	// Return the Function's schema definition. The passed in function should be called on
 	// types transitively referenced by the function. See the documentation of
 	// RegisterDerivativeType for more details.
-	GetSchema(RegisterDerivativeType) (schema.FunctionSpec, error)
+	GetSchema(RegisterDerivativeType) (schema.FunctionSpec, Associated, error)
+}
+
+// Associated is a bag of associated information that effects the global generation
+// process.
+type Associated struct {
+	Aliases []TokenAlias
+}
+
+// A token that aliases to the *Resource that returned this TokenAlias.
+type TokenAlias struct {
+	Token tokens.Type
 }
 
 type cache struct {
@@ -271,13 +282,17 @@ func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 		pkg.Types[tkString] = renamePackage(t, info.PackageName, s.ModuleMap)
 		return true
 	}
-	errs := addElements(s.Resources, pkg.Resources, info.PackageName, registerDerivative, s.ModuleMap)
-	e := addElements(s.Invokes, pkg.Functions, info.PackageName, registerDerivative, s.ModuleMap)
+	aliases, errs := addElements(s.Resources, pkg.Resources, info.PackageName, registerDerivative, s.ModuleMap)
+	_, e := addElements(s.Invokes, pkg.Functions, info.PackageName, registerDerivative, s.ModuleMap)
+
 	errs.Errors = append(errs.Errors, e.Errors...)
 
 	if s.Provider != nil {
-		_, prov, err := addElement[Resource, schema.ResourceSpec](
+		_, prov, associated, err := addElement[Resource, schema.ResourceSpec](
 			info.PackageName, registerDerivative, s.ModuleMap, s.Provider)
+		for _, alias := range associated.Aliases {
+			aliases[tokenFromType(alias.Token)] = tokens.Type("pulumi:providers:" + pkg.Name)
+		}
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 		}
@@ -290,42 +305,89 @@ func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 	if err := errs.ErrorOrNil(); err != nil {
 		return schema.PackageSpec{}, err
 	}
+
+	pkg = transformTypes(pkg, func(typ schema.TypeSpec) schema.TypeSpec {
+		const internalRefPrefx = "#/tokens/type/"
+		if !strings.HasPrefix(typ.Ref, internalRefPrefx) {
+			return typ
+		}
+		changeTo, ok := aliases[tokenFromType(tokens.Type(typ.Ref))]
+		if !ok {
+			return typ
+		}
+		typ.Ref = internalRefPrefx + changeTo.String()
+		return typ
+	})
+
+	for from := range aliases {
+		// We delete aliased resources and types, since they are unreferencable
+		delete(pkg.Resources, from.reconstruct(tokens.PackageName(pkg.Name)).String())
+		delete(pkg.Types, from.reconstruct(tokens.PackageName(pkg.Name)).String())
+	}
+
 	return pkg, nil
 }
 
 type canGetSchema[T any] interface {
 	GetToken() (tokens.Type, error)
-	GetSchema(RegisterDerivativeType) (T, error)
+	GetSchema(RegisterDerivativeType) (T, Associated, error)
+}
+
+type internalToken struct {
+	mod  tokens.ModuleName
+	name tokens.TypeName
+}
+
+func tokenFromType(tk tokens.Type) internalToken {
+	return internalToken{
+		mod:  tk.Module().Name(),
+		name: tk.Name(),
+	}
+}
+
+func (it internalToken) reconstruct(pkg tokens.PackageName) tokens.Type {
+	return tokens.NewTypeToken(
+		tokens.NewModuleToken(
+			tokens.NewPackageToken(pkg),
+			it.mod,
+		),
+		it.name,
+	)
 }
 
 func addElements[T canGetSchema[S], S any](els []T, m map[string]S,
 	pkgName string, reg RegisterDerivativeType,
-	modMap map[tokens.ModuleName]tokens.ModuleName) multierror.Error {
+	modMap map[tokens.ModuleName]tokens.ModuleName,
+) (map[internalToken]tokens.Type, multierror.Error) {
+	assoc := make(map[internalToken]tokens.Type, len(els))
 	errs := multierror.Error{}
 	for _, f := range els {
-		tk, element, err := addElement[T, S](pkgName, reg, modMap, f)
+		tk, element, associated, err := addElement[T, S](pkgName, reg, modMap, f)
+		for _, alias := range associated.Aliases {
+			assoc[tokenFromType(alias.Token)] = tk
+		}
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 			continue
 		}
 		m[tk.String()] = element
 	}
-	return errs
+	return assoc, errs
 }
 
 func addElement[T canGetSchema[S], S any](pkgName string, reg RegisterDerivativeType,
-	modMap map[tokens.ModuleName]tokens.ModuleName, f T) (tokens.Type, S, error) {
+	modMap map[tokens.ModuleName]tokens.ModuleName, f T) (tokens.Type, S, Associated, error) {
 	var s S
 	tk, err := f.GetToken()
 	if err != nil {
-		return "", s, err
+		return "", s, Associated{}, err
 	}
 	tk = assignTo(tk, pkgName, modMap)
-	fun, err := f.GetSchema(reg)
+	fun, associated, err := f.GetSchema(reg)
 	if err != nil {
-		return "", s, fmt.Errorf("failed to get schema for '%s': %w", tk, err)
+		return "", s, Associated{}, fmt.Errorf("failed to get schema for '%s': %w", tk, err)
 	}
-	return tk, renamePackage(fun, pkgName, modMap), nil
+	return tk, renamePackage(fun, pkgName, modMap), associated, nil
 }
 
 func assignTo(tk tokens.Type, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) tokens.Type {
@@ -356,9 +418,7 @@ func fixReference(ref, pkg string, modMap map[tokens.ModuleName]tokens.ModuleNam
 	return kind + string(assignTo(tk, pkg, modMap))
 }
 
-// renamePackage sets internal package references to point to the package with the name
-// `pkg`.
-func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) T {
+func transformTypes[T any](typ T, transform func(schema.TypeSpec) schema.TypeSpec) T {
 	var rename func(reflect.Value)
 	rename = func(v reflect.Value) {
 		switch v.Kind() {
@@ -369,9 +429,8 @@ func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens
 			rename(v.Elem())
 		case reflect.Struct:
 			if v.Type() == reflect.TypeOf(schema.TypeSpec{}) {
-				field := v.FieldByName("Ref")
-				rewritten := fixReference(field.String(), pkg, modMap)
-				field.SetString(rewritten)
+				rewritten := transform(v.Interface().(schema.TypeSpec))
+				v.Set(reflect.ValueOf(rewritten))
 			}
 			for _, f := range reflect.VisibleFields(v.Type()) {
 				f := v.FieldByIndex(f.Index)
@@ -399,4 +458,14 @@ func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens
 	v := reflect.ValueOf(t)
 	rename(v)
 	return *t
+
+}
+
+// renamePackage sets internal package references to point to the package with the name
+// `pkg`.
+func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens.ModuleName) T {
+	return transformTypes(typ, func(t schema.TypeSpec) schema.TypeSpec {
+		t.Ref = fixReference(t.Ref, pkg, modMap)
+		return t
+	})
 }

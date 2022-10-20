@@ -35,8 +35,9 @@ func (*Foo) Construct(ctx *pulumi.Context, name string, typ string, inputs FooAr
 }
 
 type FooArgs struct {
-	Foo    pulumi.StringInput `pulumi:"foo"`
-	Bundle Bundle             `pulumi:"bundle"`
+	Foo            pulumi.StringInput `pulumi:"foo"`
+	Bundle         Bundle             `pulumi:"bundle"`
+	CustomResource BarState           `pulumi:"bar,optional"`
 }
 
 type Bundle struct {
@@ -44,10 +45,25 @@ type Bundle struct {
 	V2 int    `pulumi:"v2"`
 }
 
+type Bar struct{}
+type BarArgs struct {
+	Value string `pulumi:"value,optional"`
+}
+type BarState struct {
+	BarArgs
+	State int `pulumi:"state"`
+}
+
+func (b *Bar) Create(ctx p.Context, name string, input BarArgs, preview bool) (
+	id string, output BarState, err error) {
+	return
+}
+
 func provider() integration.Server {
 	return integration.NewServer("foo", semver.Version{Major: 1},
 		infer.Provider(infer.Options{
 			Components: []infer.InferredComponent{infer.Component[*Foo, FooArgs, *Foo]()},
+			Resources:  []infer.InferredResource{infer.Resource[*Bar, BarArgs, BarState]()},
 		}),
 	)
 }
@@ -87,8 +103,29 @@ const componentSchema = `{
     },
     "provider": {},
     "resources": {
+        "foo:tests:Bar": {
+            "properties": {
+                "state": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "state"
+            ],
+            "inputProperties": {
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "foo:tests:Foo": {
             "inputProperties": {
+                "bar": {
+                    "$ref": "#/types/foo:tests:BarState"
+                },
                 "bundle": {
                     "$ref": "#/types/foo:tests:Bundle"
                 },

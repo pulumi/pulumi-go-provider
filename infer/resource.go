@@ -396,15 +396,23 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
-	pschema.ResourceSpec, error) {
+	pschema.ResourceSpec, schema.Associated, error) {
 	if err := registerTypes[I](reg); err != nil {
-		return pschema.ResourceSpec{}, err
+		return pschema.ResourceSpec{}, schema.Associated{}, err
 	}
 	if err := registerTypes[O](reg); err != nil {
-		return pschema.ResourceSpec{}, err
+		return pschema.ResourceSpec{}, schema.Associated{}, err
 	}
 	r, errs := getResourceSchema[R, I, O](false)
-	return r, errs.ErrorOrNil()
+	stateTk, err := introspect.GetToken("pkg", reflect.New(reflect.TypeOf((*O)(nil)).Elem()).Interface())
+	if err != nil {
+		return pschema.ResourceSpec{}, schema.Associated{}, err
+	}
+	return r, schema.Associated{
+		Aliases: []schema.TokenAlias{
+			{Token: stateTk},
+		},
+	}, errs.ErrorOrNil()
 }
 
 func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
@@ -505,7 +513,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
 	if hasUpdate {
-		schema, err := rc.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) { return false })
+		schema, _, err := rc.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) { return false })
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
