@@ -74,7 +74,9 @@ func fnToken(tk tokens.Type) tokens.Type {
 	return tokens.NewTypeToken(tk.Module(), tokens.TypeName(name))
 }
 
-func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, schema.Associated, error) {
+func (*derivedInvokeController[F, I, O]) GetSchema(
+	reg schema.RegisterDerivativeType,
+) (pschema.FunctionSpec, schema.Associated, error) {
 	var f F
 	descriptions := getAnnotated(reflect.TypeOf(f))
 
