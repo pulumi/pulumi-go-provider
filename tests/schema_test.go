@@ -39,10 +39,10 @@ func (r *givenResource) GetToken() (tokens.Type, error) {
 	return r.token, nil
 }
 
-func (r *givenResource) GetSchema(f schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
+func (r *givenResource) GetSchema(f schema.RegisterDerivativeType) (pschema.ResourceSpec, schema.Associated, error) {
 	var s pschema.ResourceSpec
 	s.Description = r.text
-	return s, nil
+	return s, schema.Associated{}, nil
 }
 
 func TestMergeSchema(t *testing.T) {

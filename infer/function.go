@@ -74,31 +74,33 @@ func fnToken(tk tokens.Type) tokens.Type {
 	return tokens.NewTypeToken(tk.Module(), tokens.TypeName(name))
 }
 
-func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
+func (*derivedInvokeController[F, I, O]) GetSchema(
+	reg schema.RegisterDerivativeType,
+) (pschema.FunctionSpec, schema.Associated, error) {
 	var f F
 	descriptions := getAnnotated(reflect.TypeOf(f))
 
 	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
-		return pschema.FunctionSpec{}, err
+		return pschema.FunctionSpec{}, schema.Associated{}, err
 	}
 	output, err := objectSchema(reflect.TypeOf(new(O)))
 	if err != nil {
-		return pschema.FunctionSpec{}, err
+		return pschema.FunctionSpec{}, schema.Associated{}, err
 	}
 
 	if err := registerTypes[I](reg); err != nil {
-		return pschema.FunctionSpec{}, err
+		return pschema.FunctionSpec{}, schema.Associated{}, err
 	}
 	if err := registerTypes[O](reg); err != nil {
-		return pschema.FunctionSpec{}, err
+		return pschema.FunctionSpec{}, schema.Associated{}, err
 	}
 
 	return pschema.FunctionSpec{
 		Description: descriptions.Descriptions[""],
 		Inputs:      input,
 		Outputs:     output,
-	}, nil
+	}, schema.Associated{}, nil
 }
 
 func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {

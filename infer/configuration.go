@@ -56,12 +56,12 @@ func (*config[T]) underlyingType() reflect.Type {
 }
 
 func (*config[T]) GetToken() (tokens.Type, error) { return "pulumi:providers:pkg", nil }
-func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
+func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.ResourceSpec, schema.Associated, error) {
 	if err := registerTypes[T](reg); err != nil {
-		return pschema.ResourceSpec{}, err
+		return pschema.ResourceSpec{}, schema.Associated{}, err
 	}
 	r, errs := getResourceSchema[T, T, T](false)
-	return r, errs.ErrorOrNil()
+	return r, schema.Associated{}, errs.ErrorOrNil()
 }
 
 func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
@@ -70,7 +70,7 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		t = reflect.New(v.Type().Elem()).Interface().(T)
 	}
 
-	r, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	r, _, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
 	if mErr != nil {
 		return p.CheckResponse{}, fmt.Errorf("could not get config secrets: %w", mErr)
 	}
@@ -208,7 +208,7 @@ func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	if c.t == nil {
 		c.t = new(T)
 	}
-	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	schema, _, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
 	if mErr != nil {
 		return mErr
 	}
@@ -246,7 +246,7 @@ func (c *config[T]) handleConfigFailures(ctx p.Context, err mapper.MappingError)
 	}
 
 	pkgName := ctx.RuntimeInformation().PackageName
-	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	schema, _, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
 	if mErr != nil {
 		return mErr
 	}
