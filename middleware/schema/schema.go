@@ -307,7 +307,7 @@ func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 	}
 
 	pkg = transformTypes(pkg, func(typ schema.TypeSpec) schema.TypeSpec {
-		const internalRefPrefx = "#/tokens/type/"
+		const internalRefPrefx = "#/types/"
 		if !strings.HasPrefix(typ.Ref, internalRefPrefx) {
 			return typ
 		}
@@ -315,14 +315,16 @@ func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 		if !ok {
 			return typ
 		}
-		typ.Ref = internalRefPrefx + changeTo.String()
+		typ.Ref = "#/resources/" + assignTo(tokens.Type(changeTo.String()), pkg.Name, s.ModuleMap).String()
 		return typ
 	})
 
 	for from := range aliases {
 		// We delete aliased resources and types, since they are unreferencable
-		delete(pkg.Resources, from.reconstruct(tokens.PackageName(pkg.Name)).String())
-		delete(pkg.Types, from.reconstruct(tokens.PackageName(pkg.Name)).String())
+		token := from.reconstruct(tokens.PackageName(pkg.Name)).String()
+		fmt.Printf("Deleting pkgName %q\n", token)
+		delete(pkg.Resources, token)
+		delete(pkg.Types, token)
 	}
 
 	return pkg, nil
