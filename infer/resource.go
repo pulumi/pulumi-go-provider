@@ -406,7 +406,7 @@ func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDeriv
 	r, errs := getResourceSchema[R, I, O](false)
 	stateTk, err := introspect.GetToken("pkg", reflect.New(reflect.TypeOf((*O)(nil)).Elem()).Interface())
 	if err != nil {
-		return pschema.ResourceSpec{}, schema.Associated{}, err
+		errs.Errors = append(errs.Errors, err)
 	}
 	return r, schema.Associated{
 		Aliases: []schema.TokenAlias{

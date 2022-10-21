@@ -322,7 +322,6 @@ func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
 	for from := range aliases {
 		// We delete aliased resources and types, since they are unreferencable
 		token := from.reconstruct(tokens.PackageName(pkg.Name)).String()
-		fmt.Printf("Deleting pkgName %q\n", token)
 		delete(pkg.Resources, token)
 		delete(pkg.Types, token)
 	}
@@ -366,7 +365,7 @@ func addElements[T canGetSchema[S], S any](els []T, m map[string]S,
 	for _, f := range els {
 		tk, element, associated, err := addElement[T, S](pkgName, reg, modMap, f)
 		for _, alias := range associated.Aliases {
-			assoc[tokenFromType(alias.Token)] = tk
+			assoc[tokenFromType(assignTo(alias.Token, pkgName, modMap))] = tk
 		}
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
