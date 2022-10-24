@@ -43,11 +43,15 @@ const schema = `{
         },
         "password": {
           "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomPassword:RandomPassword"
+        },
+        "saltedPassword": {
+          "$ref": "#/resources/random-login:index:RandomSalt"
         }
       },
       "required": [
         "length",
-        "password"
+        "password",
+        "saltedPassword"
       ],
       "inputProperties": {
         "length": {

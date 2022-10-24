@@ -52,6 +52,29 @@ test_examples: build_examples
 	done; \
 	if [[ "$$CI" == "" ]]; then pulumi login; fi; \
 
+.PHONY: test_%_example
+test_%_example: build_%s_example
+	if [ -d "examples/$*" ] && [ -d "examples/$*/consumer" ]; then \
+        cd "examples/$*/consumer"; \
+		mkdir $$PWD/state; \
+		pulumi login --cloud-url file://$$PWD/state || exit 1; \
+		pulumi stack init test$$(date '+%H-%M-%S') || exit 1; \
+		pulumi up --yes || exit 1; \
+		pulumi up --yes || exit 1; \
+		pulumi destroy --yes || exit 1; \
+		pulumi stack rm --yes || exit 1; \
+		pulumi logout; \
+		rm -r $$PWD/state; \
+		cd - > /dev/null; \
+	fi
+
+build_%_example: build
+	@if [ -d "examples/$*" ]; then \
+		cd "examples/$*"; \
+		echo "Building github.com/pulumi/pulumi-go-provider/examples/$*"; \
+		go build -o pulumi-resource-$* github.com/pulumi/pulumi-go-provider/examples/$* || exit 1; \
+		cd - > /dev/null; \
+	fi;
 
 install_examples: build_examples
 	@for i in command,v0.3.2 random-login,v0.1.0 schema-test,v0.1.0 str,v0.1.0; do \

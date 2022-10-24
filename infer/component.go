@@ -109,6 +109,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 
 			// Register the outputs
 			m := introspect.StructToMap(res)
+			fmt.Printf("Registering %T with map: %#v\n", res, m)
 			err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
 			if err != nil {
 				return nil, err
@@ -177,7 +178,7 @@ func RegisterCustomResource[R CustomResource[I, O], I, O any](
 		return o, mErr
 	}
 	err = ctx.RegisterResource(token.String(), name,
-		pulumi.ToMap(resource.NewPropertyMapFromMap(inputs).Mappable()), o,
+		pulumi.ToMap(resource.NewPropertyMapFromMap(inputs).Mappable()), &o,
 		append(opts, pulumi.Version(pCtx.RuntimeInformation().Version))...)
 	return o, err
 }

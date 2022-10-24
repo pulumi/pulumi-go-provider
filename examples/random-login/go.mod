@@ -4,6 +4,10 @@ replace github.com/pulumi/pulumi-go-provider => ../..
 
 replace github.com/pulumi/pulumi-go-provider/integration => ../../integration
 
+replace github.com/pulumi/pulumi/sdk/v3 => ../../../pulumi/sdk
+
+replace github.com/pulumi/pulumi/pkg/v3 => ../../../pulumi/pkg
+
 go 1.18
 
 require (
