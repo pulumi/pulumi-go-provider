@@ -767,7 +767,7 @@ func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyV
 		dst = dst.Elem()
 	}
 	if m.IsSecret() {
-		return resource.MakeSecret(typeUnknowns(m.SecretValue().Element, dst))
+		m = resource.MakeSecret(typeUnknowns(m.SecretValue().Element, dst))
 	}
 	if m.IsOutput() {
 		v := m.OutputValue()
@@ -826,13 +826,13 @@ func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyV
 			if !ok {
 				if tag.Optional {
 					continue
-				} else {
-					// Create a new unknown output, which we will then type
-					v = resource.NewOutputProperty(resource.Output{
-						Element: resource.NewNullProperty(),
-						Known:   false,
-					})
 				}
+				// Create a new unknown output, which we will then type
+				v = resource.NewOutputProperty(resource.Output{
+					Element: resource.NewNullProperty(),
+					Known:   false,
+					Secret:  tag.Secret,
+				})
 			}
 			result[resource.PropertyKey(tag.Name)] = typeUnknowns(v, field.Type)
 		}
