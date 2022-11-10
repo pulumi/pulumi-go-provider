@@ -7,16 +7,10 @@ plugins:
       path: ..
 
 resources:
-  generator:
-    type: random-login:RandomLogin
-    properties:
-      petName: true
-      passwordLength:
-        Fn::Secret: 8
   salter:
     type: random-login:RandomSalt
     properties:
-      password: ${generator.password}
+      password: "mypassword1"
       saltedLength: 4
   badPasswordLength:
     type: random:RandomInteger
@@ -29,8 +23,6 @@ resources:
       length: ${badPasswordLength}
 
 outputs:
-  username:
-    ${generator.username}
   password:
     ${salter.saltedPassword}
   rawPassowrd:

@@ -131,8 +131,8 @@ type RandomSalt struct{}
 
 type RandomSaltState struct {
 	Salt           string `pulumi:"salt"`
-	SaltedPassword string `pulumi:"saltedPassword"`
-	Password       string `pulumi:"password"`
+	SaltedPassword string `pulumi:"saltedPassword" provider:"secret"`
+	Password       string `pulumi:"password" provider:"secret"`
 	SaltLength     *int   `pulumi:"saltedLength,optional"`
 }
 
