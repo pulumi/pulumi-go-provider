@@ -139,7 +139,9 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeReq
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
-	m, err := encode(o, secrets, false)
+
+	// TODO secret function call parameters
+	m, err := encode(o, secrets, false, nil)
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
