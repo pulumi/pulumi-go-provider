@@ -130,10 +130,10 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args Rand
 type RandomSalt struct{}
 
 type RandomSaltState struct {
-	Salt           string `pulumi:"salt"`
-	SaltedPassword string `pulumi:"saltedPassword" provider:"secret"`
-	Password       string `pulumi:"password" provider:"secret"`
-	SaltLength     *int   `pulumi:"saltedLength,optional"`
+	Salt           *string `pulumi:"salt" provider:"secret"`
+	SaltedPassword *string `pulumi:"saltedPassword" provider:"secret"`
+	Password       *string `pulumi:"password" provider:"secret"`
+	SaltLength     *int    `pulumi:"saltedLength,optional"`
 }
 
 type RandomSaltArgs struct {
@@ -159,11 +159,12 @@ func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, prev
 	salt := makeSalt(l)
 
 	fmt.Printf("Running the create")
+	saltedPassword := fmt.Sprintf("%s%s", salt, input.Password)
 
 	return name, RandomSaltState{
-		Salt:           salt,
-		SaltedPassword: fmt.Sprintf("%s%s", salt, input.Password),
-		Password:       input.Password,
+		Salt:           &salt,
+		SaltedPassword: &saltedPassword,
+		Password:       &input.Password,
 		SaltLength:     input.SaltLength,
 	}, nil
 }
@@ -187,13 +188,15 @@ func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news
 		if news.SaltLength != nil {
 			l = *news.SaltLength
 		}
-		salt = makeSalt(l)
+		*salt = makeSalt(l)
 	}
+
+	saltedPassword := fmt.Sprintf("%s%s", *salt, news.Password)
 
 	return RandomSaltState{
 		Salt:           salt,
-		SaltedPassword: fmt.Sprintf("%s%s", salt, news.Password),
-		Password:       news.Password,
+		SaltedPassword: &saltedPassword,
+		Password:       &news.Password,
 		SaltLength:     news.SaltLength,
 	}, nil
 }

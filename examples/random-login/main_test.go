@@ -99,16 +99,19 @@ const schema = `{
     "random-login:index:RandomSalt": {
       "properties": {
         "password": {
-          "type": "string"
+          "type": "string",
+          "secret": true
         },
         "salt": {
-          "type": "string"
+          "type": "string",
+          "secret": true
         },
         "saltedLength": {
           "type": "integer"
         },
         "saltedPassword": {
-          "type": "string"
+          "type": "string",
+          "secret": true
         }
       },
       "required": [
@@ -145,16 +148,18 @@ func TestSchema(t *testing.T) {
 
 func TestRandomSalt(t *testing.T) {
 	server := integration.NewServer("random-login", semver.Version{Minor: 1}, provider())
+	foo := "foo"
+	bar := "bar"
 	integration.LifeCycleTest{
 		Resource: "random-login:index:RandomSalt",
 		Create: integration.Operation{
 			Inputs: presource.NewPropertyMapFromMap(map[string]interface{}{
-				"password":     "foo",
+				"password":     &foo,
 				"saltedLength": 3,
 			}),
 			Hook: func(inputs, output presource.PropertyMap) {
 				t.Logf("Outputs: %v", output)
-				saltedPassword := output["saltedPassword"].StringValue()
+				saltedPassword := output["saltedPassword"].SecretValue().Element.StringValue()
 				assert.True(t, strings.HasSuffix(saltedPassword, "foo"), "password wrong")
 				assert.Len(t, saltedPassword, 6)
 			},
@@ -162,11 +167,11 @@ func TestRandomSalt(t *testing.T) {
 		Updates: []integration.Operation{
 			{
 				Inputs: presource.NewPropertyMapFromMap(map[string]interface{}{
-					"password":     "bar",
+					"password":     &bar,
 					"saltedLength": 5,
 				}),
 				Hook: func(inputs, output presource.PropertyMap) {
-					saltedPassword := output["saltedPassword"].StringValue()
+					saltedPassword := output["saltedPassword"].SecretValue().Element.StringValue()
 					assert.True(t, strings.HasSuffix(saltedPassword, "bar"), "password wrong")
 					assert.Len(t, saltedPassword, 8)
 				},
