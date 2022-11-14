@@ -590,9 +590,7 @@ func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
 
 func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
 	return plugin.MarshalProperties(m, plugin.MarshalOptions{
-		KeepUnknowns: true,
-		SkipNulls:    true,
-		KeepSecrets:  true,
+		KeepSecrets: true,
 	})
 }
 

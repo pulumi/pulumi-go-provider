@@ -81,9 +81,7 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
-		// TODO configuration secret
-		rSchema, _ := getResourceSchema[T, T, T](false)
-		inputs, err := encode(i, nil, false, &rSchema)
+		inputs, err := encode(i, nil, false)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}

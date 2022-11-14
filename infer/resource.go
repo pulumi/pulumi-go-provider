@@ -16,7 +16,6 @@ package infer
 
 import (
 	"fmt"
-	"q"
 	"reflect"
 	"sync"
 
@@ -440,8 +439,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
-		rSchema, _ := getResourceSchema[R, I, O](false)
-		inputs, err := encode(i, nil, false, &rSchema)
+		inputs, err := encode(i, nil, false)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -602,9 +600,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 
 	var input I
 	var err error
-
 	secrets, err := decode(req.Properties, &input, req.Preview)
-
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
@@ -617,12 +613,11 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("internal error: '%s' was created without an id", req.Urn)
 	}
 
-	rSchema, _ := getResourceSchema[R, I, O](false)
-	m, err := encode(o, secrets, req.Preview, &rSchema)
+	m, err := encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
-	q.Q(r, input, o, secrets)
+
 	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
 		fg := newFieldGenerator(&input, &o)
 		r.WireDependencies(fg, &input, &o)
@@ -673,12 +668,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	rSchema, _ := getResourceSchema[R, I, O](false)
-	i, err := encode(inputs, inputSecrets, false, &rSchema)
+	i, err := encode(inputs, inputSecrets, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	s, err := encode(state, stateSecrets, false, &rSchema)
+	s, err := encode(state, stateSecrets, false)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -714,8 +708,7 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	rSchema, _ := getResourceSchema[R, I, O](false)
-	m, err := encode(o, secrets, req.Preview, &rSchema)
+	m, err := encode(o, secrets, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -774,7 +767,7 @@ func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyV
 		dst = dst.Elem()
 	}
 	if m.IsSecret() {
-		m = resource.MakeSecret(typeUnknowns(m.SecretValue().Element, dst))
+		return resource.MakeSecret(typeUnknowns(m.SecretValue().Element, dst))
 	}
 	if m.IsOutput() {
 		v := m.OutputValue()
@@ -833,13 +826,13 @@ func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyV
 			if !ok {
 				if tag.Optional {
 					continue
+				} else {
+					// Create a new unknown output, which we will then type
+					v = resource.NewOutputProperty(resource.Output{
+						Element: resource.NewNullProperty(),
+						Known:   false,
+					})
 				}
-				// Create a new unknown output, which we will then type
-				v = resource.NewOutputProperty(resource.Output{
-					Element: resource.NewNullProperty(),
-					Known:   false,
-					Secret:  tag.Secret,
-				})
 			}
 			result[resource.PropertyKey(tag.Name)] = typeUnknowns(v, field.Type)
 		}
@@ -849,23 +842,29 @@ func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyV
 	}
 }
 
-func encode(src interface{}, secrets []resource.PropertyPath, preview bool, rSchema *pschema.ResourceSpec) (
-	resource.PropertyMap, mapper.MappingError) {
-	props, err := mapper.New(&mapper.Opts{
+func encode[T any](src T, secrets []resource.PropertyPath, preview bool) (
+	resource.PropertyMap, error) {
+
+	props, mapErr := mapper.New(&mapper.Opts{
 		IgnoreMissing: preview,
 	}).Encode(src)
+	if mapErr != nil {
+		return nil, mapErr
+	}
+
+	properties, _, err := propertyListFromType(reflect.TypeOf(new(T)), false)
 	if err != nil {
 		return nil, err
 	}
-	if rSchema != nil {
-		for key, prop := range rSchema.ObjectTypeSpec.Properties {
-			if !prop.Secret {
-				continue
-			}
-			secrets = append(secrets, resource.PropertyPath{key})
+
+	for key, prop := range properties {
+		if !prop.Secret {
+			continue
 		}
+		secrets = append(secrets, resource.PropertyPath{key})
 	}
 	return insertSecrets(resource.NewPropertyMapFromMap(props), secrets), nil
+
 }
 
 // Transform secret values into plain values, returning the new map and the list of keys
@@ -918,6 +917,9 @@ func insertSecrets(props resource.PropertyMap, secrets []resource.PropertyPath) 
 	for _, s := range secrets {
 		v, ok := s.Get(m)
 		if !ok {
+			continue
+		}
+		if v.IsSecret() {
 			continue
 		}
 		s.Set(m, resource.MakeSecret(v))
