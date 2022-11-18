@@ -181,6 +181,9 @@ func (*fieldGenerator) isFieldSelector() {}
 // specified. If a CustomResource implements ExplicitDependencies then WireDependencies
 // will be called for each Create and Update call with `args` and `state` holding the
 // values they will have for that call.
+//
+// If ExplicitDependencies is not implemented, it is assumed that all outputs depend on
+// all inputs.
 type ExplicitDependencies[I, O any] interface {
 	// WireDependencies specifies the dependencies between inputs and outputs.
 	WireDependencies(f FieldSelector, args *I, state *O)
@@ -640,20 +643,11 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
 
-	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
-		fg := newFieldGenerator(&input, &o)
-		r.WireDependencies(fg, &input, &o)
-		if err = fg.err.ErrorOrNil(); err != nil {
-			return p.CreateResponse{}, err
-		}
-		fg.MarkMap(req.Properties, m)
-	} else if req.Properties.ContainsUnknowns() {
-		for k, v := range m {
-			if !v.IsComputed() {
-				m[k] = resource.MakeComputed(v)
-			}
-		}
+	setDeps, err := getDependencies(r, &input, &o)
+	if err != nil {
+		return p.CreateResponse{}, err
 	}
+	setDeps(req.Properties, m)
 
 	return p.CreateResponse{
 		ID:         id,
@@ -734,20 +728,11 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
-		fg := newFieldGenerator(&news, &o)
-		r.WireDependencies(fg, &news, &o)
-		if err = fg.err.ErrorOrNil(); err != nil {
-			return p.UpdateResponse{}, err
-		}
-		fg.MarkMap(req.News, m)
-	} else if req.News.ContainsUnknowns() {
-		for k, v := range m {
-			if !v.IsComputed() {
-				m[k] = resource.MakeComputed(v)
-			}
-		}
+	setDeps, err := getDependencies(r, &news, &o)
+	if err != nil {
+		return p.UpdateResponse{}, err
 	}
+	setDeps(req.News, m)
 
 	return p.UpdateResponse{
 		Properties: m,
@@ -769,6 +754,25 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	defer rc.lock.Unlock()
 	delete(rc.m, req.Urn)
 	return nil
+}
+
+// Apply dependencies to a property map, flowing secretness and computedness from input to
+// output.
+type setDeps func(input, output resource.PropertyMap)
+
+// Get the decency mapping between inputs and outputs of a resource.
+func getDependencies[R, I, O any](r *R, input *I, output *O) (setDeps, error) {
+	fg := newFieldGenerator(input, output)
+	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
+		r.WireDependencies(fg, input, output)
+		if err := fg.err.ErrorOrNil(); err != nil {
+			return nil, err
+		}
+	} else {
+		// We default to assuming that every output field depends on every input field.
+		fg.OutputField(output).DependsOn(fg.InputField(input))
+	}
+	return fg.MarkMap, nil
 }
 
 func decode(m resource.PropertyMap, dst any, preview bool) (
