@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
@@ -230,4 +231,37 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 		}
 	}
 	return FieldTag{}, false, nil
+}
+
+// If `t` is the struct that the field matcher is based on, return all visible fields on
+// the struct. Otherwise `nil, false, nil` is returned.
+func (f *FieldMatcher) TargetStructFields(t any) ([]FieldTag, bool, error) {
+	v := reflect.ValueOf(t)
+	for v.Kind() == reflect.Pointer && !v.IsNil() {
+		v = v.Elem()
+	}
+	if f.value != v {
+		return nil, false, nil
+	}
+
+	hostType := f.value.Type()
+	visableFields := reflect.VisibleFields(hostType)
+	fields := []FieldTag{}
+	var errs multierror.Error
+	for _, idx := range visableFields {
+		fType := hostType.FieldByIndex(idx.Index)
+		if !fType.IsExported() {
+			continue
+		}
+		tag, err := ParseTag(fType)
+		if err != nil {
+			errs.Errors = append(errs.Errors, err)
+			continue
+		}
+		if tag.Internal {
+			continue
+		}
+		fields = append(fields, tag)
+	}
+	return fields, true, errs.ErrorOrNil()
 }

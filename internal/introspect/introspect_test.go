@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -106,4 +107,37 @@ func TestAnnotate(t *testing.T) {
 	assert.Equal(t, "Fizz", a.Defaults["foo"])
 	assert.Equal(t, "Fizz is not MyStruct.Foo.", a.Descriptions["fizz"])
 	assert.Equal(t, "This is MyStruct, but also your struct.", a.Descriptions[""])
+}
+
+func TestAllFields(t *testing.T) {
+	t.Parallel()
+
+	type MyStruct struct {
+		Foo     string `pulumi:"foo,optional" provider:"secret,output"`
+		Fizz    *int   `pulumi:"fizz"`
+		ExtType string
+	}
+	s := &MyStruct{}
+	fm := introspect.NewFieldMatcher(s)
+
+	fields, ok, err := fm.TargetStructFields(s)
+	require.True(t, ok)
+	assert.NoError(t, err)
+	assert.Len(t, fields, 2)
+}
+
+func TestAllFieldsMiss(t *testing.T) {
+	t.Parallel()
+
+	type MyStruct struct {
+		Foo     string `pulumi:"foo,optional" provider:"secret,output"`
+		Fizz    *int   `pulumi:"fizz"`
+		ExtType string
+	}
+	s := &MyStruct{}
+	fm := introspect.NewFieldMatcher(s)
+
+	_, ok, err := fm.TargetStructFields(&s.Fizz)
+	require.False(t, ok)
+	assert.NoError(t, err)
 }
