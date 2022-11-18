@@ -261,13 +261,20 @@ func (g *fieldGenerator) MarkMap(inputs, m resource.PropertyMap) {
 }
 
 func (g *fieldGenerator) InputField(a any) InputField {
+	if allFields, ok, err := g.argsMatcher.TargetStructFields(a); ok {
+		if err != nil {
+			g.err.Errors = append(g.err.Errors, err)
+			return &errField{}
+		}
+		return &inputField{allFields}
+	}
 	field, ok, err := g.argsMatcher.GetField(a)
 	if err != nil {
 		g.err.Errors = append(g.err.Errors, err)
 		return &errField{}
 	}
 	if ok {
-		return &inputField{field}
+		return &inputField{fields: []introspect.FieldTag{field}}
 	}
 	// Couldn't find the field on the args, try the state
 	field, ok, err = g.stateMatcher.GetField(a)
@@ -281,13 +288,20 @@ func (g *fieldGenerator) InputField(a any) InputField {
 }
 
 func (g *fieldGenerator) OutputField(a any) OutputField {
+	if allFields, ok, err := g.argsMatcher.TargetStructFields(a); ok {
+		if err != nil {
+			g.err.Errors = append(g.err.Errors, err)
+			return &errField{}
+		}
+		return &outputField{g, allFields}
+	}
 	field, ok, err := g.stateMatcher.GetField(a)
 	if err != nil {
 		g.err.Errors = append(g.err.Errors, err)
 		return &errField{}
 	}
 	if ok {
-		return &outputField{g, field}
+		return &outputField{g, []introspect.FieldTag{field}}
 	}
 	// Couldn't find the field on the state, try the args
 	field, ok, err = g.argsMatcher.GetField(a)
@@ -327,31 +341,35 @@ func (*errField) isInputField()           {}
 func (*errField) isOutputField()          {}
 
 type inputField struct {
-	field introspect.FieldTag
+	fields []introspect.FieldTag
 }
 
 func (*inputField) isInputField() {}
 
 type outputField struct {
-	g     *fieldGenerator
-	field introspect.FieldTag
+	g      *fieldGenerator
+	fields []introspect.FieldTag
 }
 
 func (f *outputField) AlwaysSecret() {
-	name := f.field.Name
-	f.g.alwaysSecret[name] = true
-	if f.g.neverSecret[name] {
-		f.g.err.Errors = append(f.g.err.Errors,
-			fmt.Errorf("marked field %q as both always secret and never secret", name))
+	for _, field := range f.fields {
+		name := field.Name
+		f.g.alwaysSecret[name] = true
+		if f.g.neverSecret[name] {
+			f.g.err.Errors = append(f.g.err.Errors,
+				fmt.Errorf("marked field %q as both always secret and never secret", name))
+		}
 	}
 }
 
 func (f *outputField) NeverSecret() {
-	name := f.field.Name
-	f.g.neverSecret[name] = true
-	if f.g.alwaysSecret[name] {
-		f.g.err.Errors = append(f.g.err.Errors,
-			fmt.Errorf("marked field %q as both always secret and never secret", name))
+	for _, field := range f.fields {
+		name := field.Name
+		f.g.neverSecret[name] = true
+		if f.g.alwaysSecret[name] {
+			f.g.err.Errors = append(f.g.err.Errors,
+				fmt.Errorf("marked field %q as both always secret and never secret", name))
+		}
 	}
 }
 
@@ -360,15 +378,19 @@ func (f *outputField) DependsOn(deps ...InputField) {
 	for _, d := range deps {
 		switch d := d.(type) {
 		case *inputField:
-			depNames = append(depNames, d.field.Name)
+			for _, field := range d.fields {
+				depNames = append(depNames, field.Name)
+			}
 		case *errField:
 			// The error was already reported, so do nothing
 		default:
 			panic(fmt.Sprintf("Unknown InputField type: %T", d))
 		}
 	}
-	name := f.field.Name
-	f.g.deps[name] = append(f.g.deps[name], depNames...)
+	for _, field := range f.fields {
+		name := field.Name
+		f.g.deps[name] = append(f.g.deps[name], depNames...)
+	}
 }
 func (*outputField) isOutputField() {}
 
