@@ -2,6 +2,7 @@
 
 build:
 	go build ./...
+	cd openapi && go build ./...
 
 .PHONY: test
 test: test_unit test_examples
