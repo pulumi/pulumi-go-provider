@@ -16,14 +16,24 @@
 package openapi
 
 import (
+	"fmt"
+	"reflect"
+	"strings"
+
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pulumi/pulumi/pkg/v3/codegen/cgstrings"
+	pSchema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	pResource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/cancel"
 	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
 	s "github.com/pulumi/pulumi-go-provider/middleware/schema"
-	pSchema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
 type Options struct {
@@ -80,7 +90,8 @@ func (ps providerSpec) dispatch() dispatch.Options {
 }
 
 func (ps *providerSpec) collectResource(name string, path *openapi3.PathItem) {
-
+	r := resource{name, path}
+	ps.resources = append(ps.resources, r)
 }
 
 type itemType int
@@ -104,6 +115,7 @@ var _ = (s.Resource)((*resource)(nil))
 var _ = (t.CustomResource)((*resource)(nil))
 
 type resource struct {
+	name string
 	path *openapi3.PathItem
 }
 
@@ -112,30 +124,100 @@ func (r *resource) GetSchema(s.RegisterDerivativeType) (pSchema.ResourceSpec, er
 }
 
 func (r *resource) GetToken() (tokens.Type, error) {
-	return "", nil
+	path := strings.Split(r.name, "/")
+	switch len(path) {
+	case 0:
+		return "", fmt.Errorf("Empty resource name: %#v", r.name)
+	case 1:
+		return tokens.NewTypeToken(tokens.NewModuleToken("pkg", "index"), cgstrings.Camel(path[0])), nil
+	default:
+		return tokens.NewTypeToken(
+			tokens.NewModuleToken("",
+				tokens.ModuleName(strings.Join(path[:len(path)-1], "/"))),
+			cgstrings.Camel(path[len(path)-1])), nil
+	}
 }
 
-func (r *resource) Check(p.Context, p.CheckRequest) (p.CheckResponse, error) {
-	return p.CheckResponse{}, nil
+func (r *resource) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+	// We need to validate that req can be used to serve any CRUD operation.
+	panic("Unimplemented")
+}
+
+// The set of inputs for this resource.
+func (r *resource) inputs(ctx p.Context) {
 
 }
 
-func (r *resource) Diff(p.Context, p.DiffRequest) (p.DiffResponse, error) {
-	return p.DiffResponse{}, nil
+func (r *resource) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	// This default diff is copied from infer.resource. We should generalize this
+	// solution.
+	objDiff := req.News.Diff(req.Olds)
+	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
+	diff := map[string]p.PropertyDiff{}
+	for k, v := range pluginDiff {
+		set := func(kind p.DiffKind) {
+			diff[k] = p.PropertyDiff{
+				Kind:      kind,
+				InputDiff: v.InputDiff,
+			}
+		}
+		if r.path.Put == nil {
+			// We force replaces if we don't have access to updates
+			v.Kind = v.Kind.AsReplace()
+		}
+		switch v.Kind {
+		case plugin.DiffAdd:
+			set(p.Add)
+		case plugin.DiffAddReplace:
+			set(p.AddReplace)
+		case plugin.DiffDelete:
+			set(p.Delete)
+		case plugin.DiffDeleteReplace:
+			set(p.DeleteReplace)
+		case plugin.DiffUpdate:
+			set(p.Update)
+		case plugin.DiffUpdateReplace:
+			set(p.UpdateReplace)
+		}
+	}
+	return p.DiffResponse{
+		HasChanges:   objDiff.AnyChanges(),
+		DetailedDiff: diff,
+	}, nil
 }
 
-func (r *resource) Create(p.Context, p.CreateRequest) (p.CreateResponse, error) {
+func (r *resource) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+	if t, err := assertPath[p.CreateResponse](req.Urn, "Create", r.path.Post); err != nil {
+		return t, err
+	}
 	return p.CreateResponse{}, nil
 }
 
-func (r *resource) Read(p.Context, p.ReadRequest) (p.ReadResponse, error) {
+func (r *resource) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+	if t, err := assertPath[p.ReadResponse](req.Urn, "Create", r.path.Get); err != nil {
+		return t, err
+	}
 	return p.ReadResponse{}, nil
 }
 
-func (r *resource) Update(p.Context, p.UpdateRequest) (p.UpdateResponse, error) {
+func (r *resource) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+	if t, err := assertPath[p.UpdateResponse](req.Urn, "Update", r.path.Put); err != nil {
+		return t, err
+	}
 	return p.UpdateResponse{}, nil
 }
 
-func (r *resource) Delete(p.Context, p.DeleteRequest) error {
+func (r *resource) Delete(ctx p.Context, req p.DeleteRequest) error {
+	if _, err := assertPath[struct{}](req.Urn, "Delete", r.path.Delete); err != nil {
+		return err
+	}
 	return nil
+}
+
+func assertPath[T any](urn pResource.URN, operation string, path *openapi3.Operation) (T, error) {
+	var t T
+	if path == nil {
+		return t, status.Errorf(codes.Unimplemented, "%s is not implemented for resource %s", urn)
+	}
+	return t, nil
 }
