@@ -20,7 +20,9 @@ func main() {
 		// We tell the provider what resources it needs to support.
 		// In this case, a single custom resource.
 		infer.Provider(infer.Options{
-			Resources: infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
+			Resources: []infer.InferredResource{
+				infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
+			},
 		}))
 }
 
