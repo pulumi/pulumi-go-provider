@@ -451,6 +451,8 @@ func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (
 }
 
 type provider struct {
+	rpc.UnimplementedResourceProviderServer
+
 	name    string
 	version string
 	host    *pprovider.HostClient
