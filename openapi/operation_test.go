@@ -15,11 +15,14 @@
 package openapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/blang/semver"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration"
@@ -27,53 +30,56 @@ import (
 )
 
 const OpenAPISchemaBytes = `{
-  "swagger": "2.0",
+  "openapi": "3.0.1",
   "info": {
+    "title": "Todos API",
     "description": "Todo Backend API",
-    "version": "1.0.0",
-    "title": "Todos API"
+    "version": "1.0.0"
   },
-  "host": "functodobackend.azurewebsites.net",
-  "schemes": [
-    "https"
+  "servers": [
+    {
+      "url": "https://functodobackend.azurewebsites.net/api"
+    }
   ],
-  "basePath": "/api",
   "paths": {
     "/todos": {
       "post": {
         "summary": "Create a new todo",
         "operationId": "Todo_Create",
+        "requestBody": {
+          "description": "Todo Object",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Todo"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "successful operation",
-            "schema": {
-              "$ref": "#/definitions/Todo"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
             }
           },
           "400": {
             "description": "Invalid input",
-            "schema": {
-              "type": "string"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
-        "parameters": [
-          {
-            "description": "Todo Object",
-            "required": true,
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "$ref": "#/definitions/Todo"
-            }
-          }
-        ],
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ]
+        "x-codegen-request-body-name": "body"
       }
     },
     "/todos/{todoId}": {
@@ -84,25 +90,28 @@ const OpenAPISchemaBytes = `{
           {
             "name": "todoId",
             "in": "path",
-            "description": "",
             "required": true,
-            "type": "string"
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "successful operation",
-            "schema": {
-              "$ref": "#/definitions/Todo"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
             }
           },
           "404": {
-            "description": "Invalid Todo ID value"
+            "description": "Invalid Todo ID value",
+            "content": {}
           }
-        },
-        "produces": [
-          "application/json"
-        ]
+        }
       },
       "delete": {
         "summary": "delete a single todo",
@@ -111,17 +120,20 @@ const OpenAPISchemaBytes = `{
           {
             "name": "todoId",
             "in": "path",
-            "description": "",
             "required": true,
-            "type": "string"
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "successful operation"
+            "description": "successful operation",
+            "content": {}
           },
           "404": {
-            "description": "can not find todo"
+            "description": "can not find todo",
+            "content": {}
           }
         }
       },
@@ -132,51 +144,58 @@ const OpenAPISchemaBytes = `{
           {
             "name": "todoId",
             "in": "path",
-            "description": "",
             "required": true,
-            "type": "string"
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "successful operation",
-            "schema": {
-              "$ref": "#/definitions/Todo"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
             }
           },
           "404": {
-            "description": "Todo not found"
+            "description": "Todo not found",
+            "content": {}
           }
-        },
-        "produces": [
-          "application/json"
-        ]
+        }
       }
     }
   },
-  "definitions": {
-    "Todo": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "readOnly": true
-        },
-        "title": {
-          "type": "string"
-        },
-        "order": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "completed": {
-          "type": "boolean"
-        },
-        "url": {
-          "type": "string"
+  "components": {
+    "schemas": {
+      "Todo": {
+        "required": [
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
         }
-      },
-      "required": ["title"]
+      }
     }
   }
 }`
@@ -197,22 +216,90 @@ func getSchema(r s.Resource) string {
 var OpenApiSchema = must(openapi3.NewLoader().LoadFromData(
 	[]byte(OpenAPISchemaBytes)))
 
+const ExpectedSchema = `{
+  "name": "pkg",
+  "version": "0.0.0",
+  "config": {},
+  "provider": {},
+  "resources": {
+    "pkg:index:Todo": {
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "todoId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "completed",
+        "id",
+        "order",
+        "title",
+        "todoId",
+        "url"
+      ],
+      "inputProperties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "requiredInputs": [
+        "completed",
+        "id",
+        "order",
+        "title",
+        "url"
+      ],
+      "stateInputs": {
+        "properties": {
+          "todoId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "todoId"
+        ]
+      }
+    }
+  }
+}`
+
 func TestSchema(t *testing.T) {
+	m := New(OpenApiSchema)
 	r := (&Resource{
-		Token: "todo:index:Todo",
-		Create: &Operation{
-			Operation: *OpenApiSchema.Paths["/todos"].Post,
-		},
-		Read: &Operation{
-			Operation: *OpenApiSchema.Paths["/todos/{todoId}"].Get,
-		},
-		Update: &Operation{
-			Operation: *OpenApiSchema.Paths["/todos/{todoId}"].Patch,
-		},
-		Delete: &Operation{
-			Operation: *OpenApiSchema.Paths["/todos/{todoId}"].Delete,
-		},
+		Token:  "todo:index:Todo",
+		Create: m.NewOperation(OpenApiSchema.Paths["/todos"].Post),
+		Read:   m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Get),
+		Update: m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Patch),
+		Delete: m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Delete),
 	}).Schema()
 
-	assert.Equal(t, "", getSchema(r))
+	schema := new(bytes.Buffer)
+	require.NoError(t, json.Indent(schema, []byte(getSchema(r)), "", "  "))
+	assert.Equal(t, ExpectedSchema, schema.String())
 }

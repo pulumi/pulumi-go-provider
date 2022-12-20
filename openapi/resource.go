@@ -87,10 +87,6 @@ func (r *resource) GetSchema(reg s.RegisterDerivativeType) (schema.ResourceSpec,
 		}
 	}
 
-	if err := errs.ErrorOrNil(); err != nil {
-		return schema.ResourceSpec{}, err
-	}
-
 	return schema.ResourceSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
 			Description: r.Description,
@@ -104,7 +100,7 @@ func (r *resource) GetSchema(reg s.RegisterDerivativeType) (schema.ResourceSpec,
 			Required:   state.required.SortedValues(),
 		},
 		DeprecationMessage: r.DeprecationMessage,
-	}, nil
+	}, errs.ErrorOrNil()
 }
 
 func (r *resource) GetToken() (tokens.Type, error) {

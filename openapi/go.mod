@@ -6,6 +6,7 @@ module github.com/pulumi/pulumi-go-provider/openapi
 go 1.18
 
 require (
+	github.com/blang/semver v3.5.1+incompatible
 	github.com/getkin/kin-openapi v0.108.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/pulumi/pulumi-go-provider v0.8.0
@@ -26,7 +27,6 @@ require (
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/djherbis/times v1.5.0 // indirect

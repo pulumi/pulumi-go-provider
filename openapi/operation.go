@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"reflect"
+	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hashicorp/go-multierror"
@@ -13,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	res "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	s "github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -21,8 +23,11 @@ import (
 type Operation struct {
 	openapi3.Operation
 
-	Path   string
 	Client *http.Client
+
+	doc      *openapi3.T
+	pathItem *openapi3.PathItem
+	path     string
 }
 
 type properties struct {
@@ -76,16 +81,20 @@ func (op *Operation) schemaInputs(reg s.RegisterDerivativeType) (properties, err
 		props:    map[string]schema.PropertySpec{},
 		required: codegen.NewStringSet(),
 	}
-	r := registerTypes{
-		path: op.Path,
-		reg:  reg,
-	}
+	r := op.register(reg)
 
 	for _, paramRef := range op.Parameters {
 		param := paramRef.Value
-		spec, required := r.extendPath(param.Name).propFromSchema(param.Schema)
-		if param.Required || required {
-			props.required.Add(param.Name)
+		if paramRef.Ref != "" {
+			fmt.Printf("Trying to look at ref: %s\n", paramRef.Ref)
+		}
+		var spec schema.PropertySpec
+		if param.Schema != nil {
+			var required bool
+			spec, required = r.extendPath(param.Name).propFromSchema(param.Schema)
+			if param.Required || required {
+				props.required.Add(param.Name)
+			}
 		}
 
 		if param.Deprecated {
@@ -99,16 +108,19 @@ func (op *Operation) schemaInputs(reg s.RegisterDerivativeType) (properties, err
 
 	var err error
 	if body := op.Operation.RequestBody; body != nil {
-		err = r.extractTypes(reg, props, body.Value.Content)
+		err = r.extractTypes(props, body.Value.Content)
 	}
 	return *props, err
 }
 
 func (r registerTypes) refFromSchema(ref string) schema.TypeSpec {
-	panic("unimplemented")
+	schema, ok := r.schemaRef(ref)
+	contract.Assertf(ok, "Dangling ref: %q", ref)
+	return r.typeFromSchemaValue(schema)
 }
 
 type registerTypes struct {
+	op   *Operation
 	path string
 	reg  s.RegisterDerivativeType
 }
@@ -118,18 +130,8 @@ func (r registerTypes) extendPath(segment string) registerTypes {
 	return r
 }
 
-func (r registerTypes) typeFromSchema(typ *openapi3.SchemaRef) schema.TypeSpec {
-	if typ == nil {
-		return schema.TypeSpec{Ref: "pulumi.json#/Any"}
-	}
-
-	if typ.Ref != "" {
-		return r.refFromSchema(typ.Ref)
-	}
-
+func (r registerTypes) typeFromSchemaValue(v *openapi3.Schema) schema.TypeSpec {
 	// We have a value, so we try to infer the type
-	v := typ.Value
-
 	// Look for primitives
 	switch v.Type {
 	case "string", "number", "integer", "boolean":
@@ -183,6 +185,18 @@ func (r registerTypes) typeFromSchema(typ *openapi3.SchemaRef) schema.TypeSpec {
 
 	// Other values can be added as needed.
 	panic("unimplemented")
+
+}
+
+func (r registerTypes) typeFromSchema(typ *openapi3.SchemaRef) schema.TypeSpec {
+	if typ == nil {
+		return schema.TypeSpec{Ref: "pulumi.json#/Any"}
+	}
+
+	if typ.Ref != "" {
+		return r.refFromSchema(typ.Ref)
+	}
+	return r.typeFromSchemaValue(typ.Value)
 }
 
 // Register a new type based on the current path. The token for the registered type is
@@ -195,11 +209,24 @@ func (r registerTypes) register(typ schema.ComplexTypeSpec) string {
 	return tk
 }
 
-func (r registerTypes) propFromSchema(typ *openapi3.SchemaRef) (schema.PropertySpec, bool) {
-	if typ.Ref != "" {
-		panic("Ref not handled")
+func (r registerTypes) schemaRef(ref string) (*openapi3.Schema, bool) {
+	parts := strings.Split(strings.TrimPrefix(ref, "#/"), "/")
+	contract.Assert(parts[0] == "components")
+	contract.Assert(parts[1] == "schemas")
+	v, err := r.op.doc.Components.Schemas.JSONLookup(parts[2])
+	if err != nil || v == nil {
+		return nil, false
 	}
+	return v.(*openapi3.Schema), true
+}
+
+func (r registerTypes) propFromSchema(typ *openapi3.SchemaRef) (schema.PropertySpec, bool) {
 	v := typ.Value
+	if typ.Ref != "" {
+		val, ok := r.schemaRef(typ.Ref)
+		contract.Assertf(ok, "The schema had a dangling ref")
+		v = val
+	}
 	var deprecated string
 	if v.Deprecated {
 		deprecated = "Deprecated"
@@ -210,6 +237,15 @@ func (r registerTypes) propFromSchema(typ *openapi3.SchemaRef) (schema.PropertyS
 		Default:            v.Default,
 		DeprecationMessage: deprecated,
 	}, !v.Nullable
+}
+
+func (op *Operation) register(reg s.RegisterDerivativeType) registerTypes {
+	id := strings.Split(op.OperationID, "_")
+	return registerTypes{
+		op:   op,
+		path: op.path,
+		reg:  reg,
+	}.extendPath(id[len(id)-1])
 }
 
 func (op *Operation) schemaOutputs(reg s.RegisterDerivativeType) (properties, error) {
@@ -223,24 +259,28 @@ func (op *Operation) schemaOutputs(reg s.RegisterDerivativeType) (properties, er
 		return *props, fmt.Errorf("Could not find 200 response")
 	}
 	response := responseRef.Value
-	err := registerTypes{
-		path: op.Path,
-		reg:  reg,
-	}.extractTypes(reg, props, response.Content)
+	err := op.register(reg).extractTypes(props, response.Content)
 	if err != nil {
 		errs.Errors = append(errs.Errors, err)
 	}
 	return *props, errs.ErrorOrNil()
 }
 
-func (r registerTypes) extractTypes(reg s.RegisterDerivativeType, props *properties, content openapi3.Content) error {
+func (r registerTypes) extractTypes(props *properties, content openapi3.Content) error {
 	if content == nil {
 		return nil
 	}
 	c := content.Get("application/json")
 	if c == nil {
-		return fmt.Errorf("content does not support JSON")
+		if len(content) == 0 {
+			// Nothing but the code returned, so no types to extract.
+			return nil
+		}
+		// We won't be able to decode, but other content types exist.
+		return fmt.Errorf("%s: content does not support JSON, but does support other types",
+			r.path)
 	}
+
 	if v := c.Schema; v != nil {
 		if properties := v.Value.Properties; properties == nil {
 			// If we get back a raw value, just emit it as a prop identified by then
