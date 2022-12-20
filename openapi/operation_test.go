@@ -236,9 +236,6 @@ const ExpectedSchema = `{
         "title": {
           "type": "string"
         },
-        "todoId": {
-          "type": "string"
-        },
         "url": {
           "type": "string"
         }
@@ -248,20 +245,19 @@ const ExpectedSchema = `{
         "id",
         "order",
         "title",
-        "todoId",
         "url"
       ],
       "inputProperties": {
         "completed": {
           "type": "boolean"
         },
-        "id": {
-          "type": "string"
-        },
         "order": {
           "type": "integer"
         },
         "title": {
+          "type": "string"
+        },
+        "todoId": {
           "type": "string"
         },
         "url": {
@@ -270,9 +266,9 @@ const ExpectedSchema = `{
       },
       "requiredInputs": [
         "completed",
-        "id",
         "order",
         "title",
+        "todoId",
         "url"
       ],
       "stateInputs": {

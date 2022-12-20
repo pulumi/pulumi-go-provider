@@ -90,11 +90,11 @@ func (r *resource) GetSchema(reg s.RegisterDerivativeType) (schema.ResourceSpec,
 	return schema.ResourceSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
 			Description: r.Description,
-			Properties:  inputs.props,
-			Required:    inputs.required.SortedValues(),
+			Properties:  props.props,
+			Required:    props.required.SortedValues(),
 		},
-		InputProperties: props.props,
-		RequiredInputs:  props.required.SortedValues(),
+		InputProperties: inputs.props,
+		RequiredInputs:  inputs.required.SortedValues(),
 		StateInputs: &schema.ObjectTypeSpec{
 			Properties: state.props,
 			Required:   state.required.SortedValues(),

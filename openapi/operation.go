@@ -90,6 +90,9 @@ func (op *Operation) schemaInputs(reg s.RegisterDerivativeType) (properties, err
 		}
 		var spec schema.PropertySpec
 		if param.Schema != nil {
+			if param.Schema.Value.ReadOnly {
+				continue
+			}
 			var required bool
 			spec, required = r.extendPath(param.Name).propFromSchema(param.Schema)
 			if param.Required || required {
@@ -108,7 +111,7 @@ func (op *Operation) schemaInputs(reg s.RegisterDerivativeType) (properties, err
 
 	var err error
 	if body := op.Operation.RequestBody; body != nil {
-		err = r.extractTypes(props, body.Value.Content)
+		err = r.extractTypes(props, body.Value.Content, true)
 	}
 	return *props, err
 }
@@ -259,14 +262,14 @@ func (op *Operation) schemaOutputs(reg s.RegisterDerivativeType) (properties, er
 		return *props, fmt.Errorf("Could not find 200 response")
 	}
 	response := responseRef.Value
-	err := op.register(reg).extractTypes(props, response.Content)
+	err := op.register(reg).extractTypes(props, response.Content, false)
 	if err != nil {
 		errs.Errors = append(errs.Errors, err)
 	}
 	return *props, errs.ErrorOrNil()
 }
 
-func (r registerTypes) extractTypes(props *properties, content openapi3.Content) error {
+func (r registerTypes) extractTypes(props *properties, content openapi3.Content, input bool) error {
 	if content == nil {
 		return nil
 	}
@@ -291,6 +294,10 @@ func (r registerTypes) extractTypes(props *properties, content openapi3.Content)
 		} else {
 			// We got structured properties, so project them into an object.
 			for name, prop := range properties {
+				if (prop.Value.ReadOnly && input) ||
+					(prop.Value.WriteOnly && !input) {
+					continue
+				}
 				spec, required := r.propFromSchema(prop)
 				props.addProp(name, spec)
 				if required {
