@@ -22,6 +22,8 @@ type Resource struct {
 	Update *Operation
 	Delete *Operation
 
+	Mappings Mappings
+
 	// Override the default diff behavior.
 	//
 	// If not overridden, a structured diff is used.
@@ -30,6 +32,92 @@ type Resource struct {
 	//
 	// If not overridden, the type information provided by the OpenAPI schema is used.
 	Check func(p.Context, p.CheckRequest) (p.CheckResponse, error)
+}
+
+type Mappings []MapPair
+
+type MapTarget struct {
+	Operation *Operation
+	Property  string
+}
+
+func (mp MapTarget) is(r *Resource, op *Operation) bool {
+	if mp.Operation == op {
+		return true
+	}
+	switch mp.Operation {
+	case createOpId:
+		return r.Create == op
+	case updateOpId:
+		return r.Update == op
+	case deleteOpId:
+		return r.Delete == op
+	case readOpId:
+		return r.Read == op
+	case allOpsId:
+		return true
+	}
+	return false
+}
+
+type MapPair struct {
+	From MapTarget
+	To   MapTarget
+}
+
+// targets indicates if a parameter will be supplied by another parameter, instead of the
+// user.
+//
+// A mapping is considered to target an op if a mapping goes from
+// exclusively different ops to the passed op.
+func (m Mappings) targets(r *Resource, op *Operation, property string) bool {
+	for _, pair := range m {
+		if pair.To.is(r, op) && pair.To.Property == property && !pair.From.is(r, op) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m MapTarget) To(t MapTarget) MapPair {
+	return MapPair{
+		From: m,
+		To:   t,
+	}
+}
+
+// Operation IDs to stand in for pointers to actual operations.
+var (
+	createOpId = new(Operation)
+	updateOpId = new(Operation)
+	deleteOpId = new(Operation)
+	readOpId   = new(Operation)
+	allOpsId   = new(Operation)
+)
+
+// Map a property in the create operation of a resource.
+func MapCreate(property string) MapTarget {
+	return MapTarget{createOpId, property}
+}
+
+// Map a property in the update operation of a resource.
+func MapUpdate(property string) MapTarget {
+	return MapTarget{updateOpId, property}
+}
+
+// Map a property in the delete operation of a resource.
+func MapDelete(property string) MapTarget {
+	return MapTarget{deleteOpId, property}
+}
+
+// Map a property in the read operation of a resource.
+func MapRead(property string) MapTarget {
+	return MapTarget{readOpId, property}
+}
+
+// Map a property in every operation of a resource.
+func MapAll(property string) MapTarget {
+	return MapTarget{allOpsId, property}
 }
 
 func (r *Resource) Runnable() t.CustomResource {
@@ -69,21 +157,22 @@ func (r *resource) GetSchema(reg s.RegisterDerivativeType) (schema.ResourceSpec,
 	state := properties{}
 
 	for _, op := range []*Operation{r.Resource.Create, r.Resource.Update, r.Resource.Delete} {
+		op.mapping = r.Mappings
 		if op != nil {
-			in, e := op.schemaInputs(reg)
+			in, e := op.schemaInputs(&r.Resource, reg)
 			if !err(e) {
 				err(inputs.unionWith(in))
 			}
-			out, e := op.schemaOutputs(reg)
+			out, e := op.schemaOutputs(&r.Resource, reg)
 			if !err(e) {
 				err(props.unionWith(out))
 			}
 		}
 	}
 	if r.Resource.Read != nil {
-		s, e := r.Resource.Read.schemaInputs(reg)
+		s, e := r.Resource.Read.schemaInputs(&r.Resource, reg)
 		if !err(e) {
-			err(state.unionWith(s))
+			state = s
 		}
 	}
 
@@ -153,13 +242,19 @@ func (r *resource) defaultDiff(ctx p.Context, req p.DiffRequest) (p.DiffResponse
 }
 
 func (r *resource) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+	// We allow the user to mutate the inputs, but we still confirm that they are correct
+	// on our own.
 	if r.Resource.Check != nil {
-		return r.Resource.Check(ctx, req)
+		ret, err := r.Resource.Check(ctx, req)
+		if err != nil || len(ret.Failures) > 0 {
+			return ret, err
+		}
+		req.News = ret.Inputs
 	}
-	return r.defaultCheck(ctx, req)
+	return r.schemaCheck(ctx, req)
 }
 
-func (r *resource) defaultCheck(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+func (r *resource) schemaCheck(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	panic("unimplemented")
 }
 

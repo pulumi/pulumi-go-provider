@@ -28,18 +28,33 @@ type Operation struct {
 	doc      *openapi3.T
 	pathItem *openapi3.PathItem
 	path     string
+
+	mapping Mappings
 }
 
 type properties struct {
 	props    map[string]schema.PropertySpec
+	rawProps map[string]*openapi3.SchemaRef
 	required codegen.StringSet
 }
 
-func (p *properties) addProp(name string, prop schema.PropertySpec) {
+func (p *properties) addProp(name string, prop schema.PropertySpec, raw *openapi3.SchemaRef, required bool) {
 	if p.props == nil {
 		p.props = map[string]schema.PropertySpec{}
 	}
 	p.props[name] = prop
+
+	if p.rawProps == nil {
+		p.rawProps = map[string]*openapi3.SchemaRef{}
+	}
+	p.rawProps[name] = raw
+
+	if required {
+		if p.required == nil {
+			p.required = codegen.NewStringSet()
+		}
+		p.required.Add(name)
+	}
 }
 
 func (p *properties) unionWith(other properties) error {
@@ -76,44 +91,44 @@ func (op *Operation) run(ctx p.Context, inputs res.PropertyMap) (res.PropertyMap
 	panic("unimplemented")
 }
 
-func (op *Operation) schemaInputs(reg s.RegisterDerivativeType) (properties, error) {
-	props := &properties{
-		props:    map[string]schema.PropertySpec{},
+func (op *Operation) schemaInputs(resource *Resource, reg s.RegisterDerivativeType) (properties, error) {
+	props := properties{
 		required: codegen.NewStringSet(),
 	}
-	r := op.register(reg)
+	r := op.register(resource, reg)
 
 	for _, paramRef := range op.Parameters {
 		param := paramRef.Value
-		if paramRef.Ref != "" {
-			fmt.Printf("Trying to look at ref: %s\n", paramRef.Ref)
+
+		if op.mapping.targets(resource, op, param.Name) {
+			continue
 		}
-		var spec schema.PropertySpec
 		if param.Schema != nil {
-			if param.Schema.Value.ReadOnly {
-				continue
-			}
-			var required bool
-			spec, required = r.extendPath(param.Name).propFromSchema(param.Schema)
-			if param.Required || required {
-				props.required.Add(param.Name)
+			r.addProp(&props, param.Name, param.Schema, true)
+		} else {
+			err := r.extractTypes(&props, param.Content, true)
+			if err != nil {
+				return props, err
 			}
 		}
 
-		if param.Deprecated {
-			spec.DeprecationMessage = "This resource is depreciated."
+		spec, ok := props.props[param.Name]
+		if ok {
+			if param.Deprecated {
+				spec.DeprecationMessage = "This resource is depreciated."
+			}
+			if param.Description != "" {
+				spec.Description = param.Description
+			}
+			props.props[param.Name] = spec
 		}
-		if param.Description != "" {
-			spec.Description = param.Description
-		}
-		props.props[param.Name] = spec
 	}
 
 	var err error
 	if body := op.Operation.RequestBody; body != nil {
-		err = r.extractTypes(props, body.Value.Content, true)
+		err = r.extractTypes(&props, body.Value.Content, true)
 	}
-	return *props, err
+	return props, err
 }
 
 func (r registerTypes) refFromSchema(ref string) schema.TypeSpec {
@@ -123,9 +138,10 @@ func (r registerTypes) refFromSchema(ref string) schema.TypeSpec {
 }
 
 type registerTypes struct {
-	op   *Operation
-	path string
-	reg  s.RegisterDerivativeType
+	op       *Operation
+	path     string
+	reg      s.RegisterDerivativeType
+	resource *Resource
 }
 
 func (r registerTypes) extendPath(segment string) registerTypes {
@@ -242,16 +258,17 @@ func (r registerTypes) propFromSchema(typ *openapi3.SchemaRef) (schema.PropertyS
 	}, !v.Nullable
 }
 
-func (op *Operation) register(reg s.RegisterDerivativeType) registerTypes {
+func (op *Operation) register(resource *Resource, reg s.RegisterDerivativeType) registerTypes {
 	id := strings.Split(op.OperationID, "_")
 	return registerTypes{
-		op:   op,
-		path: op.path,
-		reg:  reg,
+		op:       op,
+		path:     op.path,
+		reg:      reg,
+		resource: resource,
 	}.extendPath(id[len(id)-1])
 }
 
-func (op *Operation) schemaOutputs(reg s.RegisterDerivativeType) (properties, error) {
+func (op *Operation) schemaOutputs(resource *Resource, reg s.RegisterDerivativeType) (properties, error) {
 	props := &properties{
 		props:    map[string]schema.PropertySpec{},
 		required: codegen.NewStringSet(),
@@ -262,7 +279,7 @@ func (op *Operation) schemaOutputs(reg s.RegisterDerivativeType) (properties, er
 		return *props, fmt.Errorf("Could not find 200 response")
 	}
 	response := responseRef.Value
-	err := op.register(reg).extractTypes(props, response.Content, false)
+	err := op.register(resource, reg).extractTypes(props, response.Content, false)
 	if err != nil {
 		errs.Errors = append(errs.Errors, err)
 	}
@@ -280,7 +297,8 @@ func (r registerTypes) extractTypes(props *properties, content openapi3.Content,
 			return nil
 		}
 		// We won't be able to decode, but other content types exist.
-		return fmt.Errorf("%s: content does not support JSON, but does support other types",
+		return fmt.Errorf(
+			"%s: content does not support JSON, but does support other types",
 			r.path)
 	}
 
@@ -290,21 +308,23 @@ func (r registerTypes) extractTypes(props *properties, content openapi3.Content,
 			// encoding type.
 			props.addProp("json", schema.PropertySpec{
 				TypeSpec: r.typeFromSchema(v),
-			})
+			}, v, true)
 		} else {
 			// We got structured properties, so project them into an object.
 			for name, prop := range properties {
-				if (prop.Value.ReadOnly && input) ||
-					(prop.Value.WriteOnly && !input) {
-					continue
-				}
-				spec, required := r.propFromSchema(prop)
-				props.addProp(name, spec)
-				if required {
-					props.required.Add(name)
-				}
+				r.addProp(props, name, prop, input)
 			}
 		}
 	}
 	return nil
+}
+
+func (r *registerTypes) addProp(props *properties, name string, prop *openapi3.SchemaRef, input bool) {
+	if (prop.Value.ReadOnly && input) ||
+		(prop.Value.WriteOnly && !input) ||
+		r.op.mapping.targets(r.resource, r.op, name) {
+		return
+	}
+	spec, required := r.propFromSchema(prop)
+	props.addProp(name, spec, prop, required)
 }

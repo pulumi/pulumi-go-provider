@@ -257,9 +257,6 @@ const ExpectedSchema = `{
         "title": {
           "type": "string"
         },
-        "todoId": {
-          "type": "string"
-        },
         "url": {
           "type": "string"
         }
@@ -268,7 +265,6 @@ const ExpectedSchema = `{
         "completed",
         "order",
         "title",
-        "todoId",
         "url"
       ],
       "stateInputs": {
@@ -293,6 +289,11 @@ func TestSchema(t *testing.T) {
 		Read:   m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Get),
 		Update: m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Patch),
 		Delete: m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Delete),
+
+		Mappings: Mappings{
+			// TODO: Does it ever make sense to map to another value?
+			MapCreate("id").To(MapAll("todoId")),
+		},
 	}).Schema()
 
 	schema := new(bytes.Buffer)
