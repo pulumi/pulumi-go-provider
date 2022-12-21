@@ -2,7 +2,9 @@ package openapi
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	netUrl "net/url"
 	"path"
 	"reflect"
 	"strings"
@@ -19,6 +21,8 @@ import (
 	s "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+var DefaultClient = new(http.Client)
+
 type Operation struct {
 	openapi3.Operation
 
@@ -29,6 +33,63 @@ type Operation struct {
 	path     string
 
 	mapping Mappings
+}
+
+type url struct {
+	path   string
+	params netUrl.Values
+}
+
+func (u url) build() string {
+	var params string
+	if len(u.params) > 0 {
+		params = "?" + u.params.Encode()
+	}
+	return u.path + params
+}
+
+func (u *url) replace(name, value string) {
+	u.path = strings.ReplaceAll(u.path, "{"+name+"}", value)
+}
+
+func (u *url) query(name, value string) {
+	if u.params == nil {
+		u.params = netUrl.Values{}
+	}
+	u.params.Add(name, value)
+}
+
+func (op *Operation) url() (url, error) {
+	var base string
+	var err error
+	if op.pathItem.Servers != nil {
+		base, err = op.pathItem.Servers.BasePath()
+	} else {
+		base, err = op.doc.Servers.BasePath()
+	}
+	if err != nil {
+		return url{}, err
+	}
+	return url{path: base + op.path}, nil
+}
+
+type body map[string]interface{}
+
+func (op *Operation) body() body {
+	return body{}
+}
+
+func (b body) build() io.Reader {
+	return nil
+}
+
+func (op *Operation) method() string {
+	for method, i := range op.pathItem.Operations() {
+		if i == &op.Operation {
+			return method
+		}
+	}
+	panic("Operation not found in associated pathItem")
 }
 
 type properties struct {

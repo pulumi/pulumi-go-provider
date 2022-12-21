@@ -2,6 +2,10 @@ package openapi
 
 import (
 	"fmt"
+	"hash/fnv"
+	"math/rand"
+	"net/http"
+	"strconv"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hashicorp/go-multierror"
@@ -9,6 +13,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
@@ -454,18 +459,190 @@ func checkTypes(path string, val presource.PropertyValue, typ *openapi3.Schema) 
 	}
 }
 
+func unwrapPValue(v presource.PropertyValue) presource.PropertyValue {
+	for {
+		switch {
+		case v.IsSecret():
+			v = v.SecretValue().Element
+		case v.IsOutput():
+			contract.Assert(v.OutputValue().Known)
+			v = v.OutputValue().Element
+		default:
+			return v
+		}
+	}
+}
+
+func stringifyPValue(v presource.PropertyValue) (string, error) {
+	v = unwrapPValue(v)
+	switch {
+	case v.IsString():
+		return v.StringValue(), nil
+	case v.IsNumber():
+		return strconv.FormatFloat(v.NumberValue(), 'f', -1, 64), nil
+	case v.IsBool():
+		if v.BoolValue() {
+			return "true", nil
+		}
+		return "false", nil
+	default:
+		return "", fmt.Errorf("could not stringify value of type %s", v.TypeString())
+	}
+}
+
+func prepareRequest(op *Operation, inputs presource.PropertyMap) (*http.Request, error) {
+	url, err := op.url()
+	if err != nil {
+		return nil, fmt.Errorf("retrieving url: %w", err)
+	}
+	body := op.body()
+	header := http.Header{}
+	cookies := []*http.Cookie{}
+	for i, paramRef := range op.Parameters {
+		param := paramRef.Value
+		v, ok := inputs[presource.PropertyKey(param.Name)]
+		if ok {
+			v = unwrapPValue(v)
+		}
+		switch param.In {
+		case openapi3.ParameterInPath:
+			if !ok {
+				return nil, fmt.Errorf("%s: missing path parameter", param.Name)
+			}
+
+			s, err := stringifyPValue(v)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", param.Name, err)
+			}
+			url.replace(param.Name, s)
+		case openapi3.ParameterInQuery:
+			if !ok {
+				continue
+			}
+			s, err := stringifyPValue(v)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", param.Name, err)
+			}
+			url.query(param.Name, s)
+		case openapi3.ParameterInHeader:
+			if !ok {
+				continue
+			}
+			s, err := stringifyPValue(v)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", param.Name, err)
+			}
+			header.Add(param.Name, s)
+		case openapi3.ParameterInCookie:
+			if !ok {
+				continue
+			}
+			s, err := stringifyPValue(v)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", param.Name, err)
+			}
+			cookies = append(cookies, &http.Cookie{
+				Name:  param.Name,
+				Value: s,
+			})
+
+		default:
+			return nil, fmt.Errorf("parameter[%d] has invalid 'in:' component: %q", i, param.In)
+		}
+
+	}
+	req, err := http.NewRequest(op.method(), url.build(), body.build())
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+	if req.Header == nil {
+		req.Header = header
+	} else {
+		for k, v := range header {
+			for _, v := range v {
+				req.Header.Add(k, v)
+			}
+		}
+	}
+
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	return req, nil
+}
+
+func collectResponse(op *Operation, response *http.Response) (presource.PropertyMap, error) {
+	panic("")
+}
+
+func runOp(ctx p.Context, op *Operation, inputs presource.PropertyMap) (presource.PropertyMap, error) {
+	client := op.Client
+	if client == nil {
+		client = DefaultClient
+	}
+
+	req, err := prepareRequest(op, inputs)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return collectResponse(op, response)
+}
+
 func (r *resource) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	panic("unimplemented")
+	id := id(req.Urn)
+	if req.Preview {
+		return p.CreateResponse{
+			ID: id,
+		}, nil
+	}
+
+	result, err := runOp(ctx, r.Resource.Create, req.Properties)
+	return p.CreateResponse{
+		ID:         id,
+		Properties: result,
+	}, err
+}
+
+func id(urn presource.URN) string {
+	hasher := fnv.New64()
+	_, err := hasher.Write([]byte(string(urn)))
+	contract.AssertNoError(err)
+	rand := rand.New(rand.NewSource(int64(hasher.Sum64())))
+	post := rand.Int() % 999_999
+	return fmt.Sprintf("%s-%d", urn.Name().Name(), post)
 }
 
 func (r *resource) Delete(ctx p.Context, req p.DeleteRequest) error {
-	panic("unimplemented")
+	_, err := runOp(ctx, r.Resource.Delete, req.Properties)
+	return err
 }
 
 func (r *resource) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+	// Resource needs to layer ID, inputs and state together for this request.
+	//
+	// That will require some more work.
 	panic("unimplemented")
 }
 
 func (r *resource) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	panic("unimplemented")
+	inputs := req.News.Copy()
+	for _, c := range req.IgnoreChanges {
+		inputs[c] = req.Olds[c]
+	}
+	if req.Preview {
+		return p.UpdateResponse{
+			Properties: req.Olds,
+		}, nil
+	}
+	props, err := runOp(ctx, r.Resource.Update, inputs)
+	return p.UpdateResponse{
+		Properties: props,
+	}, err
 }
