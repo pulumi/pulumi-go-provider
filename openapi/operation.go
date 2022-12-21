@@ -34,20 +34,20 @@ type Operation struct {
 
 type properties struct {
 	props    map[string]schema.PropertySpec
-	rawProps map[string]*openapi3.SchemaRef
+	rawTypes map[string]*openapi3.Schema
 	required codegen.StringSet
 }
 
-func (p *properties) addProp(name string, prop schema.PropertySpec, raw *openapi3.SchemaRef, required bool) {
+func (p *properties) addProp(name string, prop schema.PropertySpec, raw *openapi3.Schema, required bool) {
 	if p.props == nil {
 		p.props = map[string]schema.PropertySpec{}
 	}
 	p.props[name] = prop
 
-	if p.rawProps == nil {
-		p.rawProps = map[string]*openapi3.SchemaRef{}
+	if p.rawTypes == nil {
+		p.rawTypes = map[string]*openapi3.Schema{}
 	}
-	p.rawProps[name] = raw
+	p.rawTypes[name] = raw
 
 	if required {
 		if p.required == nil {
@@ -103,13 +103,14 @@ func (op *Operation) schemaInputs(resource *Resource, reg s.RegisterDerivativeTy
 		if op.mapping.targets(resource, op, param.Name) {
 			continue
 		}
+		var err error
 		if param.Schema != nil {
-			r.addProp(&props, param.Name, param.Schema, true)
+			err = r.addProp(&props, param.Name, param.Schema, true)
 		} else {
-			err := r.extractTypes(&props, param.Content, true)
-			if err != nil {
-				return props, err
-			}
+			err = r.extractTypes(&props, param.Content, true)
+		}
+		if err != nil {
+			return props, err
 		}
 
 		spec, ok := props.props[param.Name]
@@ -302,29 +303,42 @@ func (r registerTypes) extractTypes(props *properties, content openapi3.Content,
 			r.path)
 	}
 
+	var errs multierror.Error
 	if v := c.Schema; v != nil {
 		if properties := v.Value.Properties; properties == nil {
 			// If we get back a raw value, just emit it as a prop identified by then
 			// encoding type.
 			props.addProp("json", schema.PropertySpec{
 				TypeSpec: r.typeFromSchema(v),
-			}, v, true)
+			}, v.Value, true)
 		} else {
 			// We got structured properties, so project them into an object.
 			for name, prop := range properties {
-				r.addProp(props, name, prop, input)
+				err := r.addProp(props, name, prop, input)
+				if err != nil {
+					errs.Errors = append(errs.Errors, err)
+				}
 			}
 		}
 	}
-	return nil
+	return errs.ErrorOrNil()
 }
 
-func (r *registerTypes) addProp(props *properties, name string, prop *openapi3.SchemaRef, input bool) {
+func (r *registerTypes) addProp(props *properties, name string, prop *openapi3.SchemaRef, input bool) error {
 	if (prop.Value.ReadOnly && input) ||
 		(prop.Value.WriteOnly && !input) ||
 		r.op.mapping.targets(r.resource, r.op, name) {
-		return
+		return nil
 	}
 	spec, required := r.propFromSchema(prop)
-	props.addProp(name, spec, prop, required)
+	val := prop.Value
+	if prop.Ref != "" {
+		v, ok := r.schemaRef(prop.Ref)
+		if !ok {
+			return fmt.Errorf("Dangling ref: %q", prop.Ref)
+		}
+		val = v
+	}
+	props.addProp(name, spec, val, required)
+	return nil
 }

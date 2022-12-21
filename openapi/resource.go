@@ -1,8 +1,12 @@
 package openapi
 
 import (
+	"fmt"
+
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 
@@ -152,17 +156,13 @@ func (r *resource) GetSchema(reg s.RegisterDerivativeType) (schema.ResourceSpec,
 		errs.Errors = append(errs.Errors, err)
 		return true
 	}
-	inputs := properties{}
+	inputs := r.collectInputs(reg, err)
 	props := properties{}
 	state := properties{}
 
 	for _, op := range []*Operation{r.Resource.Create, r.Resource.Update, r.Resource.Delete} {
 		op.mapping = r.Mappings
 		if op != nil {
-			in, e := op.schemaInputs(&r.Resource, reg)
-			if !err(e) {
-				err(inputs.unionWith(in))
-			}
 			out, e := op.schemaOutputs(&r.Resource, reg)
 			if !err(e) {
 				err(props.unionWith(out))
@@ -241,6 +241,20 @@ func (r *resource) defaultDiff(ctx p.Context, req p.DiffRequest) (p.DiffResponse
 	}, nil
 }
 
+func (r *resource) collectInputs(reg s.RegisterDerivativeType, err func(error) bool) properties {
+	inputs := properties{}
+	for _, op := range []*Operation{r.Resource.Create, r.Resource.Update, r.Resource.Delete} {
+		op.mapping = r.Mappings
+		if op != nil {
+			in, e := op.schemaInputs(&r.Resource, reg)
+			if !err(e) {
+				err(inputs.unionWith(in))
+			}
+		}
+	}
+	return inputs
+}
+
 func (r *resource) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	// We allow the user to mutate the inputs, but we still confirm that they are correct
 	// on our own.
@@ -254,8 +268,190 @@ func (r *resource) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, er
 	return r.schemaCheck(ctx, req)
 }
 
+// Verify that the provided inputs match the schema inputs.
+//
+// No effort is made to adjust the provided inputs to match the schema inputs.
 func (r *resource) schemaCheck(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	panic("unimplemented")
+	errs := multierror.Error{}
+	addError := func(err error) bool {
+		if err == nil {
+			return false
+		}
+		errs.Errors = append(errs.Errors, err)
+		return true
+	}
+	seen := map[tokens.Type]struct{}{}
+
+	inputProps := r.collectInputs(func(tk tokens.Type, typ schema.ComplexTypeSpec) (unknown bool) {
+		_, ok := seen[tk]
+		if ok {
+			seen[tk] = struct{}{}
+		}
+		return !ok
+	}, addError)
+	inputs := inputProps.rawTypes
+
+	failures := []p.CheckFailure{}
+
+	// Verify that news is a subset of inputs
+	for k := range req.News {
+		_, ok := inputs[string(k)]
+		if !ok {
+			failures = append(failures, p.CheckFailure{
+				Property: string(k),
+				Reason:   "unknown field",
+			})
+		}
+	}
+
+	// Verify that we are not missing a required input
+	for k, _ := range inputs {
+		_, ok := req.News[presource.PropertyKey(k)]
+		if !ok && inputProps.required.Has(k) {
+			failures = append(failures, p.CheckFailure{
+				Property: k,
+				Reason:   "Missing required property",
+			})
+		}
+	}
+
+	// We have now verified that
+	// 1. Each req.New property has a corresponding openapi3.Schema type
+	// 2. Missing req.New properties are ok or accounted for.
+	//
+	// The only thing remaining is to assert that the inputs match the openapi3.Schema:
+	for k, v := range req.News {
+		schema, ok := inputs[string(k)]
+		if !ok {
+			continue
+		}
+		path, message, ok, err := checkTypes(string(k), v, schema)
+		if err != nil {
+			return p.CheckResponse{}, err
+		}
+		if !ok {
+			failures = append(failures, p.CheckFailure{
+				Property: path,
+				Reason:   message,
+			})
+		}
+	}
+
+	return p.CheckResponse{
+		Inputs:   req.News,
+		Failures: failures,
+	}, nil
+}
+
+func checkTypes(path string, val presource.PropertyValue, typ *openapi3.Schema) (string, string, bool, error) {
+	ok := func() (string, string, bool, error) {
+		return "", "", true, nil
+	}
+	failf := func(message string, a ...any) (string, string, bool, error) {
+		return string(path), fmt.Sprintf(message, a...), false, nil
+	}
+	check := func(err error) (string, string, bool, error) {
+		if err == nil {
+			return ok()
+		}
+		return failf(err.Error())
+	}
+	expected := func(t string) (string, string, bool, error) {
+		return failf("expected %s, found %s", typ.Type, t)
+	}
+	switch {
+
+	// Types that are never allowed, since they are inexpressible in the OpenAPI schema:
+
+	case val.IsArchive():
+		return expected("archive")
+	case val.IsAsset():
+		return expected("asset")
+	case val.IsResourceReference():
+		// OpenAPI can't express resource reference's, so this will always error.
+		return expected("resourceReference")
+
+	// Basic types:
+
+	case val.IsString():
+		return check(typ.VisitJSONString(val.StringValue()))
+	case val.IsBool():
+		return check(typ.VisitJSONBoolean(val.BoolValue()))
+	case val.IsNull():
+		if typ.Nullable {
+			return ok()
+		}
+		return failf("null is not an allowed value here")
+	case val.IsNumber():
+		return check(typ.VisitJSONNumber(val.NumberValue()))
+
+	// Compound types:
+
+	case val.IsArray():
+		v := val.ArrayValue()
+		// If the underlying type is an array, we check each element.
+		if typ.Type == openapi3.TypeArray {
+			for i, v := range v {
+				// TODO: Submit multiple error messages in a check here.
+				path, message, ok, err := checkTypes(fmt.Sprintf("%s[%d]", path, i), v, typ.Items.Value)
+				if err != nil || !ok {
+					return path, message, ok, err
+				}
+			}
+		}
+		// We perform a check of the array properties themselves, but we don't check the
+		// elements, since openapi3 doesn't know how to do that.
+		untypedArray := make([]any, len(v))
+		for i, v := range v {
+			untypedArray[i] = v
+		}
+		return check(typ.WithItems(&openapi3.Schema{}).VisitJSONArray(untypedArray))
+	case val.IsObject():
+		obj := val.ObjectValue()
+		if len(typ.Properties) == 0 && len(obj) > 0 {
+			return expected("object")
+		}
+
+		// Check that present values are what they should be.
+		for k, v := range obj {
+			path := fmt.Sprintf("%s.%s", path, string(k))
+			typ, ok := typ.Properties[string(k)]
+			if !ok {
+				return path, "unexpected field", false, nil
+			}
+			path, message, ok, err := checkTypes(path, v, typ.Value)
+			if !ok || err != nil {
+				return path, message, ok, err
+			}
+		}
+
+		// Check for missing values.
+		for k, v := range typ.Properties {
+			path := fmt.Sprintf("%s.%s", path, string(k))
+			_, ok := obj[presource.PropertyKey(k)]
+			if !ok && !v.Value.Nullable {
+				return path, "missing required key", false, nil
+			}
+		}
+
+		return ok()
+
+	// Passthrough Pulumi types:
+
+	case val.IsOutput():
+		v := val.OutputValue()
+		if v.Known {
+			return checkTypes(path, v.Element, typ)
+		}
+		// We just accept unknown values. They are not generally typed correctly so it
+		// isn't worth type checking them.
+		return ok()
+	case val.IsSecret():
+		return checkTypes(path, val.SecretValue().Element, typ)
+
+	default:
+		return "", "", false, fmt.Errorf("unexpected property value kind: %T", val.V)
+	}
 }
 
 func (r *resource) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
