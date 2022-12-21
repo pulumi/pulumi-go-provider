@@ -924,13 +924,6 @@ type ConstructFunc = func(
 type ConstructResponse struct{ inner *rpc.ConstructResponse }
 
 func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	fmt.Printf("stack=%v\nproject=%v\nparent=%v\ntype=%v\nname=%v\n",
-		req.GetStack(),
-		req.GetProject(),
-		req.GetParent(),
-		req.GetType(),
-		req.GetName(),
-	)
 	// This returns the URN of the parent, we just need the type.
 	parent := tokens.Type(req.GetParent())
 	if parent != "" {
@@ -944,7 +937,6 @@ func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*
 		tokens.Type(req.GetType()),
 		tokens.QName(req.GetName()),
 	)
-	fmt.Printf("urn.Type() = %v\n", urn.Type())
 	f := func(ctx Context, construct ConstructFunc) (ConstructResponse, error) {
 		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
 			func(
