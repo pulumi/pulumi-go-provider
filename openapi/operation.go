@@ -14,7 +14,6 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	res "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	s "github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -132,12 +131,6 @@ func (op *Operation) schemaInputs(resource *Resource, reg s.RegisterDerivativeTy
 	return props, err
 }
 
-func (r registerTypes) refFromSchema(ref string) schema.TypeSpec {
-	schema, ok := r.schemaRef(ref)
-	contract.Assertf(ok, "Dangling ref: %q", ref)
-	return r.typeFromSchemaValue(schema)
-}
-
 type registerTypes struct {
 	op       *Operation
 	path     string
@@ -213,9 +206,9 @@ func (r registerTypes) typeFromSchema(typ *openapi3.SchemaRef) schema.TypeSpec {
 		return schema.TypeSpec{Ref: "pulumi.json#/Any"}
 	}
 
-	if typ.Ref != "" {
-		return r.refFromSchema(typ.Ref)
-	}
+	// if typ.Ref != "" {
+	// 	TODO: Does it matter that its a ref?
+	// }
 	return r.typeFromSchemaValue(typ.Value)
 }
 
@@ -229,24 +222,8 @@ func (r registerTypes) register(typ schema.ComplexTypeSpec) string {
 	return tk
 }
 
-func (r registerTypes) schemaRef(ref string) (*openapi3.Schema, bool) {
-	parts := strings.Split(strings.TrimPrefix(ref, "#/"), "/")
-	contract.Assert(parts[0] == "components")
-	contract.Assert(parts[1] == "schemas")
-	v, err := r.op.doc.Components.Schemas.JSONLookup(parts[2])
-	if err != nil || v == nil {
-		return nil, false
-	}
-	return v.(*openapi3.Schema), true
-}
-
 func (r registerTypes) propFromSchema(typ *openapi3.SchemaRef) (schema.PropertySpec, bool) {
 	v := typ.Value
-	if typ.Ref != "" {
-		val, ok := r.schemaRef(typ.Ref)
-		contract.Assertf(ok, "The schema had a dangling ref")
-		v = val
-	}
 	var deprecated string
 	if v.Deprecated {
 		deprecated = "Deprecated"
@@ -332,13 +309,6 @@ func (r *registerTypes) addProp(props *properties, name string, prop *openapi3.S
 	}
 	spec, required := r.propFromSchema(prop)
 	val := prop.Value
-	if prop.Ref != "" {
-		v, ok := r.schemaRef(prop.Ref)
-		if !ok {
-			return fmt.Errorf("Dangling ref: %q", prop.Ref)
-		}
-		val = v
-	}
 	props.addProp(name, spec, val, required)
 	return nil
 }
