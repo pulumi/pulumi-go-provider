@@ -20,6 +20,8 @@ test_unit: build
 lint: lint-golang lint-copyright
 lint-golang:
 	golangci-lint run -c .golangci.yaml --timeout 5m
+	cd openapi && golangci-lint run -c ../.golangci.yaml --timeout 5m
+	cd integration && golangci-lint run -c ../.golangci.yaml --timeout 5m
 lint-copyright:
 	pulumictl copyright -x 'examples/**'
 

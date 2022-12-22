@@ -1,3 +1,17 @@
+// Copyright 2022, Pulumi Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package openapi
 
 import (
@@ -12,7 +26,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -53,20 +66,20 @@ type MapTarget struct {
 	Property  string
 }
 
-func (mp MapTarget) is(r *Resource, op *Operation) bool {
-	if mp.Operation == op {
+func (m MapTarget) is(r *Resource, op *Operation) bool {
+	if m.Operation == op {
 		return true
 	}
-	switch mp.Operation {
-	case createOpId:
+	switch m.Operation {
+	case createOpID:
 		return r.Create == op
-	case updateOpId:
+	case updateOpID:
 		return r.Update == op
-	case deleteOpId:
+	case deleteOpID:
 		return r.Delete == op
-	case readOpId:
+	case readOpID:
 		return r.Read == op
-	case allOpsId:
+	case allOpsID:
 		return true
 	}
 	return false
@@ -100,36 +113,36 @@ func (m MapTarget) To(t MapTarget) MapPair {
 
 // Operation IDs to stand in for pointers to actual operations.
 var (
-	createOpId = new(Operation)
-	updateOpId = new(Operation)
-	deleteOpId = new(Operation)
-	readOpId   = new(Operation)
-	allOpsId   = new(Operation)
+	createOpID = new(Operation)
+	updateOpID = new(Operation)
+	deleteOpID = new(Operation)
+	readOpID   = new(Operation)
+	allOpsID   = new(Operation)
 )
 
 // Map a property in the create operation of a resource.
 func MapCreate(property string) MapTarget {
-	return MapTarget{createOpId, property}
+	return MapTarget{createOpID, property}
 }
 
 // Map a property in the update operation of a resource.
 func MapUpdate(property string) MapTarget {
-	return MapTarget{updateOpId, property}
+	return MapTarget{updateOpID, property}
 }
 
 // Map a property in the delete operation of a resource.
 func MapDelete(property string) MapTarget {
-	return MapTarget{deleteOpId, property}
+	return MapTarget{deleteOpID, property}
 }
 
 // Map a property in the read operation of a resource.
 func MapRead(property string) MapTarget {
-	return MapTarget{readOpId, property}
+	return MapTarget{readOpID, property}
 }
 
 // Map a property in every operation of a resource.
 func MapAll(property string) MapTarget {
-	return MapTarget{allOpsId, property}
+	return MapTarget{allOpsID, property}
 }
 
 func (r *Resource) Runnable() t.CustomResource {
@@ -356,7 +369,7 @@ func checkTypes(path string, val presource.PropertyValue, typ *openapi3.Schema) 
 		return "", "", true, nil
 	}
 	failf := func(message string, a ...any) (string, string, bool, error) {
-		return string(path), fmt.Sprintf(message, a...), false, nil
+		return path, fmt.Sprintf(message, a...), false, nil
 	}
 	check := func(err error) (string, string, bool, error) {
 		if err == nil {
@@ -435,7 +448,7 @@ func checkTypes(path string, val presource.PropertyValue, typ *openapi3.Schema) 
 
 		// Check for missing values.
 		for k, v := range typ.Properties {
-			path := fmt.Sprintf("%s.%s", path, string(k))
+			path := fmt.Sprintf("%s.%s", path, k)
 			_, ok := obj[presource.PropertyKey(k)]
 			if !ok && !v.Value.Nullable {
 				return path, "missing required key", false, nil
@@ -612,7 +625,9 @@ func collectResponse(resource *Resource, op *Operation, response *http.Response)
 	return presource.NewPropertyMapFromMap(properties), nil
 }
 
-func runOp(ctx p.Context, resource *Resource, op *Operation, inputs presource.PropertyMap) (presource.PropertyMap, error) {
+func runOp(
+	ctx p.Context, resource *Resource, op *Operation, inputs presource.PropertyMap,
+) (presource.PropertyMap, error) {
 	client := op.Client
 	if client == nil {
 		client = DefaultClient
@@ -652,7 +667,7 @@ func id(urn presource.URN) string {
 	hasher := fnv.New64()
 	_, err := hasher.Write([]byte(string(urn)))
 	contract.AssertNoError(err)
-	rand := rand.New(rand.NewSource(int64(hasher.Sum64())))
+	rand := rand.New(rand.NewSource(int64(hasher.Sum64()))) // nolint: gosec
 	post := rand.Int() % 999_999
 	return fmt.Sprintf("%s-%d", urn.Name().Name(), post)
 }

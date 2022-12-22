@@ -213,7 +213,7 @@ func getSchema(r s.Resource) string {
 	})).GetSchema(p.GetSchemaRequest{})).Schema
 }
 
-var OpenApiSchema = must(openapi3.NewLoader().LoadFromData(
+var OpenAPISchema = must(openapi3.NewLoader().LoadFromData(
 	[]byte(OpenAPISchemaBytes)))
 
 const ExpectedSchema = `{
@@ -282,13 +282,14 @@ const ExpectedSchema = `{
 }`
 
 func TestSchema(t *testing.T) {
-	m := New(OpenApiSchema)
+	t.Parallel()
+	m := New(OpenAPISchema)
 	r := (&Resource{
 		Token:  "todo:index:Todo",
-		Create: m.NewOperation(OpenApiSchema.Paths["/todos"].Post),
-		Read:   m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Get),
-		Update: m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Patch),
-		Delete: m.NewOperation(OpenApiSchema.Paths["/todos/{todoId}"].Delete),
+		Create: m.NewOperation(OpenAPISchema.Paths["/todos"].Post),
+		Read:   m.NewOperation(OpenAPISchema.Paths["/todos/{todoId}"].Get),
+		Update: m.NewOperation(OpenAPISchema.Paths["/todos/{todoId}"].Patch),
+		Delete: m.NewOperation(OpenAPISchema.Paths["/todos/{todoId}"].Delete),
 
 		Mappings: Mappings{
 			// TODO: Does it ever make sense to map to another value?
