@@ -74,18 +74,23 @@ func (u *url) query(name, value string) {
 	u.params.Add(name, value)
 }
 
+func serversDefaultURL(servers openapi3.Servers) string {
+	for _, s := range servers {
+		if s.URL != "" {
+			return s.URL
+		}
+	}
+	return "/"
+}
+
 func (op *Operation) url() (url, error) {
-	var base string
-	var err error
+	var servers openapi3.Servers
 	if op.pathItem.Servers != nil {
-		base, err = op.pathItem.Servers.BasePath()
+		servers = op.pathItem.Servers
 	} else {
-		base, err = op.doc.Servers.BasePath()
+		servers = op.doc.Servers
 	}
-	if err != nil {
-		return url{}, err
-	}
-	return url{path: base + op.path}, nil
+	return url{path: serversDefaultURL(servers) + op.path}, nil
 }
 
 type body map[string]interface{}
@@ -100,11 +105,11 @@ func (b body) build() io.Reader {
 
 func (op *Operation) method() string {
 	for method, i := range op.pathItem.Operations() {
-		if i == &op.Operation {
+		if i.OperationID == op.OperationID {
 			return method
 		}
 	}
-	panic("Operation not found in associated pathItem")
+	panic(fmt.Sprintf("Operation %s not found in associated pathItem", op.OperationID))
 }
 
 type properties struct {
