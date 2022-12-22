@@ -23,7 +23,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )
 
@@ -88,13 +87,15 @@ func prepareRequest(ctx p.Context, op *Operation, inputs presource.PropertyMap) 
 	if err != nil {
 		return nil, fmt.Errorf("retrieving url: %w", err)
 	}
-	body := op.body()
 	header := http.Header{}
 	cookies := []*http.Cookie{}
+	bodyParams := inputs.Copy()
 	for i, paramRef := range op.Parameters {
 		param := paramRef.Value
 		v, ok := inputs[presource.PropertyKey(param.Name)]
 		if ok {
+			// This is not a body value since it is a Parameter.
+			delete(bodyParams, presource.PropertyKey(param.Name))
 			v = unwrapPValue(v)
 		}
 		switch param.In {
@@ -144,6 +145,16 @@ func prepareRequest(ctx p.Context, op *Operation, inputs presource.PropertyMap) 
 		}
 
 	}
+
+	body := op.body()
+	for name, value := range bodyParams {
+		v, err := jsonifyPValue(value)
+		if err != nil {
+			return nil, err
+		}
+		body.add(string(name), v)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, op.method(), url.build(), body.build())
 	if err != nil {
 		return nil, fmt.Errorf("failed to build request: %w", err)

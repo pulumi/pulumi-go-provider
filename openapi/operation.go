@@ -15,6 +15,8 @@
 package openapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -90,17 +92,33 @@ func (op *Operation) url() (url, error) {
 	} else {
 		servers = op.doc.Servers
 	}
-	return url{path: serversDefaultURL(servers) + op.path}, nil
+	base := serversDefaultURL(servers)
+	segment := op.path
+
+	// This allows joining URLs like example.com/ with paths like /example into
+	// example.com/example instead of example.com//example.
+	if strings.HasPrefix(segment, "/") {
+		base = strings.TrimSuffix(base, "/")
+	}
+
+	return url{path: base + segment}, nil
 }
 
-type body map[string]interface{}
+type body map[string]any
 
 func (op *Operation) body() body {
 	return body{}
 }
 
+func (b body) add(name string, value any) {
+	// TODO: re-mapping should be handled here
+	b[name] = value
+}
+
 func (b body) build() io.Reader {
-	return nil
+	m, err := json.Marshal(b)
+	contract.AssertNoErrorf(err, "Should be constructed of valid JSON values")
+	return bytes.NewBuffer(m)
 }
 
 func (op *Operation) method() string {

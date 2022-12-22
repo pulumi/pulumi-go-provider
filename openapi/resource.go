@@ -503,6 +503,45 @@ func stringifyPValue(v presource.PropertyValue) (string, error) {
 	}
 }
 
+func jsonifyPValue(v presource.PropertyValue) (any, error) {
+	v = unwrapPValue(v)
+	switch {
+	case v.IsString():
+		return v.StringValue(), nil
+	case v.IsBool():
+		return v.BoolValue(), nil
+	case v.IsNull():
+		return nil, nil
+	case v.IsNumber():
+		return v.NumberValue(), nil
+
+	case v.IsArray():
+		arr := v.ArrayValue()
+		out := make([]any, len(arr))
+		var err error
+		for i, a := range arr {
+			out[i], err = jsonifyPValue(a)
+			if err != nil {
+				return nil, fmt.Errorf("[%d]: %w", i, err)
+			}
+		}
+		return out, nil
+	case v.IsObject():
+		obj := v.ObjectValue()
+		out := make(map[string]any, len(obj))
+		var err error
+		for k, v := range obj {
+			out[string(k)], err = jsonifyPValue(v)
+			if err != nil {
+				return nil, fmt.Errorf("[%q]: %w", string(k), err)
+			}
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("cannot convert PValue of type %s to JSON", v.TypeString())
+	}
+}
+
 func (r *resource) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
 	id := id(req.Urn)
 	if req.Preview {
