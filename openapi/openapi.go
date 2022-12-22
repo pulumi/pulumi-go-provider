@@ -14,3 +14,52 @@
 
 // Create a Pulumi provider by deriving from an OpenAPI schema.
 package openapi
+
+import (
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+
+	p "github.com/pulumi/pulumi-go-provider"
+	t "github.com/pulumi/pulumi-go-provider/middleware"
+	"github.com/pulumi/pulumi-go-provider/middleware/cancel"
+	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
+)
+
+type Options struct {
+	schema.Metadata
+	Resources []Resource
+}
+
+func (o Options) dispatch() dispatch.Options {
+	customs := map[tokens.Type]t.CustomResource{}
+	for _, r := range o.Resources {
+		tk, err := r.Schema().GetToken()
+		contract.AssertNoError(err)
+		customs[tk] = r.Runnable()
+	}
+	return dispatch.Options{
+		Customs: customs,
+	}
+}
+
+func (o Options) schema() schema.Options {
+	resources := []schema.Resource{}
+	for _, r := range o.Resources {
+		resources = append(resources, r.Schema())
+	}
+	return schema.Options{
+		Metadata:  o.Metadata,
+		Resources: resources,
+	}
+}
+
+func Provider(opts Options) p.Provider {
+	return Wrap(p.Provider{}, opts)
+}
+
+func Wrap(provider p.Provider, opts Options) p.Provider {
+	provider = dispatch.Wrap(provider, opts.dispatch())
+	provider = schema.Wrap(provider, opts.schema())
+	return cancel.Wrap(provider)
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	res "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	s "github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -124,6 +125,9 @@ func (p *properties) unionWith(other properties) error {
 	if p.props == nil {
 		p.props = map[string]schema.PropertySpec{}
 	}
+	if p.rawTypes == nil {
+		p.rawTypes = map[string]*openapi3.Schema{}
+	}
 	if p.required == nil {
 		p.required = codegen.NewStringSet()
 	}
@@ -134,6 +138,8 @@ func (p *properties) unionWith(other properties) error {
 		existing, ok := p.props[name]
 		if !ok {
 			p.props[name] = prop
+			p.rawTypes[name], ok = other.rawTypes[name]
+			contract.Assert(ok)
 			continue
 		}
 
@@ -308,10 +314,7 @@ func (op *Operation) register(resource *Resource, reg s.RegisterDerivativeType) 
 }
 
 func (op *Operation) schemaOutputs(resource *Resource, reg s.RegisterDerivativeType) (properties, error) {
-	props := &properties{
-		props:    map[string]schema.PropertySpec{},
-		required: codegen.NewStringSet(),
-	}
+	props := &properties{}
 	var errs multierror.Error
 	responseRef, ok := op.Responses["200"]
 	if !ok {
@@ -369,7 +372,6 @@ func (r *registerTypes) addProp(props *properties, name string, prop *openapi3.S
 		return nil
 	}
 	spec, required := r.propFromSchema(prop)
-	val := prop.Value
-	props.addProp(name, spec, val, required)
+	props.addProp(name, spec, prop.Value, required)
 	return nil
 }

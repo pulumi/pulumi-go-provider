@@ -1,6 +1,8 @@
 package openapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
@@ -10,6 +12,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -310,7 +313,7 @@ func (r *resource) schemaCheck(ctx p.Context, req p.CheckRequest) (p.CheckRespon
 	}
 
 	// Verify that we are not missing a required input
-	for k, _ := range inputs {
+	for k := range inputs {
 		_, ok := req.News[presource.PropertyKey(k)]
 		if !ok && inputProps.required.Has(k) {
 			failures = append(failures, p.CheckFailure{
@@ -345,7 +348,7 @@ func (r *resource) schemaCheck(ctx p.Context, req p.CheckRequest) (p.CheckRespon
 	return p.CheckResponse{
 		Inputs:   req.News,
 		Failures: failures,
-	}, nil
+	}, errs.ErrorOrNil()
 }
 
 func checkTypes(path string, val presource.PropertyValue, typ *openapi3.Schema) (string, string, bool, error) {
@@ -565,17 +568,51 @@ func prepareRequest(op *Operation, inputs presource.PropertyMap) (*http.Request,
 		}
 	}
 
+	// NOTE: When we support arbitrary encodings, we will need to parameterize by the
+	// encoding used.
+	req.Header.Set("Content-Type", "application/json")
+
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
 	return req, nil
 }
 
-func collectResponse(op *Operation, response *http.Response) (presource.PropertyMap, error) {
-	panic("")
+func collectResponse(resource *Resource, op *Operation, response *http.Response) (presource.PropertyMap, error) {
+	if response.StatusCode != 200 {
+		return nil, fmt.Errorf("unexpected code: %d", response.StatusCode)
+	}
+	body := new(bytes.Buffer)
+	// TODO: This needs to catch and recover from buffer to large errors.
+	len, err := body.ReadFrom(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if len == 0 {
+		return presource.PropertyMap{}, nil
+	}
+
+	// TODO: We should check for the encoding we requested, but for now I'm assuming its
+	// JSON.
+
+	properties := map[string]interface{}{}
+	err = json.NewDecoder(body).Decode(&properties)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Verify that the output we received matches the types and values we are
+	// expecting.
+	//
+	// expected, err := op.schemaOutputs(resource,
+	// 	func(tk tokens.Type, typ schema.ComplexTypeSpec) (unknown bool) { return true })
+	// if err != nil {
+	// 	return nil, fmt.Errorf("discovering expected return values: %w", err)
+	// }
+	return presource.NewPropertyMapFromMap(properties), nil
 }
 
-func runOp(ctx p.Context, op *Operation, inputs presource.PropertyMap) (presource.PropertyMap, error) {
+func runOp(ctx p.Context, resource *Resource, op *Operation, inputs presource.PropertyMap) (presource.PropertyMap, error) {
 	client := op.Client
 	if client == nil {
 		client = DefaultClient
@@ -591,8 +628,9 @@ func runOp(ctx p.Context, op *Operation, inputs presource.PropertyMap) (presourc
 	if err != nil {
 		return nil, err
 	}
+	defer response.Body.Close()
 
-	return collectResponse(op, response)
+	return collectResponse(resource, op, response)
 }
 
 func (r *resource) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
@@ -603,7 +641,7 @@ func (r *resource) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse,
 		}, nil
 	}
 
-	result, err := runOp(ctx, r.Resource.Create, req.Properties)
+	result, err := runOp(ctx, &r.Resource, r.Resource.Create, req.Properties)
 	return p.CreateResponse{
 		ID:         id,
 		Properties: result,
@@ -620,7 +658,7 @@ func id(urn presource.URN) string {
 }
 
 func (r *resource) Delete(ctx p.Context, req p.DeleteRequest) error {
-	_, err := runOp(ctx, r.Resource.Delete, req.Properties)
+	_, err := runOp(ctx, &r.Resource, r.Resource.Delete, req.Properties)
 	return err
 }
 
@@ -641,7 +679,7 @@ func (r *resource) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse,
 			Properties: req.Olds,
 		}, nil
 	}
-	props, err := runOp(ctx, r.Resource.Update, inputs)
+	props, err := runOp(ctx, &r.Resource, r.Resource.Update, inputs)
 	return p.UpdateResponse{
 		Properties: props,
 	}, err
