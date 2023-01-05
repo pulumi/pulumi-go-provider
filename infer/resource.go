@@ -876,7 +876,11 @@ func encode(src interface{}, secrets []resource.PropertyPath, preview bool) (
 	if err != nil {
 		return nil, err
 	}
-	return insertSecrets(resource.NewPropertyMapFromMap(props), secrets), nil
+	encoded := insertSecrets(resource.NewPropertyMapFromMap(props), secrets)
+	if preview {
+		encoded = makeComputed(encoded)
+	}
+	return encoded, nil
 }
 
 // Transform secret values into plain values, returning the new map and the list of keys
@@ -922,6 +926,15 @@ func extractSecrets(m resource.PropertyMap) (resource.PropertyMap, []resource.Pr
 	}
 	contract.Assertf(!newMap.ContainsSecrets(), "%d secrets removed", len(secrets))
 	return newMap, secrets
+}
+
+func makeComputed(props resource.PropertyMap) resource.PropertyMap {
+	m := resource.PropertyMap{}
+	for k, v := range props {
+		computedV := resource.MakeComputed(v)
+		m[k] = computedV
+	}
+	return m
 }
 
 func insertSecrets(props resource.PropertyMap, secrets []resource.PropertyPath) resource.PropertyMap {
