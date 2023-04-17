@@ -442,9 +442,6 @@ func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn res
 	defer rc.lock.Unlock()
 	_, ok := rc.m[urn]
 	if !ok {
-		if call != "Delete" && call != "Read" {
-			ctx.Logf(diag.Warning, "Missing expect call to 'Check' before '%s' for resource %q", call, urn)
-		}
 		var r R
 		rc.m[urn] = &r
 	}
