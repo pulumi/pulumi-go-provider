@@ -21,7 +21,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -437,7 +436,7 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 	return introspect.GetToken("pkg", r)
 }
 
-func (rc *derivedResourceController[R, I, O]) getInstance(ctx p.Context, urn resource.URN, call string) *R {
+func (rc *derivedResourceController[R, I, O]) getInstance(_ p.Context, urn resource.URN, call string) *R {
 	rc.lock.Lock()
 	defer rc.lock.Unlock()
 	_, ok := rc.m[urn]

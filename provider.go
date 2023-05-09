@@ -976,7 +976,7 @@ func (p *provider) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginIn
 	}, nil
 }
 
-func (p *provider) Attach(ctx context.Context, req *rpc.PluginAttach) (*emptypb.Empty, error) {
+func (p *provider) Attach(_ context.Context, req *rpc.PluginAttach) (*emptypb.Empty, error) {
 	host, err := pprovider.NewHostClient(req.GetAddress())
 	if err != nil {
 		return nil, err
