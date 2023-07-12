@@ -6,6 +6,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
@@ -29,7 +30,7 @@ func provider() p.Provider {
 
 type Config struct {
 	User     string `pulumi:"user"`
-	Password string `pulumi:"password" provider:"secret"`
+	Password string `pulumi:"password,optional" provider:"secret"`
 }
 
 var _ = (infer.Annotated)((*Config)(nil))
@@ -38,6 +39,17 @@ func (c *Config) Annotate(a infer.Annotator) {
 	a.Describe(&c.User, "The username. Its important but not secret.")
 	a.Describe(&c.Password, "The password. It is very secret.")
 	a.SetDefault(&c.Password, "", "FOO")
+}
+
+var _ = (infer.CustomConfigure)((*Config)(nil))
+
+func (c *Config) Configure(ctx p.Context) error {
+	msg := fmt.Sprintf("credentials provider setup with user: %q", c.User)
+	if c.Password != "" {
+		msg += fmt.Sprintf(" and a very secret password (its %q)", c.Password)
+	}
+	ctx.Log(diag.Info, msg)
+	return nil
 }
 
 type User struct{}

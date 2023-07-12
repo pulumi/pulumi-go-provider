@@ -436,7 +436,7 @@ func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 	return introspect.GetToken("pkg", r)
 }
 
-func (rc *derivedResourceController[R, I, O]) getInstance(_ p.Context, urn resource.URN, call string) *R {
+func (rc *derivedResourceController[R, I, O]) getInstance(_ p.Context, urn resource.URN, _ string) *R {
 	rc.lock.Lock()
 	defer rc.lock.Unlock()
 	_, ok := rc.m[urn]
@@ -848,13 +848,12 @@ func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyV
 			if !ok {
 				if tag.Optional {
 					continue
-				} else {
-					// Create a new unknown output, which we will then type
-					v = resource.NewOutputProperty(resource.Output{
-						Element: resource.NewNullProperty(),
-						Known:   false,
-					})
 				}
+				// Create a new unknown output, which we will then type
+				v = resource.NewOutputProperty(resource.Output{
+					Element: resource.NewNullProperty(),
+					Known:   false,
+				})
 			}
 			result[resource.PropertyKey(tag.Name)] = typeUnknowns(v, field.Type)
 		}
