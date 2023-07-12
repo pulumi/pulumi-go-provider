@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"hash/adler32"
+	"hash/crc32"
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -29,8 +31,27 @@ func provider() p.Provider {
 }
 
 type Config struct {
-	User     string `pulumi:"user"`
-	Password string `pulumi:"password,optional" provider:"secret"`
+	User     string   `pulumi:"user"`
+	Password string   `pulumi:"password,optional" provider:"secret"`
+	HashKind HashKind `pulumi:"hash"`
+
+	hashedPassword string
+}
+
+type HashKind string
+
+var _ = (infer.Enum[HashKind])((*HashKind)(nil))
+
+const (
+	HashAdler HashKind = "Adler32"
+	HashCRC   HashKind = "CRC32"
+)
+
+func (*HashKind) Values() []infer.EnumValue[HashKind] {
+	return []infer.EnumValue[HashKind]{
+		{Value: HashAdler, Description: "Adler32 implements the Adler-32 checksum."},
+		{Value: HashCRC, Description: "CRC32 implements the 32-bit cyclic redundancy check, or CRC-32, checksum."},
+	}
 }
 
 var _ = (infer.Annotated)((*Config)(nil))
@@ -38,7 +59,9 @@ var _ = (infer.Annotated)((*Config)(nil))
 func (c *Config) Annotate(a infer.Annotator) {
 	a.Describe(&c.User, "The username. Its important but not secret.")
 	a.Describe(&c.Password, "The password. It is very secret.")
+	a.Describe(&c.HashKind, `The (entirely uncryptographic) hash function used to encode the "password".`)
 	a.SetDefault(&c.Password, "", "FOO")
+	a.SetDefault(&c.HashKind, HashAdler)
 }
 
 var _ = (infer.CustomConfigure)((*Config)(nil))
@@ -48,6 +71,12 @@ func (c *Config) Configure(ctx p.Context) error {
 	if c.Password != "" {
 		msg += fmt.Sprintf(" and a very secret password (its %q)", c.Password)
 	}
+	switch c.HashKind {
+	case HashAdler:
+		c.hashedPassword = fmt.Sprintf("%d", adler32.Checksum([]byte(c.Password)))
+	case HashCRC:
+		c.hashedPassword = fmt.Sprintf("%d", crc32.ChecksumIEEE([]byte(c.Password)))
+	}
 	ctx.Log(diag.Info, msg)
 	return nil
 }
@@ -55,23 +84,27 @@ func (c *Config) Configure(ctx p.Context) error {
 type User struct{}
 type UserArgs struct{}
 type UserState struct {
-	Value string `pulumi:"value"`
+	Name     string `pulumi:"name"`
+	Password string `pulumi:"password"`
 }
 
 func (*User) Create(ctx p.Context, name string, input UserArgs, preview bool) (string, UserState, error) {
+	config := infer.GetConfig[Config](ctx)
 	return name, UserState{
-		infer.GetConfig[Config](ctx).User,
+		Name:     config.User,
+		Password: config.hashedPassword,
 	}, nil
 }
 
 var _ = (infer.CustomDiff[UserArgs, UserState])((*User)(nil))
 
 func (*User) Diff(ctx p.Context, id string, olds UserState, news UserArgs) (p.DiffResponse, error) {
-	if infer.GetConfig[Config](ctx).User != olds.Value {
+	config := infer.GetConfig[Config](ctx)
+	if config.User != olds.Name {
 		return p.DiffResponse{
 			HasChanges: true,
 			DetailedDiff: map[string]p.PropertyDiff{
-				"value": {Kind: p.UpdateReplace},
+				"name": {Kind: p.UpdateReplace},
 			},
 		}, nil
 	}
