@@ -33,7 +33,7 @@ import (
 // `T` has the same properties as an input or output type for a custom resource, and is
 // responsive to the same interfaces.
 //
-// `T` can implement CustomDiff and CustomCheck.
+// `T` can implement [CustomDiff] and [CustomCheck] and [CustomConfigure].
 func Config[T any]() InferredConfig {
 	return &config[T]{}
 }
@@ -44,6 +44,22 @@ type InferredConfig interface {
 	checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error)
 	diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error)
 	configure(ctx p.Context, req p.ConfigureRequest) error
+}
+
+// A provider that requires custom configuration before running.
+//
+// This interface should be implemented by reference to allow setting private fields on
+// its receiver.
+type CustomConfigure interface {
+	// Configure the provider.
+	//
+	// This method will only be called once per provider process.
+	//
+	// By the time Configure is called, the receiver will be fully hydrated.
+	//
+	// Changes to the receiver will not be saved in state. For normalizing inputs see
+	// [CustomCheck].
+	Configure(ctx p.Context) error
 }
 
 type config[T any] struct {
@@ -235,6 +251,11 @@ func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	}
 	if err != nil {
 		return c.handleConfigFailures(ctx, err)
+	}
+
+	// If we have a custom configure command, call that and return the error if any.
+	if typ := reflect.TypeOf(c.t).Elem(); typ.Implements(reflect.TypeOf((*CustomConfigure)(nil)).Elem()) {
+		return reflect.ValueOf(c.t).Elem().Interface().(CustomConfigure).Configure(ctx)
 	}
 
 	return nil
