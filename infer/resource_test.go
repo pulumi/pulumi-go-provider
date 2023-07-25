@@ -15,9 +15,12 @@
 package infer
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
+	provider "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -266,4 +269,99 @@ func TestFieldGenerator(t *testing.T) {
 		})
 	}
 
+}
+
+type Context struct {
+	context.Context
+}
+
+func (c Context) Log(_ diag.Severity, _ string)                  {}
+func (c Context) Logf(_ diag.Severity, _ string, _ ...any)       {}
+func (c Context) LogStatus(_ diag.Severity, _ string)            {}
+func (c Context) LogStatusf(_ diag.Severity, _ string, _ ...any) {}
+func (c Context) RuntimeInformation() provider.RunInfo           { return provider.RunInfo{} }
+
+func TestDiff(t *testing.T) {
+	t.Parallel()
+	type I struct {
+		Environment map[string]string `pulumi:"environment,optional"`
+	}
+	tests := []struct {
+		olds r.PropertyMap
+		news r.PropertyMap
+		diff map[string]provider.DiffKind
+	}{
+		{
+			olds: r.PropertyMap{
+				"environment": r.NewObjectProperty(r.PropertyMap{
+					"FOO": r.NewStringProperty("foo"),
+				}),
+			},
+			news: r.PropertyMap{
+				"environment": r.NewObjectProperty(r.PropertyMap{
+					"FOO": r.NewStringProperty("bar"),
+				}),
+			},
+			diff: map[string]provider.DiffKind{"environment.FOO": "update"},
+		},
+		{
+			olds: r.PropertyMap{},
+			news: r.PropertyMap{
+				"environment": r.NewObjectProperty(r.PropertyMap{
+					"FOO": r.NewStringProperty("bar"),
+				}),
+			},
+			diff: map[string]provider.DiffKind{"environment": "add"},
+		},
+		{
+			olds: r.PropertyMap{
+				"environment": r.NewObjectProperty(r.PropertyMap{
+					"FOO": r.NewStringProperty("bar"),
+				}),
+			},
+			news: r.PropertyMap{},
+			diff: map[string]provider.DiffKind{"environment": "delete"},
+		},
+		{
+			olds: r.PropertyMap{
+				"environment": r.NewObjectProperty(r.PropertyMap{
+					"FOO": r.NewStringProperty("bar"),
+				}),
+				"output": r.NewNumberProperty(42),
+			},
+			news: r.PropertyMap{},
+			diff: map[string]provider.DiffKind{"environment": "delete"},
+		},
+		{
+			olds: r.PropertyMap{
+				"output": r.NewNumberProperty(42),
+			},
+			news: r.PropertyMap{
+				"environment": r.NewObjectProperty(r.PropertyMap{
+					"FOO": r.NewStringProperty("bar"),
+				}),
+			},
+			diff: map[string]provider.DiffKind{"environment": "add"},
+		},
+	}
+
+	for _, test := range tests {
+		diffRequest := provider.DiffRequest{
+			ID:   "foo",
+			Urn:  r.CreateURN("foo", "a:b:c", "", "proj", "stack"),
+			Olds: test.olds,
+			News: test.news,
+		}
+		resp, err := diff[struct{}, I, any](
+			Context{context.Background()},
+			diffRequest,
+			&struct{}{},
+			func(s string) bool { return false },
+		)
+		assert.NoError(t, err)
+		assert.Len(t, resp.DetailedDiff, len(test.diff))
+		for k, v := range resp.DetailedDiff {
+			assert.Equal(t, test.diff[k], v.Kind)
+		}
+	}
 }

@@ -573,12 +573,14 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 	if err != nil {
 		return p.DiffResponse{}, err
 	}
-	objDiff := req.News.Diff(req.Olds, func(prop resource.PropertyKey) bool {
-		// Olds is an Output, but news is an Input. Output should be a superset of Input,
-		// so we need to filter out fields that are in Output but not Input.
-		_, isInput := inputProps[string(prop)]
-		return !isInput
-	})
+	// Olds is an Output, but news is an Input. Output should be a superset of Input,
+	// so we need to filter out fields that are in Output but not Input.
+	oldInputs := resource.PropertyMap{}
+	for k := range inputProps {
+		key := resource.PropertyKey(k)
+		oldInputs[key] = req.Olds[key]
+	}
+	objDiff := oldInputs.Diff(req.News)
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
 	diff := map[string]p.PropertyDiff{}
 
