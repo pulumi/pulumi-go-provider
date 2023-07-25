@@ -17,7 +17,6 @@ package infer
 import (
 	"fmt"
 	"reflect"
-	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -409,17 +408,14 @@ type InferredResource interface {
 // Create a new InferredResource, where `R` is the resource controller, `I` is the
 // resources inputs and `O` is the resources outputs.
 func Resource[R CustomResource[I, O], I, O any]() InferredResource {
-	return &derivedResourceController[R, I, O]{m: map[resource.URN]*R{}}
+	return &derivedResourceController[R, I, O]{}
 }
 
-type derivedResourceController[R CustomResource[I, O], I, O any] struct {
-	m    map[resource.URN]*R
-	lock sync.Mutex
-}
+type derivedResourceController[R CustomResource[I, O], I, O any] struct{}
 
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
-func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
 	if err := registerTypes[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
@@ -431,29 +427,18 @@ func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDeriv
 	return r, errs.ErrorOrNil()
 }
 
-func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 	var r R
 	return introspect.GetToken("pkg", r)
 }
 
-func (rc *derivedResourceController[R, I, O]) getInstance(_ p.Context, urn resource.URN, _ string) *R {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
-	_, ok := rc.m[urn]
-	if !ok {
-		var r R
-		rc.m[urn] = &r
-	}
-	return rc.m[urn]
+func (*derivedResourceController[R, I, O]) getInstance() *R {
+	var r R
+	return &r
 }
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var r R
-	defer func() {
-		rc.lock.Lock()
-		defer rc.lock.Unlock()
-		rc.m[req.Urn] = &r
-	}()
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that
 		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
@@ -522,7 +507,7 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 }
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	r := rc.getInstance(ctx, req.Urn, "Diff")
+	r := rc.getInstance()
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
 	if hasUpdate {
@@ -619,7 +604,7 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 }
 
 func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-	r := rc.getInstance(ctx, req.Urn, "Create")
+	r := rc.getInstance()
 
 	var input I
 	var err error
@@ -654,7 +639,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 }
 
 func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-	r := rc.getInstance(ctx, req.Urn, "Read")
+	r := rc.getInstance()
 	var inputs I
 	var state O
 	var err error
@@ -699,7 +684,7 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 }
 
 func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-	r := rc.getInstance(ctx, req.Urn, "Update")
+	r := rc.getInstance()
 	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
 	if !ok {
 		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented, "Update is not implemented for resource %s", req.Urn)
@@ -738,7 +723,7 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 }
 
 func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.DeleteRequest) error {
-	r := rc.getInstance(ctx, req.Urn, "Delete")
+	r := rc.getInstance()
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
 		var olds O
@@ -748,9 +733,6 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 		}
 		return del.Delete(ctx, req.ID, olds)
 	}
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
-	delete(rc.m, req.Urn)
 	return nil
 }
 
