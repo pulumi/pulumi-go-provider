@@ -62,9 +62,7 @@ type CustomConfigure interface {
 	Configure(ctx p.Context) error
 }
 
-type config[T any] struct {
-	t *T
-}
+type config[T any] struct{ t *T }
 
 func (*config[T]) underlyingType() reflect.Type {
 	var t T
