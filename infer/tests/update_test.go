@@ -23,12 +23,71 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
+func TestUpdateManualDeps(t *testing.T) {
+	type m = resource.PropertyMap
+	c := resource.MakeComputed
+	s := resource.NewStringProperty
+	n := resource.NewNumberProperty
+
+	test := func(name string, olds, newsPreview, newsUpdate, expectedPreview, expectedUp m) {
+		t.Run(name, func(t *testing.T) {
+			t.Run("preview", func(t *testing.T) {
+				prov := provider()
+				resp, err := prov.Update(p.UpdateRequest{
+					ID:   "some-id",
+					Urn:  urn("Wired", "test"),
+					Olds: olds, News: newsPreview,
+					Preview: true,
+				})
+				assert.NoError(t, err)
+				assert.Equal(t, p.UpdateResponse{
+					Properties: expectedPreview,
+				}, resp)
+			})
+			t.Run("update", func(t *testing.T) {
+				prov := provider()
+				resp, err := prov.Update(p.UpdateRequest{
+					ID:   "some-id",
+					Urn:  urn("Wired", "test"),
+					Olds: olds, News: newsUpdate,
+				})
+				assert.NoError(t, err)
+				assert.Equal(t, p.UpdateResponse{
+					Properties: expectedUp,
+				}, resp)
+			})
+		})
+	}
+
+	test("unchanged",
+		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},  // Old Input
+		m{"string": s("str"), "int": n(5)},                                            // New Preview
+		m{"string": s("str"), "int": n(5)},                                            // New Update
+		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str++")}, // Preview inputs
+		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str++")}) // Full inputs
+
+	test("int-computed",
+		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},     // Old Input
+		m{"string": s("str"), "int": c(n(5))},                                            // New Input
+		m{"string": s("str"), "int": n(10)},                                              // New Update
+		m{"name": s("some-id"), "stringAndInt": c(s("str-5")), "stringPlus": s("str++")}, // Preview inputs
+		m{"name": s("some-id"), "stringAndInt": s("str-10"), "stringPlus": s("str++")})   // Full inputs
+
+	test("string-computed",
+		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},        // Old Input
+		m{"string": c(s("str")), "int": n(5)},                                               // New Input
+		m{"string": s("foo"), "int": n(5)},                                                  // New Update
+		m{"name": s("some-id"), "stringAndInt": c(s("str-5")), "stringPlus": c(s("str++"))}, // Preview inputs
+		m{"name": s("some-id"), "stringAndInt": s("foo-5"), "stringPlus": s("foo++")})       // Full inputs
+
+}
+
 func TestUpdateDefaultDeps(t *testing.T) {
 	c := resource.MakeComputed
 	s := resource.NewStringProperty
 	n := resource.NewNumberProperty
 
-	unwired := func(t *testing.T, newString resource.PropertyValue,
+	test := func(t *testing.T, newString resource.PropertyValue,
 		expectedPreview, expectedUp resource.PropertyMap) {
 		t.Run("preview", func(t *testing.T) {
 			prov := provider()
@@ -79,7 +138,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		})
 	}
 	t.Run("computed", func(t *testing.T) {
-		unwired(t, c(s("old-string")),
+		test(t, c(s("old-string")),
 			resource.PropertyMap{
 				"string":    c(s("old-string")),
 				"int":       n(1),
@@ -97,7 +156,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		)
 	})
 	t.Run("changed", func(t *testing.T) {
-		unwired(t, s("new-string"),
+		test(t, s("new-string"),
 			resource.PropertyMap{
 				"string":    c(s("old-string")),
 				"int":       n(1),
@@ -115,7 +174,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		)
 	})
 	t.Run("unchanged", func(t *testing.T) {
-		unwired(t, s("old-string"),
+		test(t, s("old-string"),
 			resource.PropertyMap{
 				"string":    s("old-string"),
 				"int":       n(1),

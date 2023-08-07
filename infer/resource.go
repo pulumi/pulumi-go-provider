@@ -272,7 +272,20 @@ func markComputed(
 	// If a dependency is computed or has changed, we mark this field as computed.
 	for _, k := range field.deps {
 		k := resource.PropertyKey(k)
-		if inputs[k].IsComputed() || !inputs[k].DeepEquals(oldInputs[k]) {
+
+		// Not all resources embed their inputs as outputs. When they don't we are
+		// unable to perform old-vs-new diffing here.
+		//
+		// This may lead to applies running on old information during
+		// preview. This is possible anyway, if user's dependencies don't
+		// accurately reflect their logic. This is not a problem for non-preview
+		// updates.
+		//
+		// The solution is to require embedding input structs in output structs
+		// (or do it for the user), ensuring that we have access to information
+		// that changed..
+		oldInput, hasOldInput := oldInputs[k]
+		if inputs[k].IsComputed() || (hasOldInput && !inputs[k].DeepEquals(oldInput)) {
 			return resource.MakeComputed(prop)
 		}
 	}
