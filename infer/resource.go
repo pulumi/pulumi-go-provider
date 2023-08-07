@@ -193,6 +193,9 @@ type OutputField interface {
 	AlwaysSecret()
 	// Specify that a state (output) field is never secret, regardless of its dependencies.
 	NeverSecret()
+	// Specify that a state (output) field is always known, regardless of dependencies
+	// or preview.
+	AlwaysKnown()
 	// Specify that a state (output) Field uses data from some args (input) Fields.
 	DependsOn(dependencies ...InputField)
 
@@ -211,54 +214,106 @@ type fieldGenerator struct {
 	stateMatcher introspect.FieldMatcher
 	err          multierror.Error
 
+	fields map[string]*field
+}
+
+func (g *fieldGenerator) getField(name string) *field {
+	f, ok := g.fields[name]
+	if !ok {
+		f = new(field)
+		g.fields[name] = f
+	}
+	return f
+}
+
+type field struct {
 	// The set of tags that should always be secret
-	alwaysSecret map[string]bool
+	alwaysSecret bool
 	// The set of tags that should never be secret
-	neverSecret map[string]bool
-	// A map from a field to its dependencies
-	deps map[string][]string
+	neverSecret bool
+	// A map from a field to its dependencies.
+	deps []string
+
+	// If the output is known, regardless of other factors.
+	known bool
 }
 
 // MarkMap mutates m to comply with the result of the fieldGenerator, applying
 // computedness and secretness as appropriate.
-func (g *fieldGenerator) MarkMap(inputs, m resource.PropertyMap) {
-	// Flow secretness and computedness
-	for output, inputList := range g.deps {
-		output := resource.PropertyKey(output)
-		for _, input := range inputList {
-			input := inputs[resource.PropertyKey(input)]
-			if input.IsComputed() && !m[output].IsComputed() {
-				m[output] = resource.MakeComputed(m[output])
-				break
-			}
-			if input.IsSecret() && !m[output].IsSecret() {
-				m[output] = resource.MakeSecret(m[output])
-			}
+func (g *fieldGenerator) MarkMap(isCreate, isPreview bool) func(oldInputs, inputs, m resource.PropertyMap) {
+	return func(oldInputs, inputs, m resource.PropertyMap) {
+		// Flow secretness and computedness
+		for k, v := range m {
+			m[k] = markField(g.getField(string(k)), v, oldInputs, inputs, isCreate, isPreview)
+		}
+	}
+}
+
+func markComputed(field *field, prop resource.PropertyValue, oldInputs, inputs resource.PropertyMap, isCreate bool) resource.PropertyValue {
+	// If the value is already computed or if it is guaranteed to be known, we don't need to do anything
+	if field.known || prop.IsComputed() {
+		return prop
+	}
+
+	// If this is during a create and the value is not explicitly marked as known, we mark it computed.
+	if isCreate {
+		return resource.MakeComputed(prop)
+	}
+
+	// If a dependency is computed or has changed, we mark this field as computed.
+	for _, k := range field.deps {
+		k := resource.PropertyKey(k)
+		if inputs[k].IsComputed() || !inputs[k].DeepEquals(oldInputs[k]) {
+			return resource.MakeComputed(prop)
 		}
 	}
 
-	// Create mandatory secrets
-	for s := range g.alwaysSecret {
-		s := resource.PropertyKey(s)
-		if m[s].IsComputed() {
-			break
+	return prop
+}
+
+func markSecret(field *field, prop resource.PropertyValue, inputs resource.PropertyMap) resource.PropertyValue {
+	// If we should never return a secret, ensure that the field *is not* marked as
+	// secret, then return.
+	if field.neverSecret {
+		if prop.IsSecret() {
+			prop = prop.SecretValue().Element
 		}
-		if !m[s].IsSecret() {
-			v := m[s]
-			m[s] = resource.NewSecretProperty(&resource.Secret{Element: v})
+		return prop
+	}
+
+	if prop.IsSecret() {
+		return prop
+	}
+
+	// If we should always return a secret, ensure that the field *is* marked as secret,
+	// then return.
+	if field.alwaysSecret {
+		return resource.MakeSecret(prop)
+	}
+
+	// Otherwise secretness is derived from dependencies: any dependency that is
+	// secret makes the field secret.
+	for _, k := range field.deps {
+		if inputs[resource.PropertyKey(k)].IsSecret() {
+			return resource.MakeSecret(prop)
 		}
 	}
-	// Remove never secrets
-	for s := range g.neverSecret {
-		s := resource.PropertyKey(s)
-		if m[s].IsComputed() {
-			break
-		}
-		if m[s].IsSecret() {
-			v := m[s]
-			m[s] = v.SecretValue().Element
-		}
+
+	return prop
+}
+
+func markField(
+	field *field, prop resource.PropertyValue,
+	oldInputs, inputs resource.PropertyMap,
+	isCreate, isPreview bool,
+) resource.PropertyValue {
+	// Fields can only be computed during preview. They must be known by when the resource is actually created.
+	if isPreview {
+		prop = markComputed(field, prop, oldInputs, inputs, isCreate)
 	}
+
+	return markSecret(field, prop, inputs)
+
 }
 
 func (g *fieldGenerator) InputField(a any) InputField {
@@ -289,7 +344,7 @@ func (g *fieldGenerator) InputField(a any) InputField {
 }
 
 func (g *fieldGenerator) OutputField(a any) OutputField {
-	if allFields, ok, err := g.argsMatcher.TargetStructFields(a); ok {
+	if allFields, ok, err := g.stateMatcher.TargetStructFields(a); ok {
 		if err != nil {
 			g.err.Errors = append(g.err.Errors, err)
 			return &errField{}
@@ -324,9 +379,7 @@ func newFieldGenerator[I, O any](i *I, o *O) *fieldGenerator {
 			},
 		},
 
-		alwaysSecret: map[string]bool{},
-		neverSecret:  map[string]bool{},
-		deps:         map[string][]string{},
+		fields: map[string]*field{},
 	}
 }
 
@@ -336,6 +389,7 @@ func newFieldGenerator[I, O any](i *I, o *O) *fieldGenerator {
 type errField struct{}
 
 func (*errField) AlwaysSecret()           {}
+func (*errField) AlwaysKnown()            {}
 func (*errField) NeverSecret()            {}
 func (*errField) DependsOn(...InputField) {}
 func (*errField) isInputField()           {}
@@ -352,26 +406,33 @@ type outputField struct {
 	fields []introspect.FieldTag
 }
 
-func (f *outputField) AlwaysSecret() {
+func (f *outputField) set(set func(string, *field)) {
 	for _, field := range f.fields {
 		name := field.Name
-		f.g.alwaysSecret[name] = true
-		if f.g.neverSecret[name] {
-			f.g.err.Errors = append(f.g.err.Errors,
-				fmt.Errorf("marked field %q as both always secret and never secret", name))
-		}
+		set(name, f.g.getField(name))
 	}
 }
 
-func (f *outputField) NeverSecret() {
-	for _, field := range f.fields {
-		name := field.Name
-		f.g.neverSecret[name] = true
-		if f.g.alwaysSecret[name] {
+func (f *outputField) AlwaysSecret() {
+	f.set(func(name string, field *field) {
+		field.alwaysSecret = true
+		if field.neverSecret {
 			f.g.err.Errors = append(f.g.err.Errors,
 				fmt.Errorf("marked field %q as both always secret and never secret", name))
 		}
-	}
+	})
+}
+
+func (f *outputField) AlwaysKnown() { f.set(func(_ string, field *field) { field.known = true }) }
+
+func (f *outputField) NeverSecret() {
+	f.set(func(name string, field *field) {
+		field.neverSecret = true
+		if field.alwaysSecret {
+			f.g.err.Errors = append(f.g.err.Errors,
+				fmt.Errorf("marked field %q as both always secret and never secret", name))
+		}
+	})
 }
 
 func (f *outputField) DependsOn(deps ...InputField) {
@@ -388,11 +449,10 @@ func (f *outputField) DependsOn(deps ...InputField) {
 			panic(fmt.Sprintf("Unknown InputField type: %T", d))
 		}
 	}
-	for _, field := range f.fields {
-		name := field.Name
-		f.g.deps[name] = append(f.g.deps[name], depNames...)
-	}
+
+	f.set(func(_ string, f *field) { f.deps = append(f.deps, depNames...) })
 }
+
 func (*outputField) isOutputField() {}
 
 // A resource inferred by the Resource function.
@@ -626,11 +686,11 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
 
-	setDeps, err := getDependencies(r, &input, &o)
+	setDeps, err := getDependencies(r, &input, &o, true /* isCreate */, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
-	setDeps(req.Properties, m)
+	setDeps(nil, req.Properties, m)
 
 	return p.CreateResponse{
 		ID:         id,
@@ -711,11 +771,11 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	setDeps, err := getDependencies(r, &news, &o)
+	setDeps, err := getDependencies(r, &news, &o, false /* isCreate */, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	setDeps(req.News, m)
+	setDeps(req.Olds, req.News, m)
 
 	return p.UpdateResponse{
 		Properties: m,
@@ -738,10 +798,10 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 
 // Apply dependencies to a property map, flowing secretness and computedness from input to
 // output.
-type setDeps func(input, output resource.PropertyMap)
+type setDeps func(oldInputs, input, output resource.PropertyMap)
 
 // Get the decency mapping between inputs and outputs of a resource.
-func getDependencies[R, I, O any](r *R, input *I, output *O) (setDeps, error) {
+func getDependencies[R, I, O any](r *R, input *I, output *O, isCreate, isPreview bool) (setDeps, error) {
 	fg := newFieldGenerator(input, output)
 	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
 		r.WireDependencies(fg, input, output)
@@ -751,8 +811,10 @@ func getDependencies[R, I, O any](r *R, input *I, output *O) (setDeps, error) {
 	} else {
 		// We default to assuming that every output field depends on every input field.
 		fg.OutputField(output).DependsOn(fg.InputField(input))
+		contract.AssertNoErrorf(fg.err.ErrorOrNil(), "Default dependency wiring failed")
 	}
-	return fg.MarkMap, nil
+
+	return fg.MarkMap(isCreate, isPreview), nil
 }
 
 func decode(m resource.PropertyMap, dst any, preview bool) (
