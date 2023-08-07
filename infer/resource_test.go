@@ -211,12 +211,11 @@ func TestFieldGenerator(t *testing.T) {
 					"f2": "a string",
 				})
 
-				fg.MarkMap(r.PropertyMap{
+				fg.MarkMap(false, false)(nil, r.PropertyMap{
 					"a1": r.MakeSecret(r.NewStringProperty("")),
 					"a2": r.NewNumberProperty(0.0),
 				}, out)
 				require.NoError(t, fg.err.ErrorOrNil())
-				t.Logf("depsMap: %#v", fg.deps)
 				assert.True(t, out["f1"].IsSecret(), "f1")
 				assert.False(t, out["f2"].IsSecret(), "f2")
 			},
@@ -245,7 +244,7 @@ func TestFieldGenerator(t *testing.T) {
 					if bar {
 						in["a2"] = r.MakeSecret(in["a2"])
 					}
-					fg.MarkMap(in, out)
+					fg.MarkMap(false, false)(nil, in, out)
 					assert.Equal(t, fizz, out["f1"].IsSecret())
 					assert.Equal(t, bar, out["f2"].IsSecret())
 				}
