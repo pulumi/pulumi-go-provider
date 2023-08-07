@@ -35,14 +35,14 @@ type Echo struct{}
 type EchoInputs struct {
 	String string            `pulumi:"string"`
 	Int    int               `pulumi:"int"`
-	Map    map[string]string `pulumi:"strMap"`
+	Map    map[string]string `pulumi:"strMap,optional"`
 }
 type EchoOutputs struct {
 	EchoInputs
 	Name      string            `pulumi:"nameOut"`
 	StringOut string            `pulumi:"stringOut"`
 	IntOut    int               `pulumi:"intOut"`
-	MapOut    map[string]string `pulumi:"strMapOut"`
+	MapOut    map[string]string `pulumi:"strMapOut,optional"`
 }
 
 func (*Echo) Create(ctx p.Context, name string, inputs EchoInputs, preview bool) (string, EchoOutputs, error) {
@@ -56,6 +56,20 @@ func (*Echo) Create(ctx p.Context, name string, inputs EchoInputs, preview bool)
 	state.IntOut = inputs.Int
 	state.MapOut = inputs.Map
 	return id, state, nil
+}
+
+func (*Echo) Update(ctx p.Context, id string, olds EchoOutputs, news EchoInputs, preview bool) (EchoOutputs, error) {
+	if preview {
+		return olds, nil
+	}
+
+	return EchoOutputs{
+		EchoInputs: news,
+		Name:       olds.Name,
+		StringOut:  news.String,
+		IntOut:     news.Int,
+		MapOut:     news.Map,
+	}, nil
 }
 
 var _ = (infer.ExplicitDependencies[WiredInputs, WiredOutputs])((*Wired)(nil))
@@ -80,6 +94,16 @@ func (*Wired) Create(ctx p.Context, name string, inputs WiredInputs, preview boo
 	state.StringPlus = inputs.String + "+"
 	state.StringAndInt = fmt.Sprintf("%s-%d", inputs.String, inputs.Int)
 	return id, state, nil
+}
+
+func (*Wired) Update(
+	ctx p.Context, id string, olds WiredOutputs, news WiredInputs, preview bool,
+) (WiredOutputs, error) {
+	return WiredOutputs{
+		Name:         id,
+		StringAndInt: fmt.Sprintf("%s-%d", news.String, news.Int),
+		StringPlus:   news.String + "++",
+	}, nil
 }
 
 func (*Wired) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *WiredOutputs) {

@@ -258,13 +258,14 @@ func markComputed(
 		return prop
 	}
 
+	if input, ok := inputs[key]; ok && !input.IsComputed() && input.DeepEquals(prop) {
+		// prop is an output during a create, but the output mirrors an
+		// input in name and value. We don't make it computed.
+		return prop
+	}
+
 	// If this is during a create and the value is not explicitly marked as known, we mark it computed.
 	if isCreate {
-		if input, ok := inputs[key]; ok && !input.IsComputed() && input.DeepEquals(prop) {
-			// prop is an output during a create, but the output mirrors an
-			// input in name and value. We don't make it computed.
-			return prop
-		}
 		return resource.MakeComputed(prop)
 	}
 
