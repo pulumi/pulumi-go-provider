@@ -244,12 +244,15 @@ func (g *fieldGenerator) MarkMap(isCreate, isPreview bool) func(oldInputs, input
 	return func(oldInputs, inputs, m resource.PropertyMap) {
 		// Flow secretness and computedness
 		for k, v := range m {
-			m[k] = markField(g.getField(string(k)), v, oldInputs, inputs, isCreate, isPreview)
+			m[k] = markField(g.getField(string(k)), k, v, oldInputs, inputs, isCreate, isPreview)
 		}
 	}
 }
 
-func markComputed(field *field, prop resource.PropertyValue, oldInputs, inputs resource.PropertyMap, isCreate bool) resource.PropertyValue {
+func markComputed(
+	field *field, key resource.PropertyKey, prop resource.PropertyValue,
+	oldInputs, inputs resource.PropertyMap, isCreate bool,
+) resource.PropertyValue {
 	// If the value is already computed or if it is guaranteed to be known, we don't need to do anything
 	if field.known || prop.IsComputed() {
 		return prop
@@ -257,6 +260,11 @@ func markComputed(field *field, prop resource.PropertyValue, oldInputs, inputs r
 
 	// If this is during a create and the value is not explicitly marked as known, we mark it computed.
 	if isCreate {
+		if input, ok := inputs[key]; ok && !input.IsComputed() && input.DeepEquals(prop) {
+			// prop is an output during a create, but the output mirrors an
+			// input in name and value. We don't make it computed.
+			return prop
+		}
 		return resource.MakeComputed(prop)
 	}
 
@@ -303,13 +311,12 @@ func markSecret(field *field, prop resource.PropertyValue, inputs resource.Prope
 }
 
 func markField(
-	field *field, prop resource.PropertyValue,
-	oldInputs, inputs resource.PropertyMap,
-	isCreate, isPreview bool,
+	field *field, key resource.PropertyKey, prop resource.PropertyValue,
+	oldInputs, inputs resource.PropertyMap, isCreate, isPreview bool,
 ) resource.PropertyValue {
 	// Fields can only be computed during preview. They must be known by when the resource is actually created.
 	if isPreview {
-		prop = markComputed(field, prop, oldInputs, inputs, isCreate)
+		prop = markComputed(field, key, prop, oldInputs, inputs, isCreate)
 	}
 
 	return markSecret(field, prop, inputs)
