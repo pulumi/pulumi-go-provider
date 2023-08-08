@@ -29,13 +29,16 @@ func TestUpdateManualDeps(t *testing.T) {
 	s := resource.NewStringProperty
 	n := resource.NewNumberProperty
 
-	test := func(name string, olds, newsPreview, newsUpdate, expectedPreview, expectedUp m) {
-		t.Run(name, func(t *testing.T) {
+	test := func(
+		testName, resource string,
+		olds, newsPreview, newsUpdate, expectedPreview, expectedUp m,
+	) {
+		t.Run(testName, func(t *testing.T) {
 			t.Run("preview", func(t *testing.T) {
 				prov := provider()
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:   "some-id",
-					Urn:  urn("Wired", "test"),
+					Urn:  urn(resource, "test"),
 					Olds: olds, News: newsPreview,
 					Preview: true,
 				})
@@ -48,7 +51,7 @@ func TestUpdateManualDeps(t *testing.T) {
 				prov := provider()
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:   "some-id",
-					Urn:  urn("Wired", "test"),
+					Urn:  urn(resource, "test"),
 					Olds: olds, News: newsUpdate,
 				})
 				assert.NoError(t, err)
@@ -59,27 +62,58 @@ func TestUpdateManualDeps(t *testing.T) {
 		})
 	}
 
-	test("unchanged",
+	test("unchanged", "Wired",
 		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},  // Old Input
 		m{"string": s("str"), "int": n(5)},                                            // New Preview
 		m{"string": s("str"), "int": n(5)},                                            // New Update
 		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str++")}, // Preview inputs
 		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str++")}) // Full inputs
 
-	test("int-computed",
+	test("int-computed", "Wired",
 		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},     // Old Input
 		m{"string": s("str"), "int": c(n(5))},                                            // New Input
 		m{"string": s("str"), "int": n(10)},                                              // New Update
 		m{"name": s("some-id"), "stringAndInt": c(s("str-5")), "stringPlus": s("str++")}, // Preview inputs
 		m{"name": s("some-id"), "stringAndInt": s("str-10"), "stringPlus": s("str++")})   // Full inputs
 
-	test("string-computed",
+	test("string-computed", "Wired",
 		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},        // Old Input
 		m{"string": c(s("str")), "int": n(5)},                                               // New Input
 		m{"string": s("foo"), "int": n(5)},                                                  // New Update
 		m{"name": s("some-id"), "stringAndInt": c(s("str-5")), "stringPlus": c(s("str++"))}, // Preview inputs
 		m{"name": s("some-id"), "stringAndInt": s("foo-5"), "stringPlus": s("foo++")})       // Full inputs
 
+	test("int-changed", "WiredPlus",
+		m{ // Old Input
+			"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+"),
+			"string": s("str"), "int": n(5),
+		},
+		m{"string": s("str"), "int": n(10)}, // New Input
+		m{"string": s("str"), "int": n(10)}, // New Update
+		m{ // Preview inputs: int changed -> stringAndInt is now computed
+			"name": s("some-id"), "stringAndInt": c(s("str-10")), "stringPlus": s("str++"),
+			"string": s("str"), "int": n(10),
+		},
+		m{ // Full inputs
+			"name": s("some-id"), "stringAndInt": s("str-10"), "stringPlus": s("str++"),
+			"string": s("str"), "int": n(10),
+		})
+
+	test("string-changed", "WiredPlus",
+		m{ // Old Input
+			"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+"),
+			"string": s("old-str"), "int": n(5),
+		},
+		m{"string": s("new-str"), "int": n(5)}, // New Input
+		m{"string": s("new-str"), "int": n(5)}, // New Update
+		m{ // Preview inputs
+			"name": s("some-id"), "stringAndInt": c(s("new-str-5")), "stringPlus": c(s("new-str++")),
+			"string": s("new-str"), "int": n(5),
+		},
+		m{ // Full inputs
+			"name": s("some-id"), "stringAndInt": s("new-str-5"), "stringPlus": s("new-str++"),
+			"string": s("new-str"), "int": n(5),
+		})
 }
 
 func TestUpdateDefaultDeps(t *testing.T) {

@@ -121,11 +121,48 @@ func (*Wired) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *WiredOu
 
 }
 
+var _ = (infer.ExplicitDependencies[WiredInputs, WiredOutputs])((*Wired)(nil))
+
+// Wired plus is like wired, but has its inputs embedded with its outputs.
+//
+// This allows it to remember old inputs when calculating which fields have changed.
+type WiredPlus struct{}
+type WiredPlusOutputs struct {
+	WiredInputs
+	WiredOutputs
+}
+
+func (*WiredPlus) Create(ctx p.Context, name string, inputs WiredInputs, preview bool) (string, WiredPlusOutputs, error) {
+	r := new(Wired)
+	id, out, err := r.Create(ctx, name, inputs, preview)
+	return id, WiredPlusOutputs{
+		WiredInputs:  inputs,
+		WiredOutputs: out,
+	}, err
+}
+
+func (*WiredPlus) Update(
+	ctx p.Context, id string, olds WiredPlusOutputs, news WiredInputs, preview bool,
+) (WiredPlusOutputs, error) {
+	r := new(Wired)
+	out, err := r.Update(ctx, id, olds.WiredOutputs, news, preview)
+	return WiredPlusOutputs{
+		WiredInputs:  news,
+		WiredOutputs: out,
+	}, err
+}
+
+func (*WiredPlus) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *WiredPlusOutputs) {
+	r := new(Wired)
+	r.WireDependencies(f, a, &s.WiredOutputs)
+}
+
 func provider() integration.Server {
 	p := infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
 			infer.Resource[*Echo, EchoInputs, EchoOutputs](),
 			infer.Resource[*Wired, WiredInputs, WiredOutputs](),
+			infer.Resource[*WiredPlus, WiredInputs, WiredPlusOutputs](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	})
