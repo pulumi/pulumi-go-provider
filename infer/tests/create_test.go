@@ -88,6 +88,41 @@ func TestCreate(t *testing.T) {
 		}, resp.Properties)
 	})
 
+	t.Run("unwired-secrets", func(t *testing.T) {
+		prov := provider()
+		sec := resource.MakeSecret
+		str := resource.NewStringProperty
+		resp, err := prov.Create(p.CreateRequest{
+			Urn: urn("Echo", "create"),
+			Properties: resource.PropertyMap{
+				"string": sec(str("my string")),
+				"int":    resource.NewNumberProperty(7.0),
+				"strMap": resource.NewObjectProperty(resource.PropertyMap{
+					"fizz": sec(str("buzz")),
+					"foo":  str("bar"),
+				}),
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "create-id", resp.ID)
+		assert.Equal(t, resource.PropertyMap{
+			"string": sec(str("my string")),
+			"int":    resource.NewNumberProperty(7.0),
+			"strMap": resource.NewObjectProperty(resource.PropertyMap{
+				"fizz": sec(str("buzz")),
+				"foo":  str("bar"),
+			}),
+			"nameOut":   sec(str("create")),
+			"stringOut": sec(str("my string")),
+			"intOut":    sec(resource.NewNumberProperty(7.0)),
+			"strMapOut": sec(resource.NewObjectProperty(resource.PropertyMap{
+				"fizz": str("buzz"),
+				"foo":  str("bar"),
+			})),
+		}, resp.Properties)
+	})
+
 	t.Run("wired-preview", func(t *testing.T) {
 		prov := provider()
 		c := resource.MakeComputed
