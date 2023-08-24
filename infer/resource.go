@@ -293,7 +293,9 @@ func markComputed(
 	return prop
 }
 
-func markSecret(field *field, prop resource.PropertyValue, inputs resource.PropertyMap) resource.PropertyValue {
+func markSecret(
+	field *field, key resource.PropertyKey, prop resource.PropertyValue, inputs resource.PropertyMap,
+) resource.PropertyValue {
 	// If we should never return a secret, ensure that the field *is not* marked as
 	// secret, then return.
 	if field.neverSecret {
@@ -311,6 +313,13 @@ func markSecret(field *field, prop resource.PropertyValue, inputs resource.Prope
 	// then return.
 	if field.alwaysSecret {
 		return resource.MakeSecret(prop)
+	}
+
+	if input, ok := inputs[key]; ok && !input.IsSecret() && input.DeepEquals(prop) {
+		// prop might depend on a secret value, but the output mirrors a input in
+		// name and value. We don't make it secret since it will be public in the
+		// state anyway.
+		return prop
 	}
 
 	// Otherwise secretness is derived from dependencies: any dependency that is
@@ -333,7 +342,7 @@ func markField(
 		prop = markComputed(field, key, prop, oldInputs, inputs, isCreate)
 	}
 
-	return markSecret(field, prop, inputs)
+	return markSecret(field, key, prop, inputs)
 
 }
 

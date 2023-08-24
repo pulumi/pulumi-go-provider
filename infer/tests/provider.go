@@ -31,6 +31,22 @@ func urn(typ, name string) resource.URN {
 		tokens.Type("test:index:"+typ), tokens.QName(name))
 }
 
+// This type helps us test the highly suspicious behavior of naming an input the same as
+// an output, while giving them different values. This should never be done in practice,
+// but we need to accommodate the behavior while we allow it.
+type Increment struct{}
+type IncrementArgs struct {
+	Number int `pulumi:"int"`
+	Other  int `pulumi:"other,optional"`
+}
+
+type IncrementOutput struct{ IncrementArgs }
+
+func (*Increment) Create(ctx p.Context, name string, inputs IncrementArgs, preview bool) (string, IncrementOutput, error) {
+	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: inputs.Number + 1}}
+	return fmt.Sprintf("id-%d", inputs.Number), output, nil
+}
+
 type Echo struct{}
 type EchoInputs struct {
 	String string            `pulumi:"string"`
@@ -163,6 +179,7 @@ func provider() integration.Server {
 			infer.Resource[*Echo, EchoInputs, EchoOutputs](),
 			infer.Resource[*Wired, WiredInputs, WiredOutputs](),
 			infer.Resource[*WiredPlus, WiredInputs, WiredPlusOutputs](),
+			infer.Resource[*Increment, IncrementArgs, IncrementOutput](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	})
