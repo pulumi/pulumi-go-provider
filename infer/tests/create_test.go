@@ -123,6 +123,26 @@ func TestCreate(t *testing.T) {
 		}, resp.Properties)
 	})
 
+	t.Run("unwired-secrets-mutated-input", func(t *testing.T) {
+		prov := provider()
+		sec := resource.MakeSecret
+		num := resource.NewNumberProperty
+		resp, err := prov.Create(p.CreateRequest{
+			Urn: urn("Increment", "create"),
+			Properties: resource.PropertyMap{
+				"int":   num(3.0),
+				"other": sec(num(0.0)),
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "id-3", resp.ID)
+		assert.Equal(t, resource.PropertyMap{
+			"int":   sec(num(4.0)),
+			"other": sec(num(0.0)),
+		}, resp.Properties)
+	})
+
 	t.Run("wired-preview", func(t *testing.T) {
 		prov := provider()
 		c := resource.MakeComputed
