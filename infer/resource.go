@@ -1155,11 +1155,15 @@ func applyDefaults[T any](value *T) error {
 			}
 			iter := v.MapRange()
 			for iter.Next() {
-				didSetRec, err := walk(iter.Value())
+				value := reflect.New(iter.Value().Type()).Elem()
+				value.Set(iter.Value())
+				s := hydratedValue(value)
+				didSetRec, err := walk(s)
 				if err != nil {
 					return false, err
 				}
 				if didSetRec {
+					v.SetMapIndex(iter.Key(), s)
 					didSet = true
 				}
 			}
