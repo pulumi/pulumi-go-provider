@@ -1211,7 +1211,7 @@ func setDefaultFromMemory(field reflect.Value, value any) error {
 		field.Set(v.Convert(field.Type()))
 		return nil
 	}
-	return fmt.Errorf("Cannot set field of type '%s' to default value %q (%[2]T)",
+	return fmt.Errorf("cannot set field of type '%s' to default value %q (%[2]T)",
 		field.Type(), value)
 }
 
