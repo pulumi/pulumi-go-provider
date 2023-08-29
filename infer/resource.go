@@ -549,11 +549,17 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	// The user has not implemented check, so do the smart thing by default; We just check
 	// that we can de-serialize correctly
 	var i I
-	_, err := decode(req.News, &i, req.News.ContainsUnknowns())
+	secrets, err := decode(req.News, &i, req.News.ContainsUnknowns())
 	if err == nil {
+		if err := applyDefaults(&i); err != nil {
+			return p.CheckResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
+		}
+
+		inputs, err := encode(i, secrets, false)
+
 		return p.CheckResponse{
-			Inputs: req.News,
-		}, nil
+			Inputs: inputs,
+		}, err
 	}
 
 	failures, e := checkFailureFromMapError(err)
@@ -703,11 +709,6 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 	secrets, err := decode(req.Properties, &input, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
-	}
-
-	err = applyDefaults(&input)
-	if err != nil {
-		return p.CreateResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
 	}
 
 	id, o, err := (*r).Create(ctx, req.Urn.Name().String(), input, req.Preview)
