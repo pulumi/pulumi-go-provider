@@ -1195,9 +1195,9 @@ func applyDefaults[T any](value *T) error {
 	return err
 }
 
-// Apply a default value to a field that can accept one.
+// setDefaultFromMemory applies an in-memory default value to a field that can accept one.
 //
-// field must be CanSet and value must be a primitive.
+// field must be CanSet and value must either be a primitive, or point to one.
 func setDefaultFromMemory(field reflect.Value, value any) error {
 	if value == nil {
 		return nil
@@ -1205,67 +1205,50 @@ func setDefaultFromMemory(field reflect.Value, value any) error {
 	// We will set field to a primitive value, we can freely provide hydration.
 	field.Set(hydratedValue(field))
 	field = derefNonNil(field)
-	typeError := func() error {
-		return fmt.Errorf("Cannot set field of type %s to default value %s (%[2])",
-			field.Type(), value)
+
+	v := reflect.ValueOf(value)
+	if v.CanConvert(field.Type()) {
+		field.Set(v.Convert(field.Type()))
+		return nil
 	}
-	kind := field.Type().Kind()
-	switch value := value.(type) {
-	case string:
-		if kind != reflect.String {
-			return typeError()
-		}
-		field.SetString(value)
-	case float64:
-		if kind != reflect.Float64 {
-			return typeError()
-		}
-		field.SetFloat(value)
-	case int:
-		if kind != reflect.Int {
-			return typeError()
-		}
-		field.SetInt(int64(value))
-	case bool:
-		if kind != reflect.Bool {
-			return typeError()
-		}
-		field.SetBool(value)
-	default:
-		return fmt.Errorf("unable to apply default value %q of type %[1]T", value)
-	}
-	return nil
+	return fmt.Errorf("Cannot set field of type '%s' to default value %q (%[2]T)",
+		field.Type(), value)
 }
 
+// setDefaultValueFromEnv applies a default value source from an environmental variable to
+// a field.
+//
+// field must be CanSet and value must either be a primitive, or point to one.
 func setDefaultValueFromEnv(field reflect.Value, value string) error {
-	field.Set(hydratedValue(field)) // Ensure that we are fully hydrated
-	field = derefNonNil(field)
-	switch field.Type().Kind() {
+	typ := field.Type()
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+
+	switch typ.Kind() {
 	case reflect.String:
-		field.SetString(value)
+		return setDefaultFromMemory(field, value)
 	case reflect.Float64:
 		f, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return err
 		}
-		field.SetFloat(f)
+		return setDefaultFromMemory(field, f)
 	case reflect.Int:
 		i, err := strconv.ParseInt(value, 0, 64)
 		if err != nil {
 			return err
 		}
-		field.SetInt(i)
+		return setDefaultFromMemory(field, i)
 	case reflect.Bool:
 		b, err := strconv.ParseBool(value)
 		if err != nil {
 			return err
 		}
-		field.SetBool(b)
-	default:
-		fmt.Errorf("unable to apply default value %q to field of type %s",
-			value, field.Type())
+		return setDefaultFromMemory(field, b)
 	}
-	return nil
+	return fmt.Errorf("unable to apply default value %q to field of type %s",
+		value, typ)
 }
 
 // hydratedValue takes a (possibly ptr) and returns a fully hydrated value of the same
