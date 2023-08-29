@@ -16,6 +16,7 @@ package tests
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -173,6 +174,129 @@ func (*WiredPlus) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *Wir
 	r.WireDependencies(f, a, &s.WiredOutputs)
 }
 
+// Default values are applied by the provider to facilitate integration testing and to
+// backstop non-compliment SDKs.
+
+type WithDefaults struct{}
+type WithDefaultsOutput struct{ WithDefaultsArgs }
+
+var (
+	_ infer.Annotated = (*WithDefaultsArgs)(nil)
+	_ infer.Annotated = (*NestedDefaults)(nil)
+)
+
+type WithDefaultsArgs struct {
+	// We sanity check with some primitive values, but most of this checking is in
+	// NestedDefaults.
+	String       string                     `pulumi:"s"`
+	Int          *int                       `pulumi:"i"`
+	Nested       NestedDefaults             `pulumi:"nested"`
+	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr"`
+	ArrNested    []NestedDefaults           `pulumi:"arrNested"`
+	ArrNestedPtr []*NestedDefaults          `pulumi:"arrNestedPtr"`
+	MapNested    map[string]NestedDefaults  `pulumi:"mapNested"`
+	MapNestedPtr map[string]*NestedDefaults `pulumi:"mapNestedPtr"`
+}
+
+func (w *WithDefaultsArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.String, "one")
+	a.SetDefault(&w.Int, 2)
+}
+
+type NestedDefaults struct {
+	// Direct vars. These don't allow setting zero values.
+	String string  `pulumi:"s"`
+	Float  float64 `pulumi:"f"`
+	Int    int     `pulumi:"i"`
+	Bool   bool    `pulumi:"b"`
+
+	// Indirect vars. These should allow setting zero values.
+	StringPtr *string  `pulumi:"ps"`
+	FloatPtr  *float64 `pulumi:"pf"`
+	IntPtr    *int     `pulumi:"pi"`
+	BoolPtr   *bool    `pulumi:"pb"`
+
+	// A triple indirect value, included to check that we can handle arbitrary
+	// indirection.
+	IntPtrPtrPtr ***int `pulumi:"pppi"`
+}
+
+func (w *NestedDefaults) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.String, "two")
+	a.SetDefault(&w.Float, 4.0)
+	a.SetDefault(&w.Int, 8)
+	// It doesn't make much sense to have default values of bools, but we support it.
+	a.SetDefault(&w.Bool, true)
+
+	// Now indirect ptrs
+	a.SetDefault(&w.StringPtr, "two")
+	a.SetDefault(&w.FloatPtr, 4.0)
+	a.SetDefault(&w.IntPtr, 8)
+	a.SetDefault(&w.BoolPtr, true)
+
+	a.SetDefault(&w.IntPtrPtrPtr, 64)
+}
+
+func (w *WithDefaultsArgs) validate(check func(value any)) {
+	check(w.String)
+	check(w.Int)
+	w.Nested.validate(check)
+	w.NestedPtr.validate(check)
+
+	for _, v := range w.ArrNested {
+		v.validate(check)
+	}
+	for _, v := range w.ArrNestedPtr {
+		v.validate(check)
+	}
+	for _, v := range w.MapNested {
+		v.validate(check)
+	}
+	for _, v := range w.MapNestedPtr {
+		v.validate(check)
+	}
+}
+
+// Check that all values with default values are non-zero.
+func (w *NestedDefaults) validate(check func(value any)) {
+	// direct values
+	check(w.String)
+	check(w.Float)
+	check(w.Int)
+	check(w.Bool)
+
+	// indirect values
+	check(w.StringPtr)
+	check(w.FloatPtr)
+	check(w.IntPtr)
+	check(w.BoolPtr)
+
+	// triple-indirect values.
+	check(w.IntPtrPtrPtr)
+}
+
+func (*WithDefaults) check(value any) {
+	v := reflect.ValueOf(value)
+	for v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.IsZero() {
+		panic("Default value not applied")
+	}
+}
+
+func (w *WithDefaults) Create(ctx p.Context, name string, inputs WithDefaultsArgs, preview bool) (string, WithDefaultsOutput, error) {
+	inputs.validate(w.check)
+	return "validated", WithDefaultsOutput{inputs}, nil
+}
+
+func (w *WithDefaults) Update(
+	ctx p.Context, id string, olds WithDefaultsOutput, news WithDefaultsArgs, preview bool,
+) (WithDefaultsOutput, error) {
+	news.validate(w.check)
+	return WithDefaultsOutput{news}, nil
+}
+
 func provider() integration.Server {
 	p := infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
@@ -180,6 +304,7 @@ func provider() integration.Server {
 			infer.Resource[*Wired, WiredInputs, WiredOutputs](),
 			infer.Resource[*WiredPlus, WiredInputs, WiredPlusOutputs](),
 			infer.Resource[*Increment, IncrementArgs, IncrementOutput](),
+			infer.Resource[*WithDefaults, WithDefaultsArgs, WithDefaultsOutput](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	})

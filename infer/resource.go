@@ -16,7 +16,9 @@ package infer
 
 import (
 	"fmt"
+	"os"
 	"reflect"
+	"strconv"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -1005,4 +1007,237 @@ func insertSecrets(props resource.PropertyMap, secrets []resource.PropertyPath) 
 		s.Set(m, resource.MakeSecret(v))
 	}
 	return m.ObjectValue()
+}
+
+// applyDefaults recursively applies the default values provided by [introspect.Annotator].
+func applyDefaults[T any](value *T) error {
+	v := reflect.ValueOf(value)
+	contract.Assertf(v.CanSet(), "Cannot accept an un-editable pointer")
+
+	// Defaults can only sit on objects, but objects can be under any level of
+	// indirection.
+	//
+	// We thus need to walk the entire structure to find defaults to apply.
+	var walk func(v reflect.Value) error
+
+	// apply may only be called on structs.
+	apply := func(v reflect.Value) error {
+		t := v.Type()
+		a := getAnnotated(t)
+
+		// If v is a nil valued struct with defaults, we should hydrate it and
+		// apply the default. If not, we leave it nil. This must be applied
+		// recursively.
+		fields := map[string]reflect.Value{}
+		for _, field := range reflect.VisibleFields(v.Type()) {
+			tag, err := introspect.ParseTag(field)
+			if err != nil {
+				return err
+			}
+			if tag.Internal {
+				continue
+			}
+			fields[tag.Name] = v.FieldByIndex(field.Index)
+		}
+
+	defaultEnvs:
+		for k, envVars := range a.DefaultEnvs {
+			value, ok := fields[k]
+			if ok && !value.IsZero() {
+				continue
+			}
+			for _, env := range envVars {
+				envValue := os.Getenv(env)
+				if envValue == "" {
+					continue
+				}
+				err := setDefaultValueFromEnv(value, envValue)
+				if err != nil {
+					return err
+				}
+				continue defaultEnvs
+			}
+		}
+
+		for k, inMemoryDefault := range a.Defaults {
+			value, ok := fields[k]
+			if ok && !value.IsZero() {
+				continue
+			}
+			err := setDefaultFromMemory(value, inMemoryDefault)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, v := range fields {
+			if err := walk(v); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// walk is responsible for calling applyDefaults on all structs in reachable from value.
+	walk = func(v reflect.Value) error {
+		tDeferenced := v.Type()
+		for tDeferenced.Kind() == reflect.Pointer {
+			tDeferenced = tDeferenced.Elem()
+		}
+		switch tDeferenced.Kind() {
+		// We apply defaults to each value in slice.
+		case reflect.Slice:
+			// Dereference to the underlying slice
+			for v.Kind() == reflect.Pointer && !v.IsNil() {
+				v = v.Elem()
+			}
+			// Either we have a type *[]T, **[]T, etc. and a pointer is nil,
+			// or we have reached the slice and the slice itself is nil. Both
+			// cases prevent us finding any more structs, so we are done.
+			if v.IsNil() {
+				return nil
+			}
+			for i := 0; i < v.Len(); i++ {
+				err := walk(v.Index(i))
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+
+		case reflect.Array:
+			// Dereference to the underlying slice
+			for v.Kind() == reflect.Pointer {
+				if v.IsNil() {
+					return nil
+				}
+				v = v.Elem()
+			}
+
+			// Arrays cannot be nil, so we don't (and can't) perform a nil
+			// check here.
+			for i := 0; i < v.Len(); i++ {
+				err := walk(v.Index(i))
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+
+		case reflect.Map:
+			// Dereference to the underlying map
+			for v.Kind() == reflect.Pointer && !v.IsNil() {
+				v = v.Elem()
+			}
+			// Either we have a type *map[K]V, **map[K]V, etc. and a pointer
+			// is nil, or we have reached the map and the map itself is
+			// nil. Both cases prevent us finding any more structs, so we are
+			// done.
+			if v.IsNil() {
+				return nil
+			}
+			iter := v.MapRange()
+			for iter.Next() {
+				walk(iter.Value())
+			}
+			return nil
+		case reflect.Struct:
+			return apply(v)
+
+		// This is a primitive type. That means that:
+		//
+		// 1. It is not a struct.
+		// 2. It cannot contain a struct.
+		//
+		// That means there are not any defaults to apply, so we're done.
+		default:
+			return nil
+		}
+	}
+
+	return walk(v)
+}
+
+// Apply a default value to a field that can accept one.
+//
+// field must be CanSet and value must be a primitive.
+func setDefaultFromMemory(field reflect.Value, value any) error {
+	if value == nil {
+		return nil
+	}
+	// We will set field to a primitive value, we can freely provider hydration.
+	field = hydratedValue(field)
+	typeError := func() error {
+		return fmt.Errorf("Cannot set field of type %s to default value %s (%[2])",
+			field.Type(), value)
+	}
+	kind := field.Type().Kind()
+	switch value := value.(type) {
+	case string:
+		if kind != reflect.String {
+			return typeError()
+		}
+		field.SetString(value)
+	case float64:
+		if kind != reflect.Float64 {
+			return typeError()
+		}
+		field.SetFloat(value)
+	case int:
+		if kind != reflect.Int {
+			return typeError()
+		}
+		field.SetInt(int64(value))
+	case bool:
+		if kind != reflect.Bool {
+			return typeError()
+		}
+		field.SetBool(value)
+	default:
+		return fmt.Errorf("unable to apply default value %q of type %[1]T", value)
+	}
+	return nil
+}
+
+func setDefaultValueFromEnv(field reflect.Value, value string) error {
+	field = hydratedValue(field)
+	switch field.Type().Kind() {
+	case reflect.String:
+		field.SetString(value)
+	case reflect.Float64:
+		f, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return err
+		}
+		field.SetFloat(f)
+	case reflect.Int:
+		i, err := strconv.ParseInt(value, 0, 64)
+		if err != nil {
+			return err
+		}
+		field.SetInt(i)
+	case reflect.Bool:
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		field.SetBool(b)
+	default:
+		fmt.Errorf("unable to apply default value %q to field of type %s",
+			value, field.Type())
+	}
+	return nil
+}
+
+func hydratedValue(value reflect.Value) reflect.Value {
+	for value.Type().Kind() == reflect.Pointer {
+		// We have *T, so we need to construct a T and set the value to it.
+		if value.IsNil() {
+			// elem := &new(*value.Type())
+			elem := reflect.New(value.Type().Elem()).Addr()
+			value.Set(elem)
+		}
+		value = value.Elem()
+	}
+	return value
 }
