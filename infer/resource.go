@@ -705,6 +705,11 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
 
+	err = applyDefaults(&input)
+	if err != nil {
+		return p.CreateResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
+	}
+
 	id, o, err := (*r).Create(ctx, req.Urn.Name().String(), input, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, err
@@ -1011,17 +1016,17 @@ func insertSecrets(props resource.PropertyMap, secrets []resource.PropertyPath) 
 
 // applyDefaults recursively applies the default values provided by [introspect.Annotator].
 func applyDefaults[T any](value *T) error {
-	v := reflect.ValueOf(value)
+	v := reflect.ValueOf(value).Elem()
 	contract.Assertf(v.CanSet(), "Cannot accept an un-editable pointer")
 
 	// Defaults can only sit on objects, but objects can be under any level of
 	// indirection.
 	//
 	// We thus need to walk the entire structure to find defaults to apply.
-	var walk func(v reflect.Value) error
+	var walk func(v reflect.Value) (didSet bool, _ error)
 
 	// apply may only be called on structs.
-	apply := func(v reflect.Value) error {
+	apply := func(v reflect.Value) (didSet bool, _ error) {
 		t := v.Type()
 		a := getAnnotated(t)
 
@@ -1032,7 +1037,7 @@ func applyDefaults[T any](value *T) error {
 		for _, field := range reflect.VisibleFields(v.Type()) {
 			tag, err := introspect.ParseTag(field)
 			if err != nil {
-				return err
+				return false, err
 			}
 			if tag.Internal {
 				continue
@@ -1053,8 +1058,9 @@ func applyDefaults[T any](value *T) error {
 				}
 				err := setDefaultValueFromEnv(value, envValue)
 				if err != nil {
-					return err
+					return false, err
 				}
+				didSet = true
 				continue defaultEnvs
 			}
 		}
@@ -1066,20 +1072,25 @@ func applyDefaults[T any](value *T) error {
 			}
 			err := setDefaultFromMemory(value, inMemoryDefault)
 			if err != nil {
-				return err
+				return false, err
 			}
+			didSet = true
 		}
 
 		for _, v := range fields {
-			if err := walk(v); err != nil {
-				return err
+			didSetRec, err := walk(v)
+			if err != nil {
+				return false, err
+			}
+			if didSetRec {
+				didSet = true
 			}
 		}
-		return nil
+		return didSet, nil
 	}
 
 	// walk is responsible for calling applyDefaults on all structs in reachable from value.
-	walk = func(v reflect.Value) error {
+	walk = func(v reflect.Value) (didSet bool, _ error) {
 		tDeferenced := v.Type()
 		for tDeferenced.Kind() == reflect.Pointer {
 			tDeferenced = tDeferenced.Elem()
@@ -1095,21 +1106,24 @@ func applyDefaults[T any](value *T) error {
 			// or we have reached the slice and the slice itself is nil. Both
 			// cases prevent us finding any more structs, so we are done.
 			if v.IsNil() {
-				return nil
+				return didSet, nil
 			}
 			for i := 0; i < v.Len(); i++ {
-				err := walk(v.Index(i))
+				didSetRec, err := walk(v.Index(i))
 				if err != nil {
-					return err
+					return false, err
+				}
+				if didSetRec {
+					didSet = true
 				}
 			}
-			return nil
+			return didSet, nil
 
 		case reflect.Array:
 			// Dereference to the underlying slice
 			for v.Kind() == reflect.Pointer {
 				if v.IsNil() {
-					return nil
+					return false, nil
 				}
 				v = v.Elem()
 			}
@@ -1117,12 +1131,15 @@ func applyDefaults[T any](value *T) error {
 			// Arrays cannot be nil, so we don't (and can't) perform a nil
 			// check here.
 			for i := 0; i < v.Len(); i++ {
-				err := walk(v.Index(i))
+				didSetRec, err := walk(v.Index(i))
 				if err != nil {
-					return err
+					return false, err
+				}
+				if didSetRec {
+					didSet = true
 				}
 			}
-			return nil
+			return didSet, nil
 
 		case reflect.Map:
 			// Dereference to the underlying map
@@ -1134,15 +1151,29 @@ func applyDefaults[T any](value *T) error {
 			// nil. Both cases prevent us finding any more structs, so we are
 			// done.
 			if v.IsNil() {
-				return nil
+				return false, nil
 			}
 			iter := v.MapRange()
 			for iter.Next() {
-				walk(iter.Value())
+				didSetRec, err := walk(iter.Value())
+				if err != nil {
+					return false, err
+				}
+				if didSetRec {
+					didSet = true
+				}
 			}
-			return nil
+			return didSet, nil
 		case reflect.Struct:
-			return apply(v)
+			s := hydratedValue(v)
+			didSet, err := apply(derefNonNil(s))
+			if err != nil {
+				return false, err
+			}
+			if didSet {
+				v.Set(s)
+			}
+			return didSet, nil
 
 		// This is a primitive type. That means that:
 		//
@@ -1151,11 +1182,12 @@ func applyDefaults[T any](value *T) error {
 		//
 		// That means there are not any defaults to apply, so we're done.
 		default:
-			return nil
+			return false, nil
 		}
 	}
 
-	return walk(v)
+	_, err := walk(v)
+	return err
 }
 
 // Apply a default value to a field that can accept one.
@@ -1165,8 +1197,9 @@ func setDefaultFromMemory(field reflect.Value, value any) error {
 	if value == nil {
 		return nil
 	}
-	// We will set field to a primitive value, we can freely provider hydration.
-	field = hydratedValue(field)
+	// We will set field to a primitive value, we can freely provide hydration.
+	field.Set(hydratedValue(field))
+	field = derefNonNil(field)
 	typeError := func() error {
 		return fmt.Errorf("Cannot set field of type %s to default value %s (%[2])",
 			field.Type(), value)
@@ -1200,7 +1233,8 @@ func setDefaultFromMemory(field reflect.Value, value any) error {
 }
 
 func setDefaultValueFromEnv(field reflect.Value, value string) error {
-	field = hydratedValue(field)
+	field.Set(hydratedValue(field)) // Ensure that we are fully hydrated
+	field = derefNonNil(field)
 	switch field.Type().Kind() {
 	case reflect.String:
 		field.SetString(value)
@@ -1229,14 +1263,36 @@ func setDefaultValueFromEnv(field reflect.Value, value string) error {
 	return nil
 }
 
+// hydratedValue takes a (possibly ptr) and returns a fully hydrated value of the same
+// type. For example:
+//
+//	T{}        -> T{}
+//	T{N: 1}    -> T{N: 1}
+//	&T{N: 2}   -> &T{N: 2}
+//	(*T)(nil)  -> &T{}
+//	(**T)(nil) -> &&T{}
 func hydratedValue(value reflect.Value) reflect.Value {
-	for value.Type().Kind() == reflect.Pointer {
+	// root := *&T where T = typeof(value)
+	//
+	// This creates an addressable value of the same type as value
+	root := value
+	for value.Kind() == reflect.Pointer {
 		// We have *T, so we need to construct a T and set the value to it.
 		if value.IsNil() {
-			// elem := &new(*value.Type())
-			elem := reflect.New(value.Type().Elem()).Addr()
-			value.Set(elem)
+			// This is the reflect equivalent of:
+			//
+			//	var v typeof(value)
+			//	*elem := value
+			v := reflect.New(value.Type().Elem())
+			value.Set(v)
 		}
+		value = value.Elem()
+	}
+	return root
+}
+
+func derefNonNil(value reflect.Value) reflect.Value {
+	for value.Kind() == reflect.Pointer {
 		value = value.Elem()
 	}
 	return value

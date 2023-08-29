@@ -184,3 +184,44 @@ func TestCreate(t *testing.T) {
 		}, resp.Properties)
 	})
 }
+
+func TestCreateDefaults(t *testing.T) {
+	t.Parallel()
+	withInput := func(inputs resource.PropertyMap) func(t *testing.T) {
+		return func(t *testing.T) {
+			t.Parallel()
+			prov := provider()
+			resp, err := prov.Create(p.CreateRequest{
+				Urn:        urn("WithDefaults", "check-defaults"),
+				Properties: inputs,
+			})
+			assert.NoError(t, err)
+			pInt := func(i int) resource.PropertyValue {
+				return resource.NewNumberProperty(float64(i))
+			}
+			pFloat := resource.NewNumberProperty
+			pBool := resource.NewBoolProperty
+			pString := resource.NewStringProperty
+			nested := resource.PropertyValue{
+				V: resource.PropertyMap{
+					"b":    pBool(true),
+					"f":    pFloat(4),
+					"i":    pInt(8),
+					"pb":   pBool(true),
+					"pf":   pFloat(4),
+					"pi":   pInt(8),
+					"ps":   pString("two"),
+					"s":    pString("two"),
+					"pppi": pInt(64)}}
+			expected :=
+				resource.PropertyMap{
+					"i":         pInt(2),
+					"s":         pString("one"),
+					"nested":    nested,
+					"nestedPtr": nested}
+			assert.Equal(t, expected, resp.Properties)
+		}
+	}
+
+	t.Run("empty", withInput(nil))
+}

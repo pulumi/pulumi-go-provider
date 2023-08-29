@@ -177,6 +177,8 @@ func (*WiredPlus) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *Wir
 // Default values are applied by the provider to facilitate integration testing and to
 // backstop non-compliment SDKs.
 
+// TODO[pulumi-go-provider#98] Remove the ,optional.
+
 type WithDefaults struct{}
 type WithDefaultsOutput struct{ WithDefaultsArgs }
 
@@ -188,14 +190,14 @@ var (
 type WithDefaultsArgs struct {
 	// We sanity check with some primitive values, but most of this checking is in
 	// NestedDefaults.
-	String       string                     `pulumi:"s"`
-	Int          *int                       `pulumi:"i"`
-	Nested       NestedDefaults             `pulumi:"nested"`
-	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr"`
-	ArrNested    []NestedDefaults           `pulumi:"arrNested"`
-	ArrNestedPtr []*NestedDefaults          `pulumi:"arrNestedPtr"`
-	MapNested    map[string]NestedDefaults  `pulumi:"mapNested"`
-	MapNestedPtr map[string]*NestedDefaults `pulumi:"mapNestedPtr"`
+	String       string                     `pulumi:"s,optional"`
+	Int          *int                       `pulumi:"i,optional"`
+	Nested       NestedDefaults             `pulumi:"nested,optional"`
+	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr,optional"`
+	ArrNested    []NestedDefaults           `pulumi:"arrNested,optional"`
+	ArrNestedPtr []*NestedDefaults          `pulumi:"arrNestedPtr,optional"`
+	MapNested    map[string]NestedDefaults  `pulumi:"mapNested,optional"`
+	MapNestedPtr map[string]*NestedDefaults `pulumi:"mapNestedPtr,optional"`
 }
 
 func (w *WithDefaultsArgs) Annotate(a infer.Annotator) {
@@ -205,20 +207,20 @@ func (w *WithDefaultsArgs) Annotate(a infer.Annotator) {
 
 type NestedDefaults struct {
 	// Direct vars. These don't allow setting zero values.
-	String string  `pulumi:"s"`
-	Float  float64 `pulumi:"f"`
-	Int    int     `pulumi:"i"`
-	Bool   bool    `pulumi:"b"`
+	String string  `pulumi:"s,optional"`
+	Float  float64 `pulumi:"f,optional"`
+	Int    int     `pulumi:"i,optional"`
+	Bool   bool    `pulumi:"b,optional"`
 
 	// Indirect vars. These should allow setting zero values.
-	StringPtr *string  `pulumi:"ps"`
-	FloatPtr  *float64 `pulumi:"pf"`
-	IntPtr    *int     `pulumi:"pi"`
-	BoolPtr   *bool    `pulumi:"pb"`
+	StringPtr *string  `pulumi:"ps,optional"`
+	FloatPtr  *float64 `pulumi:"pf,optional"`
+	IntPtr    *int     `pulumi:"pi,optional"`
+	BoolPtr   *bool    `pulumi:"pb,optional"`
 
 	// A triple indirect value, included to check that we can handle arbitrary
 	// indirection.
-	IntPtrPtrPtr ***int `pulumi:"pppi"`
+	IntPtrPtrPtr ***int `pulumi:"pppi,optional"`
 }
 
 func (w *NestedDefaults) Annotate(a infer.Annotator) {
@@ -281,7 +283,7 @@ func (*WithDefaults) check(value any) {
 		v = v.Elem()
 	}
 	if v.IsZero() {
-		panic("Default value not applied")
+		panic(fmt.Sprintf("Default value not applied to type %T", value))
 	}
 }
 
