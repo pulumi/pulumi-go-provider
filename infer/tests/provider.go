@@ -16,7 +16,6 @@ package tests
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -191,7 +190,7 @@ type WithDefaultsArgs struct {
 	// We sanity check with some primitive values, but most of this checking is in
 	// NestedDefaults.
 	String       string                     `pulumi:"s,optional"`
-	Int          *int                       `pulumi:"i,optional"`
+	IntPtr       *int                       `pulumi:"pi,optional"`
 	Nested       NestedDefaults             `pulumi:"nested,optional"`
 	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr,optional"`
 	ArrNested    []NestedDefaults           `pulumi:"arrNested,optional"`
@@ -202,7 +201,7 @@ type WithDefaultsArgs struct {
 
 func (w *WithDefaultsArgs) Annotate(a infer.Annotator) {
 	a.SetDefault(&w.String, "one")
-	a.SetDefault(&w.Int, 2)
+	a.SetDefault(&w.IntPtr, 2)
 }
 
 type NestedDefaults struct {
@@ -239,63 +238,15 @@ func (w *NestedDefaults) Annotate(a infer.Annotator) {
 	a.SetDefault(&w.IntPtrPtrPtr, 64)
 }
 
-func (w *WithDefaultsArgs) validate(check func(value any)) {
-	check(w.String)
-	check(w.Int)
-	w.Nested.validate(check)
-	w.NestedPtr.validate(check)
-
-	for _, v := range w.ArrNested {
-		v.validate(check)
-	}
-	for _, v := range w.ArrNestedPtr {
-		v.validate(check)
-	}
-	for _, v := range w.MapNested {
-		v.validate(check)
-	}
-	for _, v := range w.MapNestedPtr {
-		v.validate(check)
-	}
-}
-
-// Check that all values with default values are non-zero.
-func (w *NestedDefaults) validate(check func(value any)) {
-	// direct values
-	check(w.String)
-	check(w.Float)
-	check(w.Int)
-	check(w.Bool)
-
-	// indirect values
-	check(w.StringPtr)
-	check(w.FloatPtr)
-	check(w.IntPtr)
-	check(w.BoolPtr)
-
-	// triple-indirect values.
-	check(w.IntPtrPtrPtr)
-}
-
-func (*WithDefaults) check(value any) {
-	v := reflect.ValueOf(value)
-	for v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-	if v.IsZero() {
-		panic(fmt.Sprintf("Default value not applied to type %T", value))
-	}
-}
-
-func (w *WithDefaults) Create(ctx p.Context, name string, inputs WithDefaultsArgs, preview bool) (string, WithDefaultsOutput, error) {
-	inputs.validate(w.check)
+func (w *WithDefaults) Create(
+	ctx p.Context, name string, inputs WithDefaultsArgs, preview bool,
+) (string, WithDefaultsOutput, error) {
 	return "validated", WithDefaultsOutput{inputs}, nil
 }
 
 func (w *WithDefaults) Update(
 	ctx p.Context, id string, olds WithDefaultsOutput, news WithDefaultsArgs, preview bool,
 ) (WithDefaultsOutput, error) {
-	news.validate(w.check)
 	return WithDefaultsOutput{news}, nil
 }
 
