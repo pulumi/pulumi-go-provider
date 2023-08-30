@@ -1027,7 +1027,7 @@ func applyDefaults[T any](value *T) error {
 	var walk func(v reflect.Value) (didSet bool, _ error)
 
 	// apply may only be called on structs.
-	apply := func(v reflect.Value) (didSet bool, _ error) {
+	apply := func(v reflect.Value) (bool, error) {
 		t := v.Type()
 		a := getAnnotated(t)
 
@@ -1046,6 +1046,7 @@ func applyDefaults[T any](value *T) error {
 			fields[tag.Name] = v.FieldByIndex(field.Index)
 		}
 
+		var didSet bool
 	defaultEnvs:
 		for k, envVars := range a.DefaultEnvs {
 			value, ok := fields[k]
@@ -1170,7 +1171,11 @@ func applyDefaults[T any](value *T) error {
 			}
 			return didSet, nil
 		case reflect.Struct:
-			s := hydratedValue(v)
+			// We work on a copy because we don't want to hydrate an actual
+			// field if we don't every apply a default to it.
+			copy := reflect.New(v.Type()).Elem()
+			copy.Set(v)
+			s := hydratedValue(copy)
 			didSet, err := apply(derefNonNil(s))
 			if err != nil {
 				return false, err

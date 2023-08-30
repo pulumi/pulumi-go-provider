@@ -197,6 +197,13 @@ type WithDefaultsArgs struct {
 	ArrNestedPtr []*NestedDefaults          `pulumi:"arrNestedPtr,optional"`
 	MapNested    map[string]NestedDefaults  `pulumi:"mapNested,optional"`
 	MapNestedPtr map[string]*NestedDefaults `pulumi:"mapNestedPtr,optional"`
+
+	NoDefaultsPtr *NoDefaults `pulumi:"noDefaults,optional"`
+}
+
+// We want to make sure we don't effect structs or maps that don't have default values.
+type NoDefaults struct {
+	String string `pulumi:"s,optional"`
 }
 
 func (w *WithDefaultsArgs) Annotate(a infer.Annotator) {
