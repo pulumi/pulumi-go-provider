@@ -24,7 +24,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
-func TestCreateDefaults(t *testing.T) {
+func TestCheckDefaults(t *testing.T) {
 	// Helper bindings for constructing property maps
 	pInt := func(i int) resource.PropertyValue {
 		return resource.NewNumberProperty(float64(i))
@@ -161,25 +161,84 @@ func TestCreateDefaults(t *testing.T) {
 			}),
 		))
 	}
+}
 
-	t.Run("env", func(t *testing.T) {
-		t.Setenv("STRING", "str")
-		t.Setenv("INT", "1")
-		t.Setenv("FLOAT64", "3.14")
-		t.Setenv("BOOL", "T")
+func TestCheckDefaultsEnv(t *testing.T) {
+	// Helper bindings for constructing property maps
+	pInt := func(i int) resource.PropertyValue {
+		return resource.NewNumberProperty(float64(i))
+	}
+	pFloat := resource.NewNumberProperty
+	pBool := resource.NewBoolProperty
+	pString := resource.NewStringProperty
+	type pMap = resource.PropertyMap
+	type pValue = resource.PropertyValue
 
-		prov := provider()
-		resp, err := prov.Check(p.CheckRequest{
-			Urn:  urn("ReadEnv", "check-env"),
-			News: nil,
-		})
-		require.NoError(t, err)
+	t.Setenv("STRING", "str")
+	t.Setenv("INT", "1")
+	t.Setenv("FLOAT64", "3.14")
+	t.Setenv("BOOL", "T")
 
-		assert.Equal(t, pMap{
-			"b":   pBool(true),
-			"f64": pFloat(3.14),
-			"i":   pInt(1),
-			"s":   resource.PropertyValue{V: "str"},
-		}, resp.Inputs)
+	prov := provider()
+	resp, err := prov.Check(p.CheckRequest{
+		Urn:  urn("ReadEnv", "check-env"),
+		News: nil,
 	})
+	require.NoError(t, err)
+
+	assert.Equal(t, pMap{
+		"b":   pBool(true),
+		"f64": pFloat(3.14),
+		"i":   pInt(1),
+		"s":   pString("str"),
+	}, resp.Inputs)
+}
+
+func TestCheckDefaultsRecursive(t *testing.T) {
+	t.Parallel()
+	pString := resource.NewStringProperty
+	type pMap = resource.PropertyMap
+	type pValue = resource.PropertyValue
+
+	prov := provider()
+
+	// If we just have a type without the recursive field nil, we don't recurse.
+	resp, err := prov.Check(p.CheckRequest{
+		Urn:  urn("Recursive", "check-env"),
+		News: nil,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, pMap{
+		"value": pString("default-value"),
+	}, resp.Inputs)
+
+	// If the input type has hydrated recursive values, we should hydrate all non-nil
+	// values.
+	resp, err = prov.Check(p.CheckRequest{
+		Urn: urn("Recursive", "check-env"),
+		News: pMap{
+			"other": pValue{V: pMap{
+				"other": pValue{V: pMap{
+					"value": pString("custom"),
+					"other": pValue{V: pMap{}},
+				}},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, pMap{
+		"value": pString("default-value"),
+		"other": pValue{V: pMap{
+			"value": pString("default-value"),
+			"other": pValue{V: pMap{
+				"value": pString("custom"),
+				"other": pValue{V: pMap{
+					"value": pString("default-value"),
+				}},
+			}},
+		}},
+	}, resp.Inputs)
+
 }

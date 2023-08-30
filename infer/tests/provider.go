@@ -274,6 +274,23 @@ func (w *ReadEnv) Create(
 	return "well-read", ReadEnvOutput{inputs}, nil
 }
 
+type Recursive struct{}
+type RecursiveArgs struct {
+	Value string         `pulumi:"value,optional"`
+	Other *RecursiveArgs `pulumi:"other,optional"`
+}
+type RecursiveOutput struct{ RecursiveArgs }
+
+func (w *Recursive) Create(
+	ctx p.Context, name string, inputs RecursiveArgs, preview bool,
+) (string, RecursiveOutput, error) {
+	return "did-not-overflow-stack", RecursiveOutput{inputs}, nil
+}
+
+func (w *RecursiveArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.Value, "default-value")
+}
+
 func provider() integration.Server {
 	p := infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
@@ -283,6 +300,7 @@ func provider() integration.Server {
 			infer.Resource[*Increment, IncrementArgs, IncrementOutput](),
 			infer.Resource[*WithDefaults, WithDefaultsArgs, WithDefaultsOutput](),
 			infer.Resource[*ReadEnv, ReadEnvArgs, ReadEnvOutput](),
+			infer.Resource[*Recursive, RecursiveArgs, RecursiveOutput](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	})
