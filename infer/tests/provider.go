@@ -173,6 +173,124 @@ func (*WiredPlus) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *Wir
 	r.WireDependencies(f, a, &s.WiredOutputs)
 }
 
+// Default values are applied by the provider to facilitate integration testing and to
+// backstop non-compliment SDKs.
+
+// TODO[pulumi-go-provider#98] Remove the ,optional.
+
+type WithDefaults struct{}
+type WithDefaultsOutput struct{ WithDefaultsArgs }
+
+var (
+	_ infer.Annotated = (*WithDefaultsArgs)(nil)
+	_ infer.Annotated = (*NestedDefaults)(nil)
+)
+
+type WithDefaultsArgs struct {
+	// We sanity check with some primitive values, but most of this checking is in
+	// NestedDefaults.
+	String       string                     `pulumi:"s,optional"`
+	IntPtr       *int                       `pulumi:"pi,optional"`
+	Nested       NestedDefaults             `pulumi:"nested,optional"`
+	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr,optional"`
+	ArrNested    []NestedDefaults           `pulumi:"arrNested,optional"`
+	ArrNestedPtr []*NestedDefaults          `pulumi:"arrNestedPtr,optional"`
+	MapNested    map[string]NestedDefaults  `pulumi:"mapNested,optional"`
+	MapNestedPtr map[string]*NestedDefaults `pulumi:"mapNestedPtr,optional"`
+
+	NoDefaultsPtr *NoDefaults `pulumi:"noDefaults,optional"`
+}
+
+// We want to make sure we don't effect structs or maps that don't have default values.
+type NoDefaults struct {
+	String string `pulumi:"s,optional"`
+}
+
+func (w *WithDefaultsArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.String, "one")
+	a.SetDefault(&w.IntPtr, 2)
+}
+
+type NestedDefaults struct {
+	// Direct vars. These don't allow setting zero values.
+	String string  `pulumi:"s,optional"`
+	Float  float64 `pulumi:"f,optional"`
+	Int    int     `pulumi:"i,optional"`
+	Bool   bool    `pulumi:"b,optional"`
+
+	// Indirect vars. These should allow setting zero values.
+	StringPtr *string  `pulumi:"ps,optional"`
+	FloatPtr  *float64 `pulumi:"pf,optional"`
+	IntPtr    *int     `pulumi:"pi,optional"`
+	BoolPtr   *bool    `pulumi:"pb,optional"`
+
+	// A triple indirect value, included to check that we can handle arbitrary
+	// indirection.
+	IntPtrPtrPtr ***int `pulumi:"pppi,optional"`
+}
+
+func (w *NestedDefaults) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.String, "two")
+	a.SetDefault(&w.Float, 4.0)
+	a.SetDefault(&w.Int, 8)
+	// It doesn't make much sense to have default values of bools, but we support it.
+	a.SetDefault(&w.Bool, true)
+
+	// Now indirect ptrs
+	a.SetDefault(&w.StringPtr, "two")
+	a.SetDefault(&w.FloatPtr, 4.0)
+	a.SetDefault(&w.IntPtr, 8)
+	a.SetDefault(&w.BoolPtr, true)
+
+	a.SetDefault(&w.IntPtrPtrPtr, 64)
+}
+
+func (w *WithDefaults) Create(
+	ctx p.Context, name string, inputs WithDefaultsArgs, preview bool,
+) (string, WithDefaultsOutput, error) {
+	return "validated", WithDefaultsOutput{inputs}, nil
+}
+
+// Test reading environmental variables as default values.
+type ReadEnv struct{}
+type ReadEnvArgs struct {
+	String  string  `pulumi:"s,optional"`
+	Int     int     `pulumi:"i,optional"`
+	Float64 float64 `pulumi:"f64,optional"`
+	Bool    bool    `pulumi:"b,optional"`
+}
+type ReadEnvOutput struct{ ReadEnvArgs }
+
+func (w *ReadEnvArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.String, nil, "STRING")
+	a.SetDefault(&w.Int, nil, "INT")
+	a.SetDefault(&w.Float64, nil, "FLOAT64")
+	a.SetDefault(&w.Bool, nil, "BOOL")
+}
+
+func (w *ReadEnv) Create(
+	ctx p.Context, name string, inputs ReadEnvArgs, preview bool,
+) (string, ReadEnvOutput, error) {
+	return "well-read", ReadEnvOutput{inputs}, nil
+}
+
+type Recursive struct{}
+type RecursiveArgs struct {
+	Value string         `pulumi:"value,optional"`
+	Other *RecursiveArgs `pulumi:"other,optional"`
+}
+type RecursiveOutput struct{ RecursiveArgs }
+
+func (w *Recursive) Create(
+	ctx p.Context, name string, inputs RecursiveArgs, preview bool,
+) (string, RecursiveOutput, error) {
+	return "did-not-overflow-stack", RecursiveOutput{inputs}, nil
+}
+
+func (w *RecursiveArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.Value, "default-value")
+}
+
 func provider() integration.Server {
 	p := infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
@@ -180,6 +298,9 @@ func provider() integration.Server {
 			infer.Resource[*Wired, WiredInputs, WiredOutputs](),
 			infer.Resource[*WiredPlus, WiredInputs, WiredPlusOutputs](),
 			infer.Resource[*Increment, IncrementArgs, IncrementOutput](),
+			infer.Resource[*WithDefaults, WithDefaultsArgs, WithDefaultsOutput](),
+			infer.Resource[*ReadEnv, ReadEnvArgs, ReadEnvOutput](),
+			infer.Resource[*Recursive, RecursiveArgs, RecursiveOutput](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	})
