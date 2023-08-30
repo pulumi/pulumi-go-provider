@@ -25,8 +25,6 @@ import (
 )
 
 func TestCreateDefaults(t *testing.T) {
-	t.Parallel()
-
 	// Helper bindings for constructing property maps
 	pInt := func(i int) resource.PropertyValue {
 		return resource.NewNumberProperty(float64(i))
@@ -163,4 +161,25 @@ func TestCreateDefaults(t *testing.T) {
 			}),
 		))
 	}
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("STRING", "str")
+		t.Setenv("INT", "1")
+		t.Setenv("FLOAT64", "3.14")
+		t.Setenv("BOOL", "T")
+
+		prov := provider()
+		resp, err := prov.Check(p.CheckRequest{
+			Urn:  urn("ReadEnv", "check-env"),
+			News: nil,
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, pMap{
+			"b":   pBool(true),
+			"f64": pFloat(3.14),
+			"i":   pInt(1),
+			"s":   resource.PropertyValue{V: "str"},
+		}, resp.Inputs)
+	})
 }

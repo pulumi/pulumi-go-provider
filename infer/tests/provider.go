@@ -251,10 +251,27 @@ func (w *WithDefaults) Create(
 	return "validated", WithDefaultsOutput{inputs}, nil
 }
 
-func (w *WithDefaults) Update(
-	ctx p.Context, id string, olds WithDefaultsOutput, news WithDefaultsArgs, preview bool,
-) (WithDefaultsOutput, error) {
-	return WithDefaultsOutput{news}, nil
+// Test reading environmental variables as default values.
+type ReadEnv struct{}
+type ReadEnvArgs struct {
+	String  string  `pulumi:"s,optional"`
+	Int     int     `pulumi:"i,optional"`
+	Float64 float64 `pulumi:"f64,optional"`
+	Bool    bool    `pulumi:"b,optional"`
+}
+type ReadEnvOutput struct{ ReadEnvArgs }
+
+func (w *ReadEnvArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&w.String, nil, "STRING")
+	a.SetDefault(&w.Int, nil, "INT")
+	a.SetDefault(&w.Float64, nil, "FLOAT64")
+	a.SetDefault(&w.Bool, nil, "BOOL")
+}
+
+func (w *ReadEnv) Create(
+	ctx p.Context, name string, inputs ReadEnvArgs, preview bool,
+) (string, ReadEnvOutput, error) {
+	return "well-read", ReadEnvOutput{inputs}, nil
 }
 
 func provider() integration.Server {
@@ -265,6 +282,7 @@ func provider() integration.Server {
 			infer.Resource[*WiredPlus, WiredInputs, WiredPlusOutputs](),
 			infer.Resource[*Increment, IncrementArgs, IncrementOutput](),
 			infer.Resource[*WithDefaults, WithDefaultsArgs, WithDefaultsOutput](),
+			infer.Resource[*ReadEnv, ReadEnvArgs, ReadEnvOutput](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	})
