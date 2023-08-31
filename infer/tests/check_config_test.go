@@ -24,30 +24,28 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
-func TestConfigure(t *testing.T) {
+func TestCheckConfig(t *testing.T) {
 	t.Parallel()
 	pString := resource.NewStringProperty
 	type pMap = resource.PropertyMap
 
 	prov := providerWithConfig[Config]()
-	err := prov.Configure(p.ConfigureRequest{
-		Args: pMap{
+	resp, err := prov.CheckConfig(p.CheckRequest{
+		News: pMap{
 			"value":        pString("foo"),
 			"unknownField": pString("bar"),
 		},
 	})
 	require.NoError(t, err)
 
-	resp, err := prov.Create(p.CreateRequest{
-		Urn: urn("ReadConfig", "config"),
-	})
-	require.NoError(t, err)
+	// By default, check simply ensures that we can decode cleanly. It removes unknown
+	// fields so that diff doesn't trigger on changes to unwatched arguments.
 	assert.Equal(t, pMap{
-		"config": pString("{\"Value\":\"foo\"}"),
-	}, resp.Properties)
+		"value": pString("foo"),
+	}, resp.Inputs)
 }
 
-func TestConfigureCustom(t *testing.T) {
+func TestCheckConfigCustom(t *testing.T) {
 	t.Parallel()
 	pString := resource.NewStringProperty
 	type pMap = resource.PropertyMap
@@ -56,26 +54,21 @@ func TestConfigureCustom(t *testing.T) {
 	test := func(inputs, expected pMap) func(t *testing.T) {
 		return func(t *testing.T) {
 			prov := providerWithConfig[*ConfigCustom]()
-			err := prov.Configure(p.ConfigureRequest{
-				Args: inputs,
+			resp, err := prov.CheckConfig(p.CheckRequest{
+				Urn:  urn("provider", "provider"),
+				News: inputs,
 			})
 			require.NoError(t, err)
 
-			resp, err := prov.Create(p.CreateRequest{
-				Urn: urn("ReadConfigCustom", "config"),
-			})
-			require.NoError(t, err)
-			assert.Equal(t, expected, resp.Properties)
+			assert.Equal(t, expected, resp.Inputs)
 		}
 	}
 
-	t.Run("empty", test(
-		nil,
-		pMap{"config": pString(`{"Number":"","Parsed":-1}`)}))
+	t.Run("empty", test(nil, pMap{"number": pString("")}))
 	t.Run("unknown", test(
 		pMap{"unknownField": pString("bar")},
-		pMap{"config": pString(`{"Number":"","Parsed":-1}`)}))
+		pMap{"number": pString("")}))
 	t.Run("number", test(
 		pMap{"number": pString("42")},
-		pMap{"config": pString(`{"Number":"42","Parsed":42}`)}))
+		pMap{"number": pString("42.5")}))
 }

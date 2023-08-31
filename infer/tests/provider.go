@@ -313,7 +313,7 @@ func (w *ReadConfig) Create(
 
 type ConfigCustom struct {
 	Number string `pulumi:"number,optional"`
-	Parsed int
+	Parsed float64
 }
 
 func (c *ConfigCustom) Configure(ctx p.Context) error {
@@ -321,12 +321,25 @@ func (c *ConfigCustom) Configure(ctx p.Context) error {
 		c.Parsed = -1
 		return nil
 	}
-	parsed, err := strconv.ParseInt(c.Number, 0, 64)
+	parsed, err := strconv.ParseFloat(c.Number, 64)
 	if err != nil {
 		return err
 	}
-	c.Parsed = int(parsed)
+	c.Parsed = float64(parsed)
 	return nil
+}
+
+var _ = (infer.CustomCheck[*ConfigCustom])((*ConfigCustom)(nil))
+
+func (*ConfigCustom) Check(ctx p.Context,
+	name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap,
+) (*ConfigCustom, []p.CheckFailure, error) {
+	var c ConfigCustom
+	if v, ok := newInputs["number"]; ok {
+		c.Number = v.StringValue() + ".5"
+	}
+
+	return &c, nil, nil
 }
 
 type ReadConfigCustom struct{}
