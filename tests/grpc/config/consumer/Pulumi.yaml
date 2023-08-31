@@ -1,0 +1,42 @@
+name: test
+runtime: yaml
+
+plugins:
+  providers:
+    - name: config
+      path: ..
+
+resources:
+  provider:
+    type: pulumi:providers:config
+    properties:
+      s:
+        fn::secret:
+          foo
+      b: true
+      i: 42
+      m:
+        fizz: buzz
+      a:
+        - fn::secret:
+            one
+        - two
+      n:
+        s:
+          fn::secret:
+            foo
+        b: true
+        i: 42
+        m:
+          fizz: buzz
+        a:
+          - one
+          - two
+  get:
+    type: config:Get
+    options:
+      provider: ${provider}
+
+outputs:
+  config: ${get.config}
+  secret: ${provider.s}
