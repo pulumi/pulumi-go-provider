@@ -853,15 +853,28 @@ func getDependencies[R, I, O any](r *R, input *I, output *O, isCreate, isPreview
 	return fg.MarkMap(isCreate, isPreview), nil
 }
 
-func decode(m resource.PropertyMap, dst any, preview bool) (
+func decodeBase(m resource.PropertyMap, dst any, preview, ignoreUnrecognized bool) (
 	[]resource.PropertyPath, mapper.MappingError) {
 	if m.ContainsUnknowns() {
 		m = typeUnknowns(resource.NewObjectProperty(m), reflect.TypeOf(dst)).ObjectValue()
 	}
 	m, secrets := extractSecrets(m)
 	return secrets, mapper.New(&mapper.Opts{
-		IgnoreMissing: preview,
+		IgnoreMissing:      preview,
+		IgnoreUnrecognized: ignoreUnrecognized,
 	}).Decode(m.Mappable(), dst)
+}
+
+// Decode a value appropriate for a resource or invoke input.
+func decode(m resource.PropertyMap, dst any, preview bool) (
+	[]resource.PropertyPath, mapper.MappingError) {
+	return decodeBase(m, dst, preview, false)
+}
+
+// Decode a value appropriate for a configuration value.
+func decodeConfigure(m resource.PropertyMap, dst any, preview bool) (
+	[]resource.PropertyPath, mapper.MappingError) {
+	return decodeBase(m, dst, preview, true)
 }
 
 // typeUnknowns produces a map with identical values to m module unknown values have the

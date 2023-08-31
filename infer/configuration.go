@@ -112,9 +112,9 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 
 	var err mapper.MappingError
 	if value.Kind() != reflect.Pointer {
-		_, err = decode(req.News, &t, true)
+		_, err = decodeConfigure(req.News, &t, true)
 	} else {
-		_, err = decode(req.News, value.Interface(), true)
+		_, err = decodeConfigure(req.News, value.Interface(), true)
 	}
 
 	failures, e := checkFailureFromMapError(err)
@@ -243,9 +243,9 @@ func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	var err mapper.MappingError
 	if typ := reflect.TypeOf(c.t).Elem(); typ.Kind() == reflect.Pointer {
 		reflect.ValueOf(c.t).Elem().Set(reflect.New(typ.Elem()))
-		_, err = decode(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
+		_, err = decodeConfigure(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
 	} else {
-		_, err = decode(req.Args, c.t, false)
+		_, err = decodeConfigure(req.Args, c.t, false)
 	}
 	if err != nil {
 		return c.handleConfigFailures(ctx, err)
