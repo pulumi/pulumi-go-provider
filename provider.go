@@ -37,6 +37,8 @@ import (
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	configEncoding "github.com/pulumi/pulumi-go-provider/internal/config_encoding"
 )
 
 type GetSchemaRequest struct {
@@ -178,8 +180,7 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 }
 
 type ConfigureRequest struct {
-	Variables map[string]string
-	Args      presource.PropertyMap
+	Args presource.PropertyMap
 }
 
 type InvokeRequest struct {
@@ -701,13 +702,26 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 }
 
 func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
-	argMap, err := p.getMap(req.GetArgs())
+	var schema schema.PackageSpec
+	schemaBytes, err := p.GetSchema(ctx, &rpc.GetSchemaRequest{Version: 0})
+	if err != nil {
+		return nil, fmt.Errorf("discovering config information: %w", err)
+	}
+	err = json.Unmarshal([]byte(schemaBytes.GetSchema()), &schema)
+	if err != nil {
+		return nil, fmt.Errorf("invalid schema: %w", err)
+	}
+
+	properties, err := configEncoding.New(&schema.Provider).
+		UnmarshalProperties(req.GetArgs())
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("Incoming arguments: %#v (original: %s)\n", properties, req.GetArgs())
+
 	err = p.client.Configure(p.ctx(ctx, ""), ConfigureRequest{
-		Variables: req.GetVariables(),
-		Args:      argMap,
+		Args: properties,
 	})
 	if err != nil {
 		return nil, err
