@@ -110,16 +110,24 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		value = value.Elem()
 	}
 
-	var err mapper.MappingError
+	var (
+		secrets []resource.PropertyPath
+		err     mapper.MappingError
+	)
 	if value.Kind() != reflect.Pointer {
-		_, err = decode(req.News, &t, true)
+		secrets, err = decodeConfigure(req.News, &t, true)
 	} else {
-		_, err = decode(req.News, value.Interface(), true)
+		secrets, err = decodeConfigure(req.News, value.Interface(), true)
 	}
 
 	failures, e := checkFailureFromMapError(err)
 	if e != nil {
 		return p.CheckResponse{}, e
+	}
+
+	news, err := encode(t, secrets, req.News.ContainsUnknowns())
+	if err != nil {
+		return p.CheckResponse{}, err
 	}
 
 	ip := r.InputProperties
@@ -131,14 +139,14 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		op = map[string]pschema.PropertySpec{}
 	}
 
-	for k, v := range req.News {
+	for k, v := range news {
 		if (op[string(k)].Secret || ip[string(k)].Secret) && !v.IsSecret() {
 			req.News[k] = resource.MakeSecret(v)
 		}
 	}
 
 	return p.CheckResponse{
-		Inputs:   req.News,
+		Inputs:   news,
 		Failures: failures,
 	}, nil
 }
@@ -243,9 +251,9 @@ func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	var err mapper.MappingError
 	if typ := reflect.TypeOf(c.t).Elem(); typ.Kind() == reflect.Pointer {
 		reflect.ValueOf(c.t).Elem().Set(reflect.New(typ.Elem()))
-		_, err = decode(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
+		_, err = decodeConfigure(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
 	} else {
-		_, err = decode(req.Args, c.t, false)
+		_, err = decodeConfigure(req.Args, c.t, false)
 	}
 	if err != nil {
 		return c.handleConfigFailures(ctx, err)

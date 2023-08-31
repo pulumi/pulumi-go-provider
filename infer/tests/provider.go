@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/blang/semver"
@@ -291,8 +292,72 @@ func (w *RecursiveArgs) Annotate(a infer.Annotator) {
 	a.SetDefault(&w.Value, "default-value")
 }
 
-func provider() integration.Server {
-	p := infer.Provider(infer.Options{
+type Config struct {
+	Value string `pulumi:"value,optional"`
+}
+
+type ReadConfig struct{}
+type ReadConfigArgs struct{}
+type ReadConfigOutput struct {
+	Config string `pulumi:"config"`
+}
+
+func (w *ReadConfig) Create(
+	ctx p.Context, name string, _ ReadConfigArgs, _ bool,
+) (string, ReadConfigOutput, error) {
+	c := infer.GetConfig[Config](ctx)
+	bytes, err := json.Marshal(c)
+	return "read", ReadConfigOutput{Config: string(bytes)}, err
+}
+
+type ConfigCustom struct {
+	Number  *float64 `pulumi:"number,optional"`
+	Squared float64
+}
+
+func (c *ConfigCustom) Configure(ctx p.Context) error {
+	if c.Number == nil {
+		return nil
+	}
+	// We can perform arbitrary data transformations in the Configure step.  These
+	// transformations aren't visible in Pulumi State, but are viable in other methods
+	// on the provider.
+	square := func(n float64) float64 { return n * n }
+	c.Squared = square(*c.Number)
+	return nil
+}
+
+var _ = (infer.CustomCheck[*ConfigCustom])((*ConfigCustom)(nil))
+
+func (*ConfigCustom) Check(ctx p.Context,
+	name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap,
+) (*ConfigCustom, []p.CheckFailure, error) {
+	var c ConfigCustom
+	if v, ok := newInputs["number"]; ok {
+		number := v.NumberValue() + 0.5
+		c.Number = &number
+	}
+
+	return &c, nil, nil
+}
+
+type ReadConfigCustom struct{}
+type ReadConfigCustomArgs struct{}
+type ReadConfigCustomOutput struct {
+	Config string `pulumi:"config"`
+}
+
+func (w *ReadConfigCustom) Create(
+	ctx p.Context, name string, _ ReadConfigCustomArgs, _ bool,
+) (string, ReadConfigCustomOutput, error) {
+	c := infer.GetConfig[ConfigCustom](ctx)
+	bytes, err := json.Marshal(c)
+	return "read", ReadConfigCustomOutput{Config: string(bytes)}, err
+}
+
+func providerOpts(config infer.InferredConfig) infer.Options {
+	return infer.Options{
+		Config: config,
 		Resources: []infer.InferredResource{
 			infer.Resource[*Echo, EchoInputs, EchoOutputs](),
 			infer.Resource[*Wired, WiredInputs, WiredOutputs](),
@@ -301,8 +366,19 @@ func provider() integration.Server {
 			infer.Resource[*WithDefaults, WithDefaultsArgs, WithDefaultsOutput](),
 			infer.Resource[*ReadEnv, ReadEnvArgs, ReadEnvOutput](),
 			infer.Resource[*Recursive, RecursiveArgs, RecursiveOutput](),
+			infer.Resource[*ReadConfig, ReadConfigArgs, ReadConfigOutput](),
+			infer.Resource[*ReadConfigCustom, ReadConfigCustomArgs, ReadConfigCustomOutput](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
-	})
+	}
+}
+
+func provider() integration.Server {
+	p := infer.Provider(providerOpts(nil))
+	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+}
+
+func providerWithConfig[T any]() integration.Server {
+	p := infer.Provider(providerOpts(infer.Config[T]()))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
 }
