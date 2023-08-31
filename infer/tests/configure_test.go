@@ -50,6 +50,7 @@ func TestConfigure(t *testing.T) {
 func TestConfigureCustom(t *testing.T) {
 	t.Parallel()
 	pString := resource.NewStringProperty
+	pNumber := resource.NewNumberProperty
 	type pMap = resource.PropertyMap
 	type pValue = resource.PropertyValue
 
@@ -71,11 +72,11 @@ func TestConfigureCustom(t *testing.T) {
 
 	t.Run("empty", test(
 		nil,
-		pMap{"config": pString(`{"Number":"","Parsed":-1}`)}))
+		pMap{"config": pString(`{"Number":null,"Squared":0}`)}))
 	t.Run("unknown", test(
 		pMap{"unknownField": pString("bar")},
-		pMap{"config": pString(`{"Number":"","Parsed":-1}`)}))
+		pMap{"config": pString(`{"Number":null,"Squared":0}`)}))
 	t.Run("number", test(
-		pMap{"number": pString("42")},
-		pMap{"config": pString(`{"Number":"42","Parsed":42}`)}))
+		pMap{"number": pNumber(42)},
+		pMap{"config": pString(`{"Number":42,"Squared":1764}`)}))
 }

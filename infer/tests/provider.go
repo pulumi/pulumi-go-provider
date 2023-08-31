@@ -17,7 +17,6 @@ package tests
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -312,20 +311,19 @@ func (w *ReadConfig) Create(
 }
 
 type ConfigCustom struct {
-	Number string `pulumi:"number,optional"`
-	Parsed float64
+	Number  *float64 `pulumi:"number,optional"`
+	Squared float64
 }
 
 func (c *ConfigCustom) Configure(ctx p.Context) error {
-	if c.Number == "" {
-		c.Parsed = -1
+	if c.Number == nil {
 		return nil
 	}
-	parsed, err := strconv.ParseFloat(c.Number, 64)
-	if err != nil {
-		return err
-	}
-	c.Parsed = float64(parsed)
+	// We can perform arbitrary data transformations in the Configure step.  These
+	// transformations aren't visible in Pulumi State, but are viable in other methods
+	// on the provider.
+	square := func(n float64) float64 { return n * n }
+	c.Squared = square(*c.Number)
 	return nil
 }
 
@@ -336,7 +334,8 @@ func (*ConfigCustom) Check(ctx p.Context,
 ) (*ConfigCustom, []p.CheckFailure, error) {
 	var c ConfigCustom
 	if v, ok := newInputs["number"]; ok {
-		c.Number = v.StringValue() + ".5"
+		number := v.NumberValue() + 0.5
+		c.Number = &number
 	}
 
 	return &c, nil, nil

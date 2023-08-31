@@ -48,6 +48,7 @@ func TestCheckConfig(t *testing.T) {
 func TestCheckConfigCustom(t *testing.T) {
 	t.Parallel()
 	pString := resource.NewStringProperty
+	pNumber := resource.NewNumberProperty
 	type pMap = resource.PropertyMap
 	type pValue = resource.PropertyValue
 
@@ -64,11 +65,11 @@ func TestCheckConfigCustom(t *testing.T) {
 		}
 	}
 
-	t.Run("empty", test(nil, pMap{"number": pString("")}))
+	t.Run("empty", test(nil, pMap{}))
 	t.Run("unknown", test(
 		pMap{"unknownField": pString("bar")},
-		pMap{"number": pString("")}))
+		pMap{}))
 	t.Run("number", test(
-		pMap{"number": pString("42")},
-		pMap{"number": pString("42.5")}))
+		pMap{"number": pNumber(42)},
+		pMap{"number": pNumber(42.5)}))
 }
