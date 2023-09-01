@@ -15,14 +15,12 @@
 package grpc
 
 import (
-	"encoding/json"
 	"testing"
 
 	replay "github.com/pulumi/pulumi-terraform-bridge/testing/x"
 	"github.com/stretchr/testify/require"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/infer"
 	config "github.com/pulumi/pulumi-go-provider/tests/grpc/config/provider"
 )
 
@@ -471,51 +469,6 @@ func TestConfigWithSecrets(t *testing.T) {
   }
 ]`
 	replayConfig(t, sequence)
-}
-
-type Config struct {
-	String string            `pulumi:"s"`
-	Bool   bool              `pulumi:"b"`
-	Int    int               `pulumi:"i"`
-	Map    map[string]string `pulumi:"m"`
-	Arr    []string          `pulumi:"a"`
-	Nested ConfigNested      `pulumi:"n"`
-
-	DString string `pulumi:"ds,optional"`
-	DBool   *bool  `pulumi:"db,optional"`
-	DInt    int    `pulumi:"di,optional"`
-}
-
-type ConfigNested struct {
-	String string            `pulumi:"s"`
-	Bool   bool              `pulumi:"b"`
-	Int    int               `pulumi:"i"`
-	Map    map[string]string `pulumi:"m"`
-	Arr    []string          `pulumi:"a"`
-}
-
-var _ = (infer.Annotated)((*Config)(nil))
-
-func (c *Config) Annotate(a infer.Annotator) {
-	a.SetDefault(&c.String, nil, "STRING")
-	a.SetDefault(&c.Bool, nil, "BOOL")
-	a.SetDefault(&c.Int, nil, "INT")
-
-	a.SetDefault(&c.DString, "defString")
-	a.SetDefault(&c.DBool, true)
-	a.SetDefault(&c.DInt, 42)
-}
-
-type Get struct{}
-type GetArgs struct{}
-type GetState struct {
-	Config string `pulumi:"config"`
-}
-
-func (*Get) Create(ctx p.Context, name string, input GetArgs, preview bool) (string, GetState, error) {
-	config := infer.GetConfig[Config](ctx)
-	bytes, err := json.Marshal(&config)
-	return name, GetState{Config: string(bytes)}, err
 }
 
 func replayConfig(t *testing.T, jsonLog string) {
