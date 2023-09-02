@@ -24,6 +24,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
@@ -87,14 +88,15 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 	if err != nil {
 		return p.CheckResponse{}, fmt.Errorf("could not get config secrets: %w", err)
 	}
-
+	encoder, decodeError := ende.Decode(req.News, &t)
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that
 		i, failures, err := t.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
-		inputs, err := encode(i, nil, false)
+
+		inputs, err := encoder.Encode(i)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -104,24 +106,9 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		}, nil
 	}
 
-	value := reflect.ValueOf(t)
-	for value.Kind() == reflect.Pointer && value.Elem().Kind() == reflect.Pointer {
-		value = value.Elem()
-	}
-
-	var (
-		secrets []resource.PropertyPath
-		mErr    mapper.MappingError
-	)
-	if value.Kind() != reflect.Pointer {
-		secrets, mErr = decodeConfigure(req.News, &t, true)
-	} else {
-		secrets, mErr = decodeConfigure(req.News, value.Interface(), true)
-	}
-
-	failures, e := checkFailureFromMapError(mErr)
-	if e != nil {
-		return p.CheckResponse{}, e
+	failures, err := checkFailureFromMapError(decodeError)
+	if err != nil {
+		return p.CheckResponse{}, err
 	}
 
 	err = applyDefaults(&t)
@@ -129,7 +116,7 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		return p.CheckResponse{}, err
 	}
 
-	news, err := encode(t, secrets, req.News.ContainsUnknowns())
+	news, err := encoder.Encode(t)
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
@@ -156,23 +143,13 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 }
 
 func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	if c.t == nil {
-		c.t = new(T)
-	}
+	c.ensure()
 	return diff[T, T, T](ctx, req, c.t, func(string) bool { return true })
 }
 
 func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
-	if c.t == nil {
-		c.t = new(T)
-	}
-	var err mapper.MappingError
-	if typ := reflect.TypeOf(c.t).Elem(); typ.Kind() == reflect.Pointer {
-		reflect.ValueOf(c.t).Elem().Set(reflect.New(typ.Elem()))
-		_, err = decodeConfigure(req.Args, reflect.ValueOf(c.t).Elem().Interface(), false)
-	} else {
-		_, err = decodeConfigure(req.Args, c.t, false)
-	}
+	c.ensure()
+	_, err := ende.DecodeConfig(req.Args, c.t)
 	if err != nil {
 		return c.handleConfigFailures(ctx, err)
 	}
@@ -183,6 +160,18 @@ func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
 	}
 
 	return nil
+}
+
+// Ensure that the config value is hydrated so we can assign to it.
+func (c *config[T]) ensure() {
+	if c.t == nil {
+		c.t = new(T)
+	}
+
+	// T might be a *C for some type C, so we need to rehydrate it.
+	if v := reflect.ValueOf(c.t).Elem(); v.Kind() == reflect.Pointer && v.IsNil() {
+		v.Set(reflect.New(v.Type().Elem()))
+	}
 }
 
 func (c *config[T]) handleConfigFailures(ctx p.Context, err mapper.MappingError) error {

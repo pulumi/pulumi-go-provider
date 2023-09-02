@@ -23,6 +23,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -120,7 +121,7 @@ func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 
 func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 	var i I
-	secrets, mapErr := decode(req.Args, &i, false)
+	encoder, mapErr := ende.Decode(req.Args, &i)
 	mapFailures, err := checkFailureFromMapError(mapErr)
 	if err != nil {
 		return p.InvokeResponse{}, err
@@ -139,7 +140,7 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeReq
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
-	m, err := encode(o, secrets, false)
+	m, err := encoder.Encode(o)
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
