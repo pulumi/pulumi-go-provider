@@ -153,7 +153,6 @@ func DeepEquals(a, b resource.PropertyValue) bool {
 		return a.NumberValue() == b.NumberValue()
 	case a.IsString() && b.IsString():
 		return a.StringValue() == b.StringValue()
-
 	default:
 		return false
 	}

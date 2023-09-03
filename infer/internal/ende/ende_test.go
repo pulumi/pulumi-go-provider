@@ -15,11 +15,16 @@
 package ende
 
 import (
+	"reflect"
 	"testing"
 
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"pgregory.net/rapid"
+
+	rType "github.com/pulumi/pulumi-go-provider/internal/rapid/reflect"
+	rResource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
 
 // testRoundTrip asserts that the result of pMap can be decoded onto T, and then lossly
@@ -40,7 +45,29 @@ func testRoundTrip[T any](t *testing.T, pMap func() r.PropertyMap) {
 	})
 }
 
-func TestRoundtrip(t *testing.T) {
+func TestRapidRoundTrip(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		typed := rResource.Type(rType.Struct(5)).Draw(t, "top-level")
+		pMap := func() r.PropertyMap { return typed.Value.ObjectValue().Copy() }
+
+		goValue := reflect.New(typed.Type).Interface()
+
+		toDecode := pMap()
+		encoder, err := decode(toDecode, goValue,
+			false /*ignoreUnrecognized*/, false /*allowMissing*/)
+		require.NoError(t, err)
+
+		assert.Equalf(t, pMap(), toDecode, "mutated decode map")
+
+		reEncoded, err := encoder.Encode(goValue)
+		require.NoError(t, err)
+		assert.Equal(t, pMap(), reEncoded)
+
+	})
+}
+
+// Test that we round trip against our strongly typed interface.
+func TestRoundtripIn(t *testing.T) {
 	t.Parallel()
 
 	testRoundTrip[struct {

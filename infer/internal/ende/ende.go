@@ -46,8 +46,8 @@ func DecodeConfig[T any](m resource.PropertyMap, dst T) (Encoder, mapper.Mapping
 	return decode(m, dst, true, false)
 }
 
-func decode[T any](
-	m resource.PropertyMap, dst T, ignoreUnrecognized, allowMissing bool,
+func decode(
+	m resource.PropertyMap, dst any, ignoreUnrecognized, allowMissing bool,
 ) (Encoder, mapper.MappingError) {
 	e := new(ende)
 	target := reflect.ValueOf(dst)
