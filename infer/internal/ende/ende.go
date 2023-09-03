@@ -19,6 +19,7 @@ import (
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 )
 
@@ -32,28 +33,28 @@ type Encoder struct{ *ende }
 //	var value T
 //	encoder, _ := Decode(m, &value)
 //	m, _ = encoder.Encode(value)
-func Decode(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
+func Decode[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
 	return decode(m, dst, false, false)
 }
 
 // DecodeTolerateMissing is like Decode, but doesn't return an error for a missing value.
-func DecodeTolerateMissing(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
+func DecodeTolerateMissing[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
 	return decode(m, dst, false, true)
 }
 
-func DecodeConfig(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
+func DecodeConfig[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
 	return decode(m, dst, true, false)
 }
 
-func decode(
-	m resource.PropertyMap, dst any, ignoreUnrecognized, allowMissing bool,
+func decode[T any](
+	m resource.PropertyMap, dst T, ignoreUnrecognized, allowMissing bool,
 ) (Encoder, mapper.MappingError) {
 	e := new(ende)
-	m = e.simplify(m, reflect.TypeOf(dst))
 	target := reflect.ValueOf(dst)
 	for target.Type().Kind() == reflect.Pointer && !target.IsNil() {
 		target = target.Elem()
 	}
+	m = e.simplify(m, target.Type())
 	return Encoder{e}, mapper.New(&mapper.Opts{
 		IgnoreUnrecognized: ignoreUnrecognized,
 		IgnoreMissing:      allowMissing,
@@ -62,158 +63,175 @@ func decode(
 }
 
 // An ENcoder DEcoder
-type ende struct{ changes []path }
+type ende struct{ changes []change }
 
-type secretPath struct {
-	path resource.PropertyPath
+type change struct {
+	path     resource.PropertyPath
+	computed bool // true if this output's value is known.
+	secret   bool // true if this output's value is secret.
 }
 
-type computedPath struct {
-	path resource.PropertyPath
-}
-
-type outputPath struct {
-	path         resource.PropertyPath
-	known        bool           // true if this output's value is known.
-	secret       bool           // true if this output's value is secret.
-	dependencies []resource.URN // the dependencies associated with this output.
-}
-
-func (p outputPath) get() resource.PropertyPath { return p.path }
-func (p outputPath) apply(v resource.PropertyValue) resource.PropertyValue {
-	return resource.NewOutputProperty(resource.Output{
-		Element:      v,
-		Known:        p.known,
-		Secret:       p.secret,
-		Dependencies: p.dependencies,
-	})
-}
-
-func (p secretPath) get() resource.PropertyPath { return p.path }
-func (p secretPath) apply(v resource.PropertyValue) resource.PropertyValue {
-	return resource.MakeSecret(v)
-}
-
-func (p computedPath) get() resource.PropertyPath { return p.path }
-func (p computedPath) apply(v resource.PropertyValue) resource.PropertyValue {
-	return resource.MakeComputed(v)
-}
-
-type path interface {
-	get() resource.PropertyPath
-	apply(resource.PropertyValue) resource.PropertyValue
+func (p change) apply(v resource.PropertyValue) resource.PropertyValue {
+	if p.computed {
+		v = MakeComputed(v)
+	}
+	if p.secret {
+		v = MakeSecret(v)
+	}
+	return v
 }
 
 func (e *ende) simplify(m resource.PropertyMap, dst reflect.Type) resource.PropertyMap {
-	var walk func(
-		resource.PropertyValue, resource.PropertyPath, reflect.Type,
-	) resource.PropertyValue
-	walk = func(
-		v resource.PropertyValue, path resource.PropertyPath, typ reflect.Type,
-	) resource.PropertyValue {
-		for typ != nil && typ.Kind() == reflect.Pointer {
+	return e.walk(
+		resource.NewObjectProperty(m),
+		resource.PropertyPath{},
+		dst,
+		false, /* align types */
+	).ObjectValue()
+}
+
+func (e *ende) walk(
+	v resource.PropertyValue, path resource.PropertyPath, typ reflect.Type,
+	alignTypes bool,
+) resource.PropertyValue {
+	if typ == nil {
+		// We can't align types when we don't have type info
+		alignTypes = false
+	} else {
+		for typ.Kind() == reflect.Pointer {
 			typ = typ.Elem()
 		}
+	}
+
+	switch {
+	case v.IsSecret():
+		// To allow full fidelity reconstructing maps, we extract nested secrets
+		// first. We then extract the top level secret. We need this ordering to
+		// re-embed nested secrets.
+		el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
+		e.changes = append(e.changes, change{path: path, secret: true})
+		return el
+	case v.IsComputed():
+		el := e.walk(v.Input().Element, path, typ, true)
+		e.changes = append(e.changes, change{path: path, computed: true})
+		return el
+	case v.IsOutput():
+		output := v.OutputValue()
+		el := e.walk(output.Element, path, typ, !output.Known)
+		e.changes = append(e.changes, change{
+			path:     path,
+			computed: !output.Known,
+			secret:   output.Secret,
+		})
+
+		return el
+	}
+
+	var elemType reflect.Type
+	if typ != nil {
+		switch typ.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map:
+			elemType = typ.Elem()
+		}
+	}
+
+	if !alignTypes {
+	handle:
 		switch {
-		case v.IsSecret():
-			// To allow full fidelity reconstructing maps, we extract nested secrets
-			// first. We then extract the top level secret. We need this ordering to
-			// re-embed nested secrets.
-			el := walk(v.SecretValue().Element, path, typ)
-			e.changes = append(e.changes, secretPath{path})
-			return el
-		case v.IsComputed():
-			el := walk(v.Input().Element, path, typ)
-			e.changes = append(e.changes, computedPath{path})
-			return el
-		case v.IsOutput():
-			v := v.OutputValue()
-			e.changes = append(e.changes, outputPath{
-				path:         path,
-				known:        v.Known,
-				secret:       v.Secret,
-				dependencies: v.Dependencies,
-			})
-			// We assume that useful information is not encoded in the unknown
-			// value behind an Output.
-			if !v.Known {
-				return walk(zeroValueOf(typ), path, typ)
-			}
-			return walk(v.Element, path, typ)
 		case v.IsArray():
-			arr := make([]resource.PropertyValue, len(v.ArrayValue()))
-			var elem reflect.Type
-			if typ != nil {
-				switch typ.Kind() {
-				case reflect.Array, reflect.Slice:
-					elem = typ.Elem()
+			var results []resource.PropertyValue
+			results = make([]resource.PropertyValue, len(v.ArrayValue()))
+			for i, v := range v.ArrayValue() {
+				path := append(path, i)
+				results[i] = e.walk(v, path, elemType, alignTypes)
+			}
+			return resource.NewArrayProperty(results)
+		case v.IsObject():
+			if typ != nil && typ.Kind() == reflect.Struct {
+				break handle
+			}
+
+			var result resource.PropertyMap
+			if v.IsObject() {
+				result = make(resource.PropertyMap, len(v.ObjectValue()))
+				for k, v := range v.ObjectValue() {
+					path := append(path, string(k))
+					result[k] = e.walk(v, path, elemType, alignTypes)
 				}
 			}
-			for i, e := range v.ArrayValue() {
-				arr[i] = walk(e, append(path, i), elem)
-			}
-			return resource.NewArrayProperty(arr)
-		case v.IsObject():
-			m := make(resource.PropertyMap, len(v.ObjectValue()))
-			for k, v := range v.ObjectValue() {
-				elem := fieldType(string(k), typ)
-				m[k] = walk(v, append(path, string(k)), elem)
-			}
-			return resource.NewObjectProperty(m)
+			return resource.NewObjectProperty(result)
+		// This is a scalar value, so we can return it as is.
 		default:
 			return v
 		}
 	}
 
-	newMap := make(resource.PropertyMap, len(m))
-	for k, v := range m {
-		newMap[k] = walk(v, resource.PropertyPath{string(k)}, fieldType(string(k), dst))
-	}
+	contract.Assertf(!IsComputed(v), "failed to strip computed")
+	contract.Assertf(!IsSecret(v), "failed to strip secrets")
+	contract.Assertf(!v.IsOutput(), "failed to strip outputs")
 
-	return newMap
-}
-
-func fieldType(name string, typ reflect.Type) reflect.Type {
-	if typ == nil {
-		return nil
-	}
-	if typ.Kind() == reflect.Map {
-		return typ.Elem()
-	}
-	if typ.Kind() != reflect.Struct {
-		return nil
-	}
-
-	for _, f := range reflect.VisibleFields(typ) {
-		tag, err := introspect.ParseTag(f)
-		if err != nil || tag.Internal {
-			continue
+	switch typ.Kind() {
+	case reflect.Array, reflect.Slice:
+		var results []resource.PropertyValue
+		if v.IsArray() {
+			results = make([]resource.PropertyValue, len(v.ArrayValue()))
+			for i, v := range v.ArrayValue() {
+				path := append(path, i)
+				results[i] = e.walk(v, path, elemType, alignTypes)
+			}
 		}
-		if tag.Name == name {
-			return f.Type
+		return resource.NewArrayProperty(results)
+	case reflect.Map:
+		var result resource.PropertyMap
+		if v.IsObject() {
+			result = make(resource.PropertyMap, len(v.ObjectValue()))
+			for k, v := range v.ObjectValue() {
+				path := append(path, string(k))
+				result[k] = e.walk(v, path, elemType, alignTypes)
+			}
 		}
-	}
-	return nil
-}
-
-func zeroValueOf(typ reflect.Type) resource.PropertyValue {
-	var kind reflect.Kind
-	if typ != nil {
-		kind = typ.Kind()
-	}
-	switch kind {
-	case reflect.Struct, reflect.Map:
-		return resource.NewObjectProperty(resource.PropertyMap{})
+		return resource.NewObjectProperty(result)
+	case reflect.Struct:
+		result := resource.PropertyMap{}
+		if v.IsObject() {
+			result = v.ObjectValue().Copy()
+		}
+		for _, field := range reflect.VisibleFields(typ) {
+			tag, err := introspect.ParseTag(field)
+			if err != nil || tag.Internal {
+				continue
+			}
+			pName := resource.PropertyKey(tag.Name)
+			path := append(path, tag.Name)
+			if v, ok := result[pName]; ok {
+				result[pName] = e.walk(v, path, field.Type, alignTypes)
+			} else {
+				if tag.Optional || !alignTypes {
+					continue
+				}
+				// Create a new unknown output, which we will then type
+				result[pName] = e.walk(resource.NewNullProperty(),
+					path, field.Type, true)
+			}
+		}
+		return resource.NewObjectProperty(result)
 	case reflect.String:
+		if v.IsString() {
+			return v
+		}
 		return resource.NewStringProperty("")
 	case reflect.Bool:
+		if v.IsBool() {
+			return v
+		}
 		return resource.NewBoolProperty(false)
 	case reflect.Int, reflect.Int64, reflect.Float32, reflect.Float64:
+		if v.IsNumber() {
+			return v
+		}
 		return resource.NewNumberProperty(0)
-	case reflect.Array, reflect.Slice:
-		return resource.NewArrayProperty([]resource.PropertyValue{})
 	default:
-		return resource.NewNullProperty()
+		return v
 	}
 }
 
@@ -225,13 +243,16 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	m := resource.NewObjectProperty(
 		resource.NewPropertyMapFromMap(props),
 	)
+	contract.Assertf(!m.ContainsUnknowns(),
+		"NewPropertyMapFromMap cannot produce unknown values")
+	contract.Assertf(!m.ContainsSecrets(),
+		"NewPropertyMapFromMap cannot produce secrets")
 	for _, s := range e.changes {
-		path := s.get()
-		v, ok := path.Get(m)
+		v, ok := s.path.Get(m)
 		if !ok {
 			continue
 		}
-		path.Set(m, s.apply(v))
+		s.path.Set(m, s.apply(v))
 	}
 	return m.ObjectValue(), nil
 }
@@ -247,18 +268,11 @@ func (e *ende) AllowUnknown(allowUnknowns bool) Encoder {
 
 	// If we don't allow unknowns, strip all fields that can accept them.
 
-	changes := make([]path, 0, len(e.changes))
+	changes := make([]change, 0, len(e.changes))
 
 	for _, v := range e.changes {
-		switch v := v.(type) {
-		case outputPath:
-			v.known = true
-			changes = append(changes, v)
-		case computedPath:
-			// This no longer applies
-		default:
-			changes = append(changes, v)
-		}
+		v.computed = false
+		changes = append(changes, v)
 	}
 
 	return Encoder{&ende{changes}}

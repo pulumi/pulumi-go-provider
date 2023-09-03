@@ -254,11 +254,11 @@ func markComputed(
 	oldInputs, inputs resource.PropertyMap, isCreate bool,
 ) resource.PropertyValue {
 	// If the value is already computed or if it is guaranteed to be known, we don't need to do anything
-	if field.known || prop.IsComputed() {
+	if field.known || ende.IsComputed(prop) {
 		return prop
 	}
 
-	if input, ok := inputs[key]; ok && !input.IsComputed() && input.DeepEquals(prop) {
+	if input, ok := inputs[key]; ok && !ende.IsComputed(prop) && input.DeepEquals(prop) {
 		// prop is an output during a create, but the output mirrors an
 		// input in name and value. We don't make it computed.
 		return prop
@@ -266,7 +266,7 @@ func markComputed(
 
 	// If this is during a create and the value is not explicitly marked as known, we mark it computed.
 	if isCreate {
-		return resource.MakeComputed(prop)
+		return ende.MakeComputed(prop)
 	}
 
 	// If a dependency is computed or has changed, we mark this field as computed.
@@ -285,8 +285,8 @@ func markComputed(
 		// (or do it for the user), ensuring that we have access to information
 		// that changed..
 		oldInput, hasOldInput := oldInputs[k]
-		if inputs[k].IsComputed() || (hasOldInput && !inputs[k].DeepEquals(oldInput)) {
-			return resource.MakeComputed(prop)
+		if ende.IsComputed(inputs[k]) || (hasOldInput && !inputs[k].DeepEquals(oldInput)) {
+			return ende.MakeComputed(prop)
 		}
 	}
 
@@ -299,23 +299,20 @@ func markSecret(
 	// If we should never return a secret, ensure that the field *is not* marked as
 	// secret, then return.
 	if field.neverSecret {
-		if prop.IsSecret() {
-			prop = prop.SecretValue().Element
-		}
-		return prop
+		return ende.MakePublic(prop)
 	}
 
-	if prop.IsSecret() {
+	if ende.IsSecret(prop) {
 		return prop
 	}
 
 	// If we should always return a secret, ensure that the field *is* marked as secret,
 	// then return.
 	if field.alwaysSecret {
-		return resource.MakeSecret(prop)
+		return ende.MakeSecret(prop)
 	}
 
-	if input, ok := inputs[key]; ok && !input.IsSecret() && input.DeepEquals(prop) {
+	if input, ok := inputs[key]; ok && !ende.IsSecret(input) && input.DeepEquals(prop) {
 		// prop might depend on a secret value, but the output mirrors a input in
 		// name and value. We don't make it secret since it will be public in the
 		// state anyway.
@@ -325,8 +322,8 @@ func markSecret(
 	// Otherwise secretness is derived from dependencies: any dependency that is
 	// secret makes the field secret.
 	for _, k := range field.deps {
-		if inputs[resource.PropertyKey(k)].IsSecret() {
-			return resource.MakeSecret(prop)
+		if ende.IsSecret(inputs[resource.PropertyKey(k)]) {
+			return ende.MakeSecret(prop)
 		}
 	}
 
@@ -781,7 +778,8 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	r := rc.getInstance()
 	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
 	if !ok {
-		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented, "Update is not implemented for resource %s", req.Urn)
+		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented,
+			"Update is not implemented for resource %s", req.Urn)
 	}
 	var news I
 	var olds O

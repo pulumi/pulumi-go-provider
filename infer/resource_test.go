@@ -25,20 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type outerStruct struct {
-	Foo   string                 `pulumi:"foo"`
-	Bar   int                    `pulumi:"bar"`
-	Pi    float64                `pulumi:"pi"`
-	Fizz  []string               `pulumi:"fizz"`
-	Inner *innerStruct           `pulumi:"inner"`
-	Data  map[string]innerStruct `pulumi:"data"`
-}
-
-type innerStruct struct {
-	Fizz string  `pulumi:"fizz,optional"`
-	Bar  float64 `pulumi:"bar"`
-}
-
 func TestFieldGenerator(t *testing.T) {
 	t.Parallel()
 	type args struct {
