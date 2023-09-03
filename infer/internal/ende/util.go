@@ -101,6 +101,91 @@ func MakeKnown(v resource.PropertyValue) resource.PropertyValue {
 // computed(secret(v)).
 //
 // 2. It doesn't panic when computed values are present.
-func DeepEquals(a, b resource.PropertyMap) bool {
-	return false
+func DeepEquals(a, b resource.PropertyValue) bool {
+	a, b = foldOutputValue(a), foldOutputValue(b)
+	// We address each type except Asset, Archive and Resource reference.
+	switch {
+	case a.IsOutput() && b.IsOutput():
+		a, b := a.OutputValue(), b.OutputValue()
+		// We don't track dependencies, so we don't compare against them.
+		return a.Known == b.Known &&
+			a.Secret == b.Secret &&
+			DeepEquals(a.Element, b.Element)
+
+	// Collection types: element wise comparison
+
+	case a.IsArray() && b.IsArray():
+		a, b := a.ArrayValue(), b.ArrayValue()
+		if len(a) != len(b) {
+			return false
+		}
+
+		for i := range a {
+			if !DeepEquals(a[i], b[i]) {
+				return false
+			}
+		}
+
+		return true
+
+	case a.IsObject() && b.IsObject():
+		a, b := a.ObjectValue(), b.ObjectValue()
+		if len(a) != len(b) {
+			return false
+		}
+
+		for k, aV := range a {
+			bV, ok := b[k]
+			if !ok || !DeepEquals(aV, bV) {
+				return false
+			}
+		}
+
+		return true
+
+	// Scalar types: direct comparison
+
+	case a.IsNull() && b.IsNull():
+		return true
+	case a.IsBool() && b.IsBool():
+		return a.BoolValue() == b.BoolValue()
+	case a.IsNumber() && b.IsNumber():
+		return a.NumberValue() == b.NumberValue()
+	case a.IsString() && b.IsString():
+		return a.StringValue() == b.StringValue()
+
+	default:
+		return false
+	}
+}
+
+func foldOutputValue(v resource.PropertyValue) resource.PropertyValue {
+	known := true
+	secret := false
+search:
+	for {
+		switch {
+		case v.IsSecret():
+			secret = true
+			v = v.SecretValue().Element
+		case v.IsComputed():
+			known = false
+			v = v.Input().Element
+		case v.IsOutput():
+			o := v.OutputValue()
+			known = o.Known && known
+			secret = o.Secret || secret
+			v = o.Element
+		default:
+			break search
+		}
+	}
+	if known && !secret {
+		return v
+	}
+	return resource.NewOutputProperty(resource.Output{
+		Element: v,
+		Known:   known,
+		Secret:  secret,
+	})
 }

@@ -258,7 +258,7 @@ func markComputed(
 		return prop
 	}
 
-	if input, ok := inputs[key]; ok && !ende.IsComputed(prop) && input.DeepEquals(prop) {
+	if input, ok := inputs[key]; ok && !ende.IsComputed(prop) && ende.DeepEquals(input, prop) {
 		// prop is an output during a create, but the output mirrors an
 		// input in name and value. We don't make it computed.
 		return prop
@@ -285,7 +285,7 @@ func markComputed(
 		// (or do it for the user), ensuring that we have access to information
 		// that changed..
 		oldInput, hasOldInput := oldInputs[k]
-		if ende.IsComputed(inputs[k]) || (hasOldInput && !inputs[k].DeepEquals(oldInput)) {
+		if ende.IsComputed(inputs[k]) || (hasOldInput && !ende.DeepEquals(inputs[k], oldInput)) {
 			return ende.MakeComputed(prop)
 		}
 	}
@@ -312,7 +312,7 @@ func markSecret(
 		return ende.MakeSecret(prop)
 	}
 
-	if input, ok := inputs[key]; ok && !ende.IsSecret(input) && input.DeepEquals(prop) {
+	if input, ok := inputs[key]; ok && !ende.IsSecret(input) && ende.DeepEquals(input, prop) {
 		// prop might depend on a secret value, but the output mirrors a input in
 		// name and value. We don't make it secret since it will be public in the
 		// state anyway.
