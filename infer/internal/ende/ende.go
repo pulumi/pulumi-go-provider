@@ -69,6 +69,8 @@ type change struct {
 	path     resource.PropertyPath
 	computed bool // true if this output's value is known.
 	secret   bool // true if this output's value is secret.
+
+	emptyAction int8
 }
 
 func (p change) apply(v resource.PropertyValue) resource.PropertyValue {
@@ -90,6 +92,32 @@ func (e *ende) simplify(m resource.PropertyMap, dst reflect.Type) resource.Prope
 	).ObjectValue()
 }
 
+func propertyPathEqual(s1, s2 resource.PropertyPath) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+	for i, v1 := range s1 {
+		if v1 != s2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *ende) mark(c change) {
+	if len(e.changes) > 0 && propertyPathEqual(e.changes[len(e.changes)-1].path, c.path) {
+		o := e.changes[len(e.changes)-1]
+		c.computed = c.computed || o.computed
+		c.secret = c.secret || o.secret
+		if c.emptyAction == isNil {
+			c.emptyAction = o.emptyAction
+		}
+
+		e.changes = e.changes[:len(e.changes)-1]
+	}
+	e.changes = append(e.changes, c)
+}
+
 func (e *ende) walk(
 	v resource.PropertyValue, path resource.PropertyPath, typ reflect.Type,
 	alignTypes bool,
@@ -109,16 +137,16 @@ func (e *ende) walk(
 		// first. We then extract the top level secret. We need this ordering to
 		// re-embed nested secrets.
 		el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
-		e.changes = append(e.changes, change{path: path, secret: true})
+		e.mark(change{path: path, secret: true})
 		return el
 	case v.IsComputed():
 		el := e.walk(v.Input().Element, path, typ, true)
-		e.changes = append(e.changes, change{path: path, computed: true})
+		e.mark(change{path: path, computed: true})
 		return el
 	case v.IsOutput():
 		output := v.OutputValue()
 		el := e.walk(output.Element, path, typ, !output.Known)
-		e.changes = append(e.changes, change{
+		e.mark(change{
 			path:     path,
 			computed: !output.Known,
 			secret:   output.Secret,
@@ -136,30 +164,15 @@ func (e *ende) walk(
 	}
 
 	if !alignTypes {
-	handle:
 		switch {
 		case v.IsArray():
-			var results []resource.PropertyValue
-			results = make([]resource.PropertyValue, len(v.ArrayValue()))
-			for i, v := range v.ArrayValue() {
-				path := append(path, i)
-				results[i] = e.walk(v, path, elemType, alignTypes)
-			}
-			return resource.NewArrayProperty(results)
+			return e.walkArray(v, path, elemType, alignTypes)
 		case v.IsObject():
-			if typ != nil && typ.Kind() == reflect.Struct {
-				break handle
+			// We need to walk structs in a strongly typed way, so we omit
+			// them here.
+			if typ == nil || typ.Kind() != reflect.Struct {
+				return e.walkMap(v, path, elemType, alignTypes)
 			}
-
-			var result resource.PropertyMap
-			if v.IsObject() {
-				result = make(resource.PropertyMap, len(v.ObjectValue()))
-				for k, v := range v.ObjectValue() {
-					path := append(path, string(k))
-					result[k] = e.walk(v, path, elemType, alignTypes)
-				}
-			}
-			return resource.NewObjectProperty(result)
 		// This is a scalar value, so we can return it as is.
 		default:
 			return v
@@ -172,25 +185,9 @@ func (e *ende) walk(
 
 	switch typ.Kind() {
 	case reflect.Array, reflect.Slice:
-		var results []resource.PropertyValue
-		if v.IsArray() {
-			results = make([]resource.PropertyValue, len(v.ArrayValue()))
-			for i, v := range v.ArrayValue() {
-				path := append(path, i)
-				results[i] = e.walk(v, path, elemType, alignTypes)
-			}
-		}
-		return resource.NewArrayProperty(results)
+		return e.walkArray(v, path, elemType, alignTypes)
 	case reflect.Map:
-		var result resource.PropertyMap
-		if v.IsObject() {
-			result = make(resource.PropertyMap, len(v.ObjectValue()))
-			for k, v := range v.ObjectValue() {
-				path := append(path, string(k))
-				result[k] = e.walk(v, path, elemType, alignTypes)
-			}
-		}
-		return resource.NewObjectProperty(result)
+		return e.walkMap(v, path, elemType, alignTypes)
 	case reflect.Struct:
 		result := resource.PropertyMap{}
 		if v.IsObject() {
@@ -235,8 +232,56 @@ func (e *ende) walk(
 	}
 }
 
+func (e *ende) walkArray(
+	v resource.PropertyValue, path resource.PropertyPath,
+	elemType reflect.Type, alignTypes bool,
+) resource.PropertyValue {
+	results := []resource.PropertyValue{}
+	if v.IsArray() {
+		arr := v.ArrayValue()
+		if len(arr) == 0 {
+			var action int8
+			if arr != nil {
+				action = isEmptyArr
+			}
+			e.mark(change{path: path, emptyAction: action})
+		}
+		results = make([]resource.PropertyValue, len(arr))
+		for i, v := range arr {
+			path := append(path, i)
+			results[i] = e.walk(v, path, elemType, alignTypes)
+		}
+	}
+	return resource.NewArrayProperty(results)
+}
+
+func (e *ende) walkMap(
+	v resource.PropertyValue, path resource.PropertyPath,
+	elemType reflect.Type, alignTypes bool,
+) resource.PropertyValue {
+	result := resource.PropertyMap{}
+	if v.IsObject() {
+		obj := v.ObjectValue()
+		result = make(resource.PropertyMap, len(obj))
+		if len(obj) == 0 {
+			var action int8
+			if obj != nil {
+				action = isEmptyMap
+			}
+			e.mark(change{path: path, emptyAction: action})
+		}
+		for k, v := range obj {
+			path := append(path, string(k))
+			result[k] = e.walk(v, path, elemType, alignTypes)
+		}
+	}
+	return resource.NewObjectProperty(result)
+}
+
 func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
-	props, err := mapper.New(&mapper.Opts{}).Encode(src)
+	props, err := mapper.New(&mapper.Opts{
+		IgnoreMissing: true,
+	}).Encode(src)
 	if err != nil {
 		return nil, err
 	}
@@ -249,13 +294,31 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 		"NewPropertyMapFromMap cannot produce secrets")
 	for _, s := range e.changes {
 		v, ok := s.path.Get(m)
-		if !ok {
+		if !ok && s.emptyAction == isNil {
 			continue
 		}
+
+		if s.emptyAction != isNil && v.IsNull() {
+			switch s.emptyAction {
+			case isEmptyMap:
+				v = resource.NewObjectProperty(resource.PropertyMap{})
+			case isEmptyArr:
+				v = resource.NewArrayProperty([]resource.PropertyValue{})
+			default:
+				panic(s.emptyAction)
+			}
+		}
+
 		s.path.Set(m, s.apply(v))
 	}
 	return m.ObjectValue(), nil
 }
+
+const (
+	isNil      = iota
+	isEmptyMap = iota
+	isEmptyArr = iota
+)
 
 // Mark a encoder as generating values only.
 //

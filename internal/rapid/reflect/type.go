@@ -45,15 +45,23 @@ func Struct(maxDepth int) GenerateType {
 		structFields := make([]reflect.StructField, numFields)
 		for i := range fieldNames {
 			var optional string
+			typ := Type(maxDepth - 1)
+
+			// It's not worth it to round trip values through ptr types. We
+			// make sure that all types are optional.
+			//
+			// We might want to relax this later, since we do allow non-ptr
+			// optional types.
 			if rapid.Bool().Draw(t, fmt.Sprintf("optional-%d", i)) {
 				optional = ",optional"
+				typ = PtrOf(typ)
 			}
 
 			tag := fmt.Sprintf(`pulumi:"%s%s"`, pulumiNames[i], optional)
 
 			structFields[i] = reflect.StructField{
 				Name: fieldNames[i],
-				Type: Type(maxDepth-1).Draw(t, "type"),
+				Type: typ.Draw(t, "type"),
 				Tag:  reflect.StructTag(tag),
 				// TODO: Consider a mechanism for adding Anonymous.
 			}

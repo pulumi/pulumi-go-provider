@@ -49,7 +49,6 @@ func TestRapidRoundTrip(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		typed := rResource.Type(rType.Struct(5)).Draw(t, "top-level")
 		pMap := func() r.PropertyMap { return typed.Value.ObjectValue().Copy() }
-
 		goValue := reflect.New(typed.Type).Interface()
 
 		toDecode := pMap()
