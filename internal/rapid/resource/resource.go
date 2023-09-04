@@ -37,11 +37,11 @@ func Type(typ *rapid.Generator[reflect.Type]) *rapid.Generator[Typed] {
 	// not a valid reflect.Type.
 	return rapid.Custom(func(t *rapid.T) Typed {
 		typ := typ.Draw(t, "typ")
-		return Typed{typ, valueOf(typ).Draw(t, "value")}
+		return Typed{typ, valueOf(typ, false).Draw(t, "value")}
 	})
 }
 
-func valueOf(typ reflect.Type) *rapid.Generator[resource.PropertyValue] {
+func valueOf(typ reflect.Type, allowMarker bool) *rapid.Generator[resource.PropertyValue] {
 	if typ == nil {
 		return Null()
 	}
@@ -60,16 +60,19 @@ func valueOf(typ reflect.Type) *rapid.Generator[resource.PropertyValue] {
 	case reflect.Bool:
 		v = Bool()
 	case reflect.Map:
-		v = MapOf(valueOf(typ.Elem()))
+		v = MapOf(valueOf(typ.Elem(), true))
 	case reflect.Slice:
-		v = ArrayOf(valueOf(typ.Elem()))
+		v = ArrayOf(valueOf(typ.Elem(), true))
 	case reflect.Struct:
 		v = structOf(reflect.VisibleFields(typ))
 	default:
 		panic(typ)
 	}
 
-	return maybeMarked(v)
+	if allowMarker {
+		return maybeMarked(v)
+	}
+	return v
 }
 
 func maybeMarked(v *rapid.Generator[resource.PropertyValue]) *rapid.Generator[resource.PropertyValue] {
@@ -101,7 +104,7 @@ func structOf(fields []reflect.StructField) *rapid.Generator[resource.PropertyVa
 			if i := strings.IndexRune(name, '"'); i > 0 {
 				name = name[:i]
 			}
-			pMap[resource.PropertyKey(name)] = valueOf(f.Type).Draw(t, "field")
+			pMap[resource.PropertyKey(name)] = valueOf(f.Type, true).Draw(t, "field")
 		}
 
 		return resource.NewObjectProperty(pMap)

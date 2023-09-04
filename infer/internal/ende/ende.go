@@ -66,14 +66,23 @@ func decode(
 type ende struct{ changes []change }
 
 type change struct {
-	path     resource.PropertyPath
-	computed bool // true if this output's value is known.
-	secret   bool // true if this output's value is secret.
+	path        resource.PropertyPath
+	computed    bool // true if this output's value is known.
+	secret      bool // true if this output's value is secret.
+	forceOutput bool // true if this should be reserialized as an output.
 
 	emptyAction int8
 }
 
 func (p change) apply(v resource.PropertyValue) resource.PropertyValue {
+	if p.forceOutput {
+		// Set v as an output preemptively.
+		v = resource.NewOutputProperty(resource.Output{
+			Element: v,
+			Known:   true,
+			Secret:  false,
+		})
+	}
 	if p.computed {
 		v = MakeComputed(v)
 	}
@@ -147,9 +156,10 @@ func (e *ende) walk(
 		output := v.OutputValue()
 		el := e.walk(output.Element, path, typ, !output.Known)
 		e.mark(change{
-			path:     path,
-			computed: !output.Known,
-			secret:   output.Secret,
+			path:        path,
+			computed:    !output.Known,
+			secret:      output.Secret,
+			forceOutput: true,
 		})
 
 		return el
