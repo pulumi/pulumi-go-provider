@@ -46,6 +46,7 @@ func testRoundTrip[T any](t *testing.T, pMap func() r.PropertyMap) {
 }
 
 func TestRapidRoundTrip(t *testing.T) {
+	t.Parallel()
 	rapid.Check(t, func(t *rapid.T) {
 		typed := rResource.Type(rType.Struct(5)).Draw(t, "top-level")
 		pMap := func() r.PropertyMap { return typed.Value.ObjectValue().Copy() }

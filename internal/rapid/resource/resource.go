@@ -74,7 +74,7 @@ func structOf(fields []reflect.StructField) *rapid.Generator[resource.PropertyVa
 
 		for _, f := range fields {
 			tag := string(f.Tag)
-			name := strings.TrimPrefix(string(tag), `pulumi:"`)
+			name := strings.TrimPrefix(tag, `pulumi:"`)
 			if strings.Contains(tag, ",optional") {
 				if rapid.Bool().Draw(t, "skip-optional-field") {
 					continue
