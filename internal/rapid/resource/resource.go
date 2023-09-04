@@ -50,22 +50,39 @@ func valueOf(typ reflect.Type) *rapid.Generator[resource.PropertyValue] {
 		typ = typ.Elem()
 	}
 
+	var v *rapid.Generator[resource.PropertyValue]
+
 	switch typ.Kind() {
 	case reflect.String:
-		return String()
+		v = String()
 	case reflect.Float64:
-		return Number()
+		v = Number()
 	case reflect.Bool:
-		return Bool()
+		v = Bool()
 	case reflect.Map:
-		return MapOf(valueOf(typ.Elem()))
+		v = MapOf(valueOf(typ.Elem()))
 	case reflect.Slice:
-		return ArrayOf(valueOf(typ.Elem()))
+		v = ArrayOf(valueOf(typ.Elem()))
 	case reflect.Struct:
-		return structOf(reflect.VisibleFields(typ))
+		v = structOf(reflect.VisibleFields(typ))
 	default:
 		panic(typ)
 	}
+
+	return maybeMarked(v)
+}
+
+func maybeMarked(v *rapid.Generator[resource.PropertyValue]) *rapid.Generator[resource.PropertyValue] {
+	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
+		v := v.Draw(t, "value")
+		if rapid.Bool().Draw(t, "make-secret") {
+			v = makeSecret(t, v)
+		}
+		if rapid.Bool().Draw(t, "make-computed") {
+			v = makeComputed(t, v)
+		}
+		return v
+	})
 }
 
 func structOf(fields []reflect.StructField) *rapid.Generator[resource.PropertyValue] {
@@ -154,61 +171,68 @@ func Object() *rapid.Generator[resource.PropertyValue] { return MapOf(PropertyVa
 func Secret() *rapid.Generator[resource.PropertyValue] {
 	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
 		v := PropertyValue().Draw(t, "V")
-
-		// If a value is marker, we fold the secretness into it.
-		if v.IsSecret() {
-			return v
-		}
-		if v.IsComputed() {
-			return resource.NewOutputProperty(resource.Output{
-				Element: v.Input().Element,
-				Known:   false,
-				Secret:  true,
-			})
-		}
-		if v.IsOutput() {
-			o := v.OutputValue()
-			o.Secret = true
-			return resource.NewOutputProperty(o)
-		}
-
-		// Otherwise we pick between the two kinds of secretness we can accept.
-		if rapid.Bool().Draw(t, "isOutput") {
-			return resource.NewOutputProperty(resource.Output{
-				Element: v,
-				Known:   true,
-				Secret:  true,
-			})
-		}
-		return resource.MakeSecret(v)
+		return makeSecret(t, v)
 	})
+}
+
+func makeSecret(t *rapid.T, v resource.PropertyValue) resource.PropertyValue {
+	// If a value is marker, we fold the secretness into it.
+	if v.IsSecret() {
+		return v
+	}
+	if v.IsComputed() {
+		return resource.NewOutputProperty(resource.Output{
+			Element: v.Input().Element,
+			Known:   false,
+			Secret:  true,
+		})
+	}
+	if v.IsOutput() {
+		o := v.OutputValue()
+		o.Secret = true
+		return resource.NewOutputProperty(o)
+	}
+
+	// Otherwise we pick between the two kinds of secretness we can accept.
+	if rapid.Bool().Draw(t, "isOutput") {
+		return resource.NewOutputProperty(resource.Output{
+			Element: v,
+			Known:   true,
+			Secret:  true,
+		})
+	}
+	return resource.MakeSecret(v)
 }
 
 func Computed() *rapid.Generator[resource.PropertyValue] {
 	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
 		v := PropertyValue().Draw(t, "V")
-
-		// If a value is marker, we fold the secretness into it.
-		if v.IsComputed() {
-			return v
-		}
-		if v.IsSecret() {
-			return resource.NewOutputProperty(resource.Output{
-				Element: v.SecretValue().Element,
-				Known:   false,
-				Secret:  true,
-			})
-		}
-		if v.IsOutput() {
-			o := v.OutputValue()
-			o.Known = false
-			return resource.NewOutputProperty(o)
-		}
-
-		// Otherwise we pick between the two kinds of secretness we can accept.
-		if rapid.Bool().Draw(t, "isOutput") {
-			return resource.MakeOutput(v)
-		}
-		return resource.MakeComputed(v)
+		return makeComputed(t, v)
 	})
+}
+
+func makeComputed(t *rapid.T, v resource.PropertyValue) resource.PropertyValue {
+	// If a value is marker, we fold the computedness into it.
+	if v.IsComputed() {
+		return v
+	}
+	if v.IsSecret() {
+		return resource.NewOutputProperty(resource.Output{
+			Element: v.SecretValue().Element,
+			Known:   false,
+			Secret:  true,
+		})
+	}
+	if v.IsOutput() {
+		o := v.OutputValue()
+		o.Known = false
+		return resource.NewOutputProperty(o)
+	}
+
+	// Otherwise we pick between the two kinds of secretness we can accept.
+	if rapid.Bool().Draw(t, "isOutput") {
+		return resource.MakeOutput(v)
+	}
+	return resource.MakeComputed(v)
+
 }

@@ -36,8 +36,7 @@ func MakeComputed(v resource.PropertyValue) resource.PropertyValue {
 			Secret:  true,
 		})
 	case v.IsComputed():
-		v = v.Input().Element
-		fallthrough
+		return v
 	default:
 		return resource.MakeComputed(v)
 	}
