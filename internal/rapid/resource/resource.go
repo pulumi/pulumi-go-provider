@@ -134,27 +134,21 @@ func Primitive() *rapid.Generator[resource.PropertyValue] {
 }
 
 func PropertyKey() *rapid.Generator[resource.PropertyKey] {
-	return rapid.Custom(func(t *rapid.T) resource.PropertyKey {
-		return resource.PropertyKey(rapid.String().Draw(t, "V"))
+	return rapid.Map(rapid.String(), func(s string) resource.PropertyKey {
+		return resource.PropertyKey(s)
 	})
 }
 
 func String() *rapid.Generator[resource.PropertyValue] {
-	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
-		return resource.NewStringProperty(rapid.String().Draw(t, "V"))
-	})
+	return rapid.Map(rapid.String(), resource.NewStringProperty)
 }
 
 func Bool() *rapid.Generator[resource.PropertyValue] {
-	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
-		return resource.NewBoolProperty(rapid.Bool().Draw(t, "V"))
-	})
+	return rapid.Map(rapid.Bool(), resource.NewBoolProperty)
 }
 
 func Number() *rapid.Generator[resource.PropertyValue] {
-	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
-		return resource.NewNumberProperty(rapid.Float64().Draw(t, "V"))
-	})
+	return rapid.Map(rapid.Float64(), resource.NewNumberProperty)
 }
 
 func Null() *rapid.Generator[resource.PropertyValue] {
