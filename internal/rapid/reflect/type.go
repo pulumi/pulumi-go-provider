@@ -47,11 +47,28 @@ func Struct(maxDepth int) GenerateType {
 			var optional string
 			typ := Type(maxDepth - 1)
 
-			// It's not worth it to round trip values through ptr types. We
-			// make sure that all types are optional.
+			// Make some types optional:
 			//
-			// We might want to relax this later, since we do allow non-ptr
-			// optional types.
+			// If a type is optional, then we ensure that the type is a
+			// pointer type. This makes the space explored by this test
+			// smaller then our actual input space, but allows us to fully
+			// round trip our values. Consider the following:
+			//
+			//	type Bool struct { field bool `pulumi:"b,optional"` }
+			//
+			// When we round trip the empty map (`resource.PropertyMap{}`)
+			// through `ende`'s decode->endcode through `Bool`, we get back:
+			//
+			//	resource.PropertyMap{ "b": resource.PropertyValue{V: false}
+			//
+			// Our round trip process isn't able to distinguish between the
+			// zero value for a non-ptr type and no value. To allow us to test
+			// round tripping, we don't generate these problematic values as
+			// inputs.
+			//
+			// The difference should not be important, since the library user
+			// will not be able to see the difference (they look at the
+			// de-serialized version).
 			if rapid.Bool().Draw(t, fmt.Sprintf("optional-%d", i)) {
 				optional = ",optional"
 				typ = PtrOf(typ)
