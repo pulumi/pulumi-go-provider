@@ -27,8 +27,8 @@ import (
 	rResource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
 
-// testRoundTrip asserts that the result of pMap can be decoded onto T, and then lossly
-// encoded back into a property map.
+// testRoundTrip asserts that the result of pMap can be decoded onto T, and then
+// losslessly encoded back into a property map.
 func testRoundTrip[T any](t *testing.T, pMap func() r.PropertyMap) {
 	t.Run("", func(t *testing.T) {
 		t.Parallel()
