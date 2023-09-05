@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -56,6 +57,7 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 		for k, v := range src.DefaultEnvs {
 			(*dst).DefaultEnvs[k] = v
 		}
+		dst.Token = src.Token
 	}
 
 	ret := introspect.Annotator{
@@ -333,10 +335,19 @@ func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (sche
 		t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem()) {
 		return schema.TypeSpec{}, false, nil
 	}
-	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
-	if err != nil {
-		return schema.TypeSpec{}, true, err
+
+	var tk tokens.Type
+	annotator := getAnnotated(t)
+	if annotator.Token != "" {
+		tk = fnToken(tokens.Type(annotator.Token))
+	} else {
+		var err error
+		tk, err = introspect.GetToken("pkg", reflect.New(t).Interface())
+		if err != nil {
+			return schema.TypeSpec{}, true, err
+		}
 	}
+
 	return schema.TypeSpec{
 		Ref: "#/types/" + tk.String(),
 	}, true, nil

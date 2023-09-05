@@ -33,6 +33,7 @@ type Annotator struct {
 	Descriptions map[string]string
 	Defaults     map[string]any
 	DefaultEnvs  map[string][]string
+	Token        string
 
 	matcher FieldMatcher
 }
@@ -82,4 +83,22 @@ func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 	field := a.mustGetField(i)
 	a.Defaults[field.Name] = defaultValue
 	a.DefaultEnvs[field.Name] = append(a.DefaultEnvs[field.Name], env...)
+}
+
+func (a *Annotator) SetToken(i any, token string) {
+	_, ok, err := a.matcher.GetField(i)
+	if err != nil {
+		panic(fmt.Sprintf("Could not parse field tags: %s", err.Error()))
+	}
+	if !ok {
+		typ := reflect.TypeOf(i)
+		if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Pointer {
+			i = reflect.ValueOf(i).Elem().Interface()
+		}
+		if a.matcher.value.Addr().Interface() != i {
+			panic("A token can only be specified for a struct")
+		}
+	}
+
+	a.Token = token
 }

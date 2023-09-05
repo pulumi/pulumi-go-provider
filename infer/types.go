@@ -111,8 +111,17 @@ func isEnum(t reflect.Type) (enum, bool) {
 			Name:        v.FieldByName("Name").String(),
 		}
 	}
-	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
-	contract.AssertNoErrorf(err, "failed to get token for enum: %s", t)
+
+	var tk tokens.Type
+	annotator := getAnnotated(t)
+	if annotator.Token != "" {
+		tk = fnToken(tokens.Type(annotator.Token))
+	} else {
+		var err error
+		tk, err = introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
+		contract.AssertNoErrorf(err, "failed to get token for enum: %s", t)
+	}
+
 	return enum{
 		token:  tk.String(),
 		values: values,
@@ -244,10 +253,18 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			if err != nil {
 				return false, err
 			}
-			tk, err := introspect.GetToken("pkg", reflect.New(t).Interface())
-			if err != nil {
-				return false, err
+
+			var tk tokens.Type
+			annotator := getAnnotated(t)
+			if annotator.Token != "" {
+				tk = fnToken(tokens.Type(annotator.Token))
+			} else {
+				tk, err = introspect.GetToken("pkg", reflect.New(t).Interface())
+				if err != nil {
+					return false, err
+				}
 			}
+
 			return reg(tk, pschema.ComplexTypeSpec{ObjectTypeSpec: *spec}), nil
 		}
 		return true, nil

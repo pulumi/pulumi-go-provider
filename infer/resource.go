@@ -138,6 +138,8 @@ type Annotator interface {
 	// Annotate a struct field with a default value. The default value must be a primitive
 	// type in the pulumi type system.
 	SetDefault(i any, defaultValue any, env ...string)
+
+	SetToken(i any, token string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be
@@ -682,6 +684,11 @@ func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivati
 
 func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 	var r R
+	annotator := getAnnotated(reflect.TypeOf(r))
+	if annotator.Token != "" {
+		return fnToken(tokens.Type(annotator.Token)), nil
+	}
+
 	return introspect.GetToken("pkg", r)
 }
 

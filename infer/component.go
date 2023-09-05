@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -75,6 +76,11 @@ func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDeri
 
 func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
 	var r R
+	annotator := getAnnotated(reflect.TypeOf(r))
+	if annotator.Token != "" {
+		return fnToken(tokens.Type(annotator.Token)), nil
+	}
+
 	return introspect.GetToken("pkg", r)
 }
 
