@@ -207,9 +207,16 @@ type OutputField interface {
 type InputField interface {
 	// Seal the interface.
 	isInputField()
+
+	// Only wire secretness, not computedness.
+	Secret() InputField
+
+	// Only flow computedness, not secretness.
+	Computed() InputField
 }
 
 type fieldGenerator struct {
+	args, state  any
 	argsMatcher  introspect.FieldMatcher
 	stateMatcher introspect.FieldMatcher
 	err          multierror.Error
@@ -232,10 +239,20 @@ type field struct {
 	// The set of tags that should never be secret
 	neverSecret bool
 	// A map from a field to its dependencies.
-	deps []string
+	deps []dependency
 
 	// If the output is known, regardless of other factors.
 	known bool
+}
+
+type dependency struct {
+	name string
+	kind inputKind
+}
+
+// Check if we should apply this dependency to a kind.
+func (d dependency) has(kind inputKind) bool {
+	return d.kind == inputAll || kind == d.kind
 }
 
 // MarkMap mutates m to comply with the result of the fieldGenerator, applying
@@ -271,7 +288,10 @@ func markComputed(
 
 	// If a dependency is computed or has changed, we mark this field as computed.
 	for _, k := range field.deps {
-		k := resource.PropertyKey(k)
+		if !k.has(inputComputed) {
+			continue
+		}
+		k := resource.PropertyKey(k.name)
 
 		// Not all resources embed their inputs as outputs. When they don't we are
 		// unable to perform old-vs-new diffing here.
@@ -322,7 +342,10 @@ func markSecret(
 	// Otherwise secretness is derived from dependencies: any dependency that is
 	// secret makes the field secret.
 	for _, k := range field.deps {
-		if ende.IsSecret(inputs[resource.PropertyKey(k)]) {
+		if !k.has(inputSecret) {
+			continue
+		}
+		if ende.IsSecret(inputs[resource.PropertyKey(k.name)]) {
 			return ende.MakeSecret(prop)
 		}
 	}
@@ -349,7 +372,7 @@ func (g *fieldGenerator) InputField(a any) InputField {
 			g.err.Errors = append(g.err.Errors, err)
 			return &errField{}
 		}
-		return &inputField{allFields}
+		return &inputField{fields: allFields}
 	}
 	field, ok, err := g.argsMatcher.GetField(a)
 	if err != nil {
@@ -396,8 +419,9 @@ func (g *fieldGenerator) OutputField(a any) OutputField {
 	return &errField{}
 }
 
-func newFieldGenerator[I, O any](i *I, o *O) *fieldGenerator {
+func newFieldGenerator(i, o any) *fieldGenerator {
 	return &fieldGenerator{
+		args: i, state: o,
 		argsMatcher:  introspect.NewFieldMatcher(i),
 		stateMatcher: introspect.NewFieldMatcher(o),
 		err: multierror.Error{
@@ -407,6 +431,101 @@ func newFieldGenerator[I, O any](i *I, o *O) *fieldGenerator {
 		},
 
 		fields: map[string]*field{},
+	}
+}
+
+// userSetKind is true if the user has set a dependency of a matching kind.
+func (g *fieldGenerator) userSetKind(kind inputKind) bool {
+	for _, f := range g.fields {
+		for _, dep := range f.deps {
+			if dep.has(kind) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ensureDefaultComputed ensures that some computedness flow exists on the provider.
+//
+// If the user has not specified any flow, then we apply the default flow:
+//
+// Since we can't see inside the user's code to view data flow, we default to
+// assuming that all inputs will be used to effect all outputs.
+//
+// Consider this example:
+//
+//	Input:  { a, b, c }
+//	Output: { a, b, d }
+//
+// We would see this computedness flow:
+//
+//	Output | Input
+//	-------+------
+//	     a | a b c
+//	     b | a b c
+//	     d | a b c
+func (g *fieldGenerator) ensureDefaultComputed() {
+	if g.userSetKind(inputComputed) {
+		// The user has specified something, so we respect that.
+		return
+	}
+	// The user has not set a flow, so apply our own
+	g.OutputField(g.state).DependsOn(g.InputField(g.args))
+}
+
+// ensureDefaultSecrets that some secretness flow is explicit.
+//
+// If the user has not specified any flow, then we apply the default flow:
+//
+// Outputs that share a name with inputs have the secretness flow from input to
+// output.
+//
+// Consider this example:
+//
+//	Input:  { a, b, c }
+//	Output: { a, b, d }
+//
+// We would see this secretness flow:
+//
+//	Output | Input
+//	-------+------
+//	     a | a
+//	     b | b
+func (g *fieldGenerator) ensureDefaultSecrets() {
+	if g.userSetKind(inputSecret) {
+		// The user has specified something, so we respect that.
+		return
+	}
+
+	// The user has not set a flow, so apply our own
+
+	args, ok, err := g.argsMatcher.TargetStructFields(g.args)
+	contract.Assertf(ok, "we match by construction")
+	contract.AssertNoError(err)
+
+	state, ok, err := g.stateMatcher.TargetStructFields(g.state)
+	contract.Assertf(ok, "we match by construction")
+	contract.AssertNoError(err)
+
+	for _, f := range state {
+		if f.Internal {
+			continue
+		}
+		for _, a := range args {
+			if f.Name != a.Name {
+				continue
+			}
+
+			v := g.getField(a.Name)
+			v.deps = append(v.deps, dependency{
+				name: a.Name,
+				kind: inputSecret,
+			})
+			// There will only be one field with the name f.Name, we so may
+			// safely break.
+			break
+		}
 	}
 }
 
@@ -421,9 +540,42 @@ func (*errField) NeverSecret()            {}
 func (*errField) DependsOn(...InputField) {}
 func (*errField) isInputField()           {}
 func (*errField) isOutputField()          {}
+func (*errField) Computed() InputField    { return &errField{} }
+func (*errField) Secret() InputField      { return &errField{} }
 
 type inputField struct {
+	kind   inputKind
 	fields []introspect.FieldTag
+}
+
+type inputKind int
+
+const (
+	inputAll      = 0
+	inputSecret   = iota
+	inputComputed = iota
+)
+
+func (i *inputField) Computed() InputField {
+	input := new(inputField)
+	input.kind = inputComputed
+	// Copy input fields
+	input.fields = make([]introspect.FieldTag, len(i.fields))
+	for i, f := range i.fields {
+		input.fields[i] = f
+	}
+	return input
+}
+
+func (i *inputField) Secret() InputField {
+	input := new(inputField)
+	input.kind = inputSecret
+	// Copy input fields
+	input.fields = make([]introspect.FieldTag, len(i.fields))
+	for i, f := range i.fields {
+		input.fields[i] = f
+	}
+	return input
 }
 
 func (*inputField) isInputField() {}
@@ -462,18 +614,30 @@ func (f *outputField) NeverSecret() {
 	})
 }
 
+func typeInput(i InputField) (*inputField, bool) {
+	switch i := i.(type) {
+	case *inputField:
+		return i, true
+	case *errField:
+		return nil, false
+	default:
+		panic(fmt.Sprintf("Unknown InputField type: %T", i))
+	}
+}
+
 func (f *outputField) DependsOn(deps ...InputField) {
-	depNames := make([]string, 0, len(deps))
+	depNames := make([]dependency, 0, len(deps))
 	for _, d := range deps {
-		switch d := d.(type) {
-		case *inputField:
-			for _, field := range d.fields {
-				depNames = append(depNames, field.Name)
-			}
-		case *errField:
+		d, ok := typeInput(d)
+		if !ok {
 			// The error was already reported, so do nothing
-		default:
-			panic(fmt.Sprintf("Unknown InputField type: %T", d))
+			continue
+		}
+		for _, field := range d.fields {
+			depNames = append(depNames, dependency{
+				name: field.Name,
+				kind: d.kind,
+			})
 		}
 	}
 
@@ -833,18 +997,38 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 type setDeps func(oldInputs, input, output resource.PropertyMap)
 
 // Get the decency mapping between inputs and outputs of a resource.
-func getDependencies[R, I, O any](r *R, input *I, output *O, isCreate, isPreview bool) (setDeps, error) {
-	fg := newFieldGenerator(input, output)
+func getDependencies[R, I, O any](
+	r *R, input *I, output *O, isCreate, isPreview bool,
+) (setDeps, error) {
+	var wire func(FieldSelector)
+
 	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
-		r.WireDependencies(fg, input, output)
+		wire = func(fg FieldSelector) {
+			r.WireDependencies(fg, input, output)
+		}
+	}
+	return getDependenciesRaw(input, output, wire, isCreate, isPreview)
+}
+
+// getDependenciesRaw is the untyped implementation of getDependencies.
+func getDependenciesRaw(
+	input, output any, wire func(FieldSelector), isCreate, isPreview bool,
+) (setDeps, error) {
+	fg := newFieldGenerator(input, output)
+	if wire != nil {
+		wire(fg)
 		if err := fg.err.ErrorOrNil(); err != nil {
 			return nil, err
 		}
-	} else {
-		// We default to assuming that every output field depends on every input field.
-		fg.OutputField(output).DependsOn(fg.InputField(input))
-		contract.AssertNoErrorf(fg.err.ErrorOrNil(), "Default dependency wiring failed")
+
 	}
+
+	fg.ensureDefaultSecrets()
+	fg.ensureDefaultComputed()
+
+	// If the user code returned an error, we would have returned it by now. An
+	// error here means that our code set an error.
+	contract.AssertNoErrorf(fg.err.ErrorOrNil(), "Default dependency wiring failed")
 
 	return fg.MarkMap(isCreate, isPreview), nil
 }
