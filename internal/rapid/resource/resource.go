@@ -28,7 +28,7 @@ type Typed struct {
 }
 
 // Annotate a type with a value that fits inside of it.
-func Type(typ *rapid.Generator[reflect.Type]) *rapid.Generator[Typed] {
+func ValueOf(typ *rapid.Generator[reflect.Type]) *rapid.Generator[Typed] {
 	// Note: we generate values from types instead of vice versa because the set of
 	// possible resource.PropertyValue is much larger then the set of possible
 	// reflect.Type.
@@ -111,16 +111,25 @@ func structOf(fields []reflect.StructField) *rapid.Generator[resource.PropertyVa
 	})
 }
 
-func PropertyValue() *rapid.Generator[resource.PropertyValue] {
+func PropertyValue(maxDepth int) *rapid.Generator[resource.PropertyValue] {
+	if maxDepth <= 1 {
+		return Primitive()
+	}
+	return rapid.OneOf(
+		Primitive(),
+		Array(maxDepth),
+		Object(maxDepth),
+		Secret(maxDepth),
+		Computed(maxDepth),
+	)
+}
+
+func Primitive() *rapid.Generator[resource.PropertyValue] {
 	return rapid.OneOf(
 		String(),
 		Bool(),
 		Number(),
 		Null(),
-		Array(),
-		Object(),
-		Secret(),
-		Computed(),
 	)
 }
 
@@ -158,7 +167,9 @@ func ArrayOf(value *rapid.Generator[resource.PropertyValue]) *rapid.Generator[re
 	})
 }
 
-func Array() *rapid.Generator[resource.PropertyValue] { return ArrayOf(PropertyValue()) }
+func Array(maxDepth int) *rapid.Generator[resource.PropertyValue] {
+	return ArrayOf(PropertyValue(maxDepth - 1))
+}
 
 func MapOf(value *rapid.Generator[resource.PropertyValue]) *rapid.Generator[resource.PropertyValue] {
 	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
@@ -169,11 +180,13 @@ func MapOf(value *rapid.Generator[resource.PropertyValue]) *rapid.Generator[reso
 	})
 }
 
-func Object() *rapid.Generator[resource.PropertyValue] { return MapOf(PropertyValue()) }
+func Object(maxDepth int) *rapid.Generator[resource.PropertyValue] {
+	return MapOf(PropertyValue(maxDepth - 1))
+}
 
-func Secret() *rapid.Generator[resource.PropertyValue] {
+func Secret(maxDepth int) *rapid.Generator[resource.PropertyValue] {
 	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
-		v := PropertyValue().Draw(t, "V")
+		v := PropertyValue(maxDepth-1).Draw(t, "V")
 		return makeSecret(t, v)
 	})
 }
@@ -207,9 +220,9 @@ func makeSecret(t *rapid.T, v resource.PropertyValue) resource.PropertyValue {
 	return resource.MakeSecret(v)
 }
 
-func Computed() *rapid.Generator[resource.PropertyValue] {
+func Computed(maxDepth int) *rapid.Generator[resource.PropertyValue] {
 	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
-		v := PropertyValue().Draw(t, "V")
+		v := PropertyValue(maxDepth-1).Draw(t, "V")
 		return makeComputed(t, v)
 	})
 }
