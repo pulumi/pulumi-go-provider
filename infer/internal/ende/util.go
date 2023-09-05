@@ -102,7 +102,6 @@ func MakeKnown(v resource.PropertyValue) resource.PropertyValue {
 // 2. It doesn't panic when computed values are present.
 func DeepEquals(a, b resource.PropertyValue) bool {
 	a, b = foldOutputValue(a), foldOutputValue(b)
-	// We address each type except Asset, Archive and Resource reference.
 	switch {
 	case a.IsOutput() && b.IsOutput():
 		a, b := a.OutputValue(), b.OutputValue()
@@ -152,6 +151,15 @@ func DeepEquals(a, b resource.PropertyValue) bool {
 		return a.NumberValue() == b.NumberValue()
 	case a.IsString() && b.IsString():
 		return a.StringValue() == b.StringValue()
+
+	// Special Pulumi types: defer to resource library
+
+	case a.IsResourceReference() && b.IsResourceReference():
+		return a.DeepEquals(b)
+	case a.IsAsset() && b.IsAsset():
+		return a.AssetValue().Equals(b.AssetValue())
+	case a.IsArchive() && b.IsArchive():
+		return a.ArchiveValue().Equals(b.ArchiveValue())
 	default:
 		return false
 	}
