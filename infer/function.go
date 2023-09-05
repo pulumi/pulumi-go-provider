@@ -52,8 +52,12 @@ type derivedInvokeController[F Fn[I, O], I, O any] struct{}
 
 func (derivedInvokeController[F, I, O]) isInferredFunction() {}
 
-func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
+func (c *derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	var f F
+	annotator := getAnnotated(reflect.TypeOf(f))
+	if annotator.Token != "" {
+		return fnToken(tokens.Type(annotator.Token)), nil
+	}
 	tk, err := introspect.GetToken("pkg", f)
 	if err != nil {
 		return "", err
