@@ -16,7 +16,6 @@ package infer
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -29,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -254,11 +254,11 @@ func markComputed(
 	oldInputs, inputs resource.PropertyMap, isCreate bool,
 ) resource.PropertyValue {
 	// If the value is already computed or if it is guaranteed to be known, we don't need to do anything
-	if field.known || prop.IsComputed() {
+	if field.known || ende.IsComputed(prop) {
 		return prop
 	}
 
-	if input, ok := inputs[key]; ok && !input.IsComputed() && input.DeepEquals(prop) {
+	if input, ok := inputs[key]; ok && !ende.IsComputed(prop) && ende.DeepEquals(input, prop) {
 		// prop is an output during a create, but the output mirrors an
 		// input in name and value. We don't make it computed.
 		return prop
@@ -266,7 +266,7 @@ func markComputed(
 
 	// If this is during a create and the value is not explicitly marked as known, we mark it computed.
 	if isCreate {
-		return resource.MakeComputed(prop)
+		return ende.MakeComputed(prop)
 	}
 
 	// If a dependency is computed or has changed, we mark this field as computed.
@@ -285,8 +285,8 @@ func markComputed(
 		// (or do it for the user), ensuring that we have access to information
 		// that changed..
 		oldInput, hasOldInput := oldInputs[k]
-		if inputs[k].IsComputed() || (hasOldInput && !inputs[k].DeepEquals(oldInput)) {
-			return resource.MakeComputed(prop)
+		if ende.IsComputed(inputs[k]) || (hasOldInput && !ende.DeepEquals(inputs[k], oldInput)) {
+			return ende.MakeComputed(prop)
 		}
 	}
 
@@ -299,23 +299,20 @@ func markSecret(
 	// If we should never return a secret, ensure that the field *is not* marked as
 	// secret, then return.
 	if field.neverSecret {
-		if prop.IsSecret() {
-			prop = prop.SecretValue().Element
-		}
-		return prop
+		return ende.MakePublic(prop)
 	}
 
-	if prop.IsSecret() {
+	if ende.IsSecret(prop) {
 		return prop
 	}
 
 	// If we should always return a secret, ensure that the field *is* marked as secret,
 	// then return.
 	if field.alwaysSecret {
-		return resource.MakeSecret(prop)
+		return ende.MakeSecret(prop)
 	}
 
-	if input, ok := inputs[key]; ok && !input.IsSecret() && input.DeepEquals(prop) {
+	if input, ok := inputs[key]; ok && !ende.IsSecret(input) && ende.DeepEquals(input, prop) {
 		// prop might depend on a secret value, but the output mirrors a input in
 		// name and value. We don't make it secret since it will be public in the
 		// state anyway.
@@ -325,8 +322,8 @@ func markSecret(
 	// Otherwise secretness is derived from dependencies: any dependency that is
 	// secret makes the field secret.
 	for _, k := range field.deps {
-		if inputs[resource.PropertyKey(k)].IsSecret() {
-			return resource.MakeSecret(prop)
+		if ende.IsSecret(inputs[resource.PropertyKey(k)]) {
+			return ende.MakeSecret(prop)
 		}
 	}
 
@@ -529,13 +526,15 @@ func (*derivedResourceController[R, I, O]) getInstance() *R {
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var r R
+	var i I
+	encoder, err := ende.Decode(req.News, &i)
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that
 		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
-		inputs, err := encode(i, nil, false)
+		inputs, err := encoder.Encode(i)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -544,16 +543,12 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 			Failures: failures,
 		}, nil
 	}
-	// The user has not implemented check, so do the smart thing by default; We just check
-	// that we can de-serialize correctly
-	var i I
-	secrets, err := decode(req.News, &i, req.News.ContainsUnknowns())
 	if err == nil {
 		if err := applyDefaults(&i); err != nil {
 			return p.CheckResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
 		}
 
-		inputs, err := encode(i, secrets, false)
+		inputs, err := encoder.Encode(i)
 
 		return p.CheckResponse{
 			Inputs: inputs,
@@ -574,7 +569,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 // Ensure that `inputs` can deserialize cleanly into `I`.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
 	var i I
-	_, err := decode(inputs, &i, inputs.ContainsUnknowns())
+	_, err := ende.Decode(inputs, &i)
 	if err == nil {
 		return i, nil, nil
 	}
@@ -635,11 +630,11 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 		var olds O
 		var news I
 		var err error
-		_, err = decode(req.Olds, &olds, req.Olds.ContainsUnknowns())
+		_, err = ende.Decode(req.Olds, &olds)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		_, err = decode(req.News, &news, req.News.ContainsUnknowns())
+		_, err = ende.Decode(req.News, &news)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -704,7 +699,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 
 	var input I
 	var err error
-	secrets, err := decode(req.Properties, &input, req.Preview)
+	encoder, err := ende.Decode(req.Properties, &input)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
@@ -717,7 +712,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("internal error: '%s' was created without an id", req.Urn)
 	}
 
-	m, err := encode(o, secrets, req.Preview)
+	m, err := encoder.AllowUnknown(req.Preview).Encode(o)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
@@ -739,11 +734,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	var inputs I
 	var state O
 	var err error
-	inputSecrets, err := decode(req.Inputs, &inputs, true)
+	inputEncoder, err := ende.DecodeTolerateMissing(req.Inputs, &inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	stateSecrets, err := decode(req.Properties, &state, true)
+	stateEncoder, err := ende.DecodeTolerateMissing(req.Properties, &state)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -763,11 +758,11 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	i, err := encode(inputs, inputSecrets, false)
+	i, err := inputEncoder.Encode(inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	s, err := encode(state, stateSecrets, false)
+	s, err := stateEncoder.Encode(state)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
@@ -783,7 +778,8 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	r := rc.getInstance()
 	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
 	if !ok {
-		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented, "Update is not implemented for resource %s", req.Urn)
+		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented,
+			"Update is not implemented for resource %s", req.Urn)
 	}
 	var news I
 	var olds O
@@ -791,11 +787,11 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	for _, ignoredChange := range req.IgnoreChanges {
 		req.News[ignoredChange] = req.Olds[ignoredChange]
 	}
-	_, err = decode(req.Olds, &olds, req.Preview)
+	_, err = ende.Decode(req.Olds, &olds)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	secrets, err := decode(req.News, &news, req.Preview)
+	encoder, err := ende.Decode(req.News, &news)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -803,7 +799,7 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	m, err := encode(o, secrets, req.Preview)
+	m, err := encoder.AllowUnknown(req.Preview).Encode(o)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -823,7 +819,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.Delete
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
 		var olds O
-		_, err := decode(req.Properties, &olds, false)
+		_, err := ende.Decode(req.Properties, &olds)
 		if err != nil {
 			return err
 		}
@@ -851,177 +847,4 @@ func getDependencies[R, I, O any](r *R, input *I, output *O, isCreate, isPreview
 	}
 
 	return fg.MarkMap(isCreate, isPreview), nil
-}
-
-func decodeBase(m resource.PropertyMap, dst any, preview, ignoreUnrecognized bool) (
-	[]resource.PropertyPath, mapper.MappingError) {
-	if m.ContainsUnknowns() {
-		m = typeUnknowns(resource.NewObjectProperty(m), reflect.TypeOf(dst)).ObjectValue()
-	}
-	m, secrets := extractSecrets(m)
-	return secrets, mapper.New(&mapper.Opts{
-		IgnoreMissing:      preview,
-		IgnoreUnrecognized: ignoreUnrecognized,
-	}).Decode(m.Mappable(), dst)
-}
-
-// Decode a value appropriate for a resource or invoke input.
-func decode(m resource.PropertyMap, dst any, preview bool) (
-	[]resource.PropertyPath, mapper.MappingError) {
-	return decodeBase(m, dst, preview, false)
-}
-
-// Decode a value appropriate for a configuration value.
-func decodeConfigure(m resource.PropertyMap, dst any, preview bool) (
-	[]resource.PropertyPath, mapper.MappingError) {
-	return decodeBase(m, dst, preview, true)
-}
-
-// typeUnknowns produces a map with identical values to m module unknown values have the
-// correct type to be desierialized to dst.
-func typeUnknowns(m resource.PropertyValue, dst reflect.Type) resource.PropertyValue {
-	for dst.Kind() == reflect.Pointer {
-		dst = dst.Elem()
-	}
-	if m.IsSecret() {
-		return resource.MakeSecret(typeUnknowns(m.SecretValue().Element, dst))
-	}
-	if m.IsOutput() {
-		v := m.OutputValue()
-		if !v.Known {
-			switch dst.Kind() {
-			case reflect.Struct:
-				e := resource.NewObjectProperty(resource.PropertyMap{})
-				v.Element = typeUnknowns(e, dst)
-			case reflect.Map:
-				v.Element = resource.NewObjectProperty(resource.PropertyMap{})
-			case reflect.String:
-				v.Element = resource.NewStringProperty("")
-			case reflect.Bool:
-				v.Element = resource.NewBoolProperty(false)
-			case reflect.Int, reflect.Int64, reflect.Float32, reflect.Float64:
-				v.Element = resource.NewNumberProperty(0)
-			case reflect.Array, reflect.Slice:
-				v.Element = resource.NewArrayProperty([]resource.PropertyValue{})
-			}
-		}
-		return resource.NewOutputProperty(v)
-	}
-
-	switch dst.Kind() {
-	case reflect.Array, reflect.Slice:
-		var results []resource.PropertyValue
-		if m.IsArray() {
-			results = make([]resource.PropertyValue, len(m.ArrayValue()))
-			for i, v := range m.ArrayValue() {
-				results[i] = typeUnknowns(v, dst.Elem())
-			}
-		}
-		return resource.NewArrayProperty(results)
-	case reflect.Map:
-		var result resource.PropertyMap
-		if m.IsObject() {
-			result = make(resource.PropertyMap, len(m.ObjectValue()))
-			for k, v := range m.ObjectValue() {
-				result[k] = typeUnknowns(v, dst.Elem())
-			}
-		}
-		return resource.NewObjectProperty(result)
-	case reflect.Struct:
-		var result resource.PropertyMap
-		obj := resource.PropertyMap{}
-		if m.IsObject() {
-			obj = m.ObjectValue()
-		}
-		result = make(resource.PropertyMap, len(obj))
-		for _, field := range reflect.VisibleFields(dst) {
-			tag, err := introspect.ParseTag(field)
-			if err != nil || tag.Internal {
-				continue
-			}
-			v, ok := obj[resource.PropertyKey(tag.Name)]
-			if !ok {
-				if tag.Optional {
-					continue
-				}
-				// Create a new unknown output, which we will then type
-				v = resource.NewOutputProperty(resource.Output{
-					Element: resource.NewNullProperty(),
-					Known:   false,
-				})
-			}
-			result[resource.PropertyKey(tag.Name)] = typeUnknowns(v, field.Type)
-		}
-		return resource.NewObjectProperty(result)
-	default:
-		return m
-	}
-}
-
-func encode(src interface{}, secrets []resource.PropertyPath, preview bool) (
-	resource.PropertyMap, mapper.MappingError) {
-	props, err := mapper.New(&mapper.Opts{
-		IgnoreMissing: preview,
-	}).Encode(src)
-	if err != nil {
-		return nil, err
-	}
-	return insertSecrets(resource.NewPropertyMapFromMap(props), secrets), nil
-}
-
-// Transform secret values into plain values, returning the new map and the list of keys
-// that contained secrets.
-func extractSecrets(m resource.PropertyMap) (resource.PropertyMap, []resource.PropertyPath) {
-	newMap := resource.PropertyMap{}
-	secrets := []resource.PropertyPath{}
-	var removeSecrets func(resource.PropertyValue, resource.PropertyPath) resource.PropertyValue
-	removeSecrets = func(v resource.PropertyValue, path resource.PropertyPath) resource.PropertyValue {
-		switch {
-		case v.IsSecret():
-			// To allow full fidelity reconstructing maps, we extract nested secrets
-			// first. We then extract the top level secret. We need this ordering to
-			// re-embed nested secrets.
-			el := removeSecrets(v.SecretValue().Element, path)
-			secrets = append(secrets, path)
-			return el
-		case v.IsComputed():
-			return removeSecrets(v.Input().Element, path)
-		case v.IsOutput():
-			if !v.OutputValue().Known {
-				return resource.NewNullProperty()
-			}
-			return removeSecrets(v.OutputValue().Element, path)
-		case v.IsArray():
-			arr := make([]resource.PropertyValue, len(v.ArrayValue()))
-			for i, e := range v.ArrayValue() {
-				arr[i] = removeSecrets(e, append(path, i))
-			}
-			return resource.NewArrayProperty(arr)
-		case v.IsObject():
-			m := make(resource.PropertyMap, len(v.ObjectValue()))
-			for k, v := range v.ObjectValue() {
-				m[k] = removeSecrets(v, append(path, string(k)))
-			}
-			return resource.NewObjectProperty(m)
-		default:
-			return v
-		}
-	}
-	for k, v := range m {
-		newMap[k] = removeSecrets(v, resource.PropertyPath{string(k)})
-	}
-	contract.Assertf(!newMap.ContainsSecrets(), "%d secrets removed", len(secrets))
-	return newMap, secrets
-}
-
-func insertSecrets(props resource.PropertyMap, secrets []resource.PropertyPath) resource.PropertyMap {
-	m := resource.NewObjectProperty(props)
-	for _, s := range secrets {
-		v, ok := s.Get(m)
-		if !ok {
-			continue
-		}
-		s.Set(m, resource.MakeSecret(v))
-	}
-	return m.ObjectValue()
 }

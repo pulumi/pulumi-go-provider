@@ -40,6 +40,7 @@ test_examples: build_examples
 		if [ -d $$ex ] && [ -d $$ex/consumer ]; then \
 		cd $$ex/consumer; \
 		echo "Setting up example for $$ex"; \
+		rm -rf $$PWD/state; \
 		mkdir $$PWD/state; \
 		pulumi login --cloud-url file://$$PWD/state || exit 1; \
 		pulumi stack init test || exit 1; \
