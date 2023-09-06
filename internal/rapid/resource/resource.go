@@ -57,6 +57,11 @@ func valueOf(typ reflect.Type, allowMarker bool) *rapid.Generator[resource.Prope
 		v = String()
 	case reflect.Float64:
 		v = Number()
+	case reflect.Int:
+		// Int is a special case of number.
+		v = rapid.Map(rapid.Int(), func(i int) resource.PropertyValue {
+			return resource.NewNumberProperty(float64(i))
+		})
 	case reflect.Bool:
 		v = Bool()
 	case reflect.Map:
@@ -91,6 +96,7 @@ func maybeMarked(v *rapid.Generator[resource.PropertyValue]) *rapid.Generator[re
 func structOf(fields []reflect.StructField) *rapid.Generator[resource.PropertyValue] {
 	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
 		pMap := resource.PropertyMap{}
+		shadow := resource.PropertyMap{}
 
 		for _, f := range fields {
 			tag := string(f.Tag)
@@ -101,10 +107,39 @@ func structOf(fields []reflect.StructField) *rapid.Generator[resource.PropertyVa
 				}
 				name = name[:strings.IndexRune(name, ',')]
 			}
+
+			// Splice the anonymous struct into the current level
+			if f.Anonymous {
+				inline := valueOf(f.Type, false).
+					Draw(t, "inline").
+					ObjectValue()
+
+				for k, v := range inline {
+					// Shadowed fields are visible in order of
+					// appearance, but are always secondary to
+					// explicit fields.
+					if _, exists := shadow[k]; exists {
+						continue
+					}
+					shadow[k] = v
+				}
+				continue
+			}
+
 			if i := strings.IndexRune(name, '"'); i > 0 {
 				name = name[:i]
 			}
-			pMap[resource.PropertyKey(name)] = valueOf(f.Type, true).Draw(t, "field")
+			pMap[resource.PropertyKey(name)] = valueOf(f.Type, true).
+				Draw(t, "field")
+		}
+
+		// For all of our inline fields, we add them if they don't already
+		// exist
+		for k, v := range shadow {
+			if _, exists := pMap[k]; exists {
+				continue
+			}
+			pMap[k] = v
 		}
 
 		return resource.NewObjectProperty(pMap)
