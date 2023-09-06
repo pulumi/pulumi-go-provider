@@ -212,23 +212,23 @@ func (d *defaultsWalker) walk(v reflect.Value) (didSet bool, _ error) {
 	case reflect.Struct:
 		// Copying what Go SDKs do, we only populate structs that are accessible
 		// by value or by filled pointers.
-		copy := reflect.New(v.Type()).Elem()
-		copy.Set(v)
+		structCopy := reflect.New(v.Type()).Elem()
+		structCopy.Set(v)
 		var s reflect.Value
 		if d.hydrate(tDeferenced) {
 			// We should hydrate the value and apply defaults to it.
-			s = hydratedValue(copy)
+			s = hydratedValue(structCopy)
 		} else {
 			// We should fill a live value, but not hydrate a new one.  Set s
 			// to the copy, assuming that we will have a non-nil struct.
-			s = copy
+			s = structCopy
 
 			// Now check that we have a non-nil struct.
-			for copy.Kind() == reflect.Pointer {
-				if copy.IsNil() {
+			for structCopy.Kind() == reflect.Pointer {
+				if structCopy.IsNil() {
 					return false, nil
 				}
-				copy = copy.Elem()
+				structCopy = structCopy.Elem()
 			}
 		}
 		didSet, err := d.apply(derefNonNil(s))
