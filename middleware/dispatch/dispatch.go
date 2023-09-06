@@ -38,13 +38,13 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		return m.String() + tokens.TokenDelimiter + tk.Name().String()
 	}
 
-	new := provider
+	wrapper := provider
 	if len(opts.Invokes) > 0 {
 		invokes := map[string]t.Invoke{}
 		for k, v := range opts.Invokes {
 			invokes[fix(k)] = v
 		}
-		new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+		wrapper.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 			tk := fix(req.Token)
 			inv, ok := invokes[tk]
 			if ok {
@@ -63,7 +63,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		notFound := func(tk string) error {
 			return status.Errorf(codes.NotFound, "Resource '%s' not found", tk)
 		}
-		new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		wrapper.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -73,7 +73,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.CheckResponse{}, notFound(tk)
 		}
-		new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		wrapper.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -83,7 +83,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.DiffResponse{}, notFound(tk)
 		}
-		new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		wrapper.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -93,7 +93,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.CreateResponse{}, notFound(tk)
 		}
-		new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		wrapper.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -103,7 +103,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.ReadResponse{}, notFound(tk)
 		}
-		new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+		wrapper.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -113,7 +113,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.UpdateResponse{}, notFound(tk)
 		}
-		new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
+		wrapper.Delete = func(ctx p.Context, req p.DeleteRequest) error {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -130,7 +130,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			components[fix(k)] = v
 		}
 
-		new.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+		wrapper.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
 			urn := req.URN
 			tk := fix(urn.Type())
 			r, ok := components[tk]
@@ -146,7 +146,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		}
 	}
 
-	return new
+	return wrapper
 }
 
 type Options struct {

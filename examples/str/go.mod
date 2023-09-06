@@ -1,6 +1,6 @@
 module github.com/pulumi/pulumi-go-provider/examples/str
 
-go 1.18
+go 1.20
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 

@@ -24,7 +24,7 @@ jobs:
 
             [1]: ${{ steps.vars.outputs.run-url }}
   test:
-    uses: iwahbe/pulumi-go-provider/.github/workflows/stage-test.yml@main
+    uses: pulumi/pulumi-go-provider/.github/workflows/stage-test.yml@main
     with:
       live-test: true
       commit-ref: refs/pull/${{ github.event.client_payload.pull_request.number }}/merge

@@ -50,8 +50,8 @@ func Wrap(provider p.Provider) p.Provider {
 			}
 		}
 	}
-	new := provider
-	new.Cancel = func(ctx p.Context) error {
+	wrapper := provider
+	wrapper.Cancel = func(ctx p.Context) error {
 		canceled = true
 		for _, f := range cancelFuncs.drain() {
 			f()
@@ -71,90 +71,90 @@ func Wrap(provider p.Provider) p.Provider {
 		return err
 	}
 	if provider.GetSchema != nil {
-		new.GetSchema = func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+		wrapper.GetSchema = func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.GetSchema(ctx, req)
 		}
 	}
 	if provider.CheckConfig != nil {
-		new.CheckConfig = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		wrapper.CheckConfig = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.CheckConfig(ctx, req)
 		}
 	}
 	if provider.DiffConfig != nil {
-		new.DiffConfig = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		wrapper.DiffConfig = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.DiffConfig(ctx, req)
 		}
 	}
 	if provider.Configure != nil {
-		new.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
+		wrapper.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Configure(ctx, req)
 		}
 	}
 	if provider.Invoke != nil {
-		new.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+		wrapper.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Invoke(ctx, req)
 		}
 	}
 	if provider.Check != nil {
-		new.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		wrapper.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Check(ctx, req)
 		}
 	}
 	if provider.Diff != nil {
-		new.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		wrapper.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Diff(ctx, req)
 		}
 	}
 	if provider.Create != nil {
-		new.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		wrapper.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			ctx, end := cancel(ctx, req.Timeout)
 			defer end()
 			return provider.Create(ctx, req)
 		}
 	}
 	if provider.Read != nil {
-		new.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		wrapper.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Read(ctx, req)
 		}
 	}
 	if provider.Update != nil {
-		new.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+		wrapper.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 			ctx, end := cancel(ctx, req.Timeout)
 			defer end()
 			return provider.Update(ctx, req)
 		}
 	}
 	if provider.Delete != nil {
-		new.Delete = func(ctx p.Context, req p.DeleteRequest) error {
+		wrapper.Delete = func(ctx p.Context, req p.DeleteRequest) error {
 			ctx, end := cancel(ctx, req.Timeout)
 			defer end()
 			return provider.Delete(ctx, req)
 		}
 	}
 	if provider.Construct != nil {
-		new.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+		wrapper.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
 			ctx, end := cancel(ctx, noTimeout)
 			defer end()
 			return provider.Construct(ctx, req)
 		}
 	}
-	return new
+	return wrapper
 }
 
 const noTimeout float64 = 0

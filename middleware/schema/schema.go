@@ -125,16 +125,14 @@ type Metadata struct {
 	PluginDownloadURL string
 }
 
-// Wrap a provider with the facilities to serve GetSchema. If provider is nil, the
-// returned provider will return "not yet implemented" for all methods besides GetSchema.
+// Wrap a provider with the facilities to serve GetSchema.
 func Wrap(provider p.Provider, opts Options) p.Provider {
-	new := provider
 	state := state{
 		Options:        opts,
 		innerGetSchema: provider.GetSchema,
 	}
-	new.GetSchema = state.GetSchema
-	return new
+	provider.GetSchema = state.GetSchema
+	return provider
 }
 
 func (s *state) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {

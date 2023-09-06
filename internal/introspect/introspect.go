@@ -226,8 +226,8 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 			continue
 		}
 		if f.Addr().Interface() == field {
-			f, error := ParseTag(fType)
-			return f, true, error
+			f, err := ParseTag(fType)
+			return f, true, err
 		}
 	}
 	return FieldTag{}, false, nil
