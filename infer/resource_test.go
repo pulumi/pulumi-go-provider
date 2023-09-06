@@ -94,7 +94,7 @@ func TestDefaultDependencies(t *testing.T) {
 					continue
 				}
 				assert.True(t, ende.IsComputed(v),
-					"key: %q, value: %#v", string(k), v)
+					"key: %q", string(k))
 			}
 		} else if !ende.DeepEquals(
 			r.NewObjectProperty(oldInput),
@@ -102,8 +102,8 @@ func TestDefaultDependencies(t *testing.T) {
 			// If there is a change, then every item item should be
 			// computed, except items that mirror a known input.
 			for k, v := range output {
-				if new, ok := newInput[k]; !ok ||
-					ende.IsComputed(new) {
+				if n, ok := newInput[k]; !ok ||
+					ende.IsComputed(n) {
 					assert.True(t, ende.IsComputed(v),
 						"key: %q", string(k))
 				}
