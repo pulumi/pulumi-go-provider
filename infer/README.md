@@ -1,6 +1,6 @@
 # Infer
 
-The `infer` module provides infrastructure to infer Pulumi component resources, custom
+The `infer` package provides infrastructure to infer Pulumi component resources, custom
 resources and functions from go code.
 
 ## Defining a component resource
@@ -31,15 +31,15 @@ type LoginState struct {
 }
 ```
 
-Each field is tagged with `pulumi:"name"`. Pulumi (and the infer module) only acts on
+Each field is tagged with `pulumi:"name"`. Pulumi (and the infer package) only acts on
 fields with this tag. Pulumi names don't need to match up with with field names, but they
 should be lowerCamelCase. Fields also need to be exported (capitalized) to interact with
 Pulumi.
 
 Most fields on components are Inputty or Outputty types, which means they are eventual
 values. We will make a decision based on `PetName`, so it is simply a `bool`. This tells
-Pulumi that `PetName` needs to be a prompt value so we can make decisions based on it.
-Specefically, we decide if we should construct the username based on a `random.RandomPet`
+Pulumi that `PetName` needs to be an immediate value so we can make decisions based on it.
+Specifically, we decide if we should construct the username based on a `random.RandomPet`
 or a `random.RandomId`.
 
 Now that we have defined the type of the component, we need to define how to actually
@@ -268,7 +268,7 @@ func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, pre
 }
 ```
 
-The above code is pretty strait forward. Note that we don't handle when `FileArgs.Path`
+The above code is pretty straightforward. Note that we don't handle when `FileArgs.Path`
 changes, since thats not really an update to an existing file. Its more of a replace
 operation. To tell pulumi that changes in `FileArgs.Content` and `FileArgs.Force` can
 be handled by updates, but that changes to `FileArgs.Path` require a replace, we need
@@ -296,10 +296,10 @@ func (*File) Diff(ctx p.Context, id string, olds FileState, news FileArgs) (p.Di
 
 We check for each field, and if there is a change, we record it. Changes in `news.Content`
 and `news.Force` result in an `Update`, but changes in `news.Path` result in an
-`UpdateReplace`. Since the `id (file path) is globally unique, we also tell Pulumi that it
+`UpdateReplace`. Since the `id` (file path) is globally unique, we also tell Pulumi that it
 needs to perform deletes before the associated create.
 
-Last but not least, we want to be able to read state from the file system as is.
+Last but not least, we want to be able to read state from the file system as-is.
 Unsurprisingly, we do this by implementing yet another method:
 
 ```go
