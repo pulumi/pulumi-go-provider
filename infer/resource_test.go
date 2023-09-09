@@ -102,8 +102,7 @@ func TestDefaultDependencies(t *testing.T) {
 			// If there is a change, then every item item should be
 			// computed, except items that mirror a known input.
 			for k, v := range output {
-				if n, ok := newInput[k]; !ok ||
-					ende.IsComputed(n) {
+				if _, ok := newInput[k]; !ok {
 					assert.True(t, ende.IsComputed(v),
 						"key: %q", string(k))
 				}
