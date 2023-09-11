@@ -332,10 +332,10 @@ func markSecret(
 		return ende.MakeSecret(prop)
 	}
 
-	if input, ok := inputs[key]; ok && !ende.IsSecret(input) && ende.DeepEquals(input, prop) {
+	if input, ok := inputs[key]; ok && ende.DeepEquals(input, prop) {
 		// prop might depend on a secret value, but the output mirrors a input in
-		// name and value. We don't make it secret since it will be public in the
-		// state anyway.
+		// name and value. We don't make it secret since it will either be public
+		// in the state as an input, or is already a secret.
 		return prop
 	}
 
@@ -345,7 +345,7 @@ func markSecret(
 		if !k.has(inputSecret) {
 			continue
 		}
-		if ende.IsSecret(inputs[resource.PropertyKey(k.name)]) {
+		if inputs[resource.PropertyKey(k.name)].ContainsSecrets() {
 			return ende.MakeSecret(prop)
 		}
 	}

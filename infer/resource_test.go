@@ -111,7 +111,7 @@ func TestDefaultDependencies(t *testing.T) {
 
 		for k, v := range output {
 			// An input of the same name is secret, so this should be too.
-			if ende.IsSecret(newInput[k]) {
+			if newInput[k].ContainsSecrets() {
 				assert.Truef(t, ende.IsSecret(v),
 					"key: %q", string(k))
 			}
