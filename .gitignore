@@ -22,3 +22,5 @@
 examples/**/pulumi-resource-*
 
 /.vscode
+
+**/testdata/rapid/**
