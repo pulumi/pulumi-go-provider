@@ -61,6 +61,7 @@ func (d *defaultsWalker) apply(v reflect.Value) (bool, error) {
 	// We get the set of default types that could be applied to v.
 	a := getAnnotated(t)
 	fields := map[string]reflect.Value{}
+	optional := map[string]bool{}
 	for _, field := range reflect.VisibleFields(v.Type()) {
 		tag, err := introspect.ParseTag(field)
 		if err != nil {
@@ -69,6 +70,8 @@ func (d *defaultsWalker) apply(v reflect.Value) (bool, error) {
 		if tag.Internal {
 			continue
 		}
+
+		optional[tag.Name] = tag.Optional
 		fields[tag.Name] = v.FieldByIndex(field.Index)
 	}
 
@@ -118,7 +121,13 @@ defaultEnvs:
 	// that itself has default values. We need to traverse those.
 	//
 	// We only recurse on pulumi tagged fields.
-	for _, v := range fields {
+	for k, v := range fields {
+		// We do not apply defaults (or hydrate) a field `K: *T` when `K` is
+		// optional and `*T` is nil. This shields us from the hydrating an
+		// optional struct with a required value, which fails de-serialization.
+		if optional[k] && isNilStructPtr(v) {
+			continue
+		}
 		didSetRec, err := d.walk(v)
 		if err != nil {
 			return false, err
@@ -128,6 +137,18 @@ defaultEnvs:
 		}
 	}
 	return didSet, nil
+}
+
+// isNilStructPtr checks if v is a nil pointer to a struct.
+func isNilStructPtr(v reflect.Value) bool {
+	for v.Kind() == reflect.Pointer && !v.IsNil() {
+		v = v.Elem()
+	}
+	t := v.Type()
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return v.Kind() == reflect.Pointer && t.Kind() == reflect.Struct
 }
 
 // walk is responsible for calling applyDefaults on all structs in reachable from value.

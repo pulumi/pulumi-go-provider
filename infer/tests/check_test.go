@@ -77,18 +77,34 @@ func TestCheckDefaults(t *testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
 
+			// This is a required input, so make sure it shows up.
+			if _, ok := inputs["nestedPtr"]; !ok {
+				inputs["nestedPtr"] = pValue{V: pMap{}}
+			}
+
 			prov := provider()
 			resp, err := prov.Check(p.CheckRequest{
 				Urn:  urn("WithDefaults", "check-defaults"),
 				News: inputs,
 			})
 			require.NoError(t, err)
+			require.Len(t, resp.Failures, 0)
 
 			assert.Equal(t, expected, resp.Inputs)
 		}
 	}
 
-	t.Run("empty", against(nil, defaultMap()))
+	t.Run("empty", against(pMap{}, defaultMap()))
+	t.Run("required-under-optional", against(pMap{
+		"optWithReq": pValue{V: pMap{
+			"req": pString("user-value"),
+		}},
+	}, withDefault(func(m pMap) {
+		m["optWithReq"] = pValue{V: pMap{
+			"req": pString("user-value"),
+			"opt": pString("default-value"),
+		}}
+	})))
 	t.Run("some-values", against(pMap{
 		"pi": pInt(3),
 		"nestedPtr": pValue{V: pMap{

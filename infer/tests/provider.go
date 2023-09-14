@@ -193,13 +193,24 @@ type WithDefaultsArgs struct {
 	String       string                     `pulumi:"s,optional"`
 	IntPtr       *int                       `pulumi:"pi,optional"`
 	Nested       NestedDefaults             `pulumi:"nested,optional"`
-	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr,optional"`
+	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr"`
+	OptWithReq   *OptWithReq                `pulumi:"optWithReq,optional"`
 	ArrNested    []NestedDefaults           `pulumi:"arrNested,optional"`
 	ArrNestedPtr []*NestedDefaults          `pulumi:"arrNestedPtr,optional"`
 	MapNested    map[string]NestedDefaults  `pulumi:"mapNested,optional"`
 	MapNestedPtr map[string]*NestedDefaults `pulumi:"mapNestedPtr,optional"`
 
 	NoDefaultsPtr *NoDefaults `pulumi:"noDefaults,optional"`
+}
+
+type OptWithReq struct {
+	Required *string `pulumi:"req"`
+	Optional *string `pulumi:"opt,optional"`
+	Empty    *string `pulumi:"empty,optional"`
+}
+
+func (o *OptWithReq) Annotate(a infer.Annotator) {
+	a.SetDefault(&o.Optional, "default-value")
 }
 
 // We want to make sure we don't effect structs or maps that don't have default values.
