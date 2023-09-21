@@ -470,8 +470,10 @@ func (g *fieldGenerator) ensureDefaultComputed() {
 		// The user has specified something, so we respect that.
 		return
 	}
-	// The user has not set a flow, so apply our own
-	g.OutputField(g.state).DependsOn(g.InputField(g.args))
+	// The user has not set a flow, so apply our own:
+	//
+	// Set every output to depend on each input (for computed only)
+	g.OutputField(g.state).DependsOn(g.InputField(g.args).Computed())
 }
 
 // ensureDefaultSecrets that some secretness flow is explicit.

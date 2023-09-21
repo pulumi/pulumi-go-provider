@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	ende "github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 )
 
 func TestCreate(t *testing.T) {
@@ -113,13 +114,13 @@ func TestCreate(t *testing.T) {
 				"fizz": sec(str("buzz")),
 				"foo":  str("bar"),
 			}),
-			"nameOut":   sec(str("create")),
-			"stringOut": sec(str("my string")),
-			"intOut":    sec(resource.NewNumberProperty(7.0)),
-			"strMapOut": sec(resource.NewObjectProperty(resource.PropertyMap{
+			"nameOut":   str("create"),
+			"stringOut": str("my string"),
+			"intOut":    resource.NewNumberProperty(7.0),
+			"strMapOut": resource.NewObjectProperty(resource.PropertyMap{
 				"fizz": str("buzz"),
 				"foo":  str("bar"),
-			})),
+			}),
 		}, resp.Properties)
 	})
 
@@ -138,8 +139,30 @@ func TestCreate(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "id-3", resp.ID)
 		assert.Equal(t, resource.PropertyMap{
-			"int":   sec(num(4.0)),
+			"int":   num(4.0),
 			"other": sec(num(0.0)),
+		}, resp.Properties)
+	})
+
+	t.Run("wired-secrets", func(t *testing.T) {
+		prov := provider()
+		c := resource.MakeComputed
+		s := resource.NewStringProperty
+		sec := ende.MakeSecret
+		resp, err := prov.Create(p.CreateRequest{
+			Urn: urn("Wired", "preview"),
+			Properties: resource.PropertyMap{
+				"string": c(resource.NewStringProperty("foo")),
+				"int":    sec(c(resource.NewNumberProperty(4.0))),
+			},
+			Preview: true,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, "preview-id", resp.ID)
+		assert.Equal(t, resource.PropertyMap{
+			"name":         s("(preview)"),
+			"stringPlus":   c(s("")),
+			"stringAndInt": sec(c(s(""))),
 		}, resp.Properties)
 	})
 
@@ -162,7 +185,6 @@ func TestCreate(t *testing.T) {
 			"stringPlus":   c(s("")),
 			"stringAndInt": c(s("")),
 		}, resp.Properties)
-
 	})
 
 	t.Run("wired-up", func(t *testing.T) {
