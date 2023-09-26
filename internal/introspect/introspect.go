@@ -17,7 +17,6 @@ package introspect
 import (
 	"fmt"
 	"reflect"
-	"runtime"
 	"strings"
 
 	"github.com/blang/semver"
@@ -79,8 +78,7 @@ func FindProperties(r any) (map[string]FieldTag, error) {
 }
 
 // Get the token that represents a struct.
-func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
-	typ := reflect.TypeOf(i)
+func GetToken(pkg tokens.Package, typ reflect.Type) (tokens.Type, error) {
 	if typ == nil {
 		return "", fmt.Errorf("cannot get token of nil type")
 	}
@@ -89,23 +87,14 @@ func GetToken(pkg tokens.Package, i any) (tokens.Type, error) {
 		typ = typ.Elem()
 	}
 
-	var name string
-	var mod string
-	if typ.Kind() == reflect.Func {
-		fn := runtime.FuncForPC(reflect.ValueOf(i).Pointer())
-		parts := strings.Split(fn.Name(), ".")
-		name = parts[len(parts)-1]
-		mod = strings.Join(parts[:len(parts)-1], "/")
-	} else {
-		name = typ.Name()
-		mod = strings.Trim(typ.PkgPath(), "*")
-	}
+	name := typ.Name()
+	mod := strings.Trim(typ.PkgPath(), "*")
 
 	if name == "" {
-		return "", fmt.Errorf("type %T has no name", i)
+		return "", fmt.Errorf("type %s has no name", typ)
 	}
 	if mod == "" {
-		return "", fmt.Errorf("type %T has no module path", i)
+		return "", fmt.Errorf("type %s has no module path", typ)
 	}
 	// Take off the pkg name, since that is supplied by `pkg`.
 	mod = mod[strings.LastIndex(mod, "/")+1:]

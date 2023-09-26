@@ -22,7 +22,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -336,16 +335,9 @@ func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (sche
 		return schema.TypeSpec{}, false, nil
 	}
 
-	var tk tokens.Type
-	annotator := getAnnotated(t)
-	if annotator.Token != "" {
-		tk = fnToken(tokens.Type(annotator.Token))
-	} else {
-		var err error
-		tk, err = introspect.GetToken("pkg", reflect.New(t).Interface())
-		if err != nil {
-			return schema.TypeSpec{}, true, err
-		}
+	tk, err := getTokenOf(t, nil)
+	if err != nil {
+		return schema.TypeSpec{}, true, err
 	}
 
 	return schema.TypeSpec{

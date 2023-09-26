@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -682,14 +683,27 @@ func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivati
 	return r, errs.ErrorOrNil()
 }
 
-func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+func getToken[R any](transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
 	var r R
-	annotator := getAnnotated(reflect.TypeOf(r))
+	return getTokenOf(reflect.TypeOf(r), transform)
+}
+
+func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
+	annotator := getAnnotated(t)
 	if annotator.Token != "" {
-		return fnToken(tokens.Type(annotator.Token)), nil
+		return tokens.Type(annotator.Token), nil
 	}
 
-	return introspect.GetToken("pkg", r)
+	tk, err := introspect.GetToken("pkg", t)
+	if transform == nil || err != nil {
+		return tk, err
+	}
+
+	return transform(tk), nil
+}
+
+func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+	return getToken[R](nil)
 }
 
 func (*derivedResourceController[R, I, O]) getInstance() *R {
