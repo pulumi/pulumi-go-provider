@@ -36,7 +36,7 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.Describe(&m, "This is MyStruct, but also your struct.")
 	a.Describe(&m.Fizz, "Fizz is not MyStruct.Foo.")
 	a.SetDefault(&m.Foo, "Fizz")
-	a.SetToken(&m, "MyToken")
+	a.SetToken("myMod", "MyToken")
 }
 
 func TestParseTag(t *testing.T) {
@@ -108,7 +108,7 @@ func TestAnnotate(t *testing.T) {
 	assert.Equal(t, "Fizz", a.Defaults["foo"])
 	assert.Equal(t, "Fizz is not MyStruct.Foo.", a.Descriptions["fizz"])
 	assert.Equal(t, "This is MyStruct, but also your struct.", a.Descriptions[""])
-	assert.Equal(t, "MyToken", a.Token)
+	assert.Equal(t, "pkg:myMod:MyToken", a.Token)
 }
 
 func TestAllFields(t *testing.T) {

@@ -30,7 +30,7 @@ import (
 
 type CustomToken struct{}
 
-func (c *CustomToken) Annotate(a infer.Annotator) { a.SetToken(c, "pkg:overwritten:Tk") }
+func (c *CustomToken) Annotate(a infer.Annotator) { a.SetToken("overwritten", "Tk") }
 
 func (*CustomToken) Create(
 	ctx p.Context, name string, inputs TokenArgs, preview bool,
@@ -52,7 +52,7 @@ type TokenComponent struct{ pulumi.ResourceState }
 type ComponentToken struct{}
 
 // Check that we allow other capitalization schemes
-func (c *ComponentToken) Annotate(a infer.Annotator) { a.SetToken(c, "pkg:cmp:tK") }
+func (c *ComponentToken) Annotate(a infer.Annotator) { a.SetToken("cmp", "tK") }
 
 func (*ComponentToken) Construct(
 	ctx *pulumi.Context, name, typ string, inputs TokenArgs, opts pulumi.ResourceOption,
@@ -62,7 +62,7 @@ func (*ComponentToken) Construct(
 
 type FnToken struct{}
 
-func (c *FnToken) Annotate(a infer.Annotator) { a.SetToken(c, "pkg:fn:TK") }
+func (c *FnToken) Annotate(a infer.Annotator) { a.SetToken("fn", "TK") }
 
 func (*FnToken) Call(ctx p.Context, input TokenArgs) (output TokenResult, err error) {
 	panic("unimplemented")
@@ -72,7 +72,7 @@ type ObjectToken struct {
 	Value string `pulumi:"value"`
 }
 
-func (c *ObjectToken) Annotate(a infer.Annotator) { a.SetToken(c, "pkg:obj:Customized") }
+func (c *ObjectToken) Annotate(a infer.Annotator) { a.SetToken("obj", "Customized") }
 
 func TestTokens(t *testing.T) {
 	provider := infer.Provider(infer.Options{

@@ -140,7 +140,20 @@ type Annotator interface {
 	// type in the pulumi type system.
 	SetDefault(i any, defaultValue any, env ...string)
 
-	SetToken(i any, token string)
+	// Set the token of the annotated type.
+	//
+	// module and name should be valid Pulumi token segments. The package name will be
+	// inferred from the provider.
+	//
+	// For example:
+	//
+	//	a.SetToken("mymodule", "MyResource")
+	//
+	// On a provider created with the name "mypkg" will have the token:
+	//
+	//	mypkg:mymodule:MyResource
+	//
+	SetToken(module, name string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be

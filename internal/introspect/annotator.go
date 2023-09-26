@@ -85,20 +85,6 @@ func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 	a.DefaultEnvs[field.Name] = append(a.DefaultEnvs[field.Name], env...)
 }
 
-func (a *Annotator) SetToken(i any, token string) {
-	_, ok, err := a.matcher.GetField(i)
-	if err != nil {
-		panic(fmt.Sprintf("Could not parse field tags: %s", err.Error()))
-	}
-	if !ok {
-		typ := reflect.TypeOf(i)
-		if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Pointer {
-			i = reflect.ValueOf(i).Elem().Interface()
-		}
-		if a.matcher.value.Addr().Interface() != i {
-			panic("A token can only be specified for a struct")
-		}
-	}
-
-	a.Token = token
+func (a *Annotator) SetToken(module, token string) {
+	a.Token = fmt.Sprintf("pkg:%s:%s", module, token)
 }
