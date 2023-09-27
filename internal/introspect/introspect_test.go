@@ -15,6 +15,7 @@
 package introspect_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -109,6 +110,51 @@ func TestAnnotate(t *testing.T) {
 	assert.Equal(t, "Fizz is not MyStruct.Foo.", a.Descriptions["fizz"])
 	assert.Equal(t, "This is MyStruct, but also your struct.", a.Descriptions[""])
 	assert.Equal(t, "pkg:myMod:MyToken", a.Token)
+}
+
+func TestSetTokenValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		module, name string
+		fail         bool
+	}{
+		{name: "foo"},
+		{name: "FOO"},
+		{name: "foo/bar", fail: true},
+		{name: ":foo", fail: true},
+		{module: "foo/bar"},
+		{module: " foo", fail: true},
+		{name: "angel😇", fail: true},
+		{module: ":mod", fail: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		if tt.module == "" {
+			tt.module = "mod"
+		}
+		if tt.name == "" {
+			tt.name = "Res"
+		}
+		t.Run(fmt.Sprintf("%s-%s", tt.module, tt.name), func(t *testing.T) {
+			t.Parallel()
+
+			f := func() introspect.Annotator {
+				s := &MyStruct{}
+				a := introspect.NewAnnotator(s)
+				a.SetToken(tt.module, tt.name)
+				return a
+			}
+
+			if tt.fail {
+				assert.Panics(t, func() { f() })
+			} else {
+				a := f()
+				assert.Equal(t, a.Token, "pkg:"+tt.module+":"+tt.name)
+			}
+		})
+	}
 }
 
 func TestAllFields(t *testing.T) {
