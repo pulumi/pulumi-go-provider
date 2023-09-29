@@ -57,9 +57,9 @@ func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	//
 	//	pkg:index:FizzBuzz
 	//
-	// Functions use a different capitalization convection, so we need to convert:
+	// Functions use a different capitalization convention, so we need to convert:
 	//
-	//	pkg:index:FizzBuzz
+	//	pkg:index:fizzBuzz
 	//
 	return getToken[F](fnToken)
 }
