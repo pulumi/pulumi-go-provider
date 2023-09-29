@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -138,6 +139,21 @@ type Annotator interface {
 	// Annotate a struct field with a default value. The default value must be a primitive
 	// type in the pulumi type system.
 	SetDefault(i any, defaultValue any, env ...string)
+
+	// Set the token of the annotated type.
+	//
+	// module and name should be valid Pulumi token segments. The package name will be
+	// inferred from the provider.
+	//
+	// For example:
+	//
+	//	a.SetToken("mymodule", "MyResource")
+	//
+	// On a provider created with the name "mypkg" will have the token:
+	//
+	//	mypkg:mymodule:MyResource
+	//
+	SetToken(module, name string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be
@@ -680,9 +696,27 @@ func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivati
 	return r, errs.ErrorOrNil()
 }
 
-func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+func getToken[R any](transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
 	var r R
-	return introspect.GetToken("pkg", r)
+	return getTokenOf(reflect.TypeOf(r), transform)
+}
+
+func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
+	annotator := getAnnotated(t)
+	if annotator.Token != "" {
+		return tokens.Type(annotator.Token), nil
+	}
+
+	tk, err := introspect.GetToken("pkg", t)
+	if transform == nil || err != nil {
+		return tk, err
+	}
+
+	return transform(tk), nil
+}
+
+func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+	return getToken[R](nil)
 }
 
 func (*derivedResourceController[R, I, O]) getInstance() *R {

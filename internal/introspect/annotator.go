@@ -17,6 +17,8 @@ package introspect
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
 func NewAnnotator(resource any) Annotator {
@@ -33,6 +35,7 @@ type Annotator struct {
 	Descriptions map[string]string
 	Defaults     map[string]any
 	DefaultEnvs  map[string][]string
+	Token        string
 
 	matcher FieldMatcher
 }
@@ -82,4 +85,14 @@ func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 	field := a.mustGetField(i)
 	a.Defaults[field.Name] = defaultValue
 	a.DefaultEnvs[field.Name] = append(a.DefaultEnvs[field.Name], env...)
+}
+
+func (a *Annotator) SetToken(module, token string) {
+	if !tokens.IsQName(module) {
+		panic(fmt.Sprintf("Module (%q) must comply with %s, but does not", module, tokens.QNameRegexp))
+	}
+	if !tokens.IsName(token) {
+		panic(fmt.Sprintf("Token (%q) must comply with %s, but does not", token, tokens.NameRegexp))
+	}
+	a.Token = fmt.Sprintf("pkg:%s:%s", module, token)
 }

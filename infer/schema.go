@@ -56,6 +56,7 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 		for k, v := range src.DefaultEnvs {
 			(*dst).DefaultEnvs[k] = v
 		}
+		dst.Token = src.Token
 	}
 
 	ret := introspect.Annotator{
@@ -333,10 +334,12 @@ func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (sche
 		t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem()) {
 		return schema.TypeSpec{}, false, nil
 	}
-	tk, err := introspect.GetToken("pkg", reflect.New(t).Elem().Interface())
+
+	tk, err := getTokenOf(t, nil)
 	if err != nil {
 		return schema.TypeSpec{}, true, err
 	}
+
 	return schema.TypeSpec{
 		Ref: "#/types/" + tk.String(),
 	}, true, nil

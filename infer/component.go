@@ -74,8 +74,7 @@ func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDeri
 }
 
 func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
-	var r R
-	return introspect.GetToken("pkg", r)
+	return getToken[R](nil)
 }
 
 func (rc *derivedComponentController[R, I, O]) Construct(

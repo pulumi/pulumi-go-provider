@@ -24,7 +24,6 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -54,12 +53,15 @@ type derivedInvokeController[F Fn[I, O], I, O any] struct{}
 func (derivedInvokeController[F, I, O]) isInferredFunction() {}
 
 func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
-	var f F
-	tk, err := introspect.GetToken("pkg", f)
-	if err != nil {
-		return "", err
-	}
-	return fnToken(tk), nil
+	// By default, we get resource style tokens:
+	//
+	//	pkg:index:FizzBuzz
+	//
+	// Functions use a different capitalization convention, so we need to convert:
+	//
+	//	pkg:index:fizzBuzz
+	//
+	return getToken[F](fnToken)
 }
 
 func fnToken(tk tokens.Type) tokens.Type {
