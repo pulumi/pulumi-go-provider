@@ -12,7 +12,7 @@ resources:
     properties:
       petName: true
       passwordLength:
-        Fn::Secret: 8
+        fn::secret: 8
   salter:
     type: random-login:RandomSalt
     properties:
