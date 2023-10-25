@@ -133,6 +133,12 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeReq
 			Failures: mapFailures,
 		}, nil
 	}
+
+	err = applyDefaults(&i)
+	if err != nil {
+		return p.InvokeResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
+	}
+
 	var f F
 	// If F is a *struct, we need to rehydrate the underlying struct
 	if v := reflect.ValueOf(f); v.Kind() == reflect.Pointer && v.IsNil() {
