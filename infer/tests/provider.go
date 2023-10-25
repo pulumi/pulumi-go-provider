@@ -17,6 +17,7 @@ package tests
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -321,6 +322,24 @@ func (w *ReadConfig) Create(
 	return "read", ReadConfigOutput{Config: string(bytes)}, err
 }
 
+type GetJoin struct{}
+type JoinArgs struct {
+	Elems []string `pulumi:"elems"`
+	Sep   *string  `pulumi:"sep,optional"`
+}
+
+func (j *JoinArgs) Annotate(a infer.Annotator) {
+	a.SetDefault(&j.Sep, ",")
+}
+
+type JoinResult struct {
+	Result string `pulumi:"result"`
+}
+
+func (*GetJoin) Call(ctx p.Context, args JoinArgs) (JoinResult, error) {
+	return JoinResult{strings.Join(args.Elems, *args.Sep)}, nil
+}
+
 type ConfigCustom struct {
 	Number  *float64 `pulumi:"number,optional"`
 	Squared float64
@@ -379,6 +398,9 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource[*Recursive, RecursiveArgs, RecursiveOutput](),
 			infer.Resource[*ReadConfig, ReadConfigArgs, ReadConfigOutput](),
 			infer.Resource[*ReadConfigCustom, ReadConfigCustomArgs, ReadConfigCustomOutput](),
+		},
+		Functions: []infer.InferredFunction{
+			infer.Function[*GetJoin, JoinArgs, JoinResult](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	}
