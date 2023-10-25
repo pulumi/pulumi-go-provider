@@ -8,30 +8,30 @@ plugins:
 
 variables:
   replaced:
-    Fn::Invoke:
-      Function: str:replace
-      Arguments:
+    fn::invoke:
+      function: str:replace
+      arguments:
         s: abc---abc---abc
         old: ---
         new: <*>
-      Return: out
+      return: out
   rrreplaced:
-    Fn::Invoke:
-      Function: str:regex:replace
-      Arguments:
+    fn::invoke:
+      function: str:regex:replace
+      arguments:
         s: abc-abc--abc---abc
         pattern: -+
         new: <*>
-      Return: out
+      return: out
   _:
-    Fn::Invoke:
-      Function: str:print
-      Arguments:
+    fn::invoke:
+      function: str:print
+      arguments:
         s: I can indeed be printed
   aString:
-    Fn::Invoke:
-      Function: str:giveMeAString
-      Return: out
+    fn::invoke:
+      function: str:giveMeAString
+      return: out
 outputs:
   replace: ${replaced}
   regex-replaced: ${rrreplaced}

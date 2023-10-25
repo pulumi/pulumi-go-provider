@@ -857,7 +857,7 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 		oldInputs[key] = req.Olds[key]
 	}
 	objDiff := oldInputs.Diff(req.News)
-	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff)
+	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff, false)
 	diff := map[string]p.PropertyDiff{}
 
 	for k, v := range pluginDiff {
