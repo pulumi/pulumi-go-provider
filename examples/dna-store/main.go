@@ -177,7 +177,6 @@ func (*DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNASt
 		}
 	}
 
-	file, err = os.Open(path + ".metadata")
 	state = DNAStoreArgs{
 		Data:     molecules,
 		Storage:  filepath.Dir(id),
