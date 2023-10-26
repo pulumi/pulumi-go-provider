@@ -53,6 +53,12 @@ type Metadata struct {
 	Tags       map[string]string `pulumi:"tags,optional"`
 }
 
+// Annotate the nested fields for the Metadata receiver
+func (m *Metadata) Annotate(a infer.Annotator) {
+	a.Describe(&m.SampleType, "sample type of the dna")
+	a.Describe(&m.Tags, "optional tags associated with the dna sample")
+}
+
 type DNAStoreArgs struct {
 	Data     []Molecule `pulumi:"data"`
 	Storage  string     `pulumi:"filedir"`
@@ -178,6 +184,12 @@ func (*DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNASt
 		Metadata: metadata,
 	}
 	return path, state, state, nil
+}
+
+// Annotate the nested fields for the DNAStoreArgs receiver
+func (d *DNAStoreArgs) Annotate(a infer.Annotator) {
+	a.Describe(&d.Data, "molecule data")
+	a.Describe(&d.Metadata, "stores information related to a particular dna")
 }
 
 func main() {
