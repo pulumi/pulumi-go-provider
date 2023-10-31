@@ -4,8 +4,8 @@ go 1.20
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.90.1
-	github.com/pulumi/pulumi/sdk/v3 v3.90.1
+	github.com/pulumi/pulumi/pkg/v3 v3.91.1
+	github.com/pulumi/pulumi/sdk/v3 v3.91.1
 	google.golang.org/grpc v1.57.1
 	google.golang.org/protobuf v1.31.0
 	pgregory.net/rapid v1.1.0

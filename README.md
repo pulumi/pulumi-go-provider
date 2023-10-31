@@ -9,6 +9,8 @@ _Note_: This library is in active development, and not everthing is hooked up. Y
 expect breaking changes as we fine tune the exposed APIs. We definitely appreciate
 community feedback, but you should probably wait to port any existing providers over.
 
+For detailed instructions on building providers with `infer`, see [infer/README.md](./infer/README.md).
+
 ## The "Hello, Pulumi" Provider
 
 Here we provide the code to create an entire native provider consumable from any of the
