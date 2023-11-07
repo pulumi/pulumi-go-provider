@@ -35,7 +35,7 @@ func (m mapper) encode(from any) (resource.PropertyMap, pmapper.MappingError) {
 	contract.Assertf(fromT.Kind() == reflect.Struct, "expect to encode a struct")
 
 	mapCtx := &mapCtx{ty: fromT}
-	pMap := mapCtx.encodeObj(fromV)
+	pMap := mapCtx.encodeStruct(fromV)
 	if len(mapCtx.errors) > 0 {
 		return nil, pmapper.NewMappingError(mapCtx.errors)
 	}
@@ -47,7 +47,7 @@ type mapCtx struct {
 	errors []error
 }
 
-func (m *mapCtx) encodeObj(from reflect.Value) resource.PropertyMap {
+func (m *mapCtx) encodeStruct(from reflect.Value) resource.PropertyMap {
 	visableFields := reflect.VisibleFields(from.Type())
 	obj := make(resource.PropertyMap, len(visableFields))
 	for _, f := range visableFields {
@@ -62,12 +62,29 @@ func (m *mapCtx) encodeObj(from reflect.Value) resource.PropertyMap {
 		}
 		key := resource.PropertyKey(tag.Name)
 		value := m.encodeValue(from.FieldByIndex(f.Index))
-		if value.IsNull() {
+		if value.IsNull() && tag.Optional {
 			continue
 		}
 		obj[key] = value
 	}
 	return obj
+}
+
+func (m *mapCtx) encodeMap(from reflect.Value) resource.PropertyMap {
+	wMap := make(resource.PropertyMap, from.Len())
+	iter := from.MapRange()
+	for iter.Next() {
+		key := iter.Key()
+		if key.Kind() != reflect.String {
+			panic("unexpected key type")
+		}
+		value := m.encodeValue(iter.Value())
+		if value.IsNull() {
+			continue
+		}
+		wMap[resource.PropertyKey(key.String())] = value
+	}
+	return wMap
 }
 
 func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
@@ -86,7 +103,7 @@ func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
 		reflect.Float32, reflect.Float64:
 		return resource.NewNumberProperty(from.Convert(reflect.TypeOf(float64(0))).Float())
 	case reflect.Slice, reflect.Array:
-		if from.Len() == 0 {
+		if from.IsNil() {
 			return resource.NewNullProperty()
 		}
 		arr := make([]resource.PropertyValue, from.Len())
@@ -95,26 +112,13 @@ func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
 		}
 		return resource.NewArrayProperty(arr)
 	case reflect.Struct:
-		obj := m.encodeObj(from)
-		return resource.NewObjectProperty(obj)
+		return resource.NewObjectProperty(m.encodeStruct(from))
 	case reflect.Map:
-		wMap := make(resource.PropertyMap, from.Len())
-		iter := from.MapRange()
-		for iter.Next() {
-			key := iter.Key()
-			if key.Kind() != reflect.String {
-				panic("unexpected key type")
-			}
-			value := m.encodeValue(iter.Value())
-			if value.IsNull() {
-				continue
-			}
-			wMap[resource.PropertyKey(key.String())] = value
-		}
-		if len(wMap) == 0 {
+		if from.IsNil() {
 			return resource.NewNullProperty()
 		}
-		return resource.NewObjectProperty(wMap)
+		obj := m.encodeMap(from)
+		return resource.NewObjectProperty(obj)
 	case reflect.Interface:
 		if from.IsNil() {
 			return resource.NewNullProperty()
