@@ -1,7 +1,6 @@
 package infer
 
 import (
-	"errors"
 	"reflect"
 	"sync"
 
@@ -11,7 +10,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 )
 
-//go:generate go run gen_apply/main.go output_apply.go
+//go:generate go run ./gen_apply/main.go -- output_apply.go
 
 type Output[T any] struct{ *state[T] }
 
@@ -106,79 +105,6 @@ func newOutput[T any](value *T, secret bool, deps deps) Output[T] {
 	}
 
 	return Output[T]{state}
-}
-
-func Apply[T, U any](o Output[T], f func(T) U) Output[U] {
-	return ApplyErr(o, func(value T) (U, error) {
-		return f(value), nil
-	})
-}
-
-func ApplyErr[T, U any](o Output[T], f func(T) (U, error)) Output[U] {
-	result := newOutput[U](nil, o.secret, o.deps)
-	go applyResult(o, result, f)
-	return result
-}
-
-func applyResult[T, U any](from Output[T], to Output[U], f func(value T) (U, error)) {
-	if !from.deps.canResolve() {
-		return
-	}
-	from.wait()
-
-	// Propagate the change
-	to.join.L.Lock()
-	defer to.join.L.Unlock()
-
-	if from.err == nil {
-		tmp, err := f(*from.value)
-		if err == nil {
-			to.value = &tmp
-		} else {
-			to.err = err
-		}
-	} else {
-		to.err = from.err
-	}
-	to.resolved = true
-	to.join.Broadcast()
-}
-
-func Apply2[T1, T2, U any](o1 Output[T1], o2 Output[T2], f func(T1, T2) U) Output[U] {
-	return Apply2Err(o1, o2, func(v1 T1, v2 T2) (U, error) {
-		return f(v1, v2), nil
-	})
-}
-
-func Apply2Err[T1, T2, U any](o1 Output[T1], o2 Output[T2], f func(T1, T2) (U, error)) Output[U] {
-	result := newOutput[U](nil, o1.secret || o2.secret, append(o1.deps, o2.deps...))
-	go apply2Result(o1, o2, result, f)
-	return result
-}
-
-func apply2Result[T1, T2, U any](o1 Output[T1], o2 Output[T2], to Output[U], f func(T1, T2) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() {
-		return
-	}
-	o1.wait()
-	o2.wait()
-
-	// Propagate the change
-	to.join.L.Lock()
-	defer to.join.L.Unlock()
-
-	if err := errors.Join(o1.err, o2.err); err == nil {
-		tmp, err := f(*o1.value, *o2.value)
-		if err == nil {
-			to.value = &tmp
-		} else {
-			to.err = err
-		}
-	} else {
-		to.err = err
-	}
-	to.resolved = true
-	to.join.Broadcast()
 }
 
 var _ = (ende.EnDePropertyValue)((*Output[string])(nil))
