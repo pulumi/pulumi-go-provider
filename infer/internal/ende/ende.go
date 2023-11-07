@@ -56,10 +56,10 @@ func decode(
 		target = target.Elem()
 	}
 	m = e.simplify(m, target.Type())
-	return Encoder{e}, mapper{
+	return Encoder{e}, decodeProperty(m, target.Addr(), mapperOpts{
 		IgnoreMissing:      allowMissing,
 		IgnoreUnrecognized: ignoreUnrecognized,
-	}.decode(m, target)
+	})
 
 }
 
@@ -290,7 +290,7 @@ func (e *ende) walkMap(
 }
 
 func (e *ende) Encode(src any) (resource.PropertyMap, pmapper.MappingError) {
-	props, err := mapper{IgnoreMissing: true}.encode(src)
+	props, err := encodeProperty(src, mapperOpts{IgnoreMissing: true})
 	if err != nil {
 		return nil, err
 	}

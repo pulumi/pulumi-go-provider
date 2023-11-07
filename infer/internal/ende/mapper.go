@@ -1,6 +1,7 @@
 package ende
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -9,19 +10,146 @@ import (
 	pmapper "github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 )
 
-type mapper struct {
+type mapperOpts struct {
 	IgnoreUnrecognized bool
 	IgnoreMissing      bool
 }
 
-func (m mapper) decode(from resource.PropertyMap, to reflect.Value) pmapper.MappingError {
-	return pmapper.New(&pmapper.Opts{
-		IgnoreMissing:      m.IgnoreMissing,
-		IgnoreUnrecognized: m.IgnoreUnrecognized,
-	}).Decode(from.Mappable(), to.Addr().Interface())
+func decodeProperty(from resource.PropertyMap, to reflect.Value, opts mapperOpts) pmapper.MappingError {
+	contract.Assertf(to.Kind() == reflect.Ptr && !to.IsNil() && to.Elem().CanSet(),
+		"Target %v must be a non-nil, settable pointer", to.Type())
+	toType := to.Type().Elem()
+	contract.Assertf(toType.Kind() == reflect.Struct && !to.IsNil(),
+		"Target %v must be a struct type with `pulumi:\"x\"` tags to direct decoding", toType)
+
+	ctx := &mapCtx{ty: toType, opts: opts}
+
+	ctx.decodeStruct(from, to.Elem())
+
+	if len(ctx.errors) > 0 {
+		return pmapper.NewMappingError(ctx.errors)
+	}
+	return nil
 }
 
-func (m mapper) encode(from any) (resource.PropertyMap, pmapper.MappingError) {
+func (m *mapCtx) decodeStruct(from resource.PropertyMap, to reflect.Value) {
+	addressed := map[string]struct{}{}
+	for _, f := range reflect.VisibleFields(to.Type()) {
+		tag, err := introspect.ParseTag(f)
+		if err != nil {
+			m.errors = append(m.errors,
+				pmapper.NewFieldError(m.ty.String(), f.Name, err))
+			continue
+		}
+		if tag.Internal {
+			continue
+		}
+		value, ok := from[resource.PropertyKey(tag.Name)]
+		if ok {
+			addressed[tag.Name] = struct{}{}
+			m.decodeValue(tag.Name, value, to.FieldByIndex(f.Index))
+		} else if !m.opts.IgnoreMissing && !tag.Optional {
+			m.errors = append(m.errors, pmapper.NewMissingError(m.ty, f.Name))
+		}
+	}
+
+	if !m.opts.IgnoreUnrecognized {
+		for k := range from {
+			if _, ok := addressed[string(k)]; ok {
+				continue
+			}
+			m.errors = append(m.errors, pmapper.NewUnrecognizedError(m.ty, string(k)))
+		}
+	}
+}
+
+func (m *mapCtx) decodePrimitive(fieldName string, from any, to reflect.Value) {
+	elem := hydrateMaybePointer(to)
+	fromV := reflect.ValueOf(from)
+	if !fromV.CanConvert(elem.Type()) {
+		m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
+			fieldName, elem.Type(), fromV.Type()))
+
+		return
+	}
+	elem.Set(fromV.Convert(elem.Type()))
+}
+
+func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to reflect.Value) {
+	switch {
+	// Primitives
+	case from.IsBool():
+		m.decodePrimitive(fieldName, from.BoolValue(), to)
+	case from.IsNumber():
+		m.decodePrimitive(fieldName, from.NumberValue(), to)
+	case from.IsString():
+		m.decodePrimitive(fieldName, from.StringValue(), to)
+
+	// Collections
+	case from.IsArray():
+		arr := from.ArrayValue()
+		elem := hydrateMaybePointer(to)
+		if elem.Kind() != reflect.Slice {
+			m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
+				fieldName, elem.Type(), reflect.TypeOf(arr)))
+		}
+		length := len(arr)
+		elem.Set(reflect.MakeSlice(elem.Type(), length, length))
+		for i, v := range arr {
+			m.decodeValue(fmt.Sprintf("%s[%d]", fieldName, i), v, elem.Index(i))
+		}
+	case from.IsObject():
+		obj := from.ObjectValue()
+		elem := hydrateMaybePointer(to)
+		switch elem.Kind() {
+		case reflect.Struct:
+			m.decodeStruct(obj, elem)
+		case reflect.Map:
+			if key := elem.Type().Key(); key.Kind() != reflect.String {
+				m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
+					fieldName, reflect.TypeOf(""), key))
+			}
+			elem.Set(reflect.MakeMapWithSize(elem.Type(), len(obj)))
+			for k, v := range obj {
+				place := reflect.New(elem.Type().Elem()).Elem()
+				m.decodeValue(fmt.Sprintf("%s[%s]", fieldName, string(k)), v, place)
+				elem.SetMapIndex(reflect.ValueOf(string(k)), place)
+			}
+		default:
+			m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
+				fieldName, elem.Type(), reflect.TypeOf(obj)))
+		}
+
+	// Markers
+	case from.IsSecret():
+		m.decodeValue(fieldName, from.SecretValue().Element, to)
+	case from.IsComputed():
+		m.decodeValue(fieldName, from.OutputValue().Element, to)
+
+	// Special values
+	case from.IsAsset():
+		panic("Unhandled property kind: Asset")
+	case from.IsArchive():
+		panic("Unhandled property kind: Archive")
+	case from.IsNull():
+		// No-op
+	default:
+		contract.Failf("Unknown property kind: %#v", from)
+	}
+}
+
+func hydrateMaybePointer(to reflect.Value) reflect.Value {
+	contract.Assertf(to.CanSet(), "must be able to set to hydrate")
+	for to.Kind() == reflect.Ptr {
+		if to.IsNil() {
+			to.Set(reflect.New(to.Type().Elem()))
+		}
+		to = to.Elem()
+	}
+	return to
+}
+
+func encodeProperty(from any, opts mapperOpts) (resource.PropertyMap, pmapper.MappingError) {
 	if from == nil {
 		return nil, nil
 	}
@@ -34,7 +162,7 @@ func (m mapper) encode(from any) (resource.PropertyMap, pmapper.MappingError) {
 	}
 	contract.Assertf(fromT.Kind() == reflect.Struct, "expect to encode a struct")
 
-	mapCtx := &mapCtx{ty: fromT}
+	mapCtx := &mapCtx{ty: fromT, opts: opts}
 	pMap := mapCtx.encodeStruct(fromV)
 	if len(mapCtx.errors) > 0 {
 		return nil, pmapper.NewMappingError(mapCtx.errors)
@@ -43,6 +171,7 @@ func (m mapper) encode(from any) (resource.PropertyMap, pmapper.MappingError) {
 }
 
 type mapCtx struct {
+	opts   mapperOpts
 	ty     reflect.Type
 	errors []error
 }
