@@ -69,19 +69,23 @@ func TestRapidRoundTrip(t *testing.T) {
 func TestRapidDeepEqual(t *testing.T) {
 	t.Parallel()
 	// Check that a value always equals itself
-	rapid.Check(t, func(t *rapid.T) {
-		value := rResource.PropertyValue(5).Draw(t, "value")
+	t.Run("identity", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			value := rResource.PropertyValue(5).Draw(t, "value")
 
-		assert.True(t, DeepEquals(value, value))
+			assert.True(t, DeepEquals(value, value))
+		})
 	})
 
 	// Check that "distinct" values never equal themselves.
-	rapid.Check(t, func(t *rapid.T) {
-		values := rapid.SliceOfNDistinct(rResource.PropertyValue(5), 2, 2,
-			func(v r.PropertyValue) string {
-				return v.String()
-			}).Draw(t, "distinct")
-		assert.False(t, DeepEquals(values[0], values[1]))
+	t.Run("distinct", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			values := rapid.SliceOfNDistinct(rResource.PropertyValue(5), 2, 2,
+				func(v r.PropertyValue) string {
+					return v.String()
+				}).Draw(t, "distinct")
+			assert.False(t, DeepEquals(values[0], values[1]))
+		})
 	})
 
 	t.Run("folding", func(t *testing.T) {
