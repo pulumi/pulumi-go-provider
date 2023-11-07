@@ -5,40 +5,85 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 )
 
 type Output[T any] struct{ *state[T] }
 
-type state[T any] struct {
-	value  *T
-	err    error
-	known  bool
-	secret bool
+func (o Output[T]) IsSecret() bool { return o.secret }
 
-	// Input fields that the output depends upon.
-	deps []string
+// Return an equivalent output that is secret.
+func (o Output[T]) AsSecret() Output[T] {
+	r := Apply(o, func(x T) T { return x })
+	r.secret = true
+	return r
+}
+
+type state[T any] struct {
+	value      *T    // The resolved value
+	err        error // An error encountered when resolving the value
+	resolved   bool  // If the value is fully resolved
+	resolvable bool  // If the value can be resolved
+	secret     bool  // If the value is secret
+
+	deps deps // Input fields that the output depends upon.
 
 	join *sync.Cond
 }
 
-func (s state[T]) wait() {
+func (s *state[T]) wait() {
+	contract.Assertf(s.resolvable, "awaiting output that will never resolve")
 	s.join.L.Lock()
 	defer s.join.L.Unlock()
-	for !s.known {
+	for !s.resolved {
 		s.join.Wait()
 	}
 }
 
-func newOutput[T any](value *T, known, secret bool, deps []string) Output[T] {
+type deps []dep
+
+type dep interface {
+	canResolve() bool
+	field() string
+}
+
+type propDep struct {
+	name     string
+	knowable bool
+}
+
+func (p propDep) canResolve() bool { return p.knowable }
+func (p propDep) field() string    { return p.name }
+
+func (d deps) canResolve() bool {
+	for _, b := range d {
+		if !b.canResolve() {
+			return false
+		}
+	}
+	return true
+}
+
+func (d deps) fields() []string {
+	f := make([]string, len(d))
+	for i, v := range d {
+		f[i] = v.field()
+	}
+	return f
+}
+
+func newOutput[T any](value *T, secret bool, deps deps) Output[T] {
 	m := new(sync.Mutex)
 	state := &state[T]{
-		value:  value,
-		known:  known,
-		secret: secret,
-		deps:   deps,
-		join:   sync.NewCond(m),
+		value:      value,
+		resolved:   value != nil,
+		resolvable: deps.canResolve(),
+		secret:     secret,
+		deps:       deps,
+		join:       sync.NewCond(m),
 	}
 
 	return Output[T]{state}
@@ -51,19 +96,21 @@ func Apply[T, U any](o Output[T], f func(T) U) Output[U] {
 }
 
 func ApplyErr[T, U any](o Output[T], f func(T) (U, error)) Output[U] {
-	result := newOutput[U](nil, false, false, nil)
+	result := newOutput[U](nil, o.secret, o.deps)
 	go applyResult(o, result, f)
 	return result
 }
 
 func applyResult[T, U any](from Output[T], to Output[U], f func(value T) (U, error)) {
+	if !from.deps.canResolve() {
+		return
+	}
 	from.wait()
 
 	// Propagate the change
 	to.join.L.Lock()
 	defer to.join.L.Unlock()
 
-	to.deps = from.deps
 	if from.err == nil {
 		tmp, err := f(*from.value)
 		if err == nil {
@@ -74,8 +121,7 @@ func applyResult[T, U any](from Output[T], to Output[U], f func(value T) (U, err
 	} else {
 		to.err = from.err
 	}
-	to.secret = from.secret
-	to.known = true
+	to.resolved = true
 	to.join.Broadcast()
 }
 
@@ -86,21 +132,21 @@ func Apply2[T1, T2, U any](o1 Output[T1], o2 Output[T2], f func(T1, T2) U) Outpu
 }
 
 func Apply2Err[T1, T2, U any](o1 Output[T1], o2 Output[T2], f func(T1, T2) (U, error)) Output[U] {
-	result := newOutput[U](nil, false, false, nil)
+	result := newOutput[U](nil, o1.secret || o2.secret, append(o1.deps, o2.deps...))
 	go apply2Result(o1, o2, result, f)
 	return result
 }
 
 func apply2Result[T1, T2, U any](o1 Output[T1], o2 Output[T2], to Output[U], f func(T1, T2) (U, error)) {
+	if !o1.deps.canResolve() || !o2.deps.canResolve() {
+		return
+	}
 	o1.wait()
 	o2.wait()
 
 	// Propagate the change
 	to.join.L.Lock()
 	defer to.join.L.Unlock()
-
-	to.deps = append(to.deps, o1.deps...)
-	to.deps = append(to.deps, o2.deps...)
 
 	if err := errors.Join(o1.err, o2.err); err == nil {
 		tmp, err := f(*o1.value, *o2.value)
@@ -112,25 +158,54 @@ func apply2Result[T1, T2, U any](o1 Output[T1], o2 Output[T2], to Output[U], f f
 	} else {
 		to.err = err
 	}
-	to.secret = o1.secret || o2.secret
-	to.known = true
+	to.resolved = true
 	to.join.Broadcast()
 }
 
+var _ = (ende.EnDePropertyValue)((*Output[string])(nil))
+
 // Name is tied to ende/decode implementation
 func (o *Output[T]) DecodeFromPropertyValue(
+	fieldName string,
 	value resource.PropertyValue,
-	assignInner func(src resource.PropertyValue, dst reflect.Value),
+	assignInner func(resource.PropertyValue, reflect.Value),
 ) {
 	secret := ende.IsSecret(value)
 	if ende.IsComputed(value) {
-		*o = newOutput[T](nil, false, secret, nil)
+		*o = newOutput[T](nil, secret, deps{propDep{
+			name:     fieldName,
+			knowable: false,
+		}})
 		return
 	}
 
 	var t T
 	dstValue := reflect.ValueOf(&t).Elem()
+	value = ende.MakePublic(value)
+	assignInner(value, dstValue)
 
-	assignInner(ende.MakePublic(value), dstValue)
-	*o = newOutput[T](&t, true, secret, nil)
+	contract.Assertf(!value.IsSecret() && !value.IsComputed(),
+		"We should have unwrapped all secrets at this point")
+
+	*o = newOutput[T](&t, secret, deps{propDep{
+		name:     fieldName,
+		knowable: true,
+	}})
+}
+
+func (o *Output[T]) EncodeToPropertyValue(f func(any) resource.PropertyValue) resource.PropertyValue {
+	if o.resolvable {
+		o.wait()
+	}
+
+	prop := resource.NewNullProperty()
+	if o.resolved {
+		prop = f(*o.value)
+	} else {
+		prop = ende.MakeComputed(prop)
+	}
+	if o.secret {
+		prop = ende.MakeSecret(prop)
+	}
+	return prop
 }

@@ -141,29 +141,33 @@ func (e *ende) walk(
 		}
 	}
 
-	switch {
-	case v.IsSecret():
-		// To allow full fidelity reconstructing maps, we extract nested secrets
-		// first. We then extract the top level secret. We need this ordering to
-		// re-embed nested secrets.
-		el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
-		e.mark(change{path: path, secret: true})
-		return el
-	case v.IsComputed():
-		el := e.walk(v.Input().Element, path, typ, true)
-		e.mark(change{path: path, computed: true})
-		return el
-	case v.IsOutput():
-		output := v.OutputValue()
-		el := e.walk(output.Element, path, typ, !output.Known)
-		e.mark(change{
-			path:        path,
-			computed:    !output.Known,
-			secret:      output.Secret,
-			forceOutput: true,
-		})
+	// If a type implements unmarshalFromPropertyValueType, we should leave these
+	// alone.
+	if !reflect.PtrTo(typ).Implements(enDePropertyValueType) {
+		switch {
+		case v.IsSecret():
+			// To allow full fidelity reconstructing maps, we extract nested secrets
+			// first. We then extract the top level secret. We need this ordering to
+			// re-embed nested secrets.
+			el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
+			e.mark(change{path: path, secret: true})
+			return el
+		case v.IsComputed():
+			el := e.walk(v.Input().Element, path, typ, true)
+			e.mark(change{path: path, computed: true})
+			return el
+		case v.IsOutput():
+			output := v.OutputValue()
+			el := e.walk(output.Element, path, typ, !output.Known)
+			e.mark(change{
+				path:        path,
+				computed:    !output.Known,
+				secret:      output.Secret,
+				forceOutput: true,
+			})
 
-		return el
+			return el
+		}
 	}
 
 	var elemType reflect.Type
@@ -295,28 +299,26 @@ func (e *ende) Encode(src any) (resource.PropertyMap, pmapper.MappingError) {
 		return nil, err
 	}
 	m := resource.NewObjectProperty(props)
-	contract.Assertf(!m.ContainsUnknowns(),
-		"NewPropertyMapFromMap cannot produce unknown values")
-	contract.Assertf(!m.ContainsSecrets(),
-		"NewPropertyMapFromMap cannot produce secrets")
-	for _, s := range e.changes {
-		v, ok := s.path.Get(m)
-		if !ok && s.emptyAction == isNil {
-			continue
-		}
-
-		if s.emptyAction != isNil && v.IsNull() {
-			switch s.emptyAction {
-			case isEmptyMap:
-				v = resource.NewObjectProperty(resource.PropertyMap{})
-			case isEmptyArr:
-				v = resource.NewArrayProperty([]resource.PropertyValue{})
-			default:
-				panic(s.emptyAction)
+	if e != nil {
+		for _, s := range e.changes {
+			v, ok := s.path.Get(m)
+			if !ok && s.emptyAction == isNil {
+				continue
 			}
-		}
 
-		s.path.Set(m, s.apply(v))
+			if s.emptyAction != isNil && v.IsNull() {
+				switch s.emptyAction {
+				case isEmptyMap:
+					v = resource.NewObjectProperty(resource.PropertyMap{})
+				case isEmptyArr:
+					v = resource.NewArrayProperty([]resource.PropertyValue{})
+				default:
+					panic(s.emptyAction)
+				}
+			}
+
+			s.path.Set(m, s.apply(v))
+		}
 	}
 	return m.ObjectValue(), nil
 }

@@ -69,13 +69,27 @@ func (m *mapCtx) decodePrimitive(fieldName string, from any, to reflect.Value) {
 	if !fromV.CanConvert(elem.Type()) {
 		m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
 			fieldName, elem.Type(), fromV.Type()))
-
 		return
 	}
 	elem.Set(fromV.Convert(elem.Type()))
 }
 
+type EnDePropertyValue interface {
+	DecodeFromPropertyValue(string, resource.PropertyValue, func(resource.PropertyValue, reflect.Value))
+	EncodeToPropertyValue(func(any) resource.PropertyValue) resource.PropertyValue
+}
+
+var enDePropertyValueType = reflect.TypeOf((*EnDePropertyValue)(nil)).Elem()
+
 func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to reflect.Value) {
+	if to := to.Addr(); to.CanInterface() && to.Type().Implements(enDePropertyValueType) {
+		to.Interface().(EnDePropertyValue).DecodeFromPropertyValue(fieldName, from,
+			func(from resource.PropertyValue, to reflect.Value) {
+				m.decodeValue(fieldName, from, to)
+			})
+		return
+	}
+
 	switch {
 	// Primitives
 	case from.IsBool():
@@ -223,6 +237,15 @@ func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
 		}
 		from = from.Elem()
 	}
+
+	if reflect.PtrTo(from.Type()).Implements(enDePropertyValueType) {
+		v := reflect.New(from.Type())
+		v.Elem().Set(from)
+		return v.Interface().(EnDePropertyValue).EncodeToPropertyValue(func(a any) resource.PropertyValue {
+			return m.encodeValue(reflect.ValueOf(&a).Elem())
+		})
+	}
+
 	switch from.Kind() {
 	case reflect.String:
 		return resource.NewStringProperty(from.String())
