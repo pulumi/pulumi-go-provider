@@ -16,10 +16,25 @@ type Output[T any] struct{ *state[T] }
 func (o Output[T]) IsSecret() bool { return o.secret }
 
 // Return an equivalent output that is secret.
+//
+// AsSecret is idempotent.
 func (o Output[T]) AsSecret() Output[T] {
-	r := Apply(o, func(x T) T { return x })
+	r := o.copyOutput()
 	r.secret = true
 	return r
+}
+
+// Return an equivalent output that is not secret, even if it's inputs were secret.
+//
+// AsPublic is idempotent.
+func (o Output[T]) AsPublic() Output[T] {
+	r := o.copyOutput()
+	r.secret = false
+	return r
+}
+
+func (o Output[T]) copyOutput() Output[T] {
+	return Apply(o, func(x T) T { return x })
 }
 
 type state[T any] struct {

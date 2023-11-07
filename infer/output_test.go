@@ -49,15 +49,30 @@ func TestOutputMapping(t *testing.T) {
 		kn := Apply(target.Sec, func(s string) bool { return s == "foo" })
 		assert.Equal(t, kn.deps.fields(), []string{"sec"})
 
+		combined := Apply2(target.Unkn, target.Sec, func(bool, string) int {
+			assert.Fail(t, "Ran func on unknown value")
+			return 0
+		})
+		assert.Equal(t, combined.deps.fields(), []string{"unkn", "sec"})
+
 		actual, err := ende.Encoder{}.Encode(struct {
 			Unkn Output[string] `pulumi:"unkn"`
 			Kn   Output[bool]   `pulumi:"kn"`
-		}{unkn, kn})
+			Comb Output[int]    `pulumi:"comb"`
+			Pub  Output[string] `pulumi:"pub"`
+			Sec  Output[string] `pulumi:"asSec"`
+		}{unkn, kn, combined, target.Sec.AsPublic(), target.Plain.AsSecret()})
 		require.NoError(t, err)
 
 		assert.Equal(t, resource.PropertyMap{
 			"unkn": resource.MakeComputed(resource.NewNullProperty()),
 			"kn":   resource.MakeSecret(resource.NewBoolProperty(true)),
+			"comb": resource.NewOutputProperty(resource.Output{
+				Secret: true,
+				Known:  false,
+			}),
+			"pub":   resource.NewStringProperty("foo"),
+			"asSec": resource.MakeSecret(resource.NewStringProperty("known and public")),
 		}, actual)
 	})
 
