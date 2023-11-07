@@ -11,6 +11,8 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 )
 
+//go:generate go run gen_apply/main.go output_apply.go
+
 type Output[T any] struct{ *state[T] }
 
 func (o Output[T]) IsSecret() bool { return o.secret }
@@ -89,6 +91,8 @@ func (d deps) fields() []string {
 	}
 	return f
 }
+
+func (d deps) join(other deps) deps { return append(d, other...) }
 
 func newOutput[T any](value *T, secret bool, deps deps) Output[T] {
 	m := new(sync.Mutex)
