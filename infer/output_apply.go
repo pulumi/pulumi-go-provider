@@ -12,14 +12,14 @@ func Apply[T1, U any](o1 Output[T1], f func(T1) U) Output[U] {
 }
 
 func ApplyErr[T1, U any](o1 Output[T1], f func(T1) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret, deps.join(o1.deps))
+	o1.ensure()
+	result := newOutput[U](nil, o1.secret, o1.resolvable)
 	go applyResult(o1, result, f)
 	return result
 }
 
 func applyResult[T1, U any](o1 Output[T1], to Output[U], f func(T1) (U, error)) {
-	if !o1.deps.canResolve() {
+	if !o1.resolvable {
 		return
 	}
 	o1.wait()
@@ -49,14 +49,15 @@ func Apply2[T1, T2, U any](o1 Output[T1], o2 Output[T2], f func(T1, T2) U) Outpu
 }
 
 func Apply2Err[T1, T2, U any](o1 Output[T1], o2 Output[T2], f func(T1, T2) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret, deps.join(o1.deps).join(o2.deps))
+	o1.ensure()
+	o2.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret, o1.resolvable && o2.resolvable)
 	go apply2Result(o1, o2, result, f)
 	return result
 }
 
 func apply2Result[T1, T2, U any](o1 Output[T1], o2 Output[T2], to Output[U], f func(T1, T2) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable {
 		return
 	}
 	o1.wait()
@@ -87,14 +88,16 @@ func Apply3[T1, T2, T3, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], f fu
 }
 
 func Apply3Err[T1, T2, T3, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], f func(T1, T2, T3) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret, o1.resolvable && o2.resolvable && o3.resolvable)
 	go apply3Result(o1, o2, o3, result, f)
 	return result
 }
 
 func apply3Result[T1, T2, T3, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], to Output[U], f func(T1, T2, T3) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable {
 		return
 	}
 	o1.wait()
@@ -126,14 +129,17 @@ func Apply4[T1, T2, T3, T4, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], 
 }
 
 func Apply4Err[T1, T2, T3, T4, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], f func(T1, T2, T3, T4) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps).join(o4.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	o4.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret, o1.resolvable && o2.resolvable && o3.resolvable && o4.resolvable)
 	go apply4Result(o1, o2, o3, o4, result, f)
 	return result
 }
 
 func apply4Result[T1, T2, T3, T4, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], to Output[U], f func(T1, T2, T3, T4) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() || !o4.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable || !o4.resolvable {
 		return
 	}
 	o1.wait()
@@ -166,14 +172,18 @@ func Apply5[T1, T2, T3, T4, T5, U any](o1 Output[T1], o2 Output[T2], o3 Output[T
 }
 
 func Apply5Err[T1, T2, T3, T4, T5, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], f func(T1, T2, T3, T4, T5) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps).join(o4.deps).join(o5.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	o4.ensure()
+	o5.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret, o1.resolvable && o2.resolvable && o3.resolvable && o4.resolvable && o5.resolvable)
 	go apply5Result(o1, o2, o3, o4, o5, result, f)
 	return result
 }
 
 func apply5Result[T1, T2, T3, T4, T5, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], to Output[U], f func(T1, T2, T3, T4, T5) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() || !o4.deps.canResolve() || !o5.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable || !o4.resolvable || !o5.resolvable {
 		return
 	}
 	o1.wait()
@@ -207,14 +217,19 @@ func Apply6[T1, T2, T3, T4, T5, T6, U any](o1 Output[T1], o2 Output[T2], o3 Outp
 }
 
 func Apply6Err[T1, T2, T3, T4, T5, T6, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], f func(T1, T2, T3, T4, T5, T6) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps).join(o4.deps).join(o5.deps).join(o6.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	o4.ensure()
+	o5.ensure()
+	o6.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret, o1.resolvable && o2.resolvable && o3.resolvable && o4.resolvable && o5.resolvable && o6.resolvable)
 	go apply6Result(o1, o2, o3, o4, o5, o6, result, f)
 	return result
 }
 
 func apply6Result[T1, T2, T3, T4, T5, T6, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], to Output[U], f func(T1, T2, T3, T4, T5, T6) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() || !o4.deps.canResolve() || !o5.deps.canResolve() || !o6.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable || !o4.resolvable || !o5.resolvable || !o6.resolvable {
 		return
 	}
 	o1.wait()
@@ -249,14 +264,20 @@ func Apply7[T1, T2, T3, T4, T5, T6, T7, U any](o1 Output[T1], o2 Output[T2], o3 
 }
 
 func Apply7Err[T1, T2, T3, T4, T5, T6, T7, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], o7 Output[T7], f func(T1, T2, T3, T4, T5, T6, T7) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret || o7.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps).join(o4.deps).join(o5.deps).join(o6.deps).join(o7.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	o4.ensure()
+	o5.ensure()
+	o6.ensure()
+	o7.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret || o7.secret, o1.resolvable && o2.resolvable && o3.resolvable && o4.resolvable && o5.resolvable && o6.resolvable && o7.resolvable)
 	go apply7Result(o1, o2, o3, o4, o5, o6, o7, result, f)
 	return result
 }
 
 func apply7Result[T1, T2, T3, T4, T5, T6, T7, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], o7 Output[T7], to Output[U], f func(T1, T2, T3, T4, T5, T6, T7) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() || !o4.deps.canResolve() || !o5.deps.canResolve() || !o6.deps.canResolve() || !o7.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable || !o4.resolvable || !o5.resolvable || !o6.resolvable || !o7.resolvable {
 		return
 	}
 	o1.wait()
@@ -292,14 +313,21 @@ func Apply8[T1, T2, T3, T4, T5, T6, T7, T8, U any](o1 Output[T1], o2 Output[T2],
 }
 
 func Apply8Err[T1, T2, T3, T4, T5, T6, T7, T8, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], o7 Output[T7], o8 Output[T8], f func(T1, T2, T3, T4, T5, T6, T7, T8) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret || o7.secret || o8.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps).join(o4.deps).join(o5.deps).join(o6.deps).join(o7.deps).join(o8.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	o4.ensure()
+	o5.ensure()
+	o6.ensure()
+	o7.ensure()
+	o8.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret || o7.secret || o8.secret, o1.resolvable && o2.resolvable && o3.resolvable && o4.resolvable && o5.resolvable && o6.resolvable && o7.resolvable && o8.resolvable)
 	go apply8Result(o1, o2, o3, o4, o5, o6, o7, o8, result, f)
 	return result
 }
 
 func apply8Result[T1, T2, T3, T4, T5, T6, T7, T8, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], o7 Output[T7], o8 Output[T8], to Output[U], f func(T1, T2, T3, T4, T5, T6, T7, T8) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() || !o4.deps.canResolve() || !o5.deps.canResolve() || !o6.deps.canResolve() || !o7.deps.canResolve() || !o8.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable || !o4.resolvable || !o5.resolvable || !o6.resolvable || !o7.resolvable || !o8.resolvable {
 		return
 	}
 	o1.wait()
@@ -336,14 +364,22 @@ func Apply9[T1, T2, T3, T4, T5, T6, T7, T8, T9, U any](o1 Output[T1], o2 Output[
 }
 
 func Apply9Err[T1, T2, T3, T4, T5, T6, T7, T8, T9, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], o7 Output[T7], o8 Output[T8], o9 Output[T9], f func(T1, T2, T3, T4, T5, T6, T7, T8, T9) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret || o7.secret || o8.secret || o9.secret, deps.join(o1.deps).join(o2.deps).join(o3.deps).join(o4.deps).join(o5.deps).join(o6.deps).join(o7.deps).join(o8.deps).join(o9.deps))
+	o1.ensure()
+	o2.ensure()
+	o3.ensure()
+	o4.ensure()
+	o5.ensure()
+	o6.ensure()
+	o7.ensure()
+	o8.ensure()
+	o9.ensure()
+	result := newOutput[U](nil, o1.secret || o2.secret || o3.secret || o4.secret || o5.secret || o6.secret || o7.secret || o8.secret || o9.secret, o1.resolvable && o2.resolvable && o3.resolvable && o4.resolvable && o5.resolvable && o6.resolvable && o7.resolvable && o8.resolvable && o9.resolvable)
 	go apply9Result(o1, o2, o3, o4, o5, o6, o7, o8, o9, result, f)
 	return result
 }
 
 func apply9Result[T1, T2, T3, T4, T5, T6, T7, T8, T9, U any](o1 Output[T1], o2 Output[T2], o3 Output[T3], o4 Output[T4], o5 Output[T5], o6 Output[T6], o7 Output[T7], o8 Output[T8], o9 Output[T9], to Output[U], f func(T1, T2, T3, T4, T5, T6, T7, T8, T9) (U, error)) {
-	if !o1.deps.canResolve() || !o2.deps.canResolve() || !o3.deps.canResolve() || !o4.deps.canResolve() || !o5.deps.canResolve() || !o6.deps.canResolve() || !o7.deps.canResolve() || !o8.deps.canResolve() || !o9.deps.canResolve() {
+	if !o1.resolvable || !o2.resolvable || !o3.resolvable || !o4.resolvable || !o5.resolvable || !o6.resolvable || !o7.resolvable || !o8.resolvable || !o9.resolvable {
 		return
 	}
 	o1.wait()

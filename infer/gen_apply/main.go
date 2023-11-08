@@ -24,8 +24,8 @@ func Apply{{.inputs}}[{{.inputTypes}}U any]({{.inputArgsWithTypes}}f func({{.inp
 }
 
 func Apply{{.inputs}}Err[{{.inputTypes}}U any]({{.inputArgsWithTypes}}f func({{.inputTypesNoComma}}) (U, error)) Output[U] {
-	var deps deps
-	result := newOutput[U](nil, {{.orSecrets}}, deps{{.joinDeps}})
+	{{.ensureInputs}}
+	result := newOutput[U](nil, {{.orSecrets}}, {{.joinDeps}})
 	go apply{{.inputs}}Result({{.inputArgsNoTypes}}result, f)
 	return result
 }
@@ -80,11 +80,12 @@ import "errors"
 			"inputArgsRaw":       formatN(i, "v%d", ", "),           // "v1, v2"
 			"orSecrets":          formatN(i, "o%d.secret", " || "),  // "o1.secret || o2.secret"
 			// "!o1.deps.canResolve() || !o1.deps.canResolve()"
-			"orCanResolve": formatN(i, "!o%d.deps.canResolve()", " || "),
-			"wait":         formatN(i, "o%d.wait()", "\n\t"),  // "o1.wait()\n\to2.wait()"
-			"errs":         formatN(i, "o%d.err", ", "),       // "o1.err, o2.err"
-			"values":       formatN(i, "*o%d.value", ", "),    // "*o1.value, *o2.value"
-			"joinDeps":     formatN(i, ".join(o%d.deps)", ""), // ".join(o1.deps).join(o2.deps)"
+			"orCanResolve": formatN(i, "!o%d.resolvable", " || "),
+			"wait":         formatN(i, "o%d.wait()", "\n\t"),     // "o1.wait()\n\to2.wait()"
+			"errs":         formatN(i, "o%d.err", ", "),          // "o1.err, o2.err"
+			"values":       formatN(i, "*o%d.value", ", "),       // "*o1.value, *o2.value"
+			"joinDeps":     formatN(i, "o%d.resolvable", " && "), // "o1.resolvable && o2.resolvable"
+			"ensureInputs": formatN(i, "o%d.ensure()", "\n\t"),   // "o1.ensure()\n\to2.ensure()"
 		})
 		if err != nil {
 			panic(err)

@@ -44,16 +44,16 @@ func TestOutputMapping(t *testing.T) {
 			assert.Fail(t, "Ran func on unknown value")
 			return "FAILED"
 		})
-		assert.Equal(t, unkn.deps.fields(), []string{"unkn"})
+		assert.False(t, unkn.resolvable)
 
 		kn := Apply(target.Sec, func(s string) bool { return s == "foo" })
-		assert.Equal(t, kn.deps.fields(), []string{"sec"})
+		assert.True(t, kn.resolvable)
 
 		combined := Apply2(target.Unkn, target.Sec, func(bool, string) int {
 			assert.Fail(t, "Ran func on unknown value")
 			return 0
 		})
-		assert.Equal(t, combined.deps.fields(), []string{"unkn", "sec"})
+		assert.False(t, combined.resolvable)
 
 		actual, err := ende.Encoder{}.Encode(struct {
 			Unkn Output[string] `pulumi:"unkn"`

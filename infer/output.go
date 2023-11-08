@@ -14,7 +14,7 @@ import (
 
 type Output[T any] struct{ *state[T] }
 
-func NewOutput[T any](value T) Output[T] { return newOutput(&value, false, nil) }
+func NewOutput[T any](value T) Output[T] { return newOutput(&value, false, true) }
 
 func (o Output[T]) IsSecret() bool { return o.secret }
 
@@ -48,12 +48,12 @@ func (o Output[T]) Anchor() error {
 
 // Get the value inside, or the zero value if none is available.
 func (o Output[T]) GetMaybeUnknown() (T, error) {
-	o.Anchor()
-	if o.resolved {
-		return *o.value, o.err
+	err := o.Anchor()
+	if o.resolvable {
+		return *o.value, err
 	}
 	var v T
-	return v, o.err
+	return v, err
 }
 
 func (o Output[T]) MustGetKnown() T {
@@ -81,8 +81,6 @@ type state[T any] struct {
 	resolvable bool  // If the value can be resolved
 	secret     bool  // If the value is secret
 
-	deps deps // Input fields that the output depends upon.
-
 	join *sync.Cond
 }
 
@@ -95,52 +93,32 @@ func (s *state[T]) wait() {
 	}
 }
 
-type deps []dep
+func (o Output[T]) field() string { return "" }
 
-type dep interface {
-	canResolve() bool
-	field() string
-}
-
-type propDep struct {
-	name     string
-	knowable bool
-}
-
-func (p propDep) canResolve() bool { return p.knowable }
-func (p propDep) field() string    { return p.name }
-
-func (d deps) canResolve() bool {
-	for _, b := range d {
-		if !b.canResolve() {
-			return false
-		}
-	}
-	return true
-}
-
-func (d deps) fields() []string {
-	f := make([]string, len(d))
-	for i, v := range d {
-		f[i] = v.field()
-	}
-	return f
-}
-
-func (d deps) join(other deps) deps { return append(d, other...) }
-
-func newOutput[T any](value *T, secret bool, deps deps) Output[T] {
+func newOutput[T any](value *T, secret, resolvable bool) Output[T] {
 	m := new(sync.Mutex)
 	state := &state[T]{
-		value:      value,
-		resolved:   value != nil,
-		resolvable: deps.canResolve(),
+		value:    value,
+		resolved: value != nil,
+		// An Output[T] is resolvable if it has dependencies that can be resolved,
+		// or if the value is non-nil.
+		//
+		// An Output[T] with no dependencies that is not resolved will never
+		// resolve.
+		resolvable: resolvable,
 		secret:     secret,
-		deps:       deps,
 		join:       sync.NewCond(m),
 	}
 
 	return Output[T]{state}
+}
+
+func (o *Output[T]) ensure() {
+	// If we have no state, set the output to a computed output that will never
+	// resolve.
+	if o.state == nil {
+		*o = newOutput[T](nil, false, false)
+	}
 }
 
 var _ = (ende.EnDePropertyValue)((*Output[string])(nil))
@@ -153,10 +131,7 @@ func (o *Output[T]) DecodeFromPropertyValue(
 ) {
 	secret := ende.IsSecret(value)
 	if ende.IsComputed(value) {
-		*o = newOutput[T](nil, secret, deps{propDep{
-			name:     fieldName,
-			knowable: false,
-		}})
+		*o = newOutput[T](nil, secret, false)
 		return
 	}
 
@@ -168,10 +143,7 @@ func (o *Output[T]) DecodeFromPropertyValue(
 	contract.Assertf(!value.IsSecret() && !value.IsComputed(),
 		"We should have unwrapped all secrets at this point")
 
-	*o = newOutput[T](&t, secret, deps{propDep{
-		name:     fieldName,
-		knowable: true,
-	}})
+	*o = newOutput[T](&t, secret, true)
 }
 
 func (o *Output[T]) EncodeToPropertyValue(f func(any) resource.PropertyValue) resource.PropertyValue {
