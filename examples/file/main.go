@@ -46,9 +46,9 @@ func (f *File) Annotate(a infer.Annotator) {
 }
 
 type FileArgs struct {
-	Path    string `pulumi:"path,optional"`
-	Force   bool   `pulumi:"force,optional"`
-	Content string `pulumi:"content"`
+	Path    infer.Output[string] `pulumi:"path,optional"`
+	Force   infer.Output[bool]   `pulumi:"force,optional"`
+	Content infer.Output[string] `pulumi:"content"`
 }
 
 func (f *FileArgs) Annotate(a infer.Annotator) {
@@ -58,9 +58,9 @@ func (f *FileArgs) Annotate(a infer.Annotator) {
 }
 
 type FileState struct {
-	Path    string `pulumi:"path"`
-	Force   bool   `pulumi:"force"`
-	Content string `pulumi:"content"`
+	Path    infer.Output[string] `pulumi:"path"`
+	Force   infer.Output[bool]   `pulumi:"force"`
+	Content infer.Output[string] `pulumi:"content"`
 }
 
 func (f *FileState) Annotate(a infer.Annotator) {
@@ -70,30 +70,38 @@ func (f *FileState) Annotate(a infer.Annotator) {
 }
 
 func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (id string, output FileState, err error) {
-	if !input.Force {
-		_, err := os.Stat(input.Path)
-		if !os.IsNotExist(err) {
-			return "", FileState{}, fmt.Errorf("file already exists; pass force=true to override")
+	err = infer.Apply2Err(input.Path, input.Force, func(path string, force bool) (string, error) {
+		if force {
+			return "", nil
 		}
+		_, err := os.Stat(path)
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("file already exists; pass force=true to override")
+		}
+		return "", nil
+	}).Anchor()
+	if err != nil {
+		return "", FileState{}, err
 	}
 
-	if preview { // Don't do the actual creating if in preview
-		return input.Path, FileState{}, nil
+	path, err := input.Path.GetMaybeUnknown()
+	if preview || err != nil { // Don't do the actual creating if in preview
+		return path, FileState{}, err
 	}
 
-	f, err := os.Create(input.Path)
+	f, err := os.Create(input.Path.MustGetKnown())
 	if err != nil {
 		return "", FileState{}, err
 	}
 	defer f.Close()
-	n, err := f.WriteString(input.Content)
+	n, err := f.WriteString(input.Content.MustGetKnown())
 	if err != nil {
 		return "", FileState{}, err
 	}
-	if n != len(input.Content) {
-		return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
+	if n != len(input.Content.MustGetKnown()) {
+		return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content.MustGetKnown()))
 	}
-	return input.Path, FileState{
+	return input.Path.MustGetKnown(), FileState{
 		Path:    input.Path,
 		Force:   input.Force,
 		Content: input.Content,
@@ -101,9 +109,13 @@ func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (i
 }
 
 func (*File) Delete(ctx p.Context, id string, props FileState) error {
-	err := os.Remove(props.Path)
+	path, err := props.Path.GetKnown()
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
 	if os.IsNotExist(err) {
-		ctx.Logf(diag.Warning, "file %q already deleted", props.Path)
+		ctx.Logf(diag.Warning, "file %q already deleted", path)
 		err = nil
 	}
 	return err
@@ -117,26 +129,40 @@ func (*File) Check(ctx p.Context, name string, oldInputs, newInputs resource.Pro
 }
 
 func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
-	if !preview && olds.Content != news.Content {
-		f, err := os.Create(olds.Path)
-		if err != nil {
-			return FileState{}, err
+	err := infer.Apply2Err(olds.Path, news.Path, func(old, new string) (string, error) {
+		if old != new {
+			return "", fmt.Errorf("cannot change path")
 		}
-		defer f.Close()
-		n, err := f.WriteString(news.Content)
-		if err != nil {
-			return FileState{}, err
-		}
-		if n != len(news.Content) {
-			return FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(news.Content))
-		}
+		return "", nil
+	}).Anchor()
+	if err != nil {
+		return FileState{}, err
 	}
+	_, err = infer.Apply3Err(olds.Content, news.Content, olds.Path,
+		func(path, oldContent, newContent string) (FileState, error) {
+			if preview || oldContent == newContent {
+				return FileState{}, nil
+			}
+			f, err := os.Create(path)
+			if err != nil {
+				return FileState{}, err
+			}
+			defer f.Close()
+			n, err := f.WriteString(newContent)
+			if err != nil {
+				return FileState{}, err
+			}
+			if n != len(newContent) {
+				return FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(newContent))
+			}
+			return FileState{}, nil
+		}).GetMaybeUnknown()
 
 	return FileState{
 		Path:    news.Path,
 		Force:   news.Force,
 		Content: news.Content,
-	}, nil
+	}, err
 
 }
 
@@ -166,13 +192,13 @@ func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (c
 	}
 	content := string(byteContent)
 	return path, FileArgs{
-			Path:    path,
-			Force:   inputs.Force && state.Force,
-			Content: content,
+			Path:    infer.NewOutput(path),
+			Force:   infer.Apply2(inputs.Force, state.Force, func(a, b bool) bool { return a || b }),
+			Content: infer.NewOutput(content),
 		}, FileState{
-			Path:    path,
-			Force:   inputs.Force && state.Force,
-			Content: content,
+			Path:    infer.NewOutput(path),
+			Force:   infer.Apply2(inputs.Force, state.Force, func(a, b bool) bool { return a || b }),
+			Content: infer.NewOutput(content),
 		}, nil
 }
 

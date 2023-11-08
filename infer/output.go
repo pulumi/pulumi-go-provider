@@ -14,6 +14,8 @@ import (
 
 type Output[T any] struct{ *state[T] }
 
+func NewOutput[T any](value T) Output[T] { return newOutput(&value, false, nil) }
+
 func (o Output[T]) IsSecret() bool { return o.secret }
 
 // Return an equivalent output that is secret.
@@ -32,6 +34,40 @@ func (o Output[T]) AsPublic() Output[T] {
 	r := o.copyOutput()
 	r.secret = false
 	return r
+}
+
+// Blocks until an output resolves if the output will resolve.
+//
+// When running with preview=false, this will always block until the output resolves.
+func (o Output[T]) Anchor() error {
+	if o.resolvable {
+		o.wait()
+	}
+	return o.err
+}
+
+// Get the value inside, or the zero value if none is available.
+func (o Output[T]) GetMaybeUnknown() (T, error) {
+	o.Anchor()
+	if o.resolved {
+		return *o.value, o.err
+	}
+	var v T
+	return v, o.err
+}
+
+func (o Output[T]) MustGetKnown() T {
+	v, err := o.GetKnown()
+	contract.AssertNoErrorf(err, "Output[T].MustGetKnown()")
+	return v
+}
+
+func (o Output[T]) GetKnown() (T, error) {
+	if !o.resolvable {
+		panic("Attempted to get a known value from an unresolvable Output[T]")
+	}
+	o.wait()
+	return *o.value, o.err
 }
 
 func (o Output[T]) copyOutput() Output[T] {
@@ -139,6 +175,9 @@ func (o *Output[T]) DecodeFromPropertyValue(
 }
 
 func (o *Output[T]) EncodeToPropertyValue(f func(any) resource.PropertyValue) resource.PropertyValue {
+	if o == nil || o.state == nil {
+		return ende.MakeComputed(resource.NewNullProperty())
+	}
 	if o.resolvable {
 		o.wait()
 	}
@@ -154,3 +193,5 @@ func (o *Output[T]) EncodeToPropertyValue(f func(any) resource.PropertyValue) re
 	}
 	return prop
 }
+
+func (*Output[T]) UnderlyingSchemaType() reflect.Type { return reflect.TypeOf((*T)(nil)).Elem() }

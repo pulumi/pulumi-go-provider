@@ -77,12 +77,18 @@ func (m *mapCtx) decodePrimitive(fieldName string, from any, to reflect.Value) {
 type EnDePropertyValue interface {
 	DecodeFromPropertyValue(string, resource.PropertyValue, func(resource.PropertyValue, reflect.Value))
 	EncodeToPropertyValue(func(any) resource.PropertyValue) resource.PropertyValue
+
+	// This method might be called on a zero value instance:
+	//
+	//	t = reflect.New(t).Elem().Interface().(ende.EnDePropertyValue).UnderlyingSchemaType()
+	//
+	UnderlyingSchemaType() reflect.Type
 }
 
-var enDePropertyValueType = reflect.TypeOf((*EnDePropertyValue)(nil)).Elem()
+var EnDePropertyValueType = reflect.TypeOf((*EnDePropertyValue)(nil)).Elem()
 
 func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to reflect.Value) {
-	if to := to.Addr(); to.CanInterface() && to.Type().Implements(enDePropertyValueType) {
+	if to := to.Addr(); to.CanInterface() && to.Type().Implements(EnDePropertyValueType) {
 		to.Interface().(EnDePropertyValue).DecodeFromPropertyValue(fieldName, from,
 			func(from resource.PropertyValue, to reflect.Value) {
 				m.decodeValue(fieldName, from, to)
@@ -238,7 +244,7 @@ func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
 		from = from.Elem()
 	}
 
-	if reflect.PtrTo(from.Type()).Implements(enDePropertyValueType) {
+	if reflect.PtrTo(from.Type()).Implements(EnDePropertyValueType) {
 		v := reflect.New(from.Type())
 		v.Elem().Set(from)
 		return v.Interface().(EnDePropertyValue).EncodeToPropertyValue(func(a any) resource.PropertyValue {

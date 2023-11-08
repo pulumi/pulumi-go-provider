@@ -24,6 +24,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -199,6 +200,13 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	for t != nil && t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+
+	var isInferOutput bool
+	if reflect.PtrTo(t).Implements(ende.EnDePropertyValueType) {
+		t = reflect.New(t).Interface().(ende.EnDePropertyValue).UnderlyingSchemaType()
+		isInferOutput = true
+	}
+
 	isInputType := t.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
 	isOutputType := t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem())
 
@@ -238,7 +246,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	for t != nil && t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t, isOutputType || isInputType, nil
+	return t, isOutputType || isInputType || isInferOutput, nil
 }
 
 func propertyListFromType(typ reflect.Type, indicatePlain bool) (
