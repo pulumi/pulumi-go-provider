@@ -1,3 +1,5 @@
+// Copyright 2023, Pulumi Corporation.  All rights reserved.
+
 package infer
 
 import (
@@ -11,6 +13,7 @@ import (
 )
 
 func TestOutputMapping(t *testing.T) {
+	t.Parallel()
 	p := func() resource.PropertyMap {
 		return resource.PropertyMap{
 			"sec":  resource.MakeSecret(resource.NewStringProperty("foo")),

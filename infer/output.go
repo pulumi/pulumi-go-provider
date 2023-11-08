@@ -1,3 +1,5 @@
+// Copyright 2023, Pulumi Corporation.  All rights reserved.
+
 package infer
 
 import (
@@ -121,11 +123,10 @@ func (o *Output[T]) ensure() {
 	}
 }
 
-var _ = (ende.EnDePropertyValue)((*Output[string])(nil))
+var _ = (ende.PropertyValue)((*Output[string])(nil))
 
 // Name is tied to ende/decode implementation
 func (o *Output[T]) DecodeFromPropertyValue(
-	fieldName string,
 	value resource.PropertyValue,
 	assignInner func(resource.PropertyValue, reflect.Value),
 ) {

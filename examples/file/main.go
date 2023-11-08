@@ -58,8 +58,8 @@ func (f *FileArgs) Annotate(a infer.Annotator) {
 }
 
 type FileState struct {
-	Path    infer.Output[string] `pulumi:"path"`
-	Force   infer.Output[bool]   `pulumi:"force"`
+	Path    infer.Output[string] `pulumi:"path,optional"`
+	Force   infer.Output[bool]   `pulumi:"force,optional"`
 	Content infer.Output[string] `pulumi:"content"`
 }
 

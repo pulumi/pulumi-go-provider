@@ -1,3 +1,5 @@
+// Copyright 2023, Pulumi Corporation.  All rights reserved.
+
 package ende
 
 import (
@@ -48,7 +50,7 @@ func (m *mapCtx) decodeStruct(from resource.PropertyMap, to reflect.Value) {
 		if ok {
 			addressed[tag.Name] = struct{}{}
 			m.decodeValue(tag.Name, value, to.FieldByIndex(f.Index))
-		} else if !m.opts.IgnoreMissing && !tag.Optional {
+		} else if !(m.opts.IgnoreMissing || tag.Optional) {
 			m.errors = append(m.errors, pmapper.NewMissingError(m.ty, f.Name))
 		}
 	}
@@ -74,8 +76,8 @@ func (m *mapCtx) decodePrimitive(fieldName string, from any, to reflect.Value) {
 	elem.Set(fromV.Convert(elem.Type()))
 }
 
-type EnDePropertyValue interface {
-	DecodeFromPropertyValue(string, resource.PropertyValue, func(resource.PropertyValue, reflect.Value))
+type PropertyValue interface {
+	DecodeFromPropertyValue(resource.PropertyValue, func(resource.PropertyValue, reflect.Value))
 	EncodeToPropertyValue(func(any) resource.PropertyValue) resource.PropertyValue
 
 	// This method might be called on a zero value instance:
@@ -85,11 +87,11 @@ type EnDePropertyValue interface {
 	UnderlyingSchemaType() reflect.Type
 }
 
-var EnDePropertyValueType = reflect.TypeOf((*EnDePropertyValue)(nil)).Elem()
+var EnDePropertyValueType = reflect.TypeOf((*PropertyValue)(nil)).Elem()
 
 func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to reflect.Value) {
 	if to := to.Addr(); to.CanInterface() && to.Type().Implements(EnDePropertyValueType) {
-		to.Interface().(EnDePropertyValue).DecodeFromPropertyValue(fieldName, from,
+		to.Interface().(PropertyValue).DecodeFromPropertyValue(from,
 			func(from resource.PropertyValue, to reflect.Value) {
 				m.decodeValue(fieldName, from, to)
 			})
@@ -247,7 +249,7 @@ func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
 	if reflect.PtrTo(from.Type()).Implements(EnDePropertyValueType) {
 		v := reflect.New(from.Type())
 		v.Elem().Set(from)
-		return v.Interface().(EnDePropertyValue).EncodeToPropertyValue(func(a any) resource.PropertyValue {
+		return v.Interface().(PropertyValue).EncodeToPropertyValue(func(a any) resource.PropertyValue {
 			return m.encodeValue(reflect.ValueOf(&a).Elem())
 		})
 	}

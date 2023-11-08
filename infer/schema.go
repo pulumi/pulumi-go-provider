@@ -203,7 +203,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 
 	var isInferOutput bool
 	if reflect.PtrTo(t).Implements(ende.EnDePropertyValueType) {
-		t = reflect.New(t).Interface().(ende.EnDePropertyValue).UnderlyingSchemaType()
+		t = reflect.New(t).Interface().(ende.PropertyValue).UnderlyingSchemaType()
 		isInferOutput = true
 	}
 

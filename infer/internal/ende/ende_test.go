@@ -70,6 +70,7 @@ func TestRapidDeepEqual(t *testing.T) {
 	t.Parallel()
 	// Check that a value always equals itself
 	t.Run("identity", func(t *testing.T) {
+		t.Parallel()
 		rapid.Check(t, func(t *rapid.T) {
 			value := rResource.PropertyValue(5).Draw(t, "value")
 
@@ -79,6 +80,7 @@ func TestRapidDeepEqual(t *testing.T) {
 
 	// Check that "distinct" values never equal themselves.
 	t.Run("distinct", func(t *testing.T) {
+		t.Parallel()
 		rapid.Check(t, func(t *rapid.T) {
 			values := rapid.SliceOfNDistinct(rResource.PropertyValue(5), 2, 2,
 				func(v r.PropertyValue) string {
@@ -89,6 +91,7 @@ func TestRapidDeepEqual(t *testing.T) {
 	})
 
 	t.Run("folding", func(t *testing.T) {
+		t.Parallel()
 		assert.True(t, DeepEquals(
 			r.MakeComputed(r.MakeSecret(r.NewStringProperty("hi"))),
 			r.MakeSecret(r.MakeComputed(r.NewStringProperty("hi")))))
