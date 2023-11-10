@@ -10,6 +10,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	pmapper "github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 type mapperOpts struct {
@@ -114,6 +115,7 @@ func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to r
 		if elem.Kind() != reflect.Slice {
 			m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
 				fieldName, elem.Type(), reflect.TypeOf(arr)))
+			return
 		}
 		length := len(arr)
 		elem.Set(reflect.MakeSlice(elem.Type(), length, length))
@@ -130,6 +132,7 @@ func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to r
 			if key := elem.Type().Key(); key.Kind() != reflect.String {
 				m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
 					fieldName, reflect.TypeOf(""), key))
+				return
 			}
 			elem.Set(reflect.MakeMapWithSize(elem.Type(), len(obj)))
 			for k, v := range obj {
@@ -150,7 +153,27 @@ func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to r
 
 	// Special values
 	case from.IsAsset():
-		panic("Unhandled property kind: Asset")
+		elem := hydrateMaybePointer(to)
+		if !elem.Type().Implements(assetType) {
+			m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
+				fieldName, elem.Type(), assetType))
+			return
+		}
+		asset := from.AssetValue()
+		if path, ok := asset.GetPath(); ok {
+			elem.Set(reflect.ValueOf(pulumi.NewFileAsset(path)))
+			return
+		}
+		if uri, ok := asset.GetURI(); ok {
+			elem.Set(reflect.ValueOf(pulumi.NewRemoteAsset(uri)))
+			return
+		}
+		if text, ok := asset.GetText(); ok {
+			elem.Set(reflect.ValueOf(pulumi.NewStringAsset(text)))
+			return
+		}
+		m.errors = append(m.errors, pmapper.NewTypeFieldError(m.ty,
+			fieldName, fmt.Errorf("unrecognized asset type")))
 	case from.IsArchive():
 		panic("Unhandled property kind: Archive")
 	case from.IsNull():
@@ -159,6 +182,11 @@ func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to r
 		contract.Failf("Unknown property kind: %#v", from)
 	}
 }
+
+var (
+	assetType   = reflect.TypeOf((*pulumi.Asset)(nil)).Elem()
+	archiveType = reflect.TypeOf((*pulumi.Archive)(nil)).Elem()
+)
 
 func hydrateMaybePointer(to reflect.Value) reflect.Value {
 	contract.Assertf(to.CanSet(), "must be able to set to hydrate")
