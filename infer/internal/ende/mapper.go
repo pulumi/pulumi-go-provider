@@ -159,23 +159,43 @@ func (m *mapCtx) decodeValue(fieldName string, from resource.PropertyValue, to r
 				fieldName, elem.Type(), assetType))
 			return
 		}
-		asset := from.AssetValue()
-		if path, ok := asset.GetPath(); ok {
-			elem.Set(reflect.ValueOf(pulumi.NewFileAsset(path)))
+		assetV := from.AssetValue()
+		var asset pulumi.Asset
+		switch {
+		case assetV.IsPath():
+			asset = pulumi.NewFileAsset(assetV.Path)
+		case assetV.IsURI():
+			asset = pulumi.NewRemoteAsset(assetV.URI)
+		case assetV.IsText():
+			asset = pulumi.NewStringAsset(assetV.Text)
+		default:
+			m.errors = append(m.errors, pmapper.NewTypeFieldError(m.ty,
+				fieldName, fmt.Errorf("unrecognized Asset type")))
 			return
 		}
-		if uri, ok := asset.GetURI(); ok {
-			elem.Set(reflect.ValueOf(pulumi.NewRemoteAsset(uri)))
-			return
-		}
-		if text, ok := asset.GetText(); ok {
-			elem.Set(reflect.ValueOf(pulumi.NewStringAsset(text)))
-			return
-		}
-		m.errors = append(m.errors, pmapper.NewTypeFieldError(m.ty,
-			fieldName, fmt.Errorf("unrecognized asset type")))
+		elem.Set(reflect.ValueOf(asset))
 	case from.IsArchive():
-		panic("Unhandled property kind: Archive")
+		elem := hydrateMaybePointer(to)
+		if !elem.Type().Implements(archiveType) {
+			m.errors = append(m.errors, pmapper.NewWrongTypeError(m.ty,
+				fieldName, elem.Type(), assetType))
+			return
+		}
+		archiveV := from.ArchiveValue()
+		var archive pulumi.Archive
+		switch {
+		case archiveV.IsURI():
+			archive = pulumi.NewRemoteArchive(archiveV.URI)
+		case archiveV.IsPath():
+			archive = pulumi.NewFileArchive(archiveV.Path)
+		case archiveV.IsAssets():
+			archive = pulumi.NewAssetArchive(archiveV.Assets)
+		default:
+			m.errors = append(m.errors, pmapper.NewTypeFieldError(m.ty,
+				fieldName, fmt.Errorf("unrecognized Archive type")))
+			return
+		}
+		elem.Set(reflect.ValueOf(archive))
 	case from.IsNull():
 		// No-op
 	default:
