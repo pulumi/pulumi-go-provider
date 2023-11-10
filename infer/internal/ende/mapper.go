@@ -302,6 +302,41 @@ func (m *mapCtx) encodeValue(from reflect.Value) resource.PropertyValue {
 		})
 	}
 
+	switch {
+	case from.Type().ConvertibleTo(assetType) && !from.IsNil():
+		asset := from.Convert(assetType).Interface().(pulumi.Asset)
+		var assetV *resource.Asset
+		var err error
+		switch {
+		case asset.URI() != "":
+			assetV, err = resource.NewURIAsset(asset.URI())
+		case asset.Path() != "":
+			assetV, err = resource.NewPathAsset(asset.Path())
+		case asset.Text() != "":
+			assetV, err = resource.NewTextAsset(asset.Text())
+		}
+		if err != nil {
+			m.errors = append(m.errors, err)
+		}
+		return resource.NewAssetProperty(assetV)
+	case from.Type().ConvertibleTo(archiveType) && !from.IsNil():
+		archive := from.Convert(archiveType).Interface().(pulumi.Archive)
+		var archiveV *resource.Archive
+		var err error
+		switch {
+		case archive.URI() != "":
+			archiveV, err = resource.NewURIArchive(archive.URI())
+		case archive.Path() != "":
+			archiveV, err = resource.NewPathArchive(archive.Path())
+		case archive.Assets() != nil:
+			archiveV, err = resource.NewAssetArchive(archive.Assets())
+		}
+		if err != nil {
+			m.errors = append(m.errors, err)
+		}
+		return resource.NewArchiveProperty(archiveV)
+	}
+
 	switch from.Kind() {
 	case reflect.String:
 		return resource.NewStringProperty(from.String())
