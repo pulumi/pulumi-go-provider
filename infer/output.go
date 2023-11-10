@@ -18,12 +18,16 @@ type Output[T any] struct{ *state[T] }
 
 func NewOutput[T any](value T) Output[T] { return newOutput(&value, false, true) }
 
-func (o Output[T]) IsSecret() bool { return o.secret }
+func (o Output[T]) IsSecret() bool {
+	o.ensure()
+	return o.secret
+}
 
 // Return an equivalent output that is secret.
 //
 // AsSecret is idempotent.
 func (o Output[T]) AsSecret() Output[T] {
+	o.ensure()
 	r := o.copyOutput()
 	r.secret = true
 	return r
@@ -33,6 +37,7 @@ func (o Output[T]) AsSecret() Output[T] {
 //
 // AsPublic is idempotent.
 func (o Output[T]) AsPublic() Output[T] {
+	o.ensure()
 	r := o.copyOutput()
 	r.secret = false
 	return r
@@ -50,6 +55,7 @@ func (o Output[T]) Anchor() error {
 
 // Get the value inside, or the zero value if none is available.
 func (o Output[T]) GetMaybeUnknown() (T, error) {
+	o.ensure()
 	err := o.Anchor()
 	if o.resolvable {
 		return *o.value, err
@@ -59,12 +65,14 @@ func (o Output[T]) GetMaybeUnknown() (T, error) {
 }
 
 func (o Output[T]) MustGetKnown() T {
+	o.ensure()
 	v, err := o.GetKnown()
 	contract.AssertNoErrorf(err, "Output[T].MustGetKnown()")
 	return v
 }
 
 func (o Output[T]) GetKnown() (T, error) {
+	o.ensure()
 	if !o.resolvable {
 		panic("Attempted to get a known value from an unresolvable Output[T]")
 	}
@@ -115,11 +123,15 @@ func newOutput[T any](value *T, secret, resolvable bool) Output[T] {
 	return Output[T]{state}
 }
 
+// ensure that the output is in a valid state.
+//
+// Output[T] is often left as its zero value: `Output[T]{state: nil}`. This happens when
+// an optional input value is left empty. Empty means not computed, so we set the value to
+// contain the resolved, public zero value of T.
 func (o *Output[T]) ensure() {
-	// If we have no state, set the output to a computed output that will never
-	// resolve.
 	if o.state == nil {
-		*o = newOutput[T](nil, false, false)
+		var t T
+		*o = newOutput[T](&t, false, true)
 	}
 }
 
