@@ -1,3 +1,5 @@
+// Copyright 2023, Pulumi Corporation.  All rights reserved.
+
 package ende
 
 import (
@@ -29,7 +31,7 @@ func TestEnDeValue(t *testing.T) {
 
 		type hasAsset struct {
 			Text pulumi.Asset `pulumi:"text"`
-			Uri  pulumi.Asset `pulumi:"uri"`
+			URI  pulumi.Asset `pulumi:"uri"`
 			Path pulumi.Asset `pulumi:"path"`
 
 			Optional pulumi.Asset `pulumi:"optional,optional"`
@@ -48,7 +50,7 @@ func TestEnDeValue(t *testing.T) {
 		require.NoError(t, mErr)
 
 		assert.Equal(t, text, target.Text.Text())
-		assert.Equal(t, uri, target.Uri.URI())
+		assert.Equal(t, uri, target.URI.URI())
 		assert.Equal(t, path, target.Path.Path())
 
 		actualMap, err := encodeProperty(target, mapperOpts{})

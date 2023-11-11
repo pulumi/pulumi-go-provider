@@ -75,10 +75,12 @@ func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (i
 			return "", nil
 		}
 		_, err := os.Stat(path)
-		if !os.IsNotExist(err) {
-			return "", fmt.Errorf("file already exists; pass force=true to override")
+		if os.IsNotExist(err) {
+			return "", nil
+		} else if err != nil {
+			return "", fmt.Errorf("discovering if %s exists: %w", path, err)
 		}
-		return "", nil
+		return "", fmt.Errorf("file already exists at %s; pass `force: true` to override", path)
 	}).Anchor()
 	if err != nil {
 		return "", FileState{}, err
@@ -168,13 +170,13 @@ func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, pre
 
 func (*File) Diff(ctx p.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
 	diff := map[string]p.PropertyDiff{}
-	if news.Content != olds.Content {
+	if !news.Content.Equal(olds.Content) {
 		diff["content"] = p.PropertyDiff{Kind: p.Update}
 	}
-	if news.Force != olds.Force {
+	if !news.Force.Equal(olds.Force) {
 		diff["force"] = p.PropertyDiff{Kind: p.Update}
 	}
-	if news.Path != olds.Path {
+	if !news.Path.Equal(olds.Path) {
 		diff["path"] = p.PropertyDiff{Kind: p.UpdateReplace}
 	}
 	return p.DiffResponse{

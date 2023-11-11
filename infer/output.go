@@ -14,13 +14,21 @@ import (
 
 //go:generate go run ./gen_apply/main.go -- output_apply.go
 
-type Output[T any] struct{ *state[T] }
+type Output[T any] struct {
+	*state[T]
+
+	_ []struct{} // Make Output[T] uncomparable
+}
 
 func NewOutput[T any](value T) Output[T] { return newOutput(&value, false, true) }
 
 func (o Output[T]) IsSecret() bool {
 	o.ensure()
 	return o.secret
+}
+
+func (o Output[T]) Equal(other Output[T]) bool {
+	return reflect.DeepEqual(o, other)
 }
 
 // Return an equivalent output that is secret.
@@ -120,7 +128,7 @@ func newOutput[T any](value *T, secret, resolvable bool) Output[T] {
 		join:       sync.NewCond(m),
 	}
 
-	return Output[T]{state}
+	return Output[T]{state, nil}
 }
 
 // ensure that the output is in a valid state.
