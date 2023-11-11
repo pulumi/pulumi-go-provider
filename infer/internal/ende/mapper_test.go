@@ -1,15 +1,17 @@
 // Copyright 2023, Pulumi Corporation.  All rights reserved.
 
-package ende
+package ende_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 )
 
 func TestEnDeValue(t *testing.T) {
@@ -46,16 +48,70 @@ func TestEnDeValue(t *testing.T) {
 		}
 
 		target := new(hasAsset)
-		mErr := decodeProperty(initialMap, reflect.ValueOf(target), mapperOpts{})
+		e, mErr := ende.Decode(initialMap, target)
 		require.NoError(t, mErr)
 
 		assert.Equal(t, text, target.Text.Text())
 		assert.Equal(t, uri, target.URI.URI())
 		assert.Equal(t, path, target.Path.Path())
 
-		actualMap, err := encodeProperty(target, mapperOpts{})
+		actualMap, err := e.Encode(target)
 		require.NoError(t, err)
 		delete(initialMap, "optional")
 		assert.Equal(t, initialMap, actualMap)
 	})
+
+	t.Run("output", func(t *testing.T) {
+		t.Parallel()
+
+		type nested struct {
+			N string  `pulumi:"n"`
+			F float64 `pulumi:"f"`
+		}
+
+		s := "some string"
+		i := float64(42)
+		m := map[string]any{"yes": true, "no": false}
+		a := []string{"zero", "one", "two"}
+		n := nested{
+			N: "nested string",
+			F: 1.2,
+		}
+
+		type hasOutputs struct {
+			S infer.Output[string]          `pulumi:"s"`
+			I infer.Output[int]             `pulumi:"i"`
+			M infer.Output[map[string]bool] `pulumi:"m"`
+			A infer.Output[[]string]        `pulumi:"a"`
+			N infer.Output[nested]          `pulumi:"n"`
+		}
+
+		initialMap := resource.PropertyMap{
+			"s": resource.NewStringProperty(s),
+			"i": resource.NewNumberProperty(i),
+			"m": resource.NewObjectProperty(resource.NewPropertyMapFromMap(m)),
+			"a": resource.NewArrayProperty(fmap(a, resource.NewStringProperty)),
+			"n": resource.NewObjectProperty(resource.NewPropertyMap(n)),
+		}
+
+		target := new(hasOutputs)
+
+		e, mErr := ende.Decode(initialMap, target)
+		require.NoError(t, mErr)
+
+		assert.Equal(t, s, target.S.MustGetKnown())
+
+		actualMap, err := e.Encode(target)
+		require.NoError(t, err)
+		assert.Equal(t, initialMap, actualMap)
+
+	})
+}
+
+func fmap[T, U any](arr []T, f func(T) U) []U {
+	out := make([]U, len(arr))
+	for i, v := range arr {
+		out[i] = f(v)
+	}
+	return out
 }

@@ -143,7 +143,7 @@ func (e *ende) walk(
 
 	// If a type implements unmarshalFromPropertyValueType, we should leave these
 	// alone.
-	if !reflect.PtrTo(typ).Implements(EnDePropertyValueType) {
+	if typ == nil || !reflect.PtrTo(typ).Implements(EnDePropertyValueType) {
 		switch {
 		case v.IsSecret():
 			// To allow full fidelity reconstructing maps, we extract nested secrets
