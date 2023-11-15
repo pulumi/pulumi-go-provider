@@ -37,6 +37,7 @@ func TestCheckConfig(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	require.Len(t, resp.Failures, 0)
 
 	// By default, check simply ensures that we can decode cleanly. It removes unknown
 	// fields so that diff doesn't trigger on changes to unwatched arguments.
