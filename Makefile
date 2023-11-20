@@ -2,6 +2,7 @@
 
 build:
 	go build ./...
+	cd openapi && go build ./...
 
 .PHONY: test
 test: test_unit test_examples
@@ -11,6 +12,7 @@ test_unit: build
 	go test ./...
 	cd infer/tests && go test ./...
 	cd integration && go test ./...
+	cd openapi && go test ./...
 	cd tests && go test ./...
 	for d in examples/*; do if [ -d $$d ]; then \
 		cd $$d; go test ./... || exit $$?; \
@@ -19,6 +21,8 @@ test_unit: build
 lint: lint-golang lint-copyright
 lint-golang:
 	golangci-lint run -c .golangci.yaml --timeout 5m
+	cd openapi && golangci-lint run -c ../.golangci.yaml --timeout 5m
+	cd integration && golangci-lint run -c ../.golangci.yaml --timeout 5m
 lint-copyright:
 	pulumictl copyright -x 'examples/**'
 
