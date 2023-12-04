@@ -30,7 +30,7 @@ import (
 
 func urn(typ, name string) resource.URN {
 	return resource.NewURN("stack", "proj", "",
-		tokens.Type("test:index:"+typ), tokens.QName(name))
+		tokens.Type("test:index:"+typ), name)
 }
 
 // This type helps us test the highly suspicious behavior of naming an input the same as

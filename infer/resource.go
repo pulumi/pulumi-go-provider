@@ -730,7 +730,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 	encoder, err := ende.Decode(req.News, &i)
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that
-		i, failures, err := r.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
+		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -904,7 +904,7 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
 
-	id, o, err := (*r).Create(ctx, req.Urn.Name().String(), input, req.Preview)
+	id, o, err := (*r).Create(ctx, req.Urn.Name(), input, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, err
 	}

@@ -91,7 +91,7 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 	encoder, decodeError := ende.DecodeConfig(req.News, &t)
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that
-		i, failures, err := t.Check(ctx, req.Urn.Name().String(), req.Olds, req.News)
+		i, failures, err := t.Check(ctx, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
