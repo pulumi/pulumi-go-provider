@@ -96,7 +96,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 					urn.Name(), urn.Type(), err)
 			}
 			res, err := r.Construct(ctx,
-				urn.Name().String(),
+				urn.Name(),
 				urn.Type().String(),
 				i, opts)
 			if err != nil {

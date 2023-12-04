@@ -942,7 +942,7 @@ func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*
 		tokens.PackageName(req.GetProject()),
 		parent,
 		tokens.Type(req.GetType()),
-		tokens.QName(req.GetName()),
+		req.GetName(),
 	)
 	f := func(ctx Context, construct ConstructFunc) (ConstructResponse, error) {
 		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
