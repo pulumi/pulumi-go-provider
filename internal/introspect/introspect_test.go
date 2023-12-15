@@ -30,6 +30,8 @@ type MyStruct struct {
 	Foo     string `pulumi:"foo,optional" provider:"secret,output"`
 	Bar     int    `provider:"secret"`
 	Fizz    *int   `pulumi:"fizz"`
+	ID      string `pulumi:"id"`
+	URN     string `pulumi:"urn"`
 	ExtType string `pulumi:"typ" provider:"type=example@1.2.3:m1:m2"`
 }
 
@@ -79,6 +81,14 @@ func TestParseTag(t *testing.T) {
 				},
 			},
 		},
+		{
+			Field: "ID",
+			Error: `"id" is a reserved field name`,
+		},
+		{
+			Field: "URN",
+			Error: `"urn" is a reserved field name`,
+		},
 	}
 
 	for _, c := range cases {
@@ -89,7 +99,7 @@ func TestParseTag(t *testing.T) {
 			assert.True(t, ok)
 			tag, err := introspect.ParseTag(field)
 			if c.Error != "" {
-				assert.Equal(t, c.Error, err.Error())
+				assert.ErrorContains(t, err, c.Error)
 			} else {
 				assert.Equal(t, c.Expected, tag)
 			}
