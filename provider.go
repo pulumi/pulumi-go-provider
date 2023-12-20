@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/pulumi/pulumi-go-provider/internal/configencoding"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
@@ -502,12 +503,14 @@ func (p *pkgContext) Log(severity diag.Severity, msg string) {
 func (p *pkgContext) Logf(severity diag.Severity, msg string, args ...any) {
 	p.Log(severity, fmt.Sprintf(msg, args...))
 }
+
 func (p *pkgContext) LogStatus(severity diag.Severity, msg string) {
 	err := p.provider.host.LogStatus(p, severity, p.urn, msg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to log %s status: %s", severity, msg)
 	}
 }
+
 func (p *pkgContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
 	p.LogStatus(severity, fmt.Sprintf(msg, args...))
 }
@@ -647,12 +650,12 @@ func (d detailedDiff) rpc() map[string]*rpc.PropertyDiff {
 }
 
 func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
-	olds, err := p.getMap(req.Olds)
+	olds, err := p.decodeConfig(ctx, req.Olds)
 	if err != nil {
 		return nil, err
 	}
 
-	news, err := p.getMap(req.News)
+	news, err := p.decodeConfig(ctx, req.News)
 	if err != nil {
 		return nil, err
 	}
@@ -661,7 +664,6 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 		Olds: olds,
 		News: news,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -686,11 +688,11 @@ func getIgnoreChanges(l []string) []presource.PropertyKey {
 }
 
 func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
-	olds, err := p.getMap(req.GetOlds())
+	olds, err := p.decodeConfig(ctx, req.GetOlds())
 	if err != nil {
 		return nil, err
 	}
-	news, err := p.getMap(req.GetNews())
+	news, err := p.decodeConfig(ctx, req.GetNews())
 	if err != nil {
 		return nil, err
 	}
@@ -707,14 +709,24 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 	return r.rpc(), nil
 }
 
-func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
-	argMap, err := p.getMap(req.GetArgs())
+func (p *provider) decodeConfig(ctx context.Context, args *structpb.Struct) (presource.PropertyMap, error) {
+	spec, err := GetSchema(ctx, p.name, p.version, p.client)
 	if err != nil {
 		return nil, err
 	}
+	ce := configencoding.New(spec.Config)
+	return ce.UnmarshalProperties(args)
+}
+
+func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
+	args, err := p.decodeConfig(ctx, req.GetArgs())
+	if err != nil {
+		return nil, err
+	}
+
 	err = p.client.Configure(p.ctx(ctx, ""), ConfigureRequest{
 		Variables: req.GetVariables(),
-		Args:      argMap,
+		Args:      args,
 	})
 	if err != nil {
 		return nil, err
@@ -784,7 +796,6 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 		Inputs:   inputs,
 		Failures: checkFailureList(r.Failures).rpc(),
 	}, nil
-
 }
 
 func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
@@ -897,7 +908,6 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	return &rpc.UpdateResponse{
 		Properties: props,
 	}, nil
-
 }
 
 func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
@@ -915,7 +925,6 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
-
 }
 
 type ConstructRequest struct {
@@ -974,7 +983,6 @@ func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
-
 }
 
 func (p *provider) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginInfo, error) {
