@@ -33,12 +33,13 @@ func Provider() p.Provider {
 }
 
 type Config struct {
-	String string            `pulumi:"s"`
-	Bool   bool              `pulumi:"b"`
-	Int    int               `pulumi:"i"`
-	Map    map[string]string `pulumi:"m"`
-	Arr    []string          `pulumi:"a"`
-	Nested ConfigNested      `pulumi:"n"`
+	String    string            `pulumi:"s"`
+	Bool      bool              `pulumi:"b"`
+	Int       int               `pulumi:"i"`
+	Map       map[string]string `pulumi:"m"`
+	Arr       []string          `pulumi:"a"`
+	Nested    ConfigNested      `pulumi:"n"`
+	ArrNested []ConfigNested    `pulumi:"an"`
 
 	DString string `pulumi:"ds,optional"`
 	DBool   *bool  `pulumi:"db,optional"`

@@ -2,8 +2,6 @@
 
 set -euf
 
-cd .. && go build -o pulumi-resource-config && cd -
-
 export PULUMI_CONFIG_PASSPHRASE=""
 
 mkdir -p state

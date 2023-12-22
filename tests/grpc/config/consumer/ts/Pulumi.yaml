@@ -1,0 +1,6 @@
+name: test
+runtime: nodejs
+plugins:
+  providers:
+    - name: config
+      path: ../..

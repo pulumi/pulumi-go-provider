@@ -58,6 +58,18 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       },
       "news": {
@@ -82,6 +94,18 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       }
     },
@@ -111,6 +135,18 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       }
     },
@@ -149,6 +185,18 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       },
       "news": {
@@ -176,6 +224,18 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       }
     },
@@ -201,6 +261,7 @@ func TestBasicConfig(t *testing.T) {
         "config:config:i": "42",
         "config:config:m": "{\"fizz\":\"buzz\"}",
         "config:config:n": "{\"a\":[\"one\",\"two\"],\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"s\":\"foo\"}",
+        "config:config:an": "[{\"a\":[\"one\",\"two\"],\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"s\":\"foo\"}]",
         "config:config:s": "foo"
       },
       "args": {
@@ -228,6 +289,18 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       },
       "acceptSecrets": true,
@@ -280,6 +353,18 @@ func TestConfigWithSecrets(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       },
       "news": {
@@ -304,6 +389,18 @@ func TestConfigWithSecrets(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       }
     },
@@ -333,6 +430,18 @@ func TestConfigWithSecrets(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       }
     },
@@ -371,6 +480,18 @@ func TestConfigWithSecrets(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       },
       "news": {
@@ -398,6 +519,18 @@ func TestConfigWithSecrets(t *testing.T) {
           },
           "s": "foo"
         },
+        "an": [{
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        }],
         "s": "foo"
       }
     },
@@ -416,20 +549,40 @@ func TestConfigWithSecrets(t *testing.T) {
     "request": {
       "variables": {
         "config:config:a": "[\"one\",\"two\"]",
+        "config:config:an": "[{\"a\":[\"three\"],\"b\":false,\"i\":7,\"m\":{\"fizz\":\"boo\"},\"s\":\"array-nested-secret\"}]",
         "config:config:b": "true",
         "config:config:db": "true",
         "config:config:di": "42",
         "config:config:ds": "defString",
         "config:config:i": "42",
         "config:config:m": "{\"fizz\":\"buzz\"}",
-        "config:config:n": "{\"a\":[\"one\",\"two\"],\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"s\":\"foo\"}",
-        "config:config:s": "foo"
+        "config:config:n": "{\"a\":[\"one\",\"two\"],\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"s\":\"nested-secret\"}",
+        "config:config:s": "top-level-secret"
       },
       "args": {
-        "a": [
-          "one",
-          "two"
-        ],
+        "a": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": [
+            "one",
+            "two"
+          ]
+        },
+        "an": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": [
+            {
+              "a": [
+                "three"
+              ],
+              "b": false,
+              "i": 7,
+              "m": {
+                "fizz": "boo"
+              },
+              "s": "array-nested-secret"
+            }
+          ]
+        },
         "b": true,
         "db": true,
         "di": 42,
@@ -448,12 +601,20 @@ func TestConfigWithSecrets(t *testing.T) {
           "m": {
             "fizz": "buzz"
           },
-          "s": "foo"
+          "s": {
+            "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+            "value": "nested-secret"
+          }
         },
-        "s": "foo"
+        "s": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": "top-level-secret"
+        }
       },
       "acceptSecrets": true,
-      "acceptResources": true
+      "acceptResources": true,
+      "sendsOldInputs": true,
+      "sendsOldInputsToDelete": true
     },
     "response": {
       "acceptSecrets": true,

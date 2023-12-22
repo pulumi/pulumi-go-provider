@@ -11,20 +11,17 @@ resources:
     type: pulumi:providers:config
     properties:
       s:
-        fn::secret:
-          foo
+        fn::secret: foo
       b: true
       i: 42
       m:
         fizz: buzz
       a:
-        - fn::secret:
-            one
+        - fn::secret: one
         - two
       n:
         s:
-          fn::secret:
-            foo
+          fn::secret: foo
         b: true
         i: 42
         m:
@@ -32,6 +29,15 @@ resources:
         a:
           - one
           - two
+      an:
+        - s:
+            fn::secret: bar
+          b: false
+          i: 7
+          m:
+            fizz: boo
+          a:
+            - three
   get:
     type: config:Get
     options:
