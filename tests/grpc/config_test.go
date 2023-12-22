@@ -627,6 +627,157 @@ func TestConfigWithSecrets(t *testing.T) {
       "mode": "client",
       "name": "config"
     }
+  },
+  {
+    "method": "/pulumirpc.ResourceProvider/CheckConfig",
+    "request": {
+      "urn": "urn:pulumi:test::test::pulumi:providers:config::provider",
+      "olds": {},
+      "news": {
+        "a": "[\"one\",\"two\"]",
+        "an": "[{\"s\":\"bar\",\"b\":false,\"i\":7,\"m\":{\"fizz\":\"boo\"},\"a\":[\"three\"]}]",
+        "b": "true",
+        "db": "true",
+        "di": "42",
+        "ds": "defString",
+        "i": "42",
+        "m": "{\"fizz\":\"buzz\"}",
+        "n": "{\"s\":\"foo\",\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"a\":[\"one\",\"two\"]}",
+        "s": "foo",
+        "version": "0.1.0"
+      }
+    },
+    "response": {
+      "inputs": {
+        "a": [
+          "one",
+          "two"
+        ],
+        "an": [
+          {
+            "a": [
+              "three"
+            ],
+            "b": false,
+            "i": 7,
+            "m": {
+              "fizz": "boo"
+            },
+            "s": "bar"
+          }
+        ],
+        "b": true,
+        "db": true,
+        "di": 42,
+        "ds": "defString",
+        "i": 42,
+        "m": {
+          "fizz": "buzz"
+        },
+        "n": {
+          "a": [
+            "one",
+            "two"
+          ],
+          "b": true,
+          "i": 42,
+          "m": {
+            "fizz": "buzz"
+          },
+          "s": "foo"
+        },
+        "s": "foo"
+      }
+    },
+    "metadata": {
+      "kind": "resource",
+      "mode": "client",
+      "name": "config"
+    }
+  },
+  {
+    "method": "/pulumirpc.ResourceProvider/Configure",
+    "request": {
+      "variables": {
+        "config:config:a": "[\"one\",\"two\"]",
+        "config:config:an": "[{\"a\":[\"three\"],\"b\":false,\"i\":7,\"m\":{\"fizz\":\"boo\"},\"s\":\"bar\"}]",
+        "config:config:b": "true",
+        "config:config:db": "true",
+        "config:config:di": "42",
+        "config:config:ds": "defString",
+        "config:config:i": "42",
+        "config:config:m": "{\"fizz\":\"buzz\"}",
+        "config:config:n": "{\"a\":[\"one\",\"two\"],\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"s\":\"foo\"}",
+        "config:config:s": "foo"
+      },
+      "args": {
+        "a": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": [
+            "one",
+            "two"
+          ]
+        },
+        "an": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": [
+            {
+              "a": [
+                "three"
+              ],
+              "b": false,
+              "i": 7,
+              "m": {
+                "fizz": "boo"
+              },
+              "s": "bar"
+            }
+          ]
+        },
+        "b": true,
+        "db": true,
+        "di": 42,
+        "ds": "defString",
+        "i": 42,
+        "m": {
+          "fizz": "buzz"
+        },
+        "n": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": {
+            "a": [
+              "one",
+              "two"
+            ],
+            "b": true,
+            "i": 42,
+            "m": {
+              "fizz": "buzz"
+            },
+            "s": "foo"
+          }
+        },
+        "s": {
+          "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+          "value": "foo"
+        }
+      },
+      "acceptSecrets": true,
+      "acceptResources": true,
+      "sendsOldInputs": true,
+      "sendsOldInputsToDelete": true
+    },
+    "response": {
+      "acceptSecrets": true,
+      "supportsPreview": true,
+      "acceptResources": true,
+      "acceptOutputs": true
+    },
+    "metadata": {
+      "kind": "resource",
+      "mode": "client",
+      "name": "config"
+    }
   }
 ]`
 	replayConfig(t, sequence)

@@ -1,3 +1,17 @@
+// Copyright 2023, Pulumi Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package configencoding
 
 import (
@@ -11,15 +25,16 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type configEncoding struct {
+type ConfigEncoding struct {
 	schema schema.ConfigSpec
 }
 
-func New(s schema.ConfigSpec) *configEncoding {
-	return &configEncoding{schema: s}
+// New constructs a new config encoder for the provided spec.
+func New(s schema.ConfigSpec) *ConfigEncoding {
+	return &ConfigEncoding{schema: s}
 }
 
-func (*configEncoding) tryUnwrapSecret(encoded any) (any, bool) {
+func (*ConfigEncoding) tryUnwrapSecret(encoded any) (any, bool) {
 	m, ok := encoded.(map[string]any)
 	if !ok {
 		return nil, false
@@ -39,7 +54,9 @@ func (*configEncoding) tryUnwrapSecret(encoded any) (any, bool) {
 	return value, ok
 }
 
-func (enc *configEncoding) convertStringToPropertyValue(s string, prop schema.PropertySpec) (resource.PropertyValue, error) {
+func (enc *ConfigEncoding) convertStringToPropertyValue(s string, prop schema.PropertySpec) (
+	resource.PropertyValue, error,
+) {
 	// If the schema expects a string, we can just return this as-is.
 	if prop.Type == "string" {
 		return resource.NewStringProperty(s), nil
@@ -77,20 +94,20 @@ func (enc *configEncoding) convertStringToPropertyValue(s string, prop schema.Pr
 	return resource.NewPropertyValueRepl(jsonValue, nil, replv), nil
 }
 
-func (*configEncoding) zeroValue(typ string) resource.PropertyValue {
+func (*ConfigEncoding) zeroValue(typ string) resource.PropertyValue {
 	switch typ {
-	case "bool":
+	case "boolean":
 		return resource.NewPropertyValue(false)
-	case "int", "float":
+	case "integer", "number":
 		return resource.NewPropertyValue(0)
-	case "list", "set":
+	case "array":
 		return resource.NewPropertyValue([]interface{}{})
 	default:
 		return resource.NewPropertyValue(map[string]interface{}{})
 	}
 }
 
-func (enc *configEncoding) unmarshalOpts() plugin.MarshalOptions {
+func (enc *ConfigEncoding) unmarshalOpts() plugin.MarshalOptions {
 	return plugin.MarshalOptions{
 		Label:        "config",
 		KeepUnknowns: true,
@@ -100,7 +117,7 @@ func (enc *configEncoding) unmarshalOpts() plugin.MarshalOptions {
 }
 
 // Like plugin.UnmarshalPropertyValue but overrides string parsing with convertStringToPropertyValue.
-func (enc *configEncoding) unmarshalPropertyValue(key resource.PropertyKey,
+func (enc *ConfigEncoding) unmarshalPropertyValue(key resource.PropertyKey,
 	v *structpb.Value,
 ) (*resource.PropertyValue, error) {
 	opts := enc.unmarshalOpts()
@@ -157,7 +174,7 @@ func (enc *configEncoding) unmarshalPropertyValue(key resource.PropertyKey,
 }
 
 // Inline from plugin.UnmarshalProperties substituting plugin.UnmarshalPropertyValue.
-func (enc *configEncoding) UnmarshalProperties(props *structpb.Struct) (resource.PropertyMap, error) {
+func (enc *ConfigEncoding) UnmarshalProperties(props *structpb.Struct) (resource.PropertyMap, error) {
 	opts := enc.unmarshalOpts()
 
 	result := make(resource.PropertyMap)
@@ -190,53 +207,3 @@ func (enc *configEncoding) UnmarshalProperties(props *structpb.Struct) (resource
 
 	return result, nil
 }
-
-// Inverse of UnmarshalProperties, with additional support for secrets. Since the encoding cannot represent nested
-// secrets, any nested secrets will be approximated by making the entire top-level property secret.
-// func (enc *ConfigEncoding) MarshalProperties(props resource.PropertyMap) (*structpb.Struct, error) {
-// 	opts := plugin.MarshalOptions{
-// 		Label:        "config",
-// 		KeepUnknowns: true,
-// 		SkipNulls:    true,
-// 		RejectAssets: true,
-// 		KeepSecrets:  true,
-// 	}
-
-// 	copy := make(resource.PropertyMap)
-// 	for k, v := range props {
-// 		var err error
-// 		copy[k], err = enc.jsonEncodePropertyValue(k, v)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
-// 	return plugin.MarshalProperties(copy, opts)
-// }
-
-// func (enc *ConfigEncoding) jsonEncodePropertyValue(k resource.PropertyKey,
-// 	v resource.PropertyValue,
-// ) (resource.PropertyValue, error) {
-// 	if v.ContainsUnknowns() {
-// 		return resource.NewStringProperty(plugin.UnknownStringValue), nil
-// 	}
-// 	if v.ContainsSecrets() {
-// 		encoded, err := enc.jsonEncodePropertyValue(k, propertyvalue.RemoveSecrets(v))
-// 		if err != nil {
-// 			return v, err
-// 		}
-// 		return resource.MakeSecret(encoded), err
-// 	}
-// 	_, knownKey := enc.schema.Variables[string(k)]
-// 	switch {
-// 	case knownKey && v.IsNull():
-// 		return resource.NewStringProperty(""), nil
-// 	case knownKey && !v.IsNull() && !v.IsString():
-// 		encoded, err := json.Marshal(v.Mappable())
-// 		if err != nil {
-// 			return v, fmt.Errorf("JSON encoding error while marshalling property %q: %w", k, err)
-// 		}
-// 		return resource.NewStringProperty(string(encoded)), nil
-// 	default:
-// 		return v, nil
-// 	}
-// }
