@@ -387,7 +387,13 @@ func RunProvider(name, version string, provider Provider) error {
 //
 // If you are trying to set up a standard main function, see RunProvider.
 func RawServer(name, version string, provider Provider) (rpc.ResourceProviderServer, error) {
-	return newProvider(name, version, provider.WithDefaults())(nil)
+	return RawServerFactory(name, version, provider)(nil)
+}
+
+// RawServerFactory allows attaching a ResourceProviderServer to an existing
+// HostClient.
+func RawServerFactory(name, version string, provider Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
+	return newProvider(name, version, provider.WithDefaults())
 }
 
 // A context which prints its diagnostics, collecting all errors
