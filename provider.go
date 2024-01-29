@@ -383,11 +383,14 @@ func RunProvider(name, version string, provider Provider) error {
 	return pprovider.Main(name, newProvider(name, version, provider.WithDefaults()))
 }
 
-// RawServer converts the Provider into a gRPC server.
+// RawServer converts the Provider into a factory for gRPC servers.
 //
 // If you are trying to set up a standard main function, see RunProvider.
-func RawServer(name, version string, provider Provider) (rpc.ResourceProviderServer, error) {
-	return newProvider(name, version, provider.WithDefaults())(nil)
+func RawServer(
+	name, version string,
+	provider Provider,
+) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
+	return newProvider(name, version, provider.WithDefaults())
 }
 
 // A context which prints its diagnostics, collecting all errors

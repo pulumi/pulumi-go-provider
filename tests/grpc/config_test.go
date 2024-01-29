@@ -472,7 +472,7 @@ func TestConfigWithSecrets(t *testing.T) {
 }
 
 func replayConfig(t *testing.T, jsonLog string) {
-	s, err := p.RawServer("config", "1.0.0", config.Provider())
+	s, err := p.RawServer("config", "1.0.0", config.Provider())(nil)
 	require.NoError(t, err)
 	replay.ReplaySequence(t, s, jsonLog)
 }
