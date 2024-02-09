@@ -204,6 +204,8 @@ assert.Equal(t, map[string]interface{}{
 The `Traverse` function traverses a property map along the given property path, 
 invoking a callback function for each property value it encounters, including the map itself.
 
+Property paths are based on `resource.PropertyPath`.
+
 A wildcard may be used as an array index to traverse all elements of the array.
 
 Examples of valid paths:
