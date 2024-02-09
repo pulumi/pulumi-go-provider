@@ -22,6 +22,7 @@ import (
 )
 
 func Test_Traverse(t *testing.T) {
+	t.Parallel()
 
 	// constants
 	a := resource.NewStringProperty("a")
@@ -429,9 +430,42 @@ func Test_Traverse(t *testing.T) {
 				b,
 			},
 		},
+		{
+			name: "array_array",
+			path: path("a[0][0].b"),
+			props: resource.PropertyMap{
+				"a": array(
+					array(
+						object(resource.PropertyMap{
+							"b": b,
+						}),
+					),
+				),
+			},
+			expected: []resource.PropertyValue{
+				array(
+					array(
+						object(resource.PropertyMap{
+							"b": b,
+						}),
+					),
+				),
+				array(
+					object(resource.PropertyMap{
+						"b": b,
+					}),
+				),
+				object(resource.PropertyMap{
+					"b": b,
+				}),
+				b,
+			},
+		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			v := resource.NewObjectProperty(tt.props)
 			var actual []resource.PropertyValue
 			Traverse(v, tt.path, func(v resource.PropertyValue) {

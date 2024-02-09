@@ -18,10 +18,12 @@ import (
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_Decode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		props    resource.PropertyMap
@@ -198,9 +200,72 @@ func Test_Decode(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			actual := DecodeValues(tt.props)
+			t.Parallel()
+			actual := Decode(tt.props)
 			require.Equal(t, tt.expected, actual, "expected result")
 		})
 	}
+}
+
+func Test_Decode_Example(t *testing.T) {
+	t.Parallel()
+
+	res1 := resource.URN("urn:pulumi:test::test::kubernetes:core/v1:Namespace::some-namespace")
+
+	props := resource.PropertyMap{
+		"chart":   resource.NewStringProperty("nginx"),
+		"version": resource.NewStringProperty("1.24.0"),
+		"repositoryOpts": resource.NewObjectProperty(resource.PropertyMap{
+			"repo":     resource.NewStringProperty("https://charts.bitnami.com/bitnami"),
+			"username": resource.NewStringProperty("username"),
+			"password": resource.NewSecretProperty(&resource.Secret{
+				Element: resource.NewStringProperty("password"),
+			}),
+			"other": resource.MakeComputed(resource.NewStringProperty("")),
+		}),
+		"namespace": resource.NewOutputProperty(resource.Output{
+			Element:      resource.NewStringProperty(""),
+			Known:        false,
+			Secret:       true,
+			Dependencies: []resource.URN{res1},
+		}),
+		"args": resource.NewArrayProperty([]resource.PropertyValue{
+			resource.NewObjectProperty(resource.PropertyMap{
+				"name":  resource.NewStringProperty("a"),
+				"value": resource.MakeSecret(resource.NewStringProperty("a")),
+			}),
+			resource.MakeComputed(resource.NewObjectProperty(resource.PropertyMap{})),
+			resource.NewObjectProperty(resource.PropertyMap{
+				"name":  resource.NewStringProperty("c"),
+				"value": resource.MakeSecret(resource.NewStringProperty("c")),
+			}),
+		}),
+	}
+
+	decoded := Decode(props)
+	assert.Equal(t, map[string]interface{}{
+		"chart":   "nginx",
+		"version": "1.24.0",
+		"repositoryOpts": map[string]interface{}{
+			"repo":     "https://charts.bitnami.com/bitnami",
+			"username": "username",
+			"password": "password",
+			"other":    nil,
+		},
+		"namespace": nil,
+		"args": []interface{}{
+			map[string]interface{}{
+				"name":  "a",
+				"value": "a",
+			},
+			nil,
+			map[string]interface{}{
+				"name":  "c",
+				"value": "c",
+			},
+		},
+	}, decoded)
+	t.Logf("\n%+v", printJSON(decoded))
 }

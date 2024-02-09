@@ -15,6 +15,7 @@
 package resourcex
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -23,6 +24,7 @@ import (
 )
 
 func Test_Extract(t *testing.T) {
+	t.Parallel()
 
 	res1 := resource.URN("urn:pulumi:test::test::kubernetes:core/v1:Namespace::some-namespace")
 
@@ -474,6 +476,7 @@ func Test_Extract(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := Extract(&tt.actual, tt.props, tt.opts)
 			if tt.err != nil {
 				require.Equal(t, tt.err, err, "expected error")
@@ -487,6 +490,7 @@ func Test_Extract(t *testing.T) {
 }
 
 func Test_Extract_Example(t *testing.T) {
+	t.Parallel()
 
 	res1 := resource.URN("urn:pulumi:test::test::kubernetes:core/v1:Namespace::some-namespace")
 
@@ -508,20 +512,20 @@ func Test_Extract_Example(t *testing.T) {
 			Dependencies: []resource.URN{res1},
 		}),
 		"args": resource.NewArrayProperty([]resource.PropertyValue{
-			resource.MakeComputed(resource.NewObjectProperty(resource.PropertyMap{})),
 			resource.NewObjectProperty(resource.PropertyMap{
 				"name":  resource.NewStringProperty("a"),
-				"value": resource.MakeComputed(resource.NewStringProperty("")),
+				"value": resource.MakeSecret(resource.NewStringProperty("a")),
 			}),
+			resource.MakeComputed(resource.NewObjectProperty(resource.PropertyMap{})),
 			resource.NewObjectProperty(resource.PropertyMap{
-				"name":  resource.NewStringProperty("b"),
-				"value": resource.MakeSecret(resource.NewStringProperty("b")),
+				"name":  resource.NewStringProperty("c"),
+				"value": resource.MakeSecret(resource.NewStringProperty("c")),
 			}),
 		}),
 	}
 
 	type RepositoryOpts struct {
-		// Repository where to locate the requested chart. If is a URL the chart is installed without installing the repository.
+		// Repository where to locate the requested chart.
 		Repo string `json:"repo,omitempty"`
 		// The Repositories CA File
 		CAFile string `json:"caFile,omitempty"`
@@ -533,11 +537,6 @@ func Test_Extract_Example(t *testing.T) {
 		Password string `json:"password,omitempty"`
 		// Username for HTTP basic authentication
 		Username string `json:"username,omitempty"`
-	}
-
-	type Arg struct {
-		Name  string `json:"name,omitempty"`
-		Value string `json:"value,omitempty"`
 	}
 
 	type Loader struct {
@@ -552,7 +551,7 @@ func Test_Extract_Example(t *testing.T) {
 	result, err := Extract(loader, props, ExtractOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: true}, result)
-	t.Logf("\n%+v", result)
+	t.Logf("\n%s\n%+v", printJSON(loader), result)
 
 	// EXAMPLE: anonymous struct (version)
 	version := struct {
@@ -562,19 +561,20 @@ func Test_Extract_Example(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "1.24.0", version.Version)
 	assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
-	t.Logf("\n%+v\n%+v", version, result)
+	t.Logf("\n%s\n%+v", printJSON(version), result)
 
-	// EXAMPLE: anonymous struct (namespace)
+	// EXAMPLE: anonymous struct ("namespace")
 	namespace := struct {
 		Namespace string `json:"namespace"`
 	}{}
 	result, err = Extract(&namespace, props, ExtractOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Equal(t, "", namespace.Namespace)
-	assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: true, Dependencies: []resource.URN{res1}}, result)
-	t.Logf("\n%+v\n%+v", namespace, result)
+	assert.Equal(t,
+		ExtractResult{ContainsUnknowns: true, ContainsSecrets: true, Dependencies: []resource.URN{res1}}, result)
+	t.Logf("\n%s\n%+v", printJSON(namespace), result)
 
-	// EXAMPLE: not present (dependencyUpdate, optional)
+	// EXAMPLE: unset property ("dependencyUpdate")
 	dependencyUpdate := struct {
 		DependencyUpdate *bool `json:"dependencyUpdate"`
 	}{}
@@ -582,16 +582,40 @@ func Test_Extract_Example(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, dependencyUpdate.DependencyUpdate)
 	assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
-	t.Logf("\n%+v\n%+v", dependencyUpdate, result)
+	t.Logf("\n%s\n%+v", printJSON(dependencyUpdate), result)
 
 	// EXAMPLE: arrays
+	type Arg struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
 	args := struct {
-		Args []Arg `json:"args"`
+		Args []*Arg `json:"args"`
 	}{}
 	result, err = Extract(&args, props, ExtractOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
-	assert.Equal(t, []Arg{{Name: "", Value: ""}, {Name: "a", Value: ""}, {Name: "b", Value: "b"}}, args.Args)
+	assert.Equal(t, []*Arg{{Name: "a", Value: "a"}, nil, {Name: "c", Value: "c"}}, args.Args)
 	assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: true}, result)
-	t.Logf("\n%+v\n%+v", args, result)
+	t.Logf("\n%s\n%+v", printJSON(args), result)
 
+	// EXAMPLE: arrays (names only)
+	type ArgNames struct {
+		Name string `json:"name"`
+	}
+	argNames := struct {
+		Args []*ArgNames `json:"args"`
+	}{}
+	result, err = Extract(&argNames, props, ExtractOptions{RejectUnknowns: false})
+	assert.NoError(t, err)
+	assert.Equal(t, []*ArgNames{{Name: "a"}, nil, {Name: "c"}}, argNames.Args)
+	assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: false}, result)
+	t.Logf("\n%s\n%+v", printJSON(argNames), result)
+}
+
+func printJSON(v interface{}) string {
+	val, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(val)
 }

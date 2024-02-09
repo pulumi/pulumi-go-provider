@@ -46,7 +46,7 @@ func Extract(target interface{}, props resource.PropertyMap, opts ExtractOptions
 	}
 
 	// decode the property map into a JSON-like structure containing only values.
-	stripped := DecodeValues(props)
+	decoded := Decode(props)
 
 	// deserialize the JSON-like structure into a strongly typed struct.
 	config := &mapstructure.DecoderConfig{
@@ -59,7 +59,7 @@ func Extract(target interface{}, props resource.PropertyMap, opts ExtractOptions
 	if err != nil {
 		return ExtractResult{}, err
 	}
-	err = decoder.Decode(stripped)
+	err = decoder.Decode(decoded)
 	if err != nil {
 		return ExtractResult{}, err
 	}

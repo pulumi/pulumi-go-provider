@@ -19,10 +19,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
-// DecodeValues decodes a property map into a JSON-like structure containing only values.
+// Decode decodes a property map into a JSON-like structure containing only values.
 // Unknown values are decoded as nil, both in maps and arrays.
 // Secrets are collapsed into their underlying values.
-func DecodeValues(props resource.PropertyMap) interface{} {
+func Decode(props resource.PropertyMap) interface{} {
 	return decodeM(props)
 }
 
