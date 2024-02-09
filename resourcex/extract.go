@@ -16,7 +16,6 @@ package resourcex
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -106,8 +105,16 @@ func (r *ExtractResult) visit(props resource.PropertyValue, paths []string) erro
 }
 
 func mergeDependencies(slice []resource.URN, elems ...resource.URN) []resource.URN {
+	contains := func(s []resource.URN, e resource.URN) bool {
+		for _, a := range s {
+			if a == e {
+				return true
+			}
+		}
+		return false
+	}
 	for _, r := range elems {
-		if !slices.Contains(slice, r) {
+		if !contains(slice, r) {
 			slice = append(slice, r)
 		}
 	}
