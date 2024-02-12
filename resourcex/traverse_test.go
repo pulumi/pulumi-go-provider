@@ -58,6 +58,9 @@ func Test_Traverse(t *testing.T) {
 	array := func(vs ...resource.PropertyValue) resource.PropertyValue {
 		return resource.NewArrayProperty(vs)
 	}
+	asset := func(asset *resource.Asset, _ error) *resource.Asset {
+		return asset
+	}
 
 	// sub-test cases
 	tests := []struct {
@@ -459,6 +462,16 @@ func Test_Traverse(t *testing.T) {
 					"b": b,
 				}),
 				b,
+			},
+		},
+		{
+			name: "asset_text",
+			path: path("value.text"),
+			props: resource.PropertyMap{
+				"value": resource.NewAssetProperty(asset(resource.NewTextAsset("value"))),
+			},
+			expected: []resource.PropertyValue{
+				resource.NewAssetProperty(asset(resource.NewTextAsset("value"))),
 			},
 		},
 	}

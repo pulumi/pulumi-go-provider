@@ -53,8 +53,7 @@ func decodeV(v resource.PropertyValue) interface{} {
 		}
 		return arr
 	} else if v.IsAsset() {
-		contract.Failf("unsupported value type '%v'", v.TypeString())
-		return nil
+		return decodeAsset(v.AssetValue())
 	} else if v.IsArchive() {
 		contract.Failf("unsupported value type '%v'", v.TypeString())
 		return nil
@@ -76,4 +75,26 @@ func decodeV(v resource.PropertyValue) interface{} {
 		contract.Failf("unexpected value type '%v'", v.TypeString())
 		return nil
 	}
+}
+
+func decodeAsset(a *resource.Asset) interface{} {
+	if a == nil {
+		return nil
+	}
+	result := map[string]interface{}{
+		resource.SigKey: resource.AssetSig,
+	}
+	if a.Hash != "" {
+		result[resource.AssetHashProperty] = a.Hash
+	}
+	if a.Text != "" {
+		result[resource.AssetTextProperty] = a.Text
+	}
+	if a.Path != "" {
+		result[resource.AssetPathProperty] = a.Path
+	}
+	if a.URI != "" {
+		result[resource.AssetURIProperty] = a.URI
+	}
+	return result
 }

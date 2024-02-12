@@ -24,6 +24,11 @@ import (
 
 func Test_Decode(t *testing.T) {
 	t.Parallel()
+
+	asset := func(asset *resource.Asset, _ error) *resource.Asset {
+		return asset
+	}
+
 	tests := []struct {
 		name     string
 		props    resource.PropertyMap
@@ -195,6 +200,23 @@ func Test_Decode(t *testing.T) {
 			expected: map[string]interface{}{
 				"object": map[string]interface{}{
 					"value": nil,
+				},
+			},
+		},
+		{
+			name: "asset",
+			props: resource.PropertyMap{
+				"object": resource.NewObjectProperty(resource.PropertyMap{
+					"value": resource.NewAssetProperty(asset(resource.NewTextAsset("value"))),
+				}),
+			},
+			expected: map[string]interface{}{
+				"object": map[string]interface{}{
+					"value": map[string]interface{}{
+						resource.SigKey:            resource.AssetSig,
+						resource.AssetTextProperty: "value",
+						resource.AssetHashProperty: "cd42404d52ad55ccfa9aca4adc828aa5800ad9d385a0671fbcbf724118320619",
+					},
 				},
 			},
 		},

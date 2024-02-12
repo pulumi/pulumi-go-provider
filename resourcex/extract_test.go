@@ -31,6 +31,9 @@ func Test_Extract(t *testing.T) {
 	pointer := func(i int) *int {
 		return &i
 	}
+	asset := func(asset *resource.Asset, _ error) *resource.Asset {
+		return asset
+	}
 
 	type Nested struct {
 		String string `json:"string"`
@@ -44,10 +47,11 @@ func Test_Extract(t *testing.T) {
 	}
 
 	type Optional struct {
-		Number  *int      `json:"number"`
-		Numbers []*int    `json:"numbers"`
-		Struct  *Nested   `json:"struct"`
-		Structs []*Nested `json:"structs"`
+		Number  *int            `json:"number"`
+		Numbers []*int          `json:"numbers"`
+		Struct  *Nested         `json:"struct"`
+		Structs []*Nested       `json:"structs"`
+		Asset   *resource.Asset `json:"asset"`
 	}
 
 	tests := []struct {
@@ -107,6 +111,17 @@ func Test_Extract(t *testing.T) {
 			},
 			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
+		},
+		{
+			name: "Asset",
+			props: resource.PropertyMap{
+				"asset": resource.NewAssetProperty(asset(resource.NewTextAsset("value"))),
+			},
+			expected: Optional{
+				Asset: asset(resource.NewTextAsset("value")),
+			},
+			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			actual: Optional{},
 		},
 		{
 			name: "Secret_Value",
