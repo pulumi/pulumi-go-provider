@@ -30,8 +30,10 @@ func NewContainsUnknownsError(dependencies []resource.URN) *ContainsUnknownsErro
 	}
 }
 
-func IsContainsUnknownsError(err error) bool {
-	return errors.Is(err, &ContainsUnknownsError{})
+func IsContainsUnknownsError(err error) (*ContainsUnknownsError, bool) {
+	var containsUnknownsError *ContainsUnknownsError
+	ok := errors.As(err, &containsUnknownsError)
+	return containsUnknownsError, ok
 }
 
 var _ error = &ContainsUnknownsError{}
