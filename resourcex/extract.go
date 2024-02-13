@@ -15,7 +15,8 @@
 package resourcex
 
 import (
-	"fmt"
+	"regexp"
+	"strconv"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -81,10 +82,7 @@ func Extract(target interface{}, props resource.PropertyMap, opts ExtractOptions
 // visit extracts summary information about the given property paths.
 func (r *ExtractResult) visit(props resource.PropertyValue, paths []string) error {
 	for _, path := range paths {
-		p, err := resource.ParsePropertyPath(path)
-		if err != nil {
-			return fmt.Errorf("parse error for path %q: %v", path, err)
-		}
+		p := parsePath(path)
 		visitor := func(v resource.PropertyValue) {
 			switch {
 			case v.IsComputed():
@@ -119,4 +117,28 @@ func mergeDependencies(slice []resource.URN, elems ...resource.URN) []resource.U
 		}
 	}
 	return slice
+}
+
+var (
+	// matches a path component of the form: "^x", ".x", "[0]", "[*]", "[x]"
+	pathRegexp = regexp.MustCompile(`(?:(?:(?:^|[.])(?P<key>[A-Za-z0-9_-]+))|(?:\[(?P<index>\d+|\*|[A-Za-z0-9_.-]+)\]))`)
+)
+
+// parsePath parses a property path as produced by the mapstructure decoder.
+func parsePath(path string) resource.PropertyPath {
+	result := resource.PropertyPath{}
+	for _, match := range pathRegexp.FindAllStringSubmatch(path, -1) {
+		key := match[pathRegexp.SubexpIndex("key")]
+		index := match[pathRegexp.SubexpIndex("index")]
+		if key != "" {
+			result = append(result, key)
+		} else if index == "*" {
+			result = append(result, "*")
+		} else if i, err := strconv.Atoi(index); err == nil {
+			result = append(result, i)
+		} else {
+			result = append(result, index)
+		}
+	}
+	return result
 }

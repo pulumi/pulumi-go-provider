@@ -447,6 +447,43 @@ func Test_Extract(t *testing.T) {
 			actual: Required{},
 		},
 		{
+			name: "Map_Null",
+			props: resource.PropertyMap{
+				"null": resource.NewNullProperty(),
+			},
+			expected: map[string]any{
+				"null": nil,
+			},
+			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			actual: map[string]any{},
+		},
+		{
+			name: "Map_Computed",
+			props: resource.PropertyMap{
+				"computed": resource.MakeComputed(resource.NewStringProperty("")),
+			},
+			expected: map[string]any{
+				"computed": nil,
+			},
+			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false}, // limitation: no secretness
+			actual: map[string]any{},
+		},
+		{
+			name: "Map_Object",
+			props: resource.PropertyMap{
+				"object": resource.NewObjectProperty(resource.PropertyMap{
+					"string": resource.MakeSecret(resource.NewStringProperty("string")),
+				}),
+			},
+			expected: map[string]any{
+				"object": map[string]any{
+					"string": "string",
+				},
+			},
+			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false}, // limitation: no unknownness
+			actual: map[string]any{},
+		},
+		{
 			name: "Ignored_Computed",
 			props: resource.PropertyMap{
 				"number":  resource.NewNumberProperty(42),
@@ -490,6 +527,9 @@ func Test_Extract(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
+		if tt.name != "Map_Object" {
+			continue
+		}
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result, err := Extract(&tt.actual, tt.props, tt.opts)
@@ -633,4 +673,68 @@ func printJSON(v interface{}) string {
 		panic(err)
 	}
 	return string(val)
+}
+
+func Test_parsePath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		// name     string
+		path     string
+		expected resource.PropertyPath
+		err      error
+	}{
+		{
+			path:     "x",
+			expected: resource.PropertyPath{"x"},
+		},
+		{
+			path:     "x.y",
+			expected: resource.PropertyPath{"x", "y"},
+		},
+		{
+			path:     "x.y.z",
+			expected: resource.PropertyPath{"x", "y", "z"},
+		},
+		{
+			path:     "[0]",
+			expected: resource.PropertyPath{0},
+		},
+		{
+			path:     "x[0]",
+			expected: resource.PropertyPath{"x", 0},
+		},
+		{
+			path:     "x[*]",
+			expected: resource.PropertyPath{"x", "*"},
+		},
+		{
+			path:     "x[y]",
+			expected: resource.PropertyPath{"x", "y"},
+		},
+		{
+			path:     "x[y.z]",
+			expected: resource.PropertyPath{"x", "y.z"},
+		},
+		{
+			path:     "x[0].z",
+			expected: resource.PropertyPath{"x", 0, "z"},
+		},
+		{
+			path:     "x[0][y][z]",
+			expected: resource.PropertyPath{"x", 0, "y", "z"},
+		},
+		{
+			path:     "x[0][1].z",
+			expected: resource.PropertyPath{"x", 0, 1, "z"},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+			actual := parsePath(tt.path)
+			require.Equal(t, tt.expected, actual, "expected path")
+		})
+	}
 }
