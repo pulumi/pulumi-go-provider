@@ -498,7 +498,7 @@ type pkgContext struct {
 func (p *pkgContext) Log(severity diag.Severity, msg string) {
 	err := p.provider.host.Log(p, severity, p.urn, msg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to log %s: %s", severity, msg)
+		fmt.Fprintf(os.Stderr, "failed to log %s: %s\n", severity, msg)
 	}
 }
 
@@ -508,7 +508,7 @@ func (p *pkgContext) Logf(severity diag.Severity, msg string, args ...any) {
 func (p *pkgContext) LogStatus(severity diag.Severity, msg string) {
 	err := p.provider.host.LogStatus(p, severity, p.urn, msg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to log %s status: %s", severity, msg)
+		fmt.Fprintf(os.Stderr, "failed to log %s status: %s\n", severity, msg)
 	}
 }
 func (p *pkgContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
