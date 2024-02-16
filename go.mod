@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pulumi/pulumi/pkg/v3 v3.95.0
 	github.com/pulumi/pulumi/sdk/v3 v3.95.0
 	google.golang.org/grpc v1.57.1
@@ -101,3 +102,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/frand v1.4.2 // indirect
 )
+
+replace github.com/mitchellh/mapstructure => github.com/go-viper/mapstructure v1.6.0
