@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Extract(t *testing.T) {
+func TestUnmarshal(t *testing.T) {
 	t.Parallel()
 
 	res1 := resource.URN("urn:pulumi:test::test::kubernetes:core/v1:Namespace::some-namespace")
@@ -56,16 +56,16 @@ func Test_Extract(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		opts     ExtractOptions
+		opts     UnmarshalOptions
 		props    resource.PropertyMap
-		actual   interface{}
-		expected interface{}
-		result   ExtractResult
+		actual   any
+		expected any
+		result   UnmarshalResult
 		err      error
 	}{
 		{
 			name: "Options_RejectUnknowns",
-			opts: ExtractOptions{
+			opts: UnmarshalOptions{
 				RejectUnknowns: true,
 			},
 			props: resource.PropertyMap{
@@ -87,7 +87,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 0,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -98,7 +98,7 @@ func Test_Extract(t *testing.T) {
 			expected: Optional{
 				Number: nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Optional{},
 		},
 		{
@@ -109,7 +109,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -120,7 +120,7 @@ func Test_Extract(t *testing.T) {
 			expected: Optional{
 				Asset: asset(resource.NewTextAsset("value")),
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Optional{},
 		},
 		{
@@ -131,7 +131,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -142,7 +142,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 0,
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: true},
 			actual: Required{},
 		},
 		{
@@ -153,7 +153,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 0,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true},
 			actual: Required{},
 		},
 		{
@@ -164,7 +164,7 @@ func Test_Extract(t *testing.T) {
 			expected: Optional{
 				Number: nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true},
 			actual: Optional{},
 		},
 		{
@@ -180,7 +180,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 0,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true, Dependencies: []resource.URN{res1}},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true, Dependencies: []resource.URN{res1}},
 			actual: Required{},
 		},
 		{
@@ -196,7 +196,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 0,
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: true, Dependencies: []resource.URN{res1}},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: true, Dependencies: []resource.URN{res1}},
 			actual: Required{},
 		},
 		{
@@ -212,7 +212,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false, Dependencies: []resource.URN{res1}},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false, Dependencies: []resource.URN{res1}},
 			actual: Required{},
 		},
 		{
@@ -228,7 +228,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: false, Dependencies: []resource.URN{res1}},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: false, Dependencies: []resource.URN{res1}},
 			actual: Required{},
 		},
 		{
@@ -244,7 +244,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: false, Dependencies: []resource.URN{res1}},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: false, Dependencies: []resource.URN{res1}},
 			actual: Required{},
 		},
 		{
@@ -255,7 +255,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Numbers: nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -266,7 +266,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Numbers: nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true},
 			actual: Required{},
 		},
 		{
@@ -279,7 +279,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Numbers: []int{42},
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -292,7 +292,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Numbers: []int{0},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -305,7 +305,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Numbers: []int{42},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -318,7 +318,7 @@ func Test_Extract(t *testing.T) {
 			expected: Optional{
 				Numbers: []*int{pointer(42)},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Optional{},
 		},
 		{
@@ -331,7 +331,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Numbers: []int{0},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true},
 			actual: Required{},
 		},
 		{
@@ -346,7 +346,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Structs: []Nested{{String: "foo"}},
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -361,7 +361,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Structs: []Nested{{String: ""}},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true},
 			actual: Required{},
 		},
 		{
@@ -372,7 +372,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Struct: Nested{},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -383,7 +383,7 @@ func Test_Extract(t *testing.T) {
 			expected: Optional{
 				Struct: nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Optional{},
 		},
 		{
@@ -394,7 +394,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Struct: Nested{},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -405,7 +405,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Struct: Nested{},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: true},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: true},
 			actual: Required{},
 		},
 		{
@@ -416,7 +416,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Struct: Nested{},
 			},
-			result: ExtractResult{ContainsSecrets: true, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: true, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -429,7 +429,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Struct: Nested{String: "foo"},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -443,7 +443,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Struct: Nested{String: "foo"},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -454,7 +454,7 @@ func Test_Extract(t *testing.T) {
 			expected: map[string]any{
 				"null": nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: map[string]any{},
 		},
 		{
@@ -465,7 +465,7 @@ func Test_Extract(t *testing.T) {
 			expected: map[string]any{
 				"computed": nil,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false}, // limitation: no secretness
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false}, // limitation: no secretness
 			actual: map[string]any{},
 		},
 		{
@@ -480,7 +480,7 @@ func Test_Extract(t *testing.T) {
 					"string": "string",
 				},
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false}, // limitation: no unknownness
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false}, // limitation: no unknownness
 			actual: map[string]any{},
 		},
 		{
@@ -492,7 +492,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -509,7 +509,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 		{
@@ -521,7 +521,7 @@ func Test_Extract(t *testing.T) {
 			expected: Required{
 				Number: 42,
 			},
-			result: ExtractResult{ContainsSecrets: false, ContainsUnknowns: false},
+			result: UnmarshalResult{ContainsSecrets: false, ContainsUnknowns: false},
 			actual: Required{},
 		},
 	}
@@ -532,7 +532,7 @@ func Test_Extract(t *testing.T) {
 		}
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := Extract(&tt.actual, tt.props, tt.opts)
+			result, err := Unmarshal(&tt.actual, tt.props, tt.opts)
 			if tt.err != nil {
 				require.Equal(t, tt.err, err, "expected error")
 				return
@@ -544,7 +544,7 @@ func Test_Extract(t *testing.T) {
 	}
 }
 
-func Test_Extract_Example(t *testing.T) {
+func TestUnmarshalExample(t *testing.T) {
 	t.Parallel()
 
 	res1 := resource.URN("urn:pulumi:test::test::kubernetes:core/v1:Namespace::some-namespace")
@@ -603,40 +603,40 @@ func Test_Extract_Example(t *testing.T) {
 
 	// EXAMPLE: Chart Loader
 	loader := &Loader{}
-	result, err := Extract(loader, props, ExtractOptions{RejectUnknowns: false})
+	result, err := Unmarshal(loader, props, UnmarshalOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
-	assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: true}, result)
+	assert.Equal(t, UnmarshalResult{ContainsUnknowns: false, ContainsSecrets: true}, result)
 	t.Logf("\n%s\n%+v", printJSON(loader), result)
 
 	// EXAMPLE: anonymous struct (version)
-	version := struct {
+	var version struct {
 		Version string `json:"version"`
-	}{}
-	result, err = Extract(&version, props, ExtractOptions{RejectUnknowns: false})
+	}
+	result, err = Unmarshal(&version, props, UnmarshalOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Equal(t, "1.24.0", version.Version)
-	assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
+	assert.Equal(t, UnmarshalResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
 	t.Logf("\n%s\n%+v", printJSON(version), result)
 
 	// EXAMPLE: anonymous struct ("namespace")
-	namespace := struct {
+	var namespace struct {
 		Namespace string `json:"namespace"`
-	}{}
-	result, err = Extract(&namespace, props, ExtractOptions{RejectUnknowns: false})
+	}
+	result, err = Unmarshal(&namespace, props, UnmarshalOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Equal(t, "", namespace.Namespace)
 	assert.Equal(t,
-		ExtractResult{ContainsUnknowns: true, ContainsSecrets: true, Dependencies: []resource.URN{res1}}, result)
+		UnmarshalResult{ContainsUnknowns: true, ContainsSecrets: true, Dependencies: []resource.URN{res1}}, result)
 	t.Logf("\n%s\n%+v", printJSON(namespace), result)
 
 	// EXAMPLE: unset property ("dependencyUpdate")
-	dependencyUpdate := struct {
+	var dependencyUpdate struct {
 		DependencyUpdate *bool `json:"dependencyUpdate"`
-	}{}
-	result, err = Extract(&dependencyUpdate, props, ExtractOptions{RejectUnknowns: false})
+	}
+	result, err = Unmarshal(&dependencyUpdate, props, UnmarshalOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Nil(t, dependencyUpdate.DependencyUpdate)
-	assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
+	assert.Equal(t, UnmarshalResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
 	t.Logf("\n%s\n%+v", printJSON(dependencyUpdate), result)
 
 	// EXAMPLE: arrays
@@ -644,30 +644,30 @@ func Test_Extract_Example(t *testing.T) {
 		Name  string `json:"name"`
 		Value string `json:"value"`
 	}
-	args := struct {
+	var args struct {
 		Args []*Arg `json:"args"`
-	}{}
-	result, err = Extract(&args, props, ExtractOptions{RejectUnknowns: false})
+	}
+	result, err = Unmarshal(&args, props, UnmarshalOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Equal(t, []*Arg{{Name: "a", Value: "a"}, nil, {Name: "c", Value: "c"}}, args.Args)
-	assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: true}, result)
+	assert.Equal(t, UnmarshalResult{ContainsUnknowns: true, ContainsSecrets: true}, result)
 	t.Logf("\n%s\n%+v", printJSON(args), result)
 
 	// EXAMPLE: arrays (names only)
 	type ArgNames struct {
 		Name string `json:"name"`
 	}
-	argNames := struct {
+	var argNames struct {
 		Args []*ArgNames `json:"args"`
-	}{}
-	result, err = Extract(&argNames, props, ExtractOptions{RejectUnknowns: false})
+	}
+	result, err = Unmarshal(&argNames, props, UnmarshalOptions{RejectUnknowns: false})
 	assert.NoError(t, err)
 	assert.Equal(t, []*ArgNames{{Name: "a"}, nil, {Name: "c"}}, argNames.Args)
-	assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: false}, result)
+	assert.Equal(t, UnmarshalResult{ContainsUnknowns: true, ContainsSecrets: false}, result)
 	t.Logf("\n%s\n%+v", printJSON(argNames), result)
 }
 
-func printJSON(v interface{}) string {
+func printJSON(v any) string {
 	val, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		panic(err)
@@ -675,7 +675,7 @@ func printJSON(v interface{}) string {
 	return string(val)
 }
 
-func Test_parsePath(t *testing.T) {
+func TestParsePath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

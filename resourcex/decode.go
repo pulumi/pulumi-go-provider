@@ -22,13 +22,13 @@ import (
 // Decode decodes a property map into a JSON-like structure containing only values.
 // Unknown values are decoded as nil, both in maps and arrays.
 // Secrets are collapsed into their underlying values.
-func Decode(props resource.PropertyMap) interface{} {
+func Decode(props resource.PropertyMap) map[string]any {
 	return decodeM(props)
 }
 
 // decodeV returns a mapper-compatible object map, suitable for deserialization into structures.
-func decodeM(props resource.PropertyMap) map[string]interface{} {
-	obj := make(map[string]interface{})
+func decodeM(props resource.PropertyMap) map[string]any {
+	obj := make(map[string]any)
 	for _, k := range props.StableKeys() {
 		key := string(k)
 		obj[key] = decodeV(props[k])
@@ -37,51 +37,52 @@ func decodeM(props resource.PropertyMap) map[string]interface{} {
 }
 
 // decodeV returns a mapper-compatible object map, suitable for deserialization into structures.
-func decodeV(v resource.PropertyValue) interface{} {
-	if v.IsNull() {
+func decodeV(v resource.PropertyValue) any {
+	switch {
+	case v.IsNull():
 		return nil
-	} else if v.IsBool() {
+	case v.IsBool():
 		return v.BoolValue()
-	} else if v.IsNumber() {
+	case v.IsNumber():
 		return v.NumberValue()
-	} else if v.IsString() {
+	case v.IsString():
 		return v.StringValue()
-	} else if v.IsArray() {
-		arr := make([]interface{}, len(v.ArrayValue()))
+	case v.IsArray():
+		arr := make([]any, len(v.ArrayValue()))
 		for i := 0; i < len(v.ArrayValue()); i++ {
 			arr[i] = decodeV(v.ArrayValue()[i])
 		}
 		return arr
-	} else if v.IsAsset() {
+	case v.IsAsset():
 		return decodeAsset(v.AssetValue())
-	} else if v.IsArchive() {
+	case v.IsArchive():
 		contract.Failf("unsupported value type '%v'", v.TypeString())
 		return nil
-	} else if v.IsComputed() {
+	case v.IsComputed():
 		return nil // zero value for unknowns
-	} else if v.IsOutput() {
+	case v.IsOutput():
 		if !v.OutputValue().Known {
 			return nil // zero value for unknowns
 		}
 		return decodeV(v.OutputValue().Element)
-	} else if v.IsSecret() {
+	case v.IsSecret():
 		return decodeV(v.SecretValue().Element)
-	} else if v.IsResourceReference() {
+	case v.IsResourceReference():
 		contract.Failf("unsupported value type '%v'", v.TypeString())
 		return nil
-	} else if v.IsObject() {
+	case v.IsObject():
 		return decodeM(v.ObjectValue())
-	} else {
+	default:
 		contract.Failf("unexpected value type '%v'", v.TypeString())
 		return nil
 	}
 }
 
-func decodeAsset(a *resource.Asset) interface{} {
+func decodeAsset(a *resource.Asset) any {
 	if a == nil {
 		return nil
 	}
-	result := map[string]interface{}{
+	result := map[string]any{
 		resource.SigKey: resource.AssetSig,
 	}
 	if a.Hash != "" {

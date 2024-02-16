@@ -3,13 +3,13 @@
 The `resourcex` package extends the `github.com/pulumi/pulumi/sdk/v3/go/common/resource` package with helpers
 for working with property values.
 
-1. `Extract` - Extract structured values from a property map, with tracking of unknownness and secretness.
+1. `Unmarshal` - Extract structured values from a property map, with tracking of unknownness and secretness.
 2. `Decode` - Decode a property map into a JSON-like structure containing only values.
 3. `Traverse` - Traverse a property path, visiting each property value.
 
-## Extraction
+## Unmarshaling
 
-The `Extract`  function is designed to extract subsets of values from property map using structs. 
+The `Unmarshal`  function is designed to extract subsets of values from property map using structs. 
 Information about the unknownness and secretness of the extracted values is provided, e.g. to annotate output properties.
 
 Here's an example of decoding a property map into various structures, observing how unknownness and secretness varies:
@@ -71,62 +71,62 @@ type Loader struct {
 
 // Example: Chart Loader
 loader := &Loader{}
-result, err := Extract(loader, props, ExtractOptions{RejectUnknowns: false})
+result, err := Unmarshal(loader, props, UnmarshalOptions{RejectUnknowns: false})
 assert.NoError(t, err)
-assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: true}, result)
+assert.Equal(t, UnmarshalResult{ContainsUnknowns: false, ContainsSecrets: true}, result)
 
 // Example: anonymous struct (version)
-version := struct {
+var version struct {
     Version string `json:"version"`
-}{}
-result, err = Extract(&version, props, ExtractOptions{RejectUnknowns: false})
+}
+result, err = Unmarshal(&version, props, UnmarshalOptions{RejectUnknowns: false})
 assert.NoError(t, err)
 assert.Equal(t, "1.24.0", version.Version)
-assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
+assert.Equal(t, UnmarshalResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
 
 // Example: anonymous struct ("namespace")
-namespace := struct {
+var namespace struct {
     Namespace string `json:"namespace"`
-}{}
-result, err = Extract(&namespace, props, ExtractOptions{RejectUnknowns: false})
+}
+result, err = Unmarshal(&namespace, props, UnmarshalOptions{RejectUnknowns: false})
 assert.NoError(t, err)
 assert.Equal(t, "", namespace.Namespace)
 assert.Equal(t,
-    ExtractResult{ContainsUnknowns: true, ContainsSecrets: true, Dependencies: []resource.URN{res1}}, result)
+    UnmarshalResult{ContainsUnknowns: true, ContainsSecrets: true, Dependencies: []resource.URN{res1}}, result)
 
 // Example: unset property ("dependencyUpdate")
-dependencyUpdate := struct {
+var dependencyUpdate struct {
     DependencyUpdate *bool `json:"dependencyUpdate"`
-}{}
-result, err = Extract(&dependencyUpdate, props, ExtractOptions{RejectUnknowns: false})
+}
+result, err = Unmarshal(&dependencyUpdate, props, UnmarshalOptions{RejectUnknowns: false})
 assert.NoError(t, err)
 assert.Nil(t, dependencyUpdate.DependencyUpdate)
-assert.Equal(t, ExtractResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
+assert.Equal(t, UnmarshalResult{ContainsUnknowns: false, ContainsSecrets: false}, result)
 
 // Example: arrays
 type Arg struct {
     Name  string `json:"name"`
     Value string `json:"value"`
 }
-args := struct {
+var args struct {
     Args []*Arg `json:"args"`
-}{}
-result, err = Extract(&args, props, ExtractOptions{RejectUnknowns: false})
+}
+result, err = Unmarshal(&args, props, UnmarshalOptions{RejectUnknowns: false})
 assert.NoError(t, err)
 assert.Equal(t, []*Arg{{Name: "a", Value: "a"}, nil, {Name: "c", Value: "c"}}, args.Args)
-assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: true}, result)
+assert.Equal(t, UnmarshalResult{ContainsUnknowns: true, ContainsSecrets: true}, result)
 
 // Example: arrays (names only)
 type ArgNames struct {
     Name string `json:"name"`
 }
-argNames := struct {
+var argNames struct {
     Args []*ArgNames `json:"args"`
-}{}
-result, err = Extract(&argNames, props, ExtractOptions{RejectUnknowns: false})
+}
+result, err = Unmarshal(&argNames, props, UnmarshalOptions{RejectUnknowns: false})
 assert.NoError(t, err)
 assert.Equal(t, []*ArgNames{{Name: "a"}, nil, {Name: "c"}}, argNames.Args)
-assert.Equal(t, ExtractResult{ContainsUnknowns: true, ContainsSecrets: false}, result)
+assert.Equal(t, UnmarshalResult{ContainsUnknowns: true, ContainsSecrets: false}, result)
 ```
 
 ## Decoding
@@ -175,23 +175,23 @@ props := resource.PropertyMap{
 }
 
 decoded := Decode(props)
-assert.Equal(t, map[string]interface{}{
+assert.Equal(t, map[string]any{
     "chart":   "nginx",
     "version": "1.24.0",
-    "repositoryOpts": map[string]interface{}{
+    "repositoryOpts": map[string]any{
         "repo":     "https://charts.bitnami.com/bitnami",
         "username": "username",
         "password": "password",
         "other":    nil,
     },
     "namespace": nil,
-    "args": []interface{}{
-        map[string]interface{}{
+    "args": []any{
+        map[string]any{
             "name":  "a",
             "value": "a",
         },
         nil,
-        map[string]interface{}{
+        map[string]any{
             "name":  "c",
             "value": "c",
         },

@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Traverse(t *testing.T) {
+func TestTraverse(t *testing.T) {
 	t.Parallel()
 
 	// constants

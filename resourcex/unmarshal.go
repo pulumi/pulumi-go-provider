@@ -22,14 +22,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )
 
-type ExtractOptions struct {
+type UnmarshalOptions struct {
 	// TagName is the struct tag name to use for resource property names; defaults to "json".
 	TagName string
 	// RejectUnknowns produces an error (of type ContainsUnknownsError) if any unknowns are extracted.
 	RejectUnknowns bool
 }
 
-type ExtractResult struct {
+type UnmarshalResult struct {
 	// Dependencies is the set of resources that the extracted information depends on (known or unknown).
 	Dependencies []resource.URN
 	// ContainsUnknowns is true if the extracted information contains unknown values.
@@ -38,9 +38,9 @@ type ExtractResult struct {
 	ContainsSecrets bool
 }
 
-// Extract extracts information from a property map into a target struct.
+// Unmarshal extracts information from a property map into a target struct.
 // It returns a summary of the outputness and secretness of the extracted information.
-func Extract(target interface{}, props resource.PropertyMap, opts ExtractOptions) (ExtractResult, error) {
+func Unmarshal(target interface{}, props resource.PropertyMap, opts UnmarshalOptions) (UnmarshalResult, error) {
 	if opts.TagName == "" {
 		opts.TagName = "json"
 	}
@@ -57,30 +57,30 @@ func Extract(target interface{}, props resource.PropertyMap, opts ExtractOptions
 	}
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		return ExtractResult{}, err
+		return UnmarshalResult{}, err
 	}
 	err = decoder.Decode(decoded)
 	if err != nil {
-		return ExtractResult{}, err
+		return UnmarshalResult{}, err
 	}
 
 	// use the decoder metadata to visit the properties that were decoded.
 	// Note that unknown values are decoded as nils, and are visited.
 	// Used properties ("Metadata.Key") are those that appear on the target struct and have a value.
-	r := ExtractResult{}
+	r := UnmarshalResult{}
 	err = r.visit(resource.NewObjectProperty(props), config.Metadata.Keys)
 	if err != nil {
-		return ExtractResult{}, err
+		return UnmarshalResult{}, err
 	}
 
 	if opts.RejectUnknowns && r.ContainsUnknowns {
-		return ExtractResult{}, NewContainsUnknownsError(r.Dependencies)
+		return UnmarshalResult{}, NewContainsUnknownsError(r.Dependencies)
 	}
 	return r, nil
 }
 
 // visit extracts summary information about the given property paths.
-func (r *ExtractResult) visit(props resource.PropertyValue, paths []string) error {
+func (r *UnmarshalResult) visit(props resource.PropertyValue, paths []string) error {
 	for _, path := range paths {
 		p := parsePath(path)
 		visitor := func(v resource.PropertyValue) {

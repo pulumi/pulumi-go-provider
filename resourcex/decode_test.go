@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Decode(t *testing.T) {
+func TestDecode(t *testing.T) {
 	t.Parallel()
 
 	asset := func(asset *resource.Asset, _ error) *resource.Asset {
@@ -32,14 +32,14 @@ func Test_Decode(t *testing.T) {
 	tests := []struct {
 		name     string
 		props    resource.PropertyMap
-		expected interface{}
+		expected map[string]any
 	}{
 		{
 			name: "null",
 			props: resource.PropertyMap{
 				"value": resource.NewNullProperty(),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": nil,
 			},
 		},
@@ -48,7 +48,7 @@ func Test_Decode(t *testing.T) {
 			props: resource.PropertyMap{
 				"value": resource.NewBoolProperty(true),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": true,
 			},
 		},
@@ -57,7 +57,7 @@ func Test_Decode(t *testing.T) {
 			props: resource.PropertyMap{
 				"value": resource.NewNumberProperty(42),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": 42.,
 			},
 		},
@@ -66,7 +66,7 @@ func Test_Decode(t *testing.T) {
 			props: resource.PropertyMap{
 				"value": resource.NewStringProperty("foo"),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": "foo",
 			},
 		},
@@ -77,8 +77,8 @@ func Test_Decode(t *testing.T) {
 					resource.NewStringProperty("foo"),
 				}),
 			},
-			expected: map[string]interface{}{
-				"value": []interface{}{"foo"},
+			expected: map[string]any{
+				"value": []any{"foo"},
 			},
 		},
 		{
@@ -88,8 +88,8 @@ func Test_Decode(t *testing.T) {
 					resource.NewNullProperty(),
 				}),
 			},
-			expected: map[string]interface{}{
-				"value": []interface{}{nil},
+			expected: map[string]any{
+				"value": []any{nil},
 			},
 		},
 		{
@@ -99,8 +99,8 @@ func Test_Decode(t *testing.T) {
 					resource.MakeSecret(resource.NewStringProperty("foo")),
 				}),
 			},
-			expected: map[string]interface{}{
-				"value": []interface{}{"foo"},
+			expected: map[string]any{
+				"value": []any{"foo"},
 			},
 		},
 		{
@@ -110,8 +110,8 @@ func Test_Decode(t *testing.T) {
 					resource.MakeComputed(resource.NewStringProperty("foo")),
 				}),
 			},
-			expected: map[string]interface{}{
-				"value": []interface{}{nil},
+			expected: map[string]any{
+				"value": []any{nil},
 			},
 		},
 		{
@@ -119,7 +119,7 @@ func Test_Decode(t *testing.T) {
 			props: resource.PropertyMap{
 				"value": resource.MakeComputed(resource.NewStringProperty("foo")),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": nil,
 			},
 		},
@@ -131,7 +131,7 @@ func Test_Decode(t *testing.T) {
 					Known:   false,
 				}),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": nil,
 			},
 		},
@@ -143,7 +143,7 @@ func Test_Decode(t *testing.T) {
 					Known:   true,
 				}),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": "foo",
 			},
 		},
@@ -155,7 +155,7 @@ func Test_Decode(t *testing.T) {
 					Known:   true,
 				}),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": "foo",
 			},
 		},
@@ -164,7 +164,7 @@ func Test_Decode(t *testing.T) {
 			props: resource.PropertyMap{
 				"value": resource.MakeSecret(resource.NewStringProperty("foo")),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": "foo",
 			},
 		},
@@ -173,7 +173,7 @@ func Test_Decode(t *testing.T) {
 			props: resource.PropertyMap{
 				"value": resource.MakeSecret(resource.MakeComputed(resource.NewStringProperty("foo"))),
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"value": nil,
 			},
 		},
@@ -184,8 +184,8 @@ func Test_Decode(t *testing.T) {
 					"value": resource.NewStringProperty("value"),
 				}),
 			},
-			expected: map[string]interface{}{
-				"object": map[string]interface{}{
+			expected: map[string]any{
+				"object": map[string]any{
 					"value": "value",
 				},
 			},
@@ -197,8 +197,8 @@ func Test_Decode(t *testing.T) {
 					"value": resource.MakeComputed(resource.NewStringProperty("value")),
 				}),
 			},
-			expected: map[string]interface{}{
-				"object": map[string]interface{}{
+			expected: map[string]any{
+				"object": map[string]any{
 					"value": nil,
 				},
 			},
@@ -210,9 +210,9 @@ func Test_Decode(t *testing.T) {
 					"value": resource.NewAssetProperty(asset(resource.NewTextAsset("value"))),
 				}),
 			},
-			expected: map[string]interface{}{
-				"object": map[string]interface{}{
-					"value": map[string]interface{}{
+			expected: map[string]any{
+				"object": map[string]any{
+					"value": map[string]any{
 						resource.SigKey:            resource.AssetSig,
 						resource.AssetTextProperty: "value",
 						resource.AssetHashProperty: "cd42404d52ad55ccfa9aca4adc828aa5800ad9d385a0671fbcbf724118320619",
@@ -231,7 +231,7 @@ func Test_Decode(t *testing.T) {
 	}
 }
 
-func Test_Decode_Example(t *testing.T) {
+func TestDecodeExample(t *testing.T) {
 	t.Parallel()
 
 	res1 := resource.URN("urn:pulumi:test::test::kubernetes:core/v1:Namespace::some-namespace")
@@ -267,23 +267,23 @@ func Test_Decode_Example(t *testing.T) {
 	}
 
 	decoded := Decode(props)
-	assert.Equal(t, map[string]interface{}{
+	assert.Equal(t, map[string]any{
 		"chart":   "nginx",
 		"version": "1.24.0",
-		"repositoryOpts": map[string]interface{}{
+		"repositoryOpts": map[string]any{
 			"repo":     "https://charts.bitnami.com/bitnami",
 			"username": "username",
 			"password": "password",
 			"other":    nil,
 		},
 		"namespace": nil,
-		"args": []interface{}{
-			map[string]interface{}{
+		"args": []any{
+			map[string]any{
 				"name":  "a",
 				"value": "a",
 			},
 			nil,
-			map[string]interface{}{
+			map[string]any{
 				"name":  "c",
 				"value": "c",
 			},
