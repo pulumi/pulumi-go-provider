@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"fmt"
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -149,6 +150,20 @@ type Crawler func(t reflect.Type) (drill bool, err error)
 func crawlTypes[T any](crawler Crawler) error {
 	var i T
 	t := reflect.TypeOf(i)
+
+	// Prohibit top-level "id" or "urn" fields.
+	if t.Kind() == reflect.Struct {
+		for _, f := range reflect.VisibleFields(t) {
+			info, err := introspect.ParseTag(f)
+			if err != nil {
+				continue
+			}
+			if info.Name == "id" || info.Name == "urn" {
+				return fmt.Errorf("%q is a reserved field name", info.Name)
+			}
+		}
+	}
+
 	// Drill will walk the types, calling crawl on types it finds.
 	var drill func(reflect.Type) error
 	drill = func(t reflect.Type) error {

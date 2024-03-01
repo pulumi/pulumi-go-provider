@@ -213,3 +213,21 @@ func TestCrawlTypes(t *testing.T) {
 						Value:       "bar"}}}},
 		m)
 }
+
+type outer struct {
+	Inner inner `pulumi:"inner"`
+}
+type inner struct {
+	ID string `pulumi:"id"`
+}
+
+func TestReservedFields(t *testing.T) {
+	reg := func(typ tokens.Type, spec pschema.ComplexTypeSpec) bool {
+		return true
+	}
+	err := registerTypes[outer](reg)
+	assert.NoError(t, err, "id isn't reserved on nested fields")
+
+	err = registerTypes[inner](reg)
+	assert.ErrorContains(t, err, `"id" is a reserved field name`)
+}

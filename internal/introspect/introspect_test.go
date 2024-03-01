@@ -30,8 +30,6 @@ type MyStruct struct {
 	Foo     string `pulumi:"foo,optional" provider:"secret,output"`
 	Bar     int    `provider:"secret"`
 	Fizz    *int   `pulumi:"fizz"`
-	ID      string `pulumi:"id"`
-	URN     string `pulumi:"urn"`
 	ExtType string `pulumi:"typ" provider:"type=example@1.2.3:m1:m2"`
 }
 
@@ -61,7 +59,7 @@ func TestParseTag(t *testing.T) {
 		},
 		{
 			Field: "Bar",
-			Error: "you must put to the `pulumi` tag to use the `provider` tag",
+			Error: "`provider` requires a `pulumi` tag",
 		},
 		{
 			Field: "Fizz",
@@ -80,14 +78,6 @@ func TestParseTag(t *testing.T) {
 					Name:    "m2",
 				},
 			},
-		},
-		{
-			Field: "ID",
-			Error: `"id" is a reserved field name`,
-		},
-		{
-			Field: "URN",
-			Error: `"urn" is a reserved field name`,
 		},
 	}
 
