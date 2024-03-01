@@ -222,6 +222,8 @@ type inner struct {
 }
 
 func TestReservedFields(t *testing.T) {
+	t.Parallel()
+
 	reg := func(typ tokens.Type, spec pschema.ComplexTypeSpec) bool {
 		return true
 	}
