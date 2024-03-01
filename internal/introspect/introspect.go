@@ -112,7 +112,7 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 	pulumiTag, hasPulumiTag := field.Tag.Lookup("pulumi")
 	providerTag, hasProviderTag := field.Tag.Lookup("provider")
 	if hasProviderTag && !hasPulumiTag {
-		return FieldTag{}, fmt.Errorf("you must put to the `pulumi` tag to use the `provider` tag")
+		return FieldTag{}, fmt.Errorf("`provider` requires a `pulumi` tag")
 	}
 	if !hasPulumiTag || !field.IsExported() {
 		return FieldTag{Internal: true}, nil
@@ -121,9 +121,6 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 	pulumi := map[string]bool{}
 	pulumiArray := strings.Split(pulumiTag, ",")
 	name := pulumiArray[0]
-	if name == "id" || name == "urn" {
-		return FieldTag{}, fmt.Errorf("%q is a reserved field name", name)
-	}
 	for _, item := range pulumiArray[1:] {
 		pulumi[item] = true
 	}
