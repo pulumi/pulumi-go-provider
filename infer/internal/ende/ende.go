@@ -17,10 +17,11 @@ package ende
 import (
 	"reflect"
 
-	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
+	pmapper "github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
+
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 )
 
 type Encoder struct{ *ende }
@@ -33,32 +34,32 @@ type Encoder struct{ *ende }
 //	var value T
 //	encoder, _ := Decode(m, &value)
 //	m, _ = encoder.Encode(value)
-func Decode[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
+func Decode[T any](m resource.PropertyMap, dst T) (Encoder, pmapper.MappingError) {
 	return decode(m, dst, false, false)
 }
 
 // DecodeTolerateMissing is like Decode, but doesn't return an error for a missing value.
-func DecodeTolerateMissing[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
+func DecodeTolerateMissing[T any](m resource.PropertyMap, dst T) (Encoder, pmapper.MappingError) {
 	return decode(m, dst, false, true)
 }
 
-func DecodeConfig[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
+func DecodeConfig[T any](m resource.PropertyMap, dst T) (Encoder, pmapper.MappingError) {
 	return decode(m, dst, true, false)
 }
 
 func decode(
 	m resource.PropertyMap, dst any, ignoreUnrecognized, allowMissing bool,
-) (Encoder, mapper.MappingError) {
+) (Encoder, pmapper.MappingError) {
 	e := new(ende)
 	target := reflect.ValueOf(dst)
 	for target.Type().Kind() == reflect.Pointer && !target.IsNil() {
 		target = target.Elem()
 	}
 	m = e.simplify(m, target.Type())
-	return Encoder{e}, mapper.New(&mapper.Opts{
-		IgnoreUnrecognized: ignoreUnrecognized,
+	return Encoder{e}, decodeProperty(m, target.Addr(), mapperOpts{
 		IgnoreMissing:      allowMissing,
-	}).Decode(m.Mappable(), target.Addr().Interface())
+		IgnoreUnrecognized: ignoreUnrecognized,
+	})
 
 }
 
@@ -140,29 +141,33 @@ func (e *ende) walk(
 		}
 	}
 
-	switch {
-	case v.IsSecret():
-		// To allow full fidelity reconstructing maps, we extract nested secrets
-		// first. We then extract the top level secret. We need this ordering to
-		// re-embed nested secrets.
-		el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
-		e.mark(change{path: path, secret: true})
-		return el
-	case v.IsComputed():
-		el := e.walk(v.Input().Element, path, typ, true)
-		e.mark(change{path: path, computed: true})
-		return el
-	case v.IsOutput():
-		output := v.OutputValue()
-		el := e.walk(output.Element, path, typ, !output.Known)
-		e.mark(change{
-			path:        path,
-			computed:    !output.Known,
-			secret:      output.Secret,
-			forceOutput: true,
-		})
+	// If a type implements unmarshalFromPropertyValueType, we should leave these
+	// alone.
+	if typ == nil || !reflect.PtrTo(typ).Implements(EnDePropertyValueType) {
+		switch {
+		case v.IsSecret():
+			// To allow full fidelity reconstructing maps, we extract nested secrets
+			// first. We then extract the top level secret. We need this ordering to
+			// re-embed nested secrets.
+			el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
+			e.mark(change{path: path, secret: true})
+			return el
+		case v.IsComputed():
+			el := e.walk(v.Input().Element, path, typ, true)
+			e.mark(change{path: path, computed: true})
+			return el
+		case v.IsOutput():
+			output := v.OutputValue()
+			el := e.walk(output.Element, path, typ, !output.Known)
+			e.mark(change{
+				path:        path,
+				computed:    !output.Known,
+				secret:      output.Secret,
+				forceOutput: true,
+			})
 
-		return el
+			return el
+		}
 	}
 
 	var elemType reflect.Type
@@ -288,38 +293,32 @@ func (e *ende) walkMap(
 	return resource.NewObjectProperty(result)
 }
 
-func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
-	props, err := mapper.New(&mapper.Opts{
-		IgnoreMissing: true,
-	}).Encode(src)
+func (e *ende) Encode(src any) (resource.PropertyMap, pmapper.MappingError) {
+	props, err := encodeProperty(src, mapperOpts{IgnoreMissing: true})
 	if err != nil {
 		return nil, err
 	}
-	m := resource.NewObjectProperty(
-		resource.NewPropertyMapFromMap(props),
-	)
-	contract.Assertf(!m.ContainsUnknowns(),
-		"NewPropertyMapFromMap cannot produce unknown values")
-	contract.Assertf(!m.ContainsSecrets(),
-		"NewPropertyMapFromMap cannot produce secrets")
-	for _, s := range e.changes {
-		v, ok := s.path.Get(m)
-		if !ok && s.emptyAction == isNil {
-			continue
-		}
-
-		if s.emptyAction != isNil && v.IsNull() {
-			switch s.emptyAction {
-			case isEmptyMap:
-				v = resource.NewObjectProperty(resource.PropertyMap{})
-			case isEmptyArr:
-				v = resource.NewArrayProperty([]resource.PropertyValue{})
-			default:
-				panic(s.emptyAction)
+	m := resource.NewObjectProperty(props)
+	if e != nil {
+		for _, s := range e.changes {
+			v, ok := s.path.Get(m)
+			if !ok && s.emptyAction == isNil {
+				continue
 			}
-		}
 
-		s.path.Set(m, s.apply(v))
+			if s.emptyAction != isNil && v.IsNull() {
+				switch s.emptyAction {
+				case isEmptyMap:
+					v = resource.NewObjectProperty(resource.PropertyMap{})
+				case isEmptyArr:
+					v = resource.NewArrayProperty([]resource.PropertyValue{})
+				default:
+					panic(s.emptyAction)
+				}
+			}
+
+			s.path.Set(m, s.apply(v))
+		}
 	}
 	return m.ObjectValue(), nil
 }
