@@ -291,3 +291,161 @@ func TestDecodeExample(t *testing.T) {
 	}, decoded)
 	t.Logf("\n%+v", printJSON(decoded))
 }
+
+func TestDecodeValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		prop     resource.PropertyValue
+		expected any
+	}{
+		{
+			name:     "null",
+			prop:     resource.NewNullProperty(),
+			expected: nil,
+		},
+		{
+			name:     "bool",
+			prop:     resource.NewBoolProperty(true),
+			expected: true,
+		},
+		{
+			name:     "number",
+			prop:     resource.NewNumberProperty(42),
+			expected: 42.,
+		},
+		{
+			name:     "string",
+			prop:     resource.NewStringProperty("foo"),
+			expected: "foo",
+		},
+		{
+			name: "array_value",
+			prop: resource.NewArrayProperty([]resource.PropertyValue{
+				resource.NewStringProperty("foo1"),
+				resource.NewStringProperty("foo2"),
+			}),
+			expected: []any{"foo1", "foo2"},
+		},
+		{
+			name: "array_null",
+			prop: resource.NewArrayProperty([]resource.PropertyValue{
+				resource.NewNullProperty(),
+			}),
+			expected: []any{nil},
+		},
+		{
+			name: "array_secret",
+			prop: resource.NewArrayProperty([]resource.PropertyValue{
+				resource.MakeSecret(resource.NewStringProperty("foo")),
+			}),
+			expected: []any{"foo"},
+		},
+		{
+			name: "array_computed",
+			prop: resource.NewArrayProperty([]resource.PropertyValue{
+				resource.MakeComputed(resource.NewStringProperty("foo")),
+			}),
+			expected: []any{nil},
+		},
+		{
+			name:     "computed",
+			prop:     resource.MakeComputed(resource.NewStringProperty("foo")),
+			expected: nil,
+		},
+		{
+			name: "output_unknown",
+			prop: resource.NewOutputProperty(resource.Output{
+				Element: resource.NewStringProperty("foo"),
+				Known:   false,
+			}),
+			expected: nil,
+		},
+		{
+			name: "output_known",
+			prop: resource.NewOutputProperty(resource.Output{
+				Element: resource.NewStringProperty("foo"),
+				Known:   true,
+			}),
+			expected: "foo",
+		},
+		{
+			name: "output_byzantine",
+			prop: resource.NewOutputProperty(resource.Output{
+				Element: resource.MakeSecret(resource.NewStringProperty("foo")),
+				Known:   true,
+			}),
+			expected: "foo",
+		},
+		{
+			name:     "secret_value",
+			prop:     resource.MakeSecret(resource.NewStringProperty("foo")),
+			expected: "foo",
+		},
+		{
+			name:     "secret_computed",
+			prop:     resource.MakeSecret(resource.MakeComputed(resource.NewStringProperty("foo"))),
+			expected: nil,
+		},
+		{
+			name: "object_value",
+			prop: resource.NewObjectProperty(resource.PropertyMap{
+				"key1": resource.NewStringProperty("value1"),
+				"key2": resource.NewStringProperty("value2"),
+			}),
+			expected: map[string]any{
+				"key1": "value1",
+				"key2": "value2",
+			},
+		},
+		{
+			name: "object_computed",
+			prop: resource.NewObjectProperty(resource.PropertyMap{
+				"key": resource.MakeComputed(resource.NewStringProperty("value")),
+			}),
+			expected: map[string]any{
+				"key": nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			actual := DecodeValue(tt.prop)
+			require.Equal(t, tt.expected, actual, "expected result")
+		})
+	}
+}
+
+func TestDecodeValueExample(t *testing.T) {
+	t.Parallel()
+
+	prop := resource.NewArrayProperty([]resource.PropertyValue{
+		resource.NewObjectProperty(resource.PropertyMap{
+			"name":  resource.NewStringProperty("a"),
+			"value": resource.MakeSecret(resource.NewStringProperty("b")),
+		}),
+		resource.MakeComputed(resource.NewObjectProperty(resource.PropertyMap{})),
+		resource.NewObjectProperty(resource.PropertyMap{
+			"name":  resource.NewStringProperty("c"),
+			"value": resource.MakeSecret(resource.NewStringProperty("d")),
+		}),
+	})
+
+	decoded := DecodeValue(prop)
+	assert.Equal(t, []any{
+		map[string]any{
+			"name":  "a",
+			"value": "b",
+		},
+		nil,
+		map[string]any{
+			"name":  "c",
+			"value": "d",
+		},
+	}, decoded)
+	t.Logf("\n%+v", printJSON(decoded))
+}

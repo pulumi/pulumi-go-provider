@@ -5,7 +5,8 @@ for working with property values.
 
 1. `Unmarshal` - Extract structured values from a property map, with tracking of unknownness and secretness.
 2. `Decode` - Decode a property map into a JSON-like structure containing only values.
-3. `Traverse` - Traverse a property path, visiting each property value.
+3. `DecodeValue` - Decode a property value into its underlying value, recursively.
+4. `Traverse` - Traverse a property path, visiting each property value.
 
 ## Unmarshaling
 
@@ -198,6 +199,36 @@ assert.Equal(t, map[string]any{
     },
 }, decoded)
 ```
+
+Similarly, the `DecodeValue` function decodes a single property value into its pure value. Here's an example:
+
+```go
+prop := resource.NewArrayProperty([]resource.PropertyValue{
+    resource.NewObjectProperty(resource.PropertyMap{
+        "name":  resource.NewStringProperty("a"),
+        "value": resource.MakeSecret(resource.NewStringProperty("b")),
+    }),
+    resource.MakeComputed(resource.NewObjectProperty(resource.PropertyMap{})),
+    resource.NewObjectProperty(resource.PropertyMap{
+        "name":  resource.NewStringProperty("c"),
+        "value": resource.MakeSecret(resource.NewStringProperty("d")),
+    }),
+})
+
+decoded := DecodeValue(prop)
+assert.Equal(t, []any{
+    map[string]any{
+        "name":  "a",
+        "value": "b",
+    },
+    nil,
+    map[string]any{
+        "name":  "c",
+        "value": "d",
+    },
+}, decoded)
+```
+
 
 ## Traversal
 

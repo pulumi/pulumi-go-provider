@@ -26,7 +26,14 @@ func Decode(props resource.PropertyMap) map[string]any {
 	return decodeM(props)
 }
 
-// decodeV returns a mapper-compatible object map, suitable for deserialization into structures.
+// DecodeValue decodes a property value into its underlying value, recursively.
+// Unknown values are decoded as nil, also in maps and arrays.
+// Secrets are collapsed into their underlying values.
+func DecodeValue(prop resource.PropertyValue) any {
+	return decodeV(prop)
+}
+
+// decodeM returns a mapper-compatible object map, suitable for deserialization into structures.
 func decodeM(props resource.PropertyMap) map[string]any {
 	obj := make(map[string]any)
 	for _, k := range props.StableKeys() {
