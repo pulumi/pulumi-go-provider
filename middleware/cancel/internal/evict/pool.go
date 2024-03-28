@@ -70,7 +70,7 @@ func (e *entry[T]) has(revision int) bool {
 	return !e.empty && e.revision == revision
 }
 
-// Insert a new element into the inOutCahce. The new element can be ejected by calling
+// Insert a new element into the Pool. The new element can be ejected by calling
 // `evict`. If the element was already drained or if `evict` was already called, then
 // `evict` will return true. Otherwise it returns false.
 func (c *Pool[T]) Insert(t T) (ret Handle[T]) {
