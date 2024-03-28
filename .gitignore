@@ -24,3 +24,6 @@ examples/**/pulumi-resource-*
 /.vscode
 
 **/testdata/rapid/**
+
+go.work
+go.work.sum
