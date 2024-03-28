@@ -20,18 +20,19 @@ package cancel
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/middleware/cancel/internal/evict"
 )
 
 func Wrap(provider p.Provider) p.Provider {
-	var canceled bool
-	var cancelFuncs inOutCache[context.CancelFunc]
+	cancelFuncs := evict.Pool[context.CancelFunc]{
+		OnEvict: func(f context.CancelFunc) { f() },
+	}
 	cancel := func(ctx p.Context, timeout float64) (p.Context, func()) {
 		var cancel context.CancelFunc
 		if timeout == noTimeout {
@@ -39,23 +40,13 @@ func Wrap(provider p.Provider) p.Provider {
 		} else {
 			ctx, cancel = p.CtxWithTimeout(ctx, time.Second*time.Duration(timeout))
 		}
-		if canceled {
-			cancel()
-			return ctx, func() {}
-		}
-		evict := cancelFuncs.insert(cancel)
-		return ctx, func() {
-			if !evict() {
-				cancel()
-			}
-		}
+
+		handle := cancelFuncs.Insert(cancel)
+		return ctx, handle.Evict
 	}
 	wrapper := provider
 	wrapper.Cancel = func(ctx p.Context) error {
-		canceled = true
-		for _, f := range cancelFuncs.drain() {
-			f()
-		}
+		cancelFuncs.Close()
 
 		// We consider this a valid implementation of the Cancel RPC request. We still pass on
 		// the request so downstream provides *may* rely on the Cancel call, but we catch an
@@ -136,77 +127,3 @@ func setCancel2[
 }
 
 const noTimeout float64 = 0
-
-// A data structure which provides amortized O(1) insertion, removal, and draining.
-type inOutCache[T any] struct {
-	values     []*entry[T] // An unorderd list of stored values or tombstone (nil) entries.
-	tombstones []int       // An unordered list of empty slots in values
-	m          sync.Mutex
-	inDrain    bool // Wheither the cache is currently being drained. inDrain=true implies m can be ignored.
-}
-
-type entry[T any] struct {
-	evict func() bool
-	value T
-}
-
-// Insert a new element into the inOutCahce. The new element can be ejected by calling
-// `evict`. If the element was already drained or if `evict` was already called, then
-// `evict` will return true. Otherwise it returns false.
-func (h *inOutCache[T]) insert(t T) (evict func() (missing bool)) {
-	h.m.Lock()
-	defer h.m.Unlock()
-	var i int // The index in values of the new entry.
-	if len(h.tombstones) == 0 {
-		i = len(h.values) // We extend values.
-	} else {
-		// There is an empty slot in values, so use that.
-		i = h.tombstones[len(h.tombstones)-1]
-		h.tombstones = h.tombstones[:len(h.tombstones)-1]
-	}
-
-	el := &entry[T]{
-		value: t,
-	}
-	el.evict = func() bool {
-		if !h.inDrain {
-			h.m.Lock()
-			defer h.m.Unlock()
-		}
-		gone := el.evict == nil
-		if gone {
-			return true
-		}
-		el.evict = nil
-		h.values[i] = nil
-		h.tombstones = append(h.tombstones, i)
-		return gone
-
-	}
-
-	// Push the value
-	if len(h.tombstones) == 0 {
-		h.values = append(h.values, el)
-	} else {
-		h.values[i] = el
-	}
-	return el.evict
-}
-
-// Remove all values from the inOutCache, and return them.
-func (h *inOutCache[T]) drain() []T {
-	h.m.Lock()
-	defer h.m.Unlock()
-	// Setting inDrain indicates a trusted actor holds the mutex, indicating that evict
-	// functions don't need to grab the mutex before executing.
-	h.inDrain = true
-	defer func() { h.inDrain = false }()
-	values := []T{} // Values currently in the cache.
-	for _, v := range h.values {
-		if v != nil {
-			v.evict()
-			values = append(values, v.value)
-		}
-	}
-	return values
-}
