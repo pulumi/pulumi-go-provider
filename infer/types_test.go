@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2023, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/stretchr/testify/assert"
@@ -232,4 +233,92 @@ func TestReservedFields(t *testing.T) {
 
 	err = registerTypes[inner](reg)
 	assert.ErrorContains(t, err, `"id" is a reserved field name`)
+}
+
+func noOpRegister() schema.RegisterDerivativeType {
+	m := map[tokens.Type]struct{}{}
+	return func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) {
+		_, known := m[tk]
+		m[tk] = struct{}{}
+		return !known
+	}
+}
+
+func registerOk[T any]() func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+		err := registerTypes[T](noOpRegister())
+		assert.NoError(t, err)
+	}
+}
+
+//nolint:paralleltest
+func TestInvalidOptionalProperty(t *testing.T) {
+	t.Parallel()
+
+	type invalidContainsOptionalEnum struct {
+		Foo MyEnum `pulumi:"name,optional"`
+	}
+	type validContainsEnum struct {
+		Foo MyEnum `pulumi:"name"`
+	}
+
+	type testInner struct {
+		Foo string `pulumi:"foo"`
+	}
+	type invalidContainsOptionalStruct struct {
+		Field testInner `pulumi:"name,optional"`
+	}
+
+	t.Run("invalid optional enum", func(t *testing.T) {
+		t.Parallel()
+		err := registerTypes[invalidContainsOptionalEnum](noOpRegister())
+
+		var actual optionalNeedsPointerError
+		if assert.ErrorAs(t, err, &actual) {
+			assert.Equal(t, optionalNeedsPointerError{
+				ParentStruct: "infer.invalidContainsOptionalEnum",
+				PropertyName: "Foo",
+				Kind:         "enum",
+			}, actual)
+		}
+	})
+
+	t.Run("valid optional enum", registerOk[struct {
+		Foo *MyEnum `pulumi:"name,optional"`
+	}]())
+
+	t.Run("valid enum", registerOk[struct {
+		Foo MyEnum `pulumi:"name"`
+	}]())
+
+	t.Run("invalid optional struct", func(t *testing.T) {
+		t.Parallel()
+		err := registerTypes[invalidContainsOptionalStruct](noOpRegister())
+
+		var actual optionalNeedsPointerError
+		if assert.ErrorAs(t, err, &actual) {
+			assert.Equal(t, optionalNeedsPointerError{
+				ParentStruct: "infer.invalidContainsOptionalStruct",
+				PropertyName: "Field",
+				Kind:         "struct",
+			}, actual)
+		}
+	})
+
+	t.Run("valid optional struct", registerOk[struct {
+		Field *testInner `pulumi:"name,optional"`
+	}]())
+
+	t.Run("valid struct", registerOk[struct {
+		Field testInner `pulumi:"name"`
+	}]())
+
+	t.Run("optional scalar", registerOk[struct {
+		S string `pulumi:"s,optional"`
+	}]())
+
+	t.Run("optional array", registerOk[struct {
+		Arr []testInner `pulumi:"arr,optional"`
+	}]())
 }
