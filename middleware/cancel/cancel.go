@@ -70,91 +70,69 @@ func Wrap(provider p.Provider) p.Provider {
 		}
 		return err
 	}
-	if provider.GetSchema != nil {
-		wrapper.GetSchema = func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.GetSchema(ctx, req)
-		}
-	}
-	if provider.CheckConfig != nil {
-		wrapper.CheckConfig = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.CheckConfig(ctx, req)
-		}
-	}
-	if provider.DiffConfig != nil {
-		wrapper.DiffConfig = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.DiffConfig(ctx, req)
-		}
-	}
-	if provider.Configure != nil {
-		wrapper.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.Configure(ctx, req)
-		}
-	}
-	if provider.Invoke != nil {
-		wrapper.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.Invoke(ctx, req)
-		}
-	}
-	if provider.Check != nil {
-		wrapper.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.Check(ctx, req)
-		}
-	}
-	if provider.Diff != nil {
-		wrapper.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.Diff(ctx, req)
-		}
-	}
-	if provider.Create != nil {
-		wrapper.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-			ctx, end := cancel(ctx, req.Timeout)
-			defer end()
-			return provider.Create(ctx, req)
-		}
-	}
-	if provider.Read != nil {
-		wrapper.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.Read(ctx, req)
-		}
-	}
-	if provider.Update != nil {
-		wrapper.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-			ctx, end := cancel(ctx, req.Timeout)
-			defer end()
-			return provider.Update(ctx, req)
-		}
-	}
-	if provider.Delete != nil {
-		wrapper.Delete = func(ctx p.Context, req p.DeleteRequest) error {
-			ctx, end := cancel(ctx, req.Timeout)
-			defer end()
-			return provider.Delete(ctx, req)
-		}
-	}
-	if provider.Construct != nil {
-		wrapper.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			ctx, end := cancel(ctx, noTimeout)
-			defer end()
-			return provider.Construct(ctx, req)
-		}
-	}
+
+	// Wrap each gRPC method to transform a cancel call into a cancel on
+	// context.Cancel.
+	wrapper.GetSchema = setCancel2(cancel, provider.GetSchema, nil)
+	wrapper.CheckConfig = setCancel2(cancel, provider.CheckConfig, nil)
+	wrapper.DiffConfig = setCancel2(cancel, provider.DiffConfig, nil)
+	wrapper.Configure = setCancel1(cancel, provider.Configure, nil)
+	wrapper.Invoke = setCancel2(cancel, provider.Invoke, nil)
+	wrapper.Check = setCancel2(cancel, provider.Check, nil)
+	wrapper.Diff = setCancel2(cancel, provider.Diff, nil)
+	wrapper.Create = setCancel2(cancel, provider.Create, func(r p.CreateRequest) float64 {
+		return r.Timeout
+	})
+	wrapper.Read = setCancel2(cancel, provider.Read, nil)
+	wrapper.Update = setCancel2(cancel, provider.Update, func(r p.UpdateRequest) float64 {
+		return r.Timeout
+	})
+	wrapper.Delete = setCancel1(cancel, provider.Delete, func(r p.DeleteRequest) float64 {
+		return r.Timeout
+	})
+	wrapper.Construct = setCancel2(cancel, provider.Construct, nil)
 	return wrapper
+}
+
+func setCancel1[
+	Req any,
+	F func(p.Context, Req) error,
+	Cancel func(ctx p.Context, timeout float64) (p.Context, func()),
+	GetTimeout func(Req) float64,
+](cancel Cancel, f F, getTimeout GetTimeout) F {
+	if f == nil {
+		return nil
+	}
+	return func(ctx p.Context, req Req) error {
+		var timeout float64
+		if getTimeout != nil {
+			timeout = getTimeout(req)
+		}
+		ctx, end := cancel(ctx, timeout)
+		defer end()
+		return f(ctx, req)
+	}
+}
+
+func setCancel2[
+	Req any, Resp any,
+	F func(p.Context, Req) (Resp, error),
+	Cancel func(ctx p.Context, timeout float64) (p.Context, func()),
+	GetTimeout func(Req) float64,
+](cancel Cancel, f F, getTimeout GetTimeout) F {
+	if f == nil {
+		return nil
+	}
+	return func(ctx p.Context, req Req) (Resp, error) {
+		var timeout float64
+		if getTimeout != nil {
+			timeout = getTimeout(req)
+		}
+
+		ctx, end := cancel(ctx, timeout)
+		defer end()
+		return f(ctx, req)
+	}
 }
 
 const noTimeout float64 = 0
