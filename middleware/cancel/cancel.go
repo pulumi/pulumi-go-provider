@@ -12,10 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Cancel ensures that contexts are canceled when their associated tasks are completed.
-// There are two parts of this middleware:
-// 1. Tying Provider.Cancel to all associated contexts.
-// 2. Applying timeout information when available.
+// The `cancel` package provides a middle-ware that ties the Cancel gRPC call from Pulumi
+// to Go's `context.Context` cancellation system.
+//
+// Wrapping a provider in `cancel.Wrap` ensures 2 things:
+//
+// 1. When a resource operation times out, the associated context is canceled.
+//
+// 2. When `Cancel` is called, all outstanding gRPC methods have their associated contexts
+// canceled.
+//
+// A `cancel.Wrap`ed provider will still call the `Cancel` method on the underlying
+// provider. If NotImplemented is returned, it will be swallowed.
 package cancel
 
 import (
