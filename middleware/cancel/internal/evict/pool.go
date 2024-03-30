@@ -16,11 +16,16 @@ package evict
 
 import (
 	"sync"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
 // A data structure which provides amortized O(1) insertion, removal, and draining.
 type Pool[T any] struct {
 	entries []entry[T]
+
+	// emptyEntries holds the indexes of empty cells in entries.
+	emptyEntries []int
 
 	m sync.Mutex
 
@@ -50,6 +55,7 @@ func (h Handle[T]) threadUnsafeEvict() {
 
 	h.cache.OnEvict(entry.value)
 	entry.markEmpty()
+	h.cache.emptyEntries = append(h.cache.emptyEntries, h.idx)
 }
 
 type entry[T any] struct {
@@ -83,18 +89,23 @@ func (c *Pool[T]) Insert(t T) (ret Handle[T]) {
 	}
 
 	// Check if an existing cell is empty
-	for i, entry := range c.entries {
-		if entry.empty {
-			entry.empty = false
-			entry.value = t
+	if l := len(c.emptyEntries); l > 0 {
+		// Pop the last empty entry
+		i := c.emptyEntries[l-1]
+		c.emptyEntries = c.emptyEntries[:l-1]
+		entry := &c.entries[i]
 
-			c.entries[i] = entry
+		contract.Assertf(entry.empty, "emptyEntries must contain only evicted slots")
 
-			return Handle[T]{
-				cache:    c,
-				idx:      i,
-				revision: entry.revision,
-			}
+		// Set the entry to hold t
+		entry.value = t
+		entry.empty = false
+
+		// Return a handle to the new entry
+		return Handle[T]{
+			cache:    c,
+			idx:      i,
+			revision: entry.revision,
 		}
 	}
 
