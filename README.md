@@ -1,15 +1,19 @@
 # pulumi-go-provider
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pulumi/pulumi-go-provider)](https://goreportcard.com/report/github.com/pulumi/pulumi-go-provider)
 
-A framework for building Go Providers for Pulumi
+A framework for building Go Providers for Pulumi.
 
-_Note_: This library is in active development, and not everthing is hooked up. You should
+**Library documentation can be found at** [![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
+
+_Note_: This library is in active development, and not everything is hooked up. You should
 expect breaking changes as we fine tune the exposed APIs. We definitely appreciate
 community feedback, but you should probably wait to port any existing providers over.
 
-For detailed instructions on building providers with `infer`, see [infer/README.md](./infer/README.md).
+The highest level of `pulumi-go-provider` is `infer`, which derives as much possible from
+your Go code. The "Hello, Pulumi" example below uses `infer`. For detailed instructions on
+building providers with `infer`, click
+[here](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider).
 
 ## The "Hello, Pulumi" Provider
 
