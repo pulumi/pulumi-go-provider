@@ -33,11 +33,32 @@ var configKey configKeyType
 
 // Configure an inferred provider.
 type Options struct {
+	// Metadata describes provider level metadata for the schema.
+	//
+	// Look at [schema.Metadata] to see the set of configurable options.
+	//
+	// It does not contain runtime details for the provider.
 	schema.Metadata
-	Resources  []InferredResource  // Inferred resources served by the provider.
-	Components []InferredComponent // Inferred components served by the provider.
-	Functions  []InferredFunction  // Inferred functions served by the provider.
-	Config     InferredConfig
+
+	// The set of custom resources served by the provider.
+	//
+	// To create an [InferredResource], use [Resource].
+	Resources []InferredResource
+
+	// The set of component resources served by the provider.
+	//
+	// To create an [InferredComponent], use [Component].
+	Components []InferredComponent
+
+	// The set of functions served by the provider.
+	//
+	// To create an [InferredFunction], use [Function].
+	Functions []InferredFunction
+
+	// The config used by the provider, if any.
+	//
+	// To create an [InferredConfig], use [Config].
+	Config InferredConfig
 
 	// ModuleMap provides a mapping between go modules and pulumi modules.
 	//
@@ -101,11 +122,18 @@ func (o Options) schema() schema.Options {
 	}
 }
 
-// Create a new inferred provider from `opts`.
+// Provider creates a new inferred provider from `opts`.
+//
+// To customize the resulting provider, including setting resources, functions, config options and other
+// schema metadata, look at the [Options] struct.
 func Provider(opts Options) p.Provider {
 	return Wrap(p.Provider{}, opts)
 }
 
+// Wrap wraps a compatible underlying provider in an inferred provider (as described by options).
+//
+// The resulting provider will respond to resources and functions that are described in `opts`, delegating
+// unknown calls to the underlying provider.
 func Wrap(provider p.Provider, opts Options) p.Provider {
 	provider = dispatch.Wrap(provider, opts.dispatch())
 	provider = schema.Wrap(provider, opts.schema())
