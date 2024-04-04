@@ -38,8 +38,9 @@ type ComponentResource[I any, O pulumi.ComponentResource] interface {
 	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
-// A component resource inferred from code. To get an instance of an InferredComponent,
-// call the function Component.
+// A component resource inferred from code.
+//
+// To create an [InferredComponent], call the [Component] function.
 type InferredComponent interface {
 	t.ComponentResource
 	schema.Resource
