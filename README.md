@@ -4,8 +4,11 @@
 
 A framework for building Go Providers for Pulumi.
 
+<<<<<<< HEAD
 **Library documentation can be found at** [![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
 
+=======
+>>>>>>> 7b7884d (Typos in README)
 _Note_: This library is in active development, and not everything is hooked up. You should
 expect breaking changes as we fine tune the exposed APIs. We definitely appreciate
 community feedback, but you should probably wait to port any existing providers over.
@@ -37,7 +40,7 @@ type HelloWorld struct{}
 
 // Each resource has in input struct, defining what arguments it accepts.
 type HelloWorldArgs struct {
-	// Fields projected into Pulumi must be public and hava a `pulumi:"..."` tag.
+	// Fields projected into Pulumi must be public and have a `pulumi:"..."` tag.
 	// The pulumi tag doesn't need to match the field name, but its generally a
 	// good idea.
 	Name string `pulumi:"name"`
