@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -30,6 +31,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -894,7 +896,9 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 	}, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Create(
+	ctx p.Context, req p.CreateRequest,
+) (resp p.CreateResponse, retError error) {
 	r := rc.getInstance()
 
 	var input I
@@ -905,11 +909,32 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 	}
 
 	id, o, err := (*r).Create(ctx, req.Urn.Name(), input, req.Preview)
-	if err != nil {
+	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
+		defer func(createErr error) {
+			// If there was an error, it indicates a problem with serializing
+			// the output.
+			//
+			// Failing to return full properties here will leak the created
+			// resource so we should warn users.
+			if retError != nil {
+				retError = internal.Errorf("failed to return partial resource: %w;"+
+					" %s may be leaked", retError, req.Urn)
+			} else {
+				// We don't want to loose information conveyed in the
+				// error chain returned by the user.
+				retError = createErr
+			}
+
+			resp.PartialState = &p.InitializationFailed{
+				Reasons: initFailed.Reasons,
+			}
+		}(err)
+	} else if err != nil {
 		return p.CreateResponse{}, err
 	}
+
 	if id == "" && !req.Preview {
-		return p.CreateResponse{}, fmt.Errorf("internal error: '%s' was created without an id", req.Urn)
+		return p.CreateResponse{}, ProviderErrorf("'%s' was created without an id", req.Urn)
 	}
 
 	m, err := encoder.AllowUnknown(req.Preview).Encode(o)
@@ -926,10 +951,12 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 	return p.CreateResponse{
 		ID:         id,
 		Properties: m,
-	}, nil
+	}, err
 }
 
-func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Read(
+	ctx p.Context, req p.ReadRequest,
+) (resp p.ReadResponse, retError error) {
 	r := rc.getInstance()
 	var inputs I
 	var state O
@@ -955,9 +982,30 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 		}, nil
 	}
 	id, inputs, state, err := read.Read(ctx, req.ID, inputs, state)
-	if err != nil {
+	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
+		defer func(readErr error) {
+			// If there was an error, it indicates a problem with serializing
+			// the output.
+			//
+			// Failing to return full properties here will leak the created
+			// resource so we should warn users.
+			if retError != nil {
+				retError = internal.Errorf("failed to return partial resource: %w",
+					retError)
+			} else {
+				// We don't want to loose information conveyed in the
+				// error chain returned by the user.
+				retError = readErr
+			}
+
+			resp.PartialState = &p.InitializationFailed{
+				Reasons: initFailed.Reasons,
+			}
+		}(err)
+	} else if err != nil {
 		return p.ReadResponse{}, err
 	}
+
 	i, err := inputEncoder.Encode(inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
@@ -974,7 +1022,9 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	}, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Update(
+	ctx p.Context, req p.UpdateRequest,
+) (resp p.UpdateResponse, retError error) {
 	r := rc.getInstance()
 	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
 	if !ok {
@@ -996,6 +1046,28 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 		return p.UpdateResponse{}, err
 	}
 	o, err := update.Update(ctx, req.ID, olds, news, req.Preview)
+	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
+		defer func(updateErr error) {
+			// If there was an error, it indicates a problem with serializing
+			// the output.
+			//
+			// Failing to return full properties here will leak the created
+			// resource so we should warn users.
+			if retError != nil {
+				retError = internal.Errorf("failed to return partial resource: %w",
+					retError)
+			} else {
+				// We don't want to loose information conveyed in the
+				// error chain returned by the user.
+				retError = updateErr
+			}
+
+			resp.PartialState = &p.InitializationFailed{
+				Reasons: initFailed.Reasons,
+			}
+		}(err)
+		err = nil
+	}
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}

@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2022-2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -202,6 +203,13 @@ type CreateRequest struct {
 type CreateResponse struct {
 	ID         string                // the ID of the created resource.
 	Properties presource.PropertyMap // any properties that were computed during creation.
+
+	// non-nil to indicate that the create failed and left the resource in a partial
+	// state.
+	//
+	// If PartialState is non-nil, then an error will be returned, annotated with
+	// [pulumirpc.ErrorResourceInitFailed].
+	PartialState *InitializationFailed
 }
 
 type ReadRequest struct {
@@ -215,6 +223,13 @@ type ReadResponse struct {
 	ID         string                // the ID of the resource read back (or empty if missing).
 	Properties presource.PropertyMap // the state of the resource read from the live environment.
 	Inputs     presource.PropertyMap // the inputs for this resource that would be returned from Check.
+
+	// non-nil to indicate that the read failed and left the resource in a partial
+	// state.
+	//
+	// If PartialState is non-nil, then an error will be returned, annotated with
+	// [pulumirpc.ErrorResourceInitFailed].
+	PartialState *InitializationFailed
 }
 
 type UpdateRequest struct {
@@ -228,7 +243,14 @@ type UpdateRequest struct {
 }
 
 type UpdateResponse struct {
-	Properties presource.PropertyMap // any properties that were computed during updating.
+	// any properties that were computed during updating.
+	Properties presource.PropertyMap
+	// non-nil to indicate that the update failed and left the resource in a partial
+	// state.
+	//
+	// If PartialState is non-nil, then an error will be returned, annotated with
+	// [pulumirpc.ErrorResourceInitFailed].
+	PartialState *InitializationFailed
 }
 
 type DeleteRequest struct {
@@ -236,6 +258,13 @@ type DeleteRequest struct {
 	Urn        presource.URN         // the Pulumi URN for this resource.
 	Properties presource.PropertyMap // the current properties on the resource.
 	Timeout    float64               // the delete request timeout represented in seconds.
+}
+
+// InitializationFailed indicates that a resource exists but failed to initialize, and is
+// thus in a partial state.
+type InitializationFailed struct {
+	// Reasons why the resource did not fully initialize.
+	Reasons []string
 }
 
 // Provide a structured error for missing provider keys.
@@ -824,6 +853,16 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 		Timeout:    req.GetTimeout(),
 		Preview:    req.GetPreview(),
 	})
+	if initFailed := r.PartialState; initFailed != nil {
+		prop, propErr := p.asStruct(r.Properties)
+		err = errors.Join(rpcerror.WithDetails(
+			rpcerror.New(codes.Unknown, err.Error()),
+			&rpc.ErrorResourceInitFailed{
+				Id:         r.ID,
+				Properties: prop,
+				Reasons:    initFailed.Reasons,
+			}), propErr)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -854,6 +893,18 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 		Properties: propMap,
 		Inputs:     inputMap,
 	})
+	if initFailed := r.PartialState; initFailed != nil {
+		props, propErr := p.asStruct(r.Properties)
+		inputs, inputsErr := p.asStruct(r.Inputs)
+		err = errors.Join(rpcerror.WithDetails(
+			rpcerror.New(codes.Unknown, err.Error()),
+			&rpc.ErrorResourceInitFailed{
+				Id:         r.ID,
+				Inputs:     inputs,
+				Properties: props,
+				Reasons:    initFailed.Reasons,
+			}), propErr, inputsErr)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -890,6 +941,16 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
 		Preview:       req.GetPreview(),
 	})
+	if initFailed := r.PartialState; initFailed != nil {
+		prop, propErr := p.asStruct(r.Properties)
+		err = errors.Join(rpcerror.WithDetails(
+			rpcerror.New(codes.Unknown, err.Error()),
+			&rpc.ErrorResourceInitFailed{
+				Id:         req.GetId(),
+				Properties: prop,
+				Reasons:    initFailed.Reasons,
+			}), propErr)
+	}
 	if err != nil {
 		return nil, err
 	}
