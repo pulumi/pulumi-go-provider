@@ -1,3 +1,17 @@
+// Copyright 2024, Pulumi Corporation.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package openapipulschema
 
 import (
@@ -15,15 +29,15 @@ import (
 
 const packageName = "openapi"
 
-func Wrap(provider p.Provider, openApiUrl url.URL, metadata schema.Metadata) (p.Provider, error) {
-	openApiLoader := openapi3.NewLoader()
-	openApiLoader.IsExternalRefsAllowed = true
+func Wrap(provider p.Provider, oaURL url.URL, metadata schema.Metadata) (p.Provider, error) {
+	openAPILoader := openapi3.NewLoader()
+	openAPILoader.IsExternalRefsAllowed = true
 
-	openApiDoc, err := openApiLoader.LoadFromURI(&openApiUrl)
+	openAPIDoc, err := openAPILoader.LoadFromURI(&oaURL)
 	if err != nil {
-		return provider, fmt.Errorf("loading OpenAPI spec at %v: %w", openApiUrl, err)
+		return provider, fmt.Errorf("loading OpenAPI spec at %v: %w", oaURL, err)
 	}
-	openApiDoc.InternalizeRefs(context.Background(), nil)
+	openAPIDoc.InternalizeRefs(context.Background(), nil)
 
 	pkg := pschema.PackageSpec{
 		Name: packageName,
@@ -52,7 +66,7 @@ func Wrap(provider p.Provider, openApiUrl url.URL, metadata schema.Metadata) (p.
 
 	// OpenAPIContext combines the OpenAPI spec with the Pulumi package schema for pulschema.
 	openAPICtx := &pulschema.OpenAPIContext{
-		Doc: *openApiDoc,
+		Doc: *openAPIDoc,
 		Pkg: &pkg,
 	}
 
@@ -61,7 +75,7 @@ func Wrap(provider p.Provider, openApiUrl url.URL, metadata schema.Metadata) (p.
 	// populates pkg indirectly through openAPICtx
 	_, _, err = openAPICtx.GatherResourcesFromAPI(csharpNamespaces)
 	if err != nil {
-		return provider, fmt.Errorf("generating resources from OpenAPI spec at %v: %w", openApiUrl, err)
+		return provider, fmt.Errorf("generating resources from OpenAPI spec at %v: %w", oaURL, err)
 	}
 
 	schemaBytes, err := json.MarshalIndent(openAPICtx.Pkg, "", "  ")
@@ -70,7 +84,7 @@ func Wrap(provider p.Provider, openApiUrl url.URL, metadata schema.Metadata) (p.
 	}
 	schemaString := string(schemaBytes)
 
-	provider.GetSchema = func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+	provider.GetSchema = func(_ p.Context, _ p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 		return p.GetSchemaResponse{
 			Schema: schemaString,
 		}, err
