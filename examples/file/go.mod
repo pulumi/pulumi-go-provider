@@ -4,7 +4,7 @@ replace github.com/pulumi/pulumi-go-provider => ../..
 
 replace github.com/pulumi/pulumi-go-provider/integration => ../../integration
 
-go 1.20
+go 1.21
 
 require (
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
