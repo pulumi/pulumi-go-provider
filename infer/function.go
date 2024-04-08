@@ -122,8 +122,7 @@ func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 }
 
 func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-	var i I
-	encoder, mapErr := ende.Decode(req.Args, &i)
+	encoder, i, mapErr := ende.Decode[I](req.Args)
 	mapFailures, err := checkFailureFromMapError(mapErr)
 	if err != nil {
 		return p.InvokeResponse{}, err
