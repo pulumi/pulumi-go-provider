@@ -170,6 +170,18 @@ type Metadata struct {
 	PluginDownloadURL string
 }
 
+func (m *Metadata) PopulatePackageSpec(pkg *schema.PackageSpec) {
+	pkg.DisplayName = m.DisplayName
+	pkg.Description = m.Description
+	pkg.Keywords = m.Keywords
+	pkg.Homepage = m.Homepage
+	pkg.Repository = m.Repository
+	pkg.Publisher = m.Publisher
+	pkg.LogoURL = m.LogoURL
+	pkg.License = m.License
+	pkg.PluginDownloadURL = m.PluginDownloadURL
+}
+
 // Wrap a provider with the facilities to serve GetSchema.
 func Wrap(provider p.Provider, opts Options) p.Provider {
 	state := state{
@@ -282,22 +294,15 @@ func (s *state) mergeSchemas() error {
 func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) {
 	info := p.GetRunInfo(ctx)
 	pkg := schema.PackageSpec{
-		Name:              info.PackageName,
-		Version:           info.Version,
-		DisplayName:       s.DisplayName,
-		Description:       s.Description,
-		Keywords:          s.Keywords,
-		Homepage:          s.Homepage,
-		Repository:        s.Repository,
-		Publisher:         s.Publisher,
-		LogoURL:           s.LogoURL,
-		License:           s.License,
-		PluginDownloadURL: s.PluginDownloadURL,
-		Resources:         map[string]schema.ResourceSpec{},
-		Functions:         map[string]schema.FunctionSpec{},
-		Types:             map[string]schema.ComplexTypeSpec{},
-		Language:          map[string]schema.RawMessage{},
+		Name:      info.PackageName,
+		Version:   info.Version,
+		Resources: map[string]schema.ResourceSpec{},
+		Functions: map[string]schema.FunctionSpec{},
+		Types:     map[string]schema.ComplexTypeSpec{},
+		Language:  map[string]schema.RawMessage{},
 	}
+	s.PopulatePackageSpec(&pkg)
+
 	for k, v := range s.LanguageMap {
 		bytes, err := json.Marshal(v)
 		if err != nil {
