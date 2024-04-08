@@ -802,7 +802,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
 	if hasUpdate {
-		schema, err := rc.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) { return false })
+		schema, err := rc.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
 		if err != nil {
 			return p.DiffResponse{}, err
 		}

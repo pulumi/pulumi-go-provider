@@ -316,62 +316,62 @@ func (d Provider) WithDefaults() Provider {
 		}
 	}
 	if d.Cancel == nil {
-		d.Cancel = func(ctx Context) error {
+		d.Cancel = func(Context) error {
 			return nyi("Cancel")
 		}
 	}
 	if d.CheckConfig == nil {
-		d.CheckConfig = func(ctx Context, req CheckRequest) (CheckResponse, error) {
+		d.CheckConfig = func(Context, CheckRequest) (CheckResponse, error) {
 			return CheckResponse{}, nyi("CheckConfig")
 		}
 	}
 	if d.DiffConfig == nil {
-		d.DiffConfig = func(ctx Context, req DiffRequest) (DiffResponse, error) {
+		d.DiffConfig = func(Context, DiffRequest) (DiffResponse, error) {
 			return DiffResponse{}, nyi("DiffConfig")
 		}
 	}
 	if d.Configure == nil {
-		d.Configure = func(ctx Context, req ConfigureRequest) error {
+		d.Configure = func(Context, ConfigureRequest) error {
 			return nil
 		}
 	}
 	if d.Invoke == nil {
-		d.Invoke = func(ctx Context, req InvokeRequest) (InvokeResponse, error) {
+		d.Invoke = func(Context, InvokeRequest) (InvokeResponse, error) {
 			return InvokeResponse{}, nyi("Invoke")
 		}
 	}
 	if d.Check == nil {
-		d.Check = func(ctx Context, req CheckRequest) (CheckResponse, error) {
+		d.Check = func(Context, CheckRequest) (CheckResponse, error) {
 			return CheckResponse{}, nyi("Check")
 		}
 	}
 	if d.Diff == nil {
-		d.Diff = func(ctx Context, req DiffRequest) (DiffResponse, error) {
+		d.Diff = func(Context, DiffRequest) (DiffResponse, error) {
 			return DiffResponse{}, nyi("Diff")
 		}
 	}
 	if d.Create == nil {
-		d.Create = func(ctx Context, req CreateRequest) (CreateResponse, error) {
+		d.Create = func(Context, CreateRequest) (CreateResponse, error) {
 			return CreateResponse{}, nyi("Create")
 		}
 	}
 	if d.Read == nil {
-		d.Read = func(ctx Context, req ReadRequest) (ReadResponse, error) {
+		d.Read = func(Context, ReadRequest) (ReadResponse, error) {
 			return ReadResponse{}, nyi("Read")
 		}
 	}
 	if d.Update == nil {
-		d.Update = func(ctx Context, req UpdateRequest) (UpdateResponse, error) {
+		d.Update = func(Context, UpdateRequest) (UpdateResponse, error) {
 			return UpdateResponse{}, nyi("Update")
 		}
 	}
 	if d.Delete == nil {
-		d.Delete = func(ctx Context, req DeleteRequest) error {
+		d.Delete = func(Context, DeleteRequest) error {
 			return nyi("Delete")
 		}
 	}
 	if d.Construct == nil {
-		d.Construct = func(ctx Context, cr ConstructRequest) (ConstructResponse, error) {
+		d.Construct = func(Context, ConstructRequest) (ConstructResponse, error) {
 			return ConstructResponse{}, nyi("Construct")
 		}
 	}
@@ -950,7 +950,7 @@ func (p *provider) Construct(pctx context.Context, req *rpc.ConstructRequest) (*
 	f := func(ctx Context, construct ConstructFunc) (ConstructResponse, error) {
 		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
 			func(
-				ctx *pulumi.Context, typ, name string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,
+				ctx *pulumi.Context, _, _ string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,
 			) (*comProvider.ConstructResult, error) {
 				r, err := construct(ctx, inputs, options)
 				if err != nil {

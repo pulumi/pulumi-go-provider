@@ -84,7 +84,7 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 		t = reflect.New(v.Type().Elem()).Interface().(T)
 	}
 
-	r, err := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	r, err := c.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
 	if err != nil {
 		return p.CheckResponse{}, fmt.Errorf("could not get config secrets: %w", err)
 	}
@@ -180,7 +180,7 @@ func (c *config[T]) handleConfigFailures(ctx p.Context, err mapper.MappingError)
 	}
 
 	pkgName := ctx.RuntimeInformation().PackageName
-	schema, mErr := c.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) bool { return false })
+	schema, mErr := c.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
 	if mErr != nil {
 		return mErr
 	}

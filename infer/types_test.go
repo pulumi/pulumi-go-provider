@@ -225,7 +225,7 @@ type inner struct {
 func TestReservedFields(t *testing.T) {
 	t.Parallel()
 
-	reg := func(typ tokens.Type, spec pschema.ComplexTypeSpec) bool {
+	reg := func(tokens.Type, pschema.ComplexTypeSpec) bool {
 		return true
 	}
 	err := registerTypes[outer](reg)
@@ -237,7 +237,7 @@ func TestReservedFields(t *testing.T) {
 
 func noOpRegister() schema.RegisterDerivativeType {
 	m := map[tokens.Type]struct{}{}
-	return func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) {
+	return func(tk tokens.Type, _ pschema.ComplexTypeSpec) bool {
 		_, known := m[tk]
 		m[tk] = struct{}{}
 		return !known

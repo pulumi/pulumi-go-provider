@@ -296,7 +296,7 @@ func TestDiff(t *testing.T) {
 			Context{context.Background()},
 			diffRequest,
 			&struct{}{},
-			func(s string) bool { return false },
+			func(string) bool { return false },
 		)
 		assert.NoError(t, err)
 		assert.Len(t, resp.DetailedDiff, len(test.diff))
