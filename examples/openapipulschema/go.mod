@@ -1,4 +1,4 @@
-module github.com/pulumi/pulumi-go-provider/examples/sample-openapi-provider
+module github.com/pulumi/pulumi-go-provider/examples/openapipulschema
 
 go 1.22.2
 
