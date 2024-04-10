@@ -73,6 +73,7 @@ assumed to be structural. The diff will require a replace if any field changes, 
 didn't implement `Update`. `Check` will confirm that our inputs can be serialized into
 `HelloWorldArgs` and `Read` will do the same. `Delete` is a no-op.
 
+
 ## Library structure
 
 The library is designed to allow as many use cases as possible while still keeping simple
@@ -90,3 +91,13 @@ things simple. The library comes in 4 parts:
    started with a provider in go.[^1]
 
 [^1]: The "Hello, Pulumi" example shows the `infer` layer.
+
+
+## Generating SDKs and schema
+
+In order to use the provider in Pulumi programs, you need to generate at least one SDK.
+`pulumi package gen-sdk ./bin/your-provider` will do this, by default for all supported
+languages. See `pulumi package gen-sdk --help` for more options.
+
+It's not necessary to export the Pulumi schema to use the provider. If you would like to
+do so, e.g., for debugging purposes, you can use `pulumi package get-schema ./bin/your-provider`.
