@@ -90,3 +90,14 @@ things simple. The library comes in 4 parts:
    started with a provider in go.[^1]
 
 [^1]: The "Hello, Pulumi" example shows the `infer` layer.
+
+## Generating SDKs and schema
+
+Using [Pulumi YAML](https://www.pulumi.com/docs/languages-sdks/yaml/), you can use the
+provider as-is. In order to use the provider in
+[other languages](https://www.pulumi.com/docs/languages-sdks/), you need to generate at
+least one SDK. `pulumi package gen-sdk ./bin/your-provider` will do this, by default for
+all supported languages. See `pulumi package gen-sdk --help` for more options.
+
+It's not necessary to export the Pulumi schema to use the provider. If you would like to
+do so, e.g., for debugging purposes, you can use `pulumi package get-schema ./bin/your-provider`.
