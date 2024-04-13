@@ -30,11 +30,12 @@ type Encoder struct{ *ende }
 // The returned mapper can restore the metadata it removed when translating `dst` back to
 // a property map. If the shape of `T` matches `m`, then this will be a no-op:
 //
-//	var value T
-//	encoder, _ := Decode(m, &value)
+//	encoder, value, _ := Decode(m)
 //	m, _ = encoder.Encode(value)
-func Decode[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
-	return decode(m, dst, false, false)
+func Decode[T any](m resource.PropertyMap) (Encoder, T, mapper.MappingError) {
+	var dst T
+	enc, err := decode(m, &dst, false, false)
+	return enc, dst, err
 }
 
 // DecodeTolerateMissing is like Decode, but doesn't return an error for a missing value.
@@ -60,6 +61,10 @@ func decode(
 		IgnoreMissing:      allowMissing,
 	}).Decode(m.Mappable(), target.Addr().Interface())
 
+}
+
+func DecodeAny(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
+	return decode(m, dst, false, false)
 }
 
 // An ENcoder DEcoder
@@ -302,6 +307,9 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 		"NewPropertyMapFromMap cannot produce unknown values")
 	contract.Assertf(!m.ContainsSecrets(),
 		"NewPropertyMapFromMap cannot produce secrets")
+	if e == nil {
+		return m.ObjectValue(), nil
+	}
 	for _, s := range e.changes {
 		v, ok := s.path.Get(m)
 		if !ok && s.emptyAction == isNil {
