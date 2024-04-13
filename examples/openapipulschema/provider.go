@@ -36,16 +36,11 @@ func main() {
 		DisplayName: "ARM via OpenAI",
 	}
 
-	provider, err := Provider(*specUri, m)
+	provider, err := openapipulschema.Provider(*specUri, m)
 	exitIfErr(err)
 
-	err = p.RunProvider("azurerm", "0.1.0", provider)
+	err = p.RunProvider("azurerm", "0.1.0", *provider)
 	exitIfErr(err)
-}
-
-// Create a new inferred provider from the given OpenAPI spec and `metadata`.
-func Provider(openApiUrl url.URL, metadata schema.Metadata) (p.Provider, error) {
-	return openapipulschema.Wrap(p.Provider{}, openApiUrl, metadata)
 }
 
 func exitIfErr(err error) {

@@ -29,13 +29,13 @@ import (
 
 const packageName = "openapi"
 
-func Wrap(provider p.Provider, oaURL url.URL, metadata schema.Metadata) (p.Provider, error) {
+func Provider(oaURL url.URL, metadata schema.Metadata) (*p.Provider, error) {
 	openAPILoader := openapi3.NewLoader()
 	openAPILoader.IsExternalRefsAllowed = true
 
 	openAPIDoc, err := openAPILoader.LoadFromURI(&oaURL)
 	if err != nil {
-		return provider, fmt.Errorf("loading OpenAPI spec at %v: %w", oaURL, err)
+		return nil, fmt.Errorf("loading OpenAPI spec at %v: %w", oaURL, err)
 	}
 	openAPIDoc.InternalizeRefs(context.Background(), nil)
 
@@ -75,20 +75,22 @@ func Wrap(provider p.Provider, oaURL url.URL, metadata schema.Metadata) (p.Provi
 	// populates pkg indirectly through openAPICtx
 	_, _, err = openAPICtx.GatherResourcesFromAPI(csharpNamespaces)
 	if err != nil {
-		return provider, fmt.Errorf("generating resources from OpenAPI spec at %v: %w", oaURL, err)
+		return nil, fmt.Errorf("generating resources from OpenAPI spec at %v: %w", oaURL, err)
 	}
 
 	schemaBytes, err := json.MarshalIndent(openAPICtx.Pkg, "", "  ")
 	if err != nil {
-		return provider, err
+		return nil, err
 	}
 	schemaString := string(schemaBytes)
 
-	provider.GetSchema = func(_ p.Context, _ p.GetSchemaRequest) (p.GetSchemaResponse, error) {
-		return p.GetSchemaResponse{
-			Schema: schemaString,
-		}, err
+	provider := p.Provider{
+		GetSchema: func(p.Context, p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+			return p.GetSchemaResponse{
+				Schema: schemaString,
+			}, err
+		},
 	}
 
-	return provider, nil
+	return &provider, nil
 }
