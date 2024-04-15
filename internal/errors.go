@@ -1,4 +1,4 @@
-// Copyright 2023-2024, Pulumi Corporation.
+// Copyright 2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Most tests can be performed at the provider level, since the logic lives in one of the
-// layers. These tests are not those tests. When we are unsure about (de)serialization, we
-// use replay tests against the underlying gRPC server.
-package grpc
+package internal
+
+import "fmt"
+
+// A error that indicates a bug in the pulumi-go-provider framework.
+type Error struct {
+	Inner error
+}
+
+func Errorf(msg string, a ...any) error {
+	return Error{fmt.Errorf(msg, a...)}
+}
+
+func (err Error) Error() string {
+	const (
+		prefix = "internal error"
+		suffix = "; please report this to https://github.com/pulumi/pulumi-go-provider/issues"
+	)
+	if err.Inner == nil {
+		return prefix + suffix
+	}
+	return prefix + ": " + err.Inner.Error() + suffix
+}
