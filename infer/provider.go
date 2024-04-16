@@ -25,6 +25,8 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type configKeyType struct{}
@@ -140,7 +142,21 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 
 	config := opts.Config
 	if config != nil {
-		provider.Configure = config.configure
+		if prev := provider.Configure; prev != nil {
+			provider.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
+				err := config.configure(ctx, req)
+				if err != nil {
+					return err
+				}
+				err = prev(ctx, req)
+				if status.Code(err) == codes.Unimplemented {
+					return nil
+				}
+				return err
+			}
+		} else {
+			provider.Configure = config.configure
+		}
 		provider.DiffConfig = config.diffConfig
 		provider.CheckConfig = config.checkConfig
 		provider = mContext.Wrap(provider, func(ctx p.Context) p.Context {
