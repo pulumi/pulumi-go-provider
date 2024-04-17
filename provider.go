@@ -49,9 +49,10 @@ type GetSchemaResponse struct {
 }
 
 type CheckRequest struct {
-	Urn  presource.URN
-	Olds presource.PropertyMap
-	News presource.PropertyMap
+	Urn        presource.URN
+	Olds       presource.PropertyMap
+	News       presource.PropertyMap
+	RandomSeed []byte
 }
 
 type CheckFailure struct {
@@ -689,9 +690,10 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 		return nil, err
 	}
 	r, err := p.client.CheckConfig(p.ctx(ctx, presource.URN(req.GetUrn())), CheckRequest{
-		Urn:  presource.URN(req.GetUrn()),
-		Olds: olds,
-		News: news,
+		Urn:        presource.URN(req.GetUrn()),
+		Olds:       olds,
+		News:       news,
+		RandomSeed: req.RandomSeed,
 	})
 
 	if err != nil {
