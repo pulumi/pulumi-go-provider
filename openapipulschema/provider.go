@@ -85,7 +85,7 @@ func Provider(oaURL url.URL, metadata schema.Metadata) (*p.Provider, error) {
 	schemaString := string(schemaBytes)
 
 	provider := p.Provider{
-		GetSchema: func(p.Context, p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+		GetSchema: func(context.Context, p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			return p.GetSchemaResponse{
 				Schema: schemaString,
 			}, err
