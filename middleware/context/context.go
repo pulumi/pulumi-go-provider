@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2022-2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,44 +25,39 @@ type Wrapper = func(p.Context) p.Context
 // Create a Provider that calls `wrapper` on each context passed into `provider`.
 func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 	return p.Provider{
-		GetSchema: func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
-			return provider.GetSchema(wrapper(ctx), req)
-		},
-		Cancel: func(ctx p.Context) error {
-			return provider.Cancel(wrapper(ctx))
-		},
-		CheckConfig: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			return provider.CheckConfig(wrapper(ctx), req)
-		},
-		DiffConfig: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			return provider.DiffConfig(wrapper(ctx), req)
-		},
-		Configure: func(ctx p.Context, req p.ConfigureRequest) error {
-			return provider.Configure(wrapper(ctx), req)
-		},
-		Invoke: func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-			return provider.Invoke(wrapper(ctx), req)
-		},
-		Check: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			return provider.Check(wrapper(ctx), req)
-		},
-		Diff: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			return provider.Diff(wrapper(ctx), req)
-		},
-		Create: func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
-			return provider.Create(wrapper(ctx), req)
-		},
-		Read: func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
-			return provider.Read(wrapper(ctx), req)
-		},
-		Update: func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-			return provider.Update(wrapper(ctx), req)
-		},
-		Delete: func(ctx p.Context, req p.DeleteRequest) error {
-			return provider.Delete(wrapper(ctx), req)
-		},
-		Construct: func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			return provider.Construct(wrapper(ctx), req)
-		},
+		GetSchema:   delegateIO(wrapper, provider.GetSchema),
+		Cancel:      delegate(wrapper, provider.Cancel),
+		CheckConfig: delegateIO(wrapper, provider.CheckConfig),
+		DiffConfig:  delegateIO(wrapper, provider.DiffConfig),
+		Configure:   delegateI(wrapper, provider.Configure),
+		Invoke:      delegateIO(wrapper, provider.Invoke),
+		Check:       delegateIO(wrapper, provider.Check),
+		Diff:        delegateIO(wrapper, provider.Diff),
+		Create:      delegateIO(wrapper, provider.Create),
+		Read:        delegateIO(wrapper, provider.Read),
+		Update:      delegateIO(wrapper, provider.Update),
+		Delete:      delegateI(wrapper, provider.Delete),
+		Construct:   delegateIO(wrapper, provider.Construct),
 	}
+}
+
+func delegateIO[I, O any, F func(p.Context, I) (O, error)](wrapper Wrapper, method F) F {
+	if method == nil {
+		return nil
+	}
+	return func(ctx p.Context, req I) (O, error) { return method(wrapper(ctx), req) }
+}
+
+func delegateI[I any, F func(p.Context, I) error](wrapper Wrapper, method F) F {
+	if method == nil {
+		return nil
+	}
+	return func(ctx p.Context, req I) error { return method(wrapper(ctx), req) }
+}
+
+func delegate[F func(p.Context) error](wrapper Wrapper, method F) F {
+	if method == nil {
+		return nil
+	}
+	return func(ctx p.Context) error { return method(wrapper(ctx)) }
 }
