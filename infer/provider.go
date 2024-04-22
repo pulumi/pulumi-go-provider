@@ -18,21 +18,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/config"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/key"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/cancel"
 	mContext "github.com/pulumi/pulumi-go-provider/middleware/context"
 	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
-
-type configKeyType struct{}
-
-var configKey configKeyType
 
 // Configure an inferred provider.
 type Options struct {
@@ -141,11 +140,12 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 	provider = dispatch.Wrap(provider, opts.dispatch())
 	provider = schema.Wrap(provider, opts.schema())
 
-	config := opts.Config
-	if config != nil {
+	c := opts.Config
+	if c != nil {
 		if prev := provider.Configure; prev != nil {
+
 			provider.Configure = func(ctx context.Context, req p.ConfigureRequest) error {
-				err := config.configure(ctx, req)
+				err := configure(ctx, c.(config.Internal), req)
 				if err != nil {
 					return err
 				}
@@ -156,12 +156,14 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 				return err
 			}
 		} else {
-			provider.Configure = config.configure
+			provider.Configure = func(ctx context.Context, req p.ConfigureRequest) error {
+				return configure(ctx, c.(config.Internal), req)
+			}
 		}
-		provider.DiffConfig = config.diffConfig
-		provider.CheckConfig = config.checkConfig
+		provider.DiffConfig = c.diffConfig
+		provider.CheckConfig = c.checkConfig
 		provider = mContext.Wrap(provider, func(ctx context.Context) context.Context {
-			return context.WithValue(ctx, configKey, opts.Config)
+			return context.WithValue(ctx, key.Config, opts.Config)
 		})
 	}
 	return cancel.Wrap(provider)
@@ -172,24 +174,24 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 // Note: GetConfig will panic if the type of T does not match the type of the config or if
 // the provider has not supplied a config.
 func GetConfig[T any](ctx context.Context) T {
-	v := ctx.Value(configKey)
+	v := ctx.Value(key.Config)
 	var t T
 	if v == nil {
 		panic(fmt.Sprintf("Config[%T] called on a provider without a config", t))
 	}
 	c := v.(InferredConfig)
-	if c, ok := c.(*config[T]); ok {
-		if c.t == nil {
-			c.t = &t
+	if c, ok := c.(*config.Config[T]); ok {
+		if c.V == nil {
+			c.V = &t
 		}
-		return *c.t
+		return *c.V
 	}
-	if c, ok := c.(*config[*T]); ok {
-		if c.t == nil {
+	if c, ok := c.(*config.Config[*T]); ok {
+		if c.V == nil {
 			refT := &t
-			c.t = &refT
+			c.V = &refT
 		}
-		return **c.t
+		return **c.V
 	}
-	panic(fmt.Sprintf("Config[%T] called but the correct config type is %s", t, c.underlyingType()))
+	panic(fmt.Sprintf("Config[%T] called but the correct config type is %s", t, c.UnderlyingType()))
 }

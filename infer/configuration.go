@@ -25,8 +25,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/config"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
-	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
 // Turn an object into a description for the provider configuration.
@@ -36,16 +36,10 @@ import (
 //
 // `T` can implement [CustomDiff] and [CustomCheck] and [CustomConfigure].
 func Config[T any]() InferredConfig {
-	return &config[T]{}
+	return &config.Config[T]{}
 }
 
-type InferredConfig interface {
-	schema.Resource
-	underlyingType() reflect.Type
-	checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error)
-	diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error)
-	configure(ctx context.Context, req p.ConfigureRequest) error
-}
+type InferredConfig interface{ config.IsConfig }
 
 // A provider that requires custom configuration before running.
 //
@@ -63,23 +57,7 @@ type CustomConfigure interface {
 	Configure(ctx context.Context) error
 }
 
-type config[T any] struct{ t *T }
-
-func (*config[T]) underlyingType() reflect.Type {
-	var t T
-	return reflect.TypeOf(t)
-}
-
-func (*config[T]) GetToken() (tokens.Type, error) { return "pulumi:providers:pkg", nil }
-func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
-	if err := registerTypes[T](reg); err != nil {
-		return pschema.ResourceSpec{}, err
-	}
-	r, errs := getResourceSchema[T, T, T](false)
-	return r, errs.ErrorOrNil()
-}
-
-func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
+func checkConfig[T any](ctx context.Context, c config.Config[T], req p.CheckRequest) (p.CheckResponse, error) {
 	var t T
 	if v := reflect.ValueOf(t); v.Kind() == reflect.Pointer && v.IsNil() {
 		t = reflect.New(v.Type().Elem()).Interface().(T)
@@ -143,39 +121,25 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 	}, nil
 }
 
-func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	c.ensure()
-	return diff[T, T, T](ctx, req, c.t, func(string) bool { return true })
+func diffConfig(ctx context.Context, c config.Internal, req p.DiffRequest) (p.DiffResponse, error) {
+	return diff[T, T, T](ctx, req, c.Value(), func(string) bool { return true })
 }
 
-func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
-	c.ensure()
-	_, err := ende.DecodeConfig(req.Args, c.t)
+func configure(ctx context.Context, c config.Internal, req p.ConfigureRequest) error {
+	_, err := ende.DecodeConfig(req.Args, c.Value())
 	if err != nil {
-		return c.handleConfigFailures(ctx, err)
+		return handleConfigFailures(ctx, c, err)
 	}
 
 	// If we have a custom configure command, call that and return the error if any.
-	if typ := reflect.TypeOf(c.t).Elem(); typ.Implements(reflect.TypeOf((*CustomConfigure)(nil)).Elem()) {
-		return reflect.ValueOf(c.t).Elem().Interface().(CustomConfigure).Configure(ctx)
+	if typ := reflect.TypeOf(c.Value()).Elem(); typ.Implements(reflect.TypeOf((*CustomConfigure)(nil)).Elem()) {
+		return reflect.ValueOf(c.Value()).Elem().Interface().(CustomConfigure).Configure(ctx)
 	}
 
 	return nil
 }
 
-// Ensure that the config value is hydrated so we can assign to it.
-func (c *config[T]) ensure() {
-	if c.t == nil {
-		c.t = new(T)
-	}
-
-	// T might be a *C for some type C, so we need to rehydrate it.
-	if v := reflect.ValueOf(c.t).Elem(); v.Kind() == reflect.Pointer && v.IsNil() {
-		v.Set(reflect.New(v.Type().Elem()))
-	}
-}
-
-func (c *config[T]) handleConfigFailures(ctx context.Context, err mapper.MappingError) error {
+func handleConfigFailures(ctx context.Context, c config.Internal, err mapper.MappingError) error {
 	if err == nil {
 		return nil
 	}

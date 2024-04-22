@@ -22,6 +22,7 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
+	"github.com/pulumi/pulumi-go-provider/infer/internal/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 )
 
@@ -59,7 +60,7 @@ func (d *defaultsWalker) apply(v reflect.Value) (bool, error) {
 	defer d.visit(t)()
 
 	// We get the set of default types that could be applied to v.
-	a := getAnnotated(t)
+	a := types.GetAnnotated(t)
 	fields := map[string]reflect.Value{}
 	optional := map[string]bool{}
 	for _, field := range reflect.VisibleFields(v.Type()) {

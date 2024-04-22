@@ -31,7 +31,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/annotate"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/types"
 	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
@@ -258,36 +260,12 @@ type CustomStateMigrations[O any] interface {
 //		otherS := &Struct{}
 //		a.Describe(&otherS.field1, "A field") // Not legal, since describe is not called on its receiver.
 //	}
-type Annotator interface {
-	// Annotate a struct field with a text description.
-	Describe(i any, description string)
-
-	// Annotate a struct field with a default value. The default value must be a primitive
-	// type in the pulumi type system.
-	SetDefault(i any, defaultValue any, env ...string)
-
-	// Set the token of the annotated type.
-	//
-	// module and name should be valid Pulumi token segments. The package name will be
-	// inferred from the provider.
-	//
-	// For example:
-	//
-	//	a.SetToken("mymodule", "MyResource")
-	//
-	// On a provider created with the name "mypkg" will have the token:
-	//
-	//	mypkg:mymodule:MyResource
-	//
-	SetToken(module, name string)
-}
+type Annotator = annotate.Annotator
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be
 // implemented by `CustomResource`s, the input and output types for all resources and
 // invokes, as well as other structs used the above.
-type Annotated interface {
-	Annotate(Annotator)
-}
+type Annotated = annotate.Annotated
 
 // An interface to help wire fields together.
 type FieldSelector interface {
@@ -812,33 +790,19 @@ func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
 func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
-	if err := registerTypes[I](reg); err != nil {
+	if err := types.Register[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := registerTypes[O](reg); err != nil {
+	if err := types.Register[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r, errs := getResourceSchema[R, I, O](false)
+	r, errs := types.GetResourceSchema[R, I, O](false)
 	return r, errs.ErrorOrNil()
 }
 
 func getToken[R any](transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
 	var r R
-	return getTokenOf(reflect.TypeOf(r), transform)
-}
-
-func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
-	annotator := getAnnotated(t)
-	if annotator.Token != "" {
-		return tokens.Type(annotator.Token), nil
-	}
-
-	tk, err := introspect.GetToken("pkg", t)
-	if transform == nil || err != nil {
-		return tk, err
-	}
-
-	return transform(tk), nil
+	return types.GetTokenOf(reflect.TypeOf(r), transform)
 }
 
 func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
@@ -946,6 +910,14 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.Di
 // Compute a diff request.
 func diff[R, I, O any](
 	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
+) (p.DiffResponse, error) {
+	var i I
+	var o O
+	return diffAny(ctx, req, r, i, o, forceReplace)
+}
+
+func diffAny(
+	ctx context.Context, req p.DiffRequest, r, i, o any, forceReplace func(string) bool,
 ) (p.DiffResponse, error) {
 
 	for _, ignoredChange := range req.IgnoreChanges {

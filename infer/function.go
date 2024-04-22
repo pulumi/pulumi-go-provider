@@ -25,6 +25,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/types"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -80,21 +81,21 @@ func fnToken(tk tokens.Type) tokens.Type {
 
 func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
 	var f F
-	descriptions := getAnnotated(reflect.TypeOf(f))
+	descriptions := types.GetAnnotated(reflect.TypeOf(f))
 
-	input, err := objectSchema(reflect.TypeOf(new(I)))
+	input, err := types.ObjectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	output, err := objectSchema(reflect.TypeOf(new(O)))
+	output, err := types.ObjectSchema(reflect.TypeOf(new(O)))
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
 
-	if err := registerTypes[I](reg); err != nil {
+	if err := types.Register[I](reg); err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	if err := registerTypes[O](reg); err != nil {
+	if err := types.Register[O](reg); err != nil {
 		return pschema.FunctionSpec{}, err
 	}
 
@@ -102,23 +103,6 @@ func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivative
 		Description: descriptions.Descriptions[""],
 		Inputs:      input,
 		Outputs:     output,
-	}, nil
-}
-
-func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
-	descriptions := getAnnotated(t)
-	props, required, err := propertyListFromType(t, false)
-	if err != nil {
-		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
-	}
-	for n, p := range props {
-		props[n] = p
-	}
-	return &pschema.ObjectTypeSpec{
-		Description: descriptions.Descriptions[""],
-		Properties:  props,
-		Required:    required,
-		Type:        "object",
 	}, nil
 }
 

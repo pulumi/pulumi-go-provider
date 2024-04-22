@@ -24,6 +24,7 @@ import (
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -61,14 +62,14 @@ type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.Compo
 
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
-	r, err := getResourceSchema[R, I, O](true)
+	r, err := types.GetResourceSchema[R, I, O](true)
 	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := registerTypes[I](reg); err != nil {
+	if err := types.Register[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := registerTypes[O](reg); err != nil {
+	if err := types.Register[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
 	return r, nil
