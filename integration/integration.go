@@ -16,16 +16,15 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/blang/semver"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/internal/key"
 )
 
 type Server interface {
@@ -45,11 +44,14 @@ type Server interface {
 }
 
 func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
+	return NewServerWithContext(context.Background(), pkg, version, provider)
+}
+
+func NewServerWithContext(ctx context.Context, pkg string, version semver.Version, provider p.Provider) Server {
 	return &server{p.RunInfo{
 		PackageName: pkg,
 		Version:     version.String(),
-	}, provider.WithDefaults(),
-		context.Background()}
+	}, provider.WithDefaults(), ctx}
 }
 
 type server struct {
@@ -58,38 +60,8 @@ type server struct {
 	context context.Context
 }
 
-type ctx struct {
-	context.Context
-	runInfo p.RunInfo
-	urn     presource.URN
-}
-
-func (c *ctx) Log(severity diag.Severity, msg string) {
-	if c.urn != "" {
-		fmt.Printf("Log(%s): %s", severity, msg)
-		return
-	}
-	fmt.Printf("%s Log(%s): %s", c.urn, severity, msg)
-}
-func (c *ctx) Logf(severity diag.Severity, msg string, args ...any) {
-	c.Log(severity, fmt.Sprintf(msg, args...))
-}
-func (c *ctx) LogStatus(severity diag.Severity, msg string) {
-	if c.urn != "" {
-		fmt.Printf("LogStatus(%s): %s", severity, msg)
-		return
-	}
-	fmt.Printf("%s LogStatus(%s): %s", c.urn, severity, msg)
-
-}
-func (c *ctx) LogStatusf(severity diag.Severity, msg string, args ...any) {
-	c.LogStatus(severity, fmt.Sprintf(msg, args...))
-}
-
-func (c *ctx) RuntimeInformation() p.RunInfo { return c.runInfo }
-
-func (s *server) ctx(urn presource.URN) p.Context {
-	return &ctx{s.context, s.runInfo, urn}
+func (s *server) ctx(urn presource.URN) context.Context {
+	return context.WithValue(s.context, key.RuntimeInfo, s.runInfo)
 }
 
 func (s *server) GetSchema(req p.GetSchemaRequest) (p.GetSchemaResponse, error) {

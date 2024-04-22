@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -63,8 +64,7 @@ func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, ar
 		Length: args.Length.Result,
 	}
 
-	pctx := infer.CtxFromPulumiContext(ctx)
-	config := infer.GetConfig[Config](pctx)
+	config := infer.GetConfig[Config](ctx.Context())
 	if config.Scream != nil {
 		pArgs.Lower = pulumi.BoolPtr(*config.Scream)
 	}
@@ -151,7 +151,7 @@ func makeSalt(length int) string {
 	return string(b)
 }
 
-func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, preview bool) (string, RandomSaltState, error) {
+func (*RandomSalt) Create(ctx context.Context, name string, input RandomSaltArgs, preview bool) (string, RandomSaltState, error) {
 	l := 4
 	if input.SaltLength != nil {
 		l = *input.SaltLength
@@ -170,7 +170,7 @@ func (*RandomSalt) Create(ctx p.Context, name string, input RandomSaltArgs, prev
 
 var _ = (infer.CustomUpdate[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil))
 
-func (r *RandomSalt) Update(ctx p.Context, id string, olds RandomSaltState, news RandomSaltArgs, preview bool) (RandomSaltState, error) {
+func (r *RandomSalt) Update(ctx context.Context, id string, olds RandomSaltState, news RandomSaltArgs, preview bool) (RandomSaltState, error) {
 	var redoSalt bool
 	if olds.SaltLength != nil && news.SaltLength != nil {
 		redoSalt = *olds.SaltLength != *news.SaltLength

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -36,7 +37,7 @@ func provider() p.Provider {
 
 type Replace struct{}
 
-func (Replace) Call(ctx p.Context, args ReplaceArgs) (Ret, error) {
+func (Replace) Call(ctx context.Context, args ReplaceArgs) (Ret, error) {
 	return Ret{strings.ReplaceAll(args.S, args.Old, args.New)}, nil
 }
 
@@ -73,7 +74,7 @@ func (p *Print) Annotate(a infer.Annotator) {
 
 type Empty struct{}
 
-func (Print) Call(ctx p.Context, args In) (Empty, error) {
+func (Print) Call(ctx context.Context, args In) (Empty, error) {
 	fmt.Print(args.S)
 	return Empty{}, nil
 }
@@ -84,7 +85,7 @@ type In struct {
 
 type GiveMeAString struct{}
 
-func (GiveMeAString) Call(ctx p.Context, args Empty) (Ret, error) {
+func (GiveMeAString) Call(ctx context.Context, args Empty) (Ret, error) {
 	return Ret{"A string"}, nil
 }
 

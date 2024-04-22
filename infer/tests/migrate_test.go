@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/blang/semver"
@@ -39,7 +40,7 @@ var (
 
 type MigrateR struct{}
 
-func (*MigrateR) StateMigrations(p.Context) []infer.StateMigrationFunc[MigrateStateV2] {
+func (*MigrateR) StateMigrations(context.Context) []infer.StateMigrationFunc[MigrateStateV2] {
 	return []infer.StateMigrationFunc[MigrateStateV2]{
 		infer.StateMigration(migrateFromRaw),
 		infer.StateMigration(migrateFromV0),
@@ -47,7 +48,7 @@ func (*MigrateR) StateMigrations(p.Context) []infer.StateMigrationFunc[MigrateSt
 	}
 }
 
-func migrateFromRaw(_ p.Context, m resource.PropertyMap) (infer.MigrationResult[MigrateStateV2], error) {
+func migrateFromRaw(_ context.Context, m resource.PropertyMap) (infer.MigrationResult[MigrateStateV2], error) {
 	inputs, ok := m["__inputs"]
 	if !ok || !inputs.IsObject() {
 		return infer.MigrationResult[MigrateStateV2]{}, nil
@@ -62,7 +63,7 @@ func migrateFromRaw(_ p.Context, m resource.PropertyMap) (infer.MigrationResult[
 	}, nil
 }
 
-func migrateFromV0(ctx p.Context, v0 MigrateStateV0) (infer.MigrationResult[MigrateStateV2], error) {
+func migrateFromV0(ctx context.Context, v0 MigrateStateV0) (infer.MigrationResult[MigrateStateV2], error) {
 	aString := "default-string"
 	if v0.AString != nil {
 		aString = *v0.AString
@@ -76,7 +77,7 @@ type MigrateStateV0 struct {
 	AString *string `pulumi:"aString,optional"`
 }
 
-func migrateFromV1(_ p.Context, v1 MigrateStateV1) (infer.MigrationResult[MigrateStateV2], error) {
+func migrateFromV1(_ context.Context, v1 MigrateStateV1) (infer.MigrationResult[MigrateStateV2], error) {
 	aInt := -7
 	if v1.SomeInt != nil {
 		aInt = *v1.SomeInt
@@ -246,28 +247,28 @@ func TestMigrateRead(t *testing.T) {
 	})
 }
 
-func (*MigrateR) Create(p.Context, string, MigrateStateInput, bool) (string, MigrateStateV2, error) {
+func (*MigrateR) Create(context.Context, string, MigrateStateInput, bool) (string, MigrateStateV2, error) {
 	panic("CANNOT CREATE; ONLY MIGRATE")
 }
 
 // Just return the old state so it is visible to tests.
 func (*MigrateR) Update(
-	_ p.Context, _ string, s MigrateStateV2, _ MigrateStateInput, _ bool,
+	_ context.Context, _ string, s MigrateStateV2, _ MigrateStateInput, _ bool,
 ) (MigrateStateV2, error) {
 	return s, nil
 }
 
 func (*MigrateR) Read(
-	_ p.Context, id string, input MigrateStateInput, output MigrateStateV2,
+	_ context.Context, id string, input MigrateStateInput, output MigrateStateV2,
 ) (string, MigrateStateInput, MigrateStateV2, error) {
 	return id, input, output, nil
 }
 
-func (*MigrateR) Delete(_ p.Context, _ string, s MigrateStateV2) error {
+func (*MigrateR) Delete(_ context.Context, _ string, s MigrateStateV2) error {
 	return viaError[MigrateStateV2]{s}
 }
 
-func (*MigrateR) Diff(_ p.Context, _ string, s MigrateStateV2, _ MigrateStateInput) (p.DiffResponse, error) {
+func (*MigrateR) Diff(_ context.Context, _ string, s MigrateStateV2, _ MigrateStateInput) (p.DiffResponse, error) {
 	return p.DiffResponse{}, viaError[MigrateStateV2]{s}
 }
 

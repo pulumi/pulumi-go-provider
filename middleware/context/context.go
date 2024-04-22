@@ -16,11 +16,13 @@
 package context
 
 import (
+	"context"
+
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
 // The function applied to each provider.Context that passes through this Provider.
-type Wrapper = func(p.Context) p.Context
+type Wrapper = func(context.Context) context.Context
 
 // Create a Provider that calls `wrapper` on each context passed into `provider`.
 func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
@@ -41,23 +43,23 @@ func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 	}
 }
 
-func delegateIO[I, O any, F func(p.Context, I) (O, error)](wrapper Wrapper, method F) F {
+func delegateIO[I, O any, F func(context.Context, I) (O, error)](wrapper Wrapper, method F) F {
 	if method == nil {
 		return nil
 	}
-	return func(ctx p.Context, req I) (O, error) { return method(wrapper(ctx), req) }
+	return func(ctx context.Context, req I) (O, error) { return method(wrapper(ctx), req) }
 }
 
-func delegateI[I any, F func(p.Context, I) error](wrapper Wrapper, method F) F {
+func delegateI[I any, F func(context.Context, I) error](wrapper Wrapper, method F) F {
 	if method == nil {
 		return nil
 	}
-	return func(ctx p.Context, req I) error { return method(wrapper(ctx), req) }
+	return func(ctx context.Context, req I) error { return method(wrapper(ctx), req) }
 }
 
-func delegate[F func(p.Context) error](wrapper Wrapper, method F) F {
+func delegate[F func(context.Context) error](wrapper Wrapper, method F) F {
 	if method == nil {
 		return nil
 	}
-	return func(ctx p.Context) error { return method(wrapper(ctx)) }
+	return func(ctx context.Context) error { return method(wrapper(ctx)) }
 }

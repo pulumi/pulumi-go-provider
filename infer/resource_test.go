@@ -325,7 +325,7 @@ func (ctx testContext) RuntimeInformation() p.RunInfo {
 
 type CustomHydrateFromState[O any] struct{}
 
-func (CustomHydrateFromState[O]) StateMigrations(ctx p.Context) []StateMigrationFunc[O] {
+func (CustomHydrateFromState[O]) StateMigrations(ctx context.Context) []StateMigrationFunc[O] {
 	return ctx.Value("migrations").([]StateMigrationFunc[O])
 }
 
@@ -373,7 +373,7 @@ func TestHydrateFromState(t *testing.T) {
 			"number": r.NewProperty(42.0),
 		},
 		nil,
-		StateMigration(func(_ p.Context, old numberMigrateSource) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(_ context.Context, old numberMigrateSource) (MigrationResult[numberMigrateTarget], error) {
 			n, err := strconv.ParseInt(old.Number, 10, 64)
 			if err != nil {
 				return MigrationResult[numberMigrateTarget]{}, err
@@ -394,7 +394,7 @@ func TestHydrateFromState(t *testing.T) {
 			"number": r.NewProperty(42.0),
 		},
 		nil,
-		StateMigration(func(_ p.Context, old r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(_ context.Context, old r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
 			n, err := strconv.ParseInt(old["number"].StringValue(), 10, 64)
 			if err != nil {
 				return MigrationResult[numberMigrateTarget]{}, err
@@ -415,14 +415,14 @@ func TestHydrateFromState(t *testing.T) {
 			"number": r.NewProperty(1.0),
 		},
 		nil,
-		StateMigration(func(p.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
 			return MigrationResult[numberMigrateTarget]{
 				Result: &numberMigrateTarget{
 					Number: int(1),
 				},
 			}, nil
 		}),
-		StateMigration(func(p.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
 			panic("Should never be called")
 		}),
 	))
@@ -435,12 +435,12 @@ func TestHydrateFromState(t *testing.T) {
 			"number": r.NewProperty(2.0),
 		},
 		nil,
-		StateMigration(func(p.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
 			return MigrationResult[numberMigrateTarget]{
 				Result: nil,
 			}, nil
 		}),
-		StateMigration(func(p.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
 			return MigrationResult[numberMigrateTarget]{
 				Result: &numberMigrateTarget{
 					Number: int(2),

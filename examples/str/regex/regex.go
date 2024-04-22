@@ -1,15 +1,15 @@
 package regex
 
 import (
+	"context"
 	"regexp"
 
-	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 )
 
 type Replace struct{}
 
-func (Replace) Call(ctx p.Context, args ReplaceArgs) (Ret, error) {
+func (Replace) Call(_ context.Context, args ReplaceArgs) (Ret, error) {
 	r, err := regexp.Compile(args.Pattern)
 	if err != nil {
 		return Ret{}, err

@@ -18,6 +18,7 @@
 package schema
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -88,7 +89,7 @@ type state struct {
 	schema         *cache
 	lowerSchema    *cache
 	combinedSchema *cache
-	innerGetSchema func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
+	innerGetSchema func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
 }
 
 func (s *state) invalidateCache() {
@@ -179,7 +180,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 	return provider
 }
 
-func (s *state) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+func (s *state) GetSchema(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	if s.schema.isEmpty() {
 		spec, err := s.generateSchema(ctx)
 		if err != nil {
@@ -278,8 +279,8 @@ func (s *state) mergeSchemas() error {
 }
 
 // Generate a schema string from the currently present schema types.
-func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
-	info := ctx.RuntimeInformation()
+func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) {
+	info := p.GetRunInfo(ctx)
 	pkg := schema.PackageSpec{
 		Name:              info.PackageName,
 		Version:           info.Version,

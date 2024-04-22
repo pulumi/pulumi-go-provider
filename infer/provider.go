@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"fmt"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -143,7 +144,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 	config := opts.Config
 	if config != nil {
 		if prev := provider.Configure; prev != nil {
-			provider.Configure = func(ctx p.Context, req p.ConfigureRequest) error {
+			provider.Configure = func(ctx context.Context, req p.ConfigureRequest) error {
 				err := config.configure(ctx, req)
 				if err != nil {
 					return err
@@ -159,8 +160,8 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		}
 		provider.DiffConfig = config.diffConfig
 		provider.CheckConfig = config.checkConfig
-		provider = mContext.Wrap(provider, func(ctx p.Context) p.Context {
-			return p.CtxWithValue(ctx, configKey, opts.Config)
+		provider = mContext.Wrap(provider, func(ctx context.Context) context.Context {
+			return context.WithValue(ctx, configKey, opts.Config)
 		})
 	}
 	return cancel.Wrap(provider)
@@ -170,7 +171,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 //
 // Note: GetConfig will panic if the type of T does not match the type of the config or if
 // the provider has not supplied a config.
-func GetConfig[T any](ctx p.Context) T {
+func GetConfig[T any](ctx context.Context) T {
 	v := ctx.Value(configKey)
 	var t T
 	if v == nil {

@@ -17,6 +17,8 @@
 package dispatch
 
 import (
+	"context"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,7 +46,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		for k, v := range opts.Invokes {
 			invokes[fix(k)] = v
 		}
-		wrapper.Invoke = func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+		wrapper.Invoke = func(ctx context.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 			tk := fix(req.Token)
 			inv, ok := invokes[tk]
 			if ok {
@@ -63,7 +65,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		notFound := func(tk string) error {
 			return status.Errorf(codes.NotFound, "Resource '%s' not found", tk)
 		}
-		wrapper.Check = func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		wrapper.Check = func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -73,7 +75,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.CheckResponse{}, notFound(tk)
 		}
-		wrapper.Diff = func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		wrapper.Diff = func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -83,7 +85,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.DiffResponse{}, notFound(tk)
 		}
-		wrapper.Create = func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		wrapper.Create = func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -93,7 +95,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.CreateResponse{}, notFound(tk)
 		}
-		wrapper.Read = func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		wrapper.Read = func(ctx context.Context, req p.ReadRequest) (p.ReadResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -103,7 +105,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.ReadResponse{}, notFound(tk)
 		}
-		wrapper.Update = func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+		wrapper.Update = func(ctx context.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -113,7 +115,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			}
 			return p.UpdateResponse{}, notFound(tk)
 		}
-		wrapper.Delete = func(ctx p.Context, req p.DeleteRequest) error {
+		wrapper.Delete = func(ctx context.Context, req p.DeleteRequest) error {
 			tk := fix(req.Urn.Type())
 			r, ok := customs[tk]
 			if ok {
@@ -130,7 +132,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			components[fix(k)] = v
 		}
 
-		wrapper.Construct = func(ctx p.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+		wrapper.Construct = func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
 			urn := req.URN
 			tk := fix(urn.Type())
 			r, ok := components[tk]

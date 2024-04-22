@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -44,7 +45,7 @@ type IncrementArgs struct {
 
 type IncrementOutput struct{ IncrementArgs }
 
-func (*Increment) Create(ctx p.Context, name string, inputs IncrementArgs, preview bool) (string, IncrementOutput, error) {
+func (*Increment) Create(ctx context.Context, name string, inputs IncrementArgs, preview bool) (string, IncrementOutput, error) {
 	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: inputs.Number + 1}}
 	return fmt.Sprintf("id-%d", inputs.Number), output, nil
 }
@@ -63,7 +64,7 @@ type EchoOutputs struct {
 	MapOut    map[string]string `pulumi:"strMapOut,optional"`
 }
 
-func (*Echo) Create(ctx p.Context, name string, inputs EchoInputs, preview bool) (string, EchoOutputs, error) {
+func (*Echo) Create(ctx context.Context, name string, inputs EchoInputs, preview bool) (string, EchoOutputs, error) {
 	id := name + "-id"
 	state := EchoOutputs{EchoInputs: inputs}
 	if preview {
@@ -76,7 +77,7 @@ func (*Echo) Create(ctx p.Context, name string, inputs EchoInputs, preview bool)
 	return id, state, nil
 }
 
-func (*Echo) Update(ctx p.Context, id string, olds EchoOutputs, news EchoInputs, preview bool) (EchoOutputs, error) {
+func (*Echo) Update(ctx context.Context, id string, olds EchoOutputs, news EchoInputs, preview bool) (EchoOutputs, error) {
 	if preview {
 		return olds, nil
 	}
@@ -103,7 +104,7 @@ type WiredOutputs struct {
 	StringPlus   string `pulumi:"stringPlus"`
 }
 
-func (*Wired) Create(ctx p.Context, name string, inputs WiredInputs, preview bool) (string, WiredOutputs, error) {
+func (*Wired) Create(ctx context.Context, name string, inputs WiredInputs, preview bool) (string, WiredOutputs, error) {
 	id := name + "-id"
 	state := WiredOutputs{Name: "(" + name + ")"}
 	if preview {
@@ -115,7 +116,7 @@ func (*Wired) Create(ctx p.Context, name string, inputs WiredInputs, preview boo
 }
 
 func (*Wired) Update(
-	ctx p.Context, id string, olds WiredOutputs, news WiredInputs, preview bool,
+	ctx context.Context, id string, olds WiredOutputs, news WiredInputs, preview bool,
 ) (WiredOutputs, error) {
 	return WiredOutputs{
 		Name:         id,
@@ -150,7 +151,7 @@ type WiredPlusOutputs struct {
 	WiredOutputs
 }
 
-func (*WiredPlus) Create(ctx p.Context, name string, inputs WiredInputs, preview bool) (string, WiredPlusOutputs, error) {
+func (*WiredPlus) Create(ctx context.Context, name string, inputs WiredInputs, preview bool) (string, WiredPlusOutputs, error) {
 	r := new(Wired)
 	id, out, err := r.Create(ctx, name, inputs, preview)
 	return id, WiredPlusOutputs{
@@ -160,7 +161,7 @@ func (*WiredPlus) Create(ctx p.Context, name string, inputs WiredInputs, preview
 }
 
 func (*WiredPlus) Update(
-	ctx p.Context, id string, olds WiredPlusOutputs, news WiredInputs, preview bool,
+	ctx context.Context, id string, olds WiredPlusOutputs, news WiredInputs, preview bool,
 ) (WiredPlusOutputs, error) {
 	r := new(Wired)
 	out, err := r.Update(ctx, id, olds.WiredOutputs, news, preview)
@@ -259,7 +260,7 @@ func (w *NestedDefaults) Annotate(a infer.Annotator) {
 }
 
 func (w *WithDefaults) Create(
-	ctx p.Context, name string, inputs WithDefaultsArgs, preview bool,
+	ctx context.Context, name string, inputs WithDefaultsArgs, preview bool,
 ) (string, WithDefaultsOutput, error) {
 	return "validated", WithDefaultsOutput{inputs}, nil
 }
@@ -282,7 +283,7 @@ func (w *ReadEnvArgs) Annotate(a infer.Annotator) {
 }
 
 func (w *ReadEnv) Create(
-	ctx p.Context, name string, inputs ReadEnvArgs, preview bool,
+	ctx context.Context, name string, inputs ReadEnvArgs, preview bool,
 ) (string, ReadEnvOutput, error) {
 	return "well-read", ReadEnvOutput{inputs}, nil
 }
@@ -295,7 +296,7 @@ type RecursiveArgs struct {
 type RecursiveOutput struct{ RecursiveArgs }
 
 func (w *Recursive) Create(
-	ctx p.Context, name string, inputs RecursiveArgs, preview bool,
+	ctx context.Context, name string, inputs RecursiveArgs, preview bool,
 ) (string, RecursiveOutput, error) {
 	return "did-not-overflow-stack", RecursiveOutput{inputs}, nil
 }
@@ -315,7 +316,7 @@ type ReadConfigOutput struct {
 }
 
 func (w *ReadConfig) Create(
-	ctx p.Context, name string, _ ReadConfigArgs, _ bool,
+	ctx context.Context, name string, _ ReadConfigArgs, _ bool,
 ) (string, ReadConfigOutput, error) {
 	c := infer.GetConfig[Config](ctx)
 	bytes, err := json.Marshal(c)
@@ -336,7 +337,7 @@ type JoinResult struct {
 	Result string `pulumi:"result"`
 }
 
-func (*GetJoin) Call(ctx p.Context, args JoinArgs) (JoinResult, error) {
+func (*GetJoin) Call(ctx context.Context, args JoinArgs) (JoinResult, error) {
 	return JoinResult{strings.Join(args.Elems, *args.Sep)}, nil
 }
 
@@ -345,7 +346,7 @@ type ConfigCustom struct {
 	Squared float64
 }
 
-func (c *ConfigCustom) Configure(ctx p.Context) error {
+func (c *ConfigCustom) Configure(ctx context.Context) error {
 	if c.Number == nil {
 		return nil
 	}
@@ -359,7 +360,7 @@ func (c *ConfigCustom) Configure(ctx p.Context) error {
 
 var _ = (infer.CustomCheck[*ConfigCustom])((*ConfigCustom)(nil))
 
-func (*ConfigCustom) Check(ctx p.Context,
+func (*ConfigCustom) Check(ctx context.Context,
 	name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap,
 ) (*ConfigCustom, []p.CheckFailure, error) {
 	var c ConfigCustom
@@ -378,7 +379,7 @@ type ReadConfigCustomOutput struct {
 }
 
 func (w *ReadConfigCustom) Create(
-	ctx p.Context, name string, _ ReadConfigCustomArgs, _ bool,
+	ctx context.Context, name string, _ ReadConfigCustomArgs, _ bool,
 ) (string, ReadConfigCustomOutput, error) {
 	c := infer.GetConfig[ConfigCustom](ctx)
 	bytes, err := json.Marshal(c)
