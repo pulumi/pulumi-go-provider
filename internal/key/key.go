@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// key provides an internal set of keys for use with [context.WithValue] and
+// [context.Context.Value] that can be shared across packages source.
+//
+// Each key has a private type (a `struct{}`) and a public instance of that type.
 package key
 
 type (
