@@ -29,3 +29,14 @@ var (
 	Logger      = logType{}
 	URN         = urnType{}
 )
+
+// ForceNoDetailedDiff acts as a side-channel in
+// [github.com/pulumi/pulumi-go-provider.DiffResponse].DetailedDiff to set HasDetailedDiff
+// to false.
+//
+// This is necessary for the
+// [github.com/pulumi/pulumi-go-provider/middleware/rpc.Provider], but should not be used
+// by outside providers, as they should support detailed diff in all cases.
+//
+// The key should never be exposed at the gRPC wire level.
+const ForceNoDetailedDiff = "__x-force-no-detailed-diff"

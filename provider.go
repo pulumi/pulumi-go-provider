@@ -146,15 +146,28 @@ type DiffResponse struct {
 	DetailedDiff map[string]PropertyDiff
 }
 
+type diffChanges bool
+
+func (c diffChanges) rpc() rpc.DiffResponse_DiffChanges {
+	if c {
+		return rpc.DiffResponse_DIFF_SOME
+	}
+	return rpc.DiffResponse_DIFF_NONE
+}
+
 func (d DiffResponse) rpc() *rpc.DiffResponse {
+
+	hasDetailedDiff := true
+	if _, ok := d.DetailedDiff[key.ForceNoDetailedDiff]; ok {
+		hasDetailedDiff = false
+		delete(d.DetailedDiff, key.ForceNoDetailedDiff)
+	}
+
 	r := rpc.DiffResponse{
 		DeleteBeforeReplace: d.DeleteBeforeReplace,
-		Changes:             rpc.DiffResponse_DIFF_NONE,
+		Changes:             diffChanges(d.HasChanges).rpc(),
 		DetailedDiff:        detailedDiff(d.DetailedDiff).rpc(),
-		HasDetailedDiff:     true,
-	}
-	if d.HasChanges {
-		r.Changes = rpc.DiffResponse_DIFF_SOME
+		HasDetailedDiff:     hasDetailedDiff,
 	}
 	for k, v := range d.DetailedDiff {
 		switch v.Kind {
