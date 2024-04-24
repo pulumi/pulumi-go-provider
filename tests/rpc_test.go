@@ -230,10 +230,19 @@ func TestRPCConfigure(t *testing.T) {
 									Known:   true,
 									Element: resource.NewProperty("v1"),
 								}),
+								"unknown": resource.MakeComputed(
+									resource.NewProperty(""),
+								),
 							}, m)
 						} else {
 							assert.Equal(t, resource.PropertyMap{
 								"known": resource.NewProperty("v1"),
+								"output": resource.MakeComputed(
+									resource.NewProperty(""),
+								),
+								"unknown": resource.MakeComputed(
+									resource.NewProperty(""),
+								),
 							}, m)
 						}
 

@@ -332,7 +332,7 @@ func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error)
 		r.configuration = &rpc.ConfigureResponse{}
 	}
 	s, err := plugin.MarshalProperties(m, plugin.MarshalOptions{
-		KeepUnknowns:     r.configuration.SupportsPreview,
+		KeepUnknowns:     true,
 		KeepSecrets:      r.configuration.AcceptSecrets,
 		KeepResources:    r.configuration.AcceptResources,
 		KeepOutputValues: r.configuration.AcceptOutputs,
