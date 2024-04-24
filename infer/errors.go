@@ -26,7 +26,7 @@ import (
 // be Update with the new state.
 //
 //	func (*Team) Create(
-//		ctx p.Context, name string, input TeamInput, preview bool,
+//		ctx context.Context, name string, input TeamInput, preview bool,
 //	) (id string, output TeamState, err error) {
 //		team, err := GetConfig(ctx).Client.CreateTeam(ctx,
 //			input.OrganizationName, input.Name,

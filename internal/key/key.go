@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package provider
+// key provides an internal set of keys for use with [context.WithValue] and
+// [context.Context.Value] that can be shared across packages source.
+//
+// Each key has a private type (a `struct{}`) and a public instance of that type.
+package key
 
-import (
-	"context"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+type (
+	runtimeInfoType struct{}
+	logType         struct{}
+	urnType         struct{}
 )
 
-func TestCtx(t *testing.T) {
-	t.Parallel()
-	var ctx Context = &pkgContext{
-		Context: context.Background(),
-		urn:     "foo",
-	}
-
-	ctx = CtxWithValue(ctx, "foo", "bar")
-	ctx, cancel := CtxWithCancel(ctx)
-	ctx = CtxWithValue(ctx, "fizz", "buzz")
-	assert.Equal(t, "bar", ctx.Value("foo").(string))
-	cancel()
-	assert.Equal(t, "buzz", ctx.Value("fizz").(string))
-	assert.Error(t, ctx.Err(), "This should be cancled")
-}
+var (
+	RuntimeInfo = runtimeInfoType{}
+	Logger      = logType{}
+	URN         = urnType{}
+)

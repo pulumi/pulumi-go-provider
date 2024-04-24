@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/blang/semver"
@@ -22,14 +23,14 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration"
-	"github.com/pulumi/pulumi-go-provider/middleware/context"
+	pContext "github.com/pulumi/pulumi-go-provider/middleware/context"
 )
 
 // Regression test for https://github.com/pulumi/pulumi-go-provider/issues/224
 func TestContextCancel(t *testing.T) {
 	t.Run("no-cancel", func(t *testing.T) {
 		s := integration.NewServer("test", semver.Version{Major: 1},
-			context.Wrap(p.Provider{}, func(ctx p.Context) p.Context {
+			pContext.Wrap(p.Provider{}, func(ctx context.Context) context.Context {
 				assert.Fail(t, "Cancel was not implemented, so the wrapper should not be called")
 				return ctx
 			}),
@@ -43,14 +44,14 @@ func TestContextCancel(t *testing.T) {
 		var wasCalled bool
 		type key struct{}
 		s := integration.NewServer("test", semver.Version{Major: 1},
-			context.Wrap(p.Provider{
-				Cancel: func(ctx p.Context) error {
+			pContext.Wrap(p.Provider{
+				Cancel: func(ctx context.Context) error {
 					assert.True(t, ctx.Value(key{}).(bool))
 					wasCalled = true
 					return nil
 				},
-			}, func(ctx p.Context) p.Context {
-				return p.CtxWithValue(ctx, key{}, true)
+			}, func(ctx context.Context) context.Context {
+				return context.WithValue(ctx, key{}, true)
 			}),
 		)
 

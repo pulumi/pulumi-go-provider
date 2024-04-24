@@ -55,7 +55,9 @@ type HelloWorldState struct {
 }
 
 // All resources must implement Create at a minumum.
-func (HelloWorld) Create(ctx p.Context, name string, input HelloWorldArgs, preview bool) (string, HelloWorldState, error) {
+func (HelloWorld) Create(
+	ctx context.Context, name string, input HelloWorldArgs, preview bool,
+) (string, HelloWorldState, error) {
 	state := HelloWorldState{HelloWorldArgs: input}
 	if preview {
 		return name, state, nil

@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -41,9 +42,9 @@ func Config[T any]() InferredConfig {
 type InferredConfig interface {
 	schema.Resource
 	underlyingType() reflect.Type
-	checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error)
-	diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error)
-	configure(ctx p.Context, req p.ConfigureRequest) error
+	checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error)
+	diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error)
+	configure(ctx context.Context, req p.ConfigureRequest) error
 }
 
 // A provider that requires custom configuration before running.
@@ -59,7 +60,7 @@ type CustomConfigure interface {
 	//
 	// Changes to the receiver will not be saved in state. For normalizing inputs see
 	// [CustomCheck].
-	Configure(ctx p.Context) error
+	Configure(ctx context.Context) error
 }
 
 type config[T any] struct{ t *T }
@@ -78,7 +79,7 @@ func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resource
 	return r, errs.ErrorOrNil()
 }
 
-func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var t T
 	if v := reflect.ValueOf(t); v.Kind() == reflect.Pointer && v.IsNil() {
 		t = reflect.New(v.Type().Elem()).Interface().(T)
@@ -142,12 +143,12 @@ func (c *config[T]) checkConfig(ctx p.Context, req p.CheckRequest) (p.CheckRespo
 	}, nil
 }
 
-func (c *config[T]) diffConfig(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	c.ensure()
 	return diff[T, T, T](ctx, req, c.t, func(string) bool { return true })
 }
 
-func (c *config[T]) configure(ctx p.Context, req p.ConfigureRequest) error {
+func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
 	c.ensure()
 	_, err := ende.DecodeConfig(req.Args, c.t)
 	if err != nil {
@@ -174,12 +175,12 @@ func (c *config[T]) ensure() {
 	}
 }
 
-func (c *config[T]) handleConfigFailures(ctx p.Context, err mapper.MappingError) error {
+func (c *config[T]) handleConfigFailures(ctx context.Context, err mapper.MappingError) error {
 	if err == nil {
 		return nil
 	}
 
-	pkgName := ctx.RuntimeInformation().PackageName
+	pkgName := p.GetRunInfo(ctx).PackageName
 	schema, mErr := c.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
 	if mErr != nil {
 		return mErr

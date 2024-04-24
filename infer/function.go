@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"unicode"
@@ -32,7 +33,7 @@ import (
 // is the function output. Both must be structs.
 type Fn[I any, O any] interface {
 	// A function is a mapping from `I` to `O`.
-	Call(ctx p.Context, input I) (output O, err error)
+	Call(ctx context.Context, input I) (output O, err error)
 }
 
 // A function inferred from code. See Function for creating a InferredFunction.
@@ -121,7 +122,7 @@ func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 	}, nil
 }
 
-func (r *derivedInvokeController[F, I, O]) Invoke(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 	encoder, i, mapErr := ende.Decode[I](req.Args)
 	mapFailures, err := checkFailureFromMapError(mapErr)
 	if err != nil {

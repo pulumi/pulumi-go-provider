@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -72,7 +73,7 @@ import (
 //	}
 //
 //	func (*MyResource) Create(
-//		ctx p.Context, name string, inputs MyResourceInputs, preview bool,
+//		ctx context.Context, name string, inputs MyResourceInputs, preview bool,
 //	) (string, MyResourceOutputs, error) {
 //		id := input.MyString + ".id"
 //		if preview {
@@ -92,7 +93,7 @@ type CustomResource[I, O any] interface {
 }
 
 type CustomCreate[I, O any] interface {
-	Create(ctx p.Context, name string, inputs I, preview bool) (id string, output O, err error)
+	Create(ctx context.Context, name string, inputs I, preview bool) (id string, output O, err error)
 }
 
 // A resource that understands how to check its inputs.
@@ -106,7 +107,7 @@ type CustomCreate[I, O any] interface {
 // actually happens.
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx p.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
+	Check(ctx context.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
 		I, []p.CheckFailure, error)
 }
 
@@ -119,7 +120,7 @@ type CustomCheck[I any] interface {
 // TODO - Indicate replacements for certain changes but not others.
 type CustomDiff[I, O any] interface {
 	// Maybe oldInputs can be of type I
-	Diff(ctx p.Context, id string, olds O, news I) (p.DiffResponse, error)
+	Diff(ctx context.Context, id string, olds O, news I) (p.DiffResponse, error)
 }
 
 // A resource that can adapt to new inputs with a delete and replace.
@@ -133,7 +134,7 @@ type CustomDiff[I, O any] interface {
 // Example:
 // TODO
 type CustomUpdate[I, O any] interface {
-	Update(ctx p.Context, id string, olds O, news I, preview bool) (O, error)
+	Update(ctx context.Context, id string, olds O, news I, preview bool) (O, error)
 }
 
 // A resource that can recover its state from the provider.
@@ -147,7 +148,7 @@ type CustomUpdate[I, O any] interface {
 type CustomRead[I, O any] interface {
 	// Read accepts a resource id, and a best guess of the input and output state. It returns
 	// a normalized version of each, assuming it can be recovered.
-	Read(ctx p.Context, id string, inputs I, state O) (
+	Read(ctx context.Context, id string, inputs I, state O) (
 		canonicalID string, normalizedInputs I, normalizedState O, err error)
 }
 
@@ -156,7 +157,7 @@ type CustomRead[I, O any] interface {
 // If a resource does not implement Delete, no code will be run on resource deletion.
 type CustomDelete[O any] interface {
 	// Delete is called before a resource is removed from pulumi state.
-	Delete(ctx p.Context, id string, props O) error
+	Delete(ctx context.Context, id string, props O) error
 }
 
 // StateMigrationFunc represents a stateless mapping from an old state shape to a new
@@ -192,7 +193,7 @@ type StateMigrationFunc[New any] interface {
 //		AInt    *int   `pulumi:"aInt,optional"`
 //	}
 //
-//	func migrateFromV1(ctx p.Context, v1 StateV1) (infer.MigrationResult[MigrateStateV2], error) {
+//	func migrateFromV1(ctx context.Context, v1 StateV1) (infer.MigrationResult[MigrateStateV2], error) {
 //		return infer.MigrationResult[MigrateStateV2]{
 //			Result: &MigrateStateV2{
 //				AString: "default-string", // Add a new required field
@@ -202,12 +203,14 @@ type StateMigrationFunc[New any] interface {
 //	}
 //
 //	// Associate your migration with the resource it encapsulates.
-//	func (*MyResource) StateMigrations(p.Context) []infer.StateMigrationFunc[MigrateStateV2] {
+//	func (*MyResource) StateMigrations(context.Context) []infer.StateMigrationFunc[MigrateStateV2] {
 //		return []infer.StateMigrationFunc[MigrateStateV2]{
 //			infer.StateMigration(migrateFromV1),
 //		}
 //	}
-func StateMigration[Old, New any, F func(p.Context, Old) (MigrationResult[New], error)](f F) StateMigrationFunc[New] {
+func StateMigration[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)](
+	f F,
+) StateMigrationFunc[New] {
 	return stateMigrationFunc[Old, New, F]{f}
 }
 
@@ -222,7 +225,7 @@ type MigrationResult[T any] struct {
 	Result *T
 }
 
-type stateMigrationFunc[Old, New any, F func(p.Context, Old) (MigrationResult[New], error)] struct{ f F }
+type stateMigrationFunc[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)] struct{ f F }
 
 // typeFor returns the [Type] that represents the type argument T.
 //
@@ -242,7 +245,7 @@ type CustomStateMigrations[O any] interface {
 	// Each migration should return a valid State object.
 	//
 	// The first migration to return a non-nil Result will be used.
-	StateMigrations(ctx p.Context) []StateMigrationFunc[O]
+	StateMigrations(ctx context.Context) []StateMigrationFunc[O]
 }
 
 // The methods of Annotator must be called on pointers to fields of their receivers, or on
@@ -847,7 +850,7 @@ func (*derivedResourceController[R, I, O]) getInstance() *R {
 	return &r
 }
 
-func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var r R
 	encoder, i, err := ende.Decode[I](req.News)
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
@@ -918,7 +921,7 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 	return failures, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r := rc.getInstance()
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
@@ -941,7 +944,9 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 }
 
 // Compute a diff request.
-func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func(string) bool) (p.DiffResponse, error) {
+func diff[R, I, O any](
+	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
+) (p.DiffResponse, error) {
 
 	for _, ignoredChange := range req.IgnoreChanges {
 		req.News[ignoredChange] = req.Olds[ignoredChange]
@@ -1013,7 +1018,7 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 }
 
 func (rc *derivedResourceController[R, I, O]) Create(
-	ctx p.Context, req p.CreateRequest,
+	ctx context.Context, req p.CreateRequest,
 ) (resp p.CreateResponse, retError error) {
 	r := rc.getInstance()
 
@@ -1070,7 +1075,7 @@ func (rc *derivedResourceController[R, I, O]) Create(
 }
 
 func (rc *derivedResourceController[R, I, O]) Read(
-	ctx p.Context, req p.ReadRequest,
+	ctx context.Context, req p.ReadRequest,
 ) (resp p.ReadResponse, retError error) {
 	r := rc.getInstance()
 	var inputs I
@@ -1160,7 +1165,7 @@ func (rc *derivedResourceController[R, I, O]) Read(
 }
 
 func (rc *derivedResourceController[R, I, O]) Update(
-	ctx p.Context, req p.UpdateRequest,
+	ctx context.Context, req p.UpdateRequest,
 ) (resp p.UpdateResponse, retError error) {
 	r := rc.getInstance()
 	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
@@ -1221,7 +1226,7 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	}, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.DeleteRequest) error {
+func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.DeleteRequest) error {
 	r := rc.getInstance()
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
@@ -1278,7 +1283,7 @@ func getDependenciesRaw(
 // hydrateFromState takes a blob from state and hydrates it for user consumption, running any relevant state
 // migrations.
 func hydrateFromState[R, I, O any](
-	ctx p.Context, state resource.PropertyMap,
+	ctx context.Context, state resource.PropertyMap,
 ) (ende.Encoder, O, error) {
 	var r R
 	if r, ok := ((interface{})(r)).(CustomStateMigrations[O]); ok {
@@ -1292,7 +1297,7 @@ func hydrateFromState[R, I, O any](
 }
 
 func migrateState[O any](
-	ctx p.Context, r CustomStateMigrations[O], state resource.PropertyMap,
+	ctx context.Context, r CustomStateMigrations[O], state resource.PropertyMap,
 ) (ende.Encoder, O, bool, error) {
 	var o O
 	for _, upgrader := range r.StateMigrations(ctx) {

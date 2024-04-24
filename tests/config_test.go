@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/blang/semver"
@@ -24,7 +25,6 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
-	"github.com/pulumi/pulumi-go-provider/middleware/context"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )
 
@@ -34,7 +34,7 @@ type testConfig struct {
 
 type ctxKey struct{}
 
-func (c *testConfig) Configure(ctx p.Context) error {
+func (c *testConfig) Configure(ctx context.Context) error {
 	if *c.Field != "foo" {
 		panic("Unexpected field value")
 	}
@@ -47,22 +47,20 @@ func TestInferConfigWrap(t *testing.T) {
 	var baseConfigureWasCalled bool
 	var inferConfigureWasCalled bool
 
-	err := integration.NewServer("test", semver.MustParse("1.2.3"),
-		// Use context.Wrap to inject a reference to inferConfigureWasCalled into
-		// the context.
-		context.Wrap(
-			infer.Wrap(p.Provider{
-				Configure: func(ctx p.Context, req p.ConfigureRequest) error {
-					assert.Equal(t, "foo", req.Args["field"].StringValue())
-					baseConfigureWasCalled = true
-					return nil
-				},
-			}, infer.Options{
-				Config: infer.Config[*testConfig](),
-			}),
-			func(ctx p.Context) p.Context {
-				return p.CtxWithValue(ctx, ctxKey{}, &inferConfigureWasCalled)
-			}),
+	err := integration.NewServerWithContext(
+		context.WithValue(context.Background(),
+			ctxKey{},
+			&inferConfigureWasCalled),
+		"test", semver.MustParse("1.2.3"),
+		infer.Wrap(p.Provider{
+			Configure: func(ctx context.Context, req p.ConfigureRequest) error {
+				assert.Equal(t, "foo", req.Args["field"].StringValue())
+				baseConfigureWasCalled = true
+				return nil
+			},
+		}, infer.Options{
+			Config: infer.Config[*testConfig](),
+		}),
 	).Configure(p.ConfigureRequest{
 		Args: resource.PropertyMap{"field": resource.NewProperty("foo")},
 	})

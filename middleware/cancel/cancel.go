@@ -41,19 +41,19 @@ func Wrap(provider p.Provider) p.Provider {
 	cancelFuncs := evict.Pool[context.CancelFunc]{
 		OnEvict: func(f context.CancelFunc) { f() },
 	}
-	cancel := func(ctx p.Context, timeout float64) (p.Context, func()) {
+	cancel := func(ctx context.Context, timeout float64) (context.Context, func()) {
 		var cancel context.CancelFunc
 		if timeout == noTimeout {
-			ctx, cancel = p.CtxWithCancel(ctx)
+			ctx, cancel = context.WithCancel(ctx)
 		} else {
-			ctx, cancel = p.CtxWithTimeout(ctx, time.Second*time.Duration(timeout))
+			ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(timeout))
 		}
 
 		handle := cancelFuncs.Insert(cancel)
 		return ctx, handle.Evict
 	}
 	wrapper := provider
-	wrapper.Cancel = func(ctx p.Context) error {
+	wrapper.Cancel = func(ctx context.Context) error {
 		cancelFuncs.Close()
 
 		// We consider this a valid implementation of the Cancel RPC request. We still pass on
@@ -95,14 +95,14 @@ func Wrap(provider p.Provider) p.Provider {
 
 func setCancel1[
 	Req any,
-	F func(p.Context, Req) error,
-	Cancel func(ctx p.Context, timeout float64) (p.Context, func()),
+	F func(context.Context, Req) error,
+	Cancel func(ctx context.Context, timeout float64) (context.Context, func()),
 	GetTimeout func(Req) float64,
 ](cancel Cancel, f F, getTimeout GetTimeout) F {
 	if f == nil {
 		return nil
 	}
-	return func(ctx p.Context, req Req) error {
+	return func(ctx context.Context, req Req) error {
 		var timeout float64
 		if getTimeout != nil {
 			timeout = getTimeout(req)
@@ -115,14 +115,14 @@ func setCancel1[
 
 func setCancel2[
 	Req any, Resp any,
-	F func(p.Context, Req) (Resp, error),
-	Cancel func(ctx p.Context, timeout float64) (p.Context, func()),
+	F func(context.Context, Req) (Resp, error),
+	Cancel func(ctx context.Context, timeout float64) (context.Context, func()),
 	GetTimeout func(Req) float64,
 ](cancel Cancel, f F, getTimeout GetTimeout) F {
 	if f == nil {
 		return nil
 	}
-	return func(ctx p.Context, req Req) (Resp, error) {
+	return func(ctx context.Context, req Req) (Resp, error) {
 		var timeout float64
 		if getTimeout != nil {
 			timeout = getTimeout(req)

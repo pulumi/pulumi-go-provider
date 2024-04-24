@@ -15,6 +15,8 @@
 package partial
 
 import (
+	"context"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
@@ -47,7 +49,7 @@ type State struct {
 	Out string `pulumi:"out"`
 }
 
-func (*Partial) Create(ctx p.Context, name string, input Args, preview bool) (string, State, error) {
+func (*Partial) Create(ctx context.Context, name string, input Args, preview bool) (string, State, error) {
 	if preview {
 		return "", State{}, nil
 	}
@@ -60,7 +62,7 @@ func (*Partial) Create(ctx p.Context, name string, input Args, preview bool) (st
 		}
 }
 
-func (*Partial) Update(ctx p.Context, id string, olds State, news Args, preview bool) (State, error) {
+func (*Partial) Update(ctx context.Context, id string, olds State, news Args, preview bool) (State, error) {
 	if preview {
 		return State{}, nil
 	}
@@ -78,7 +80,7 @@ func (*Partial) Update(ctx p.Context, id string, olds State, news Args, preview 
 		}
 }
 
-func (*Partial) Read(ctx p.Context, id string, inputs Args, state State) (
+func (*Partial) Read(ctx context.Context, id string, inputs Args, state State) (
 	canonicalID string, normalizedInputs Args, normalizedState State, err error) {
 	contract.Assertf(inputs.S == "for-read", `expected inputs.S to be "for-read"`)
 	contract.Assertf(state.S == "from-update", `expected olds.Out to be "partial-create"`)

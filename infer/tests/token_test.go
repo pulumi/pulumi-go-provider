@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/blang/semver"
@@ -33,7 +34,7 @@ type CustomToken struct{}
 func (c *CustomToken) Annotate(a infer.Annotator) { a.SetToken("overwritten", "Tk") }
 
 func (*CustomToken) Create(
-	ctx p.Context, name string, inputs TokenArgs, preview bool,
+	context.Context, string, TokenArgs, bool,
 ) (string, TokenResult, error) {
 	panic("unimplemented")
 }
@@ -64,7 +65,7 @@ type FnToken struct{}
 
 func (c *FnToken) Annotate(a infer.Annotator) { a.SetToken("fn", "TK") }
 
-func (*FnToken) Call(ctx p.Context, input TokenArgs) (output TokenResult, err error) {
+func (*FnToken) Call(ctx context.Context, input TokenArgs) (output TokenResult, err error) {
 	panic("unimplemented")
 }
 

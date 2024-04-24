@@ -15,6 +15,7 @@
 package rpc
 
 import (
+	"context"
 	"errors"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
@@ -36,7 +37,7 @@ import (
 func Provider(server rpc.ResourceProviderServer) p.Provider {
 	var runtime runtime // the runtime configuration of the server
 	return p.Provider{
-		GetSchema: func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+		GetSchema: func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			s, err := server.GetSchema(ctx, &rpc.GetSchemaRequest{
 				Version: int32(req.Version),
 			})
@@ -44,11 +45,11 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Schema: s.GetSchema(),
 			}, err
 		},
-		Cancel: func(ctx p.Context) error {
+		Cancel: func(ctx context.Context) error {
 			_, err := server.Cancel(ctx, &emptypb.Empty{})
 			return err
 		},
-		CheckConfig: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		CheckConfig: func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			olds, err := runtime.propertyToRPC(req.Olds)
 			if err != nil {
 				return p.CheckResponse{}, err
@@ -66,7 +67,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				RandomSeed: req.RandomSeed,
 			}))
 		},
-		DiffConfig: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		DiffConfig: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			ignoreChanges := make([]string, len(req.IgnoreChanges))
 			for i, v := range req.IgnoreChanges {
 				ignoreChanges[i] = string(v)
@@ -88,7 +89,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				IgnoreChanges: ignoreChanges,
 			}))
 		},
-		Configure: func(ctx p.Context, req p.ConfigureRequest) error {
+		Configure: func(ctx context.Context, req p.ConfigureRequest) error {
 			args, err := runtime.propertyToRPC(req.Args)
 			if err != nil {
 				return err
@@ -102,7 +103,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			})
 			return err
 		},
-		Invoke: func(ctx p.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
+		Invoke: func(ctx context.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
 
 			args, err := runtime.propertyToRPC(req.Args)
 			if err != nil {
@@ -119,7 +120,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Failures: checkFailures(resp.GetFailures()),
 			}, err
 		},
-		Check: func(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+		Check: func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			olds, err := runtime.propertyToRPC(req.Olds)
 			if err != nil {
 				return p.CheckResponse{}, err
@@ -137,7 +138,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				RandomSeed: req.RandomSeed,
 			}))
 		},
-		Diff: func(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+		Diff: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			ignoreChanges := make([]string, len(req.IgnoreChanges))
 			for i, v := range req.IgnoreChanges {
 				ignoreChanges[i] = string(v)
@@ -160,7 +161,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				IgnoreChanges: ignoreChanges,
 			}))
 		},
-		Create: func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.CreateResponse{}, nil
 			}
@@ -182,7 +183,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Properties: properties,
 			}, err
 		},
-		Read: func(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		Read: func(ctx context.Context, req p.ReadRequest) (p.ReadResponse, error) {
 			inProperties, err := runtime.propertyToRPC(req.Properties)
 			if err != nil {
 				return p.ReadResponse{}, err
@@ -206,7 +207,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Inputs:     inputs,
 			}, err
 		},
-		Update: func(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+		Update: func(ctx context.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.UpdateResponse{}, nil
 			}
@@ -240,7 +241,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Properties: properties,
 			}, err
 		},
-		Delete: func(ctx p.Context, req p.DeleteRequest) error {
+		Delete: func(ctx context.Context, req p.DeleteRequest) error {
 			properties, err := runtime.propertyToRPC(req.Properties)
 			if err != nil {
 				return err

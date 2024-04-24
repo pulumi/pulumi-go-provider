@@ -40,7 +40,7 @@ func TestGlobalCancel(t *testing.T) {
 
 	provider := integration.NewServer("cancel", semver.MustParse("1.2.3"),
 		cancel.Wrap(p.Provider{
-			Create: func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+			Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
 
 				// If a request is set to wait, then it pauses until it is canceled.
 				if req.Properties["wait"].BoolValue() {
@@ -111,7 +111,7 @@ func TestCancelCreate(t *testing.T) {
 	createCheck := make(chan bool)
 
 	provider := integration.NewServer("cancel", semver.MustParse("1.2.3"), cancel.Wrap(p.Provider{
-		Create: func(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			// The context should not be canceled yes
 			assert.NoError(t, ctx.Err())
 			createCheck <- true
@@ -137,7 +137,7 @@ func TestCancelCreate(t *testing.T) {
 func TestCancelTimeout(t *testing.T) {
 	t.Parallel()
 
-	checkDeadline := func(ctx p.Context) error {
+	checkDeadline := func(ctx context.Context) error {
 		_, ok := ctx.Deadline()
 		assert.True(t, ok)
 		<-ctx.Done()
@@ -146,13 +146,13 @@ func TestCancelTimeout(t *testing.T) {
 
 	s := integration.NewServer("cancel", semver.MustParse("1.2.3"),
 		cancel.Wrap(p.Provider{
-			Create: func(ctx p.Context, _ p.CreateRequest) (p.CreateResponse, error) {
+			Create: func(ctx context.Context, _ p.CreateRequest) (p.CreateResponse, error) {
 				return p.CreateResponse{}, checkDeadline(ctx)
 			},
-			Update: func(ctx p.Context, _ p.UpdateRequest) (p.UpdateResponse, error) {
+			Update: func(ctx context.Context, _ p.UpdateRequest) (p.UpdateResponse, error) {
 				return p.UpdateResponse{}, checkDeadline(ctx)
 			},
-			Delete: func(ctx p.Context, _ p.DeleteRequest) error {
+			Delete: func(ctx context.Context, _ p.DeleteRequest) error {
 				return checkDeadline(ctx)
 			},
 		}))

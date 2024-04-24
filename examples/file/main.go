@@ -1,13 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
@@ -69,7 +68,7 @@ func (f *FileState) Annotate(a infer.Annotator) {
 	a.Describe(&f.Path, "The path of the file.")
 }
 
-func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (id string, output FileState, err error) {
+func (*File) Create(ctx context.Context, name string, input FileArgs, preview bool) (id string, output FileState, err error) {
 	if !input.Force {
 		_, err := os.Stat(input.Path)
 		if !os.IsNotExist(err) {
@@ -100,23 +99,23 @@ func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (i
 	}, nil
 }
 
-func (*File) Delete(ctx p.Context, id string, props FileState) error {
+func (*File) Delete(ctx context.Context, id string, props FileState) error {
 	err := os.Remove(props.Path)
 	if os.IsNotExist(err) {
-		ctx.Logf(diag.Warning, "file %q already deleted", props.Path)
+		p.GetLogger(ctx).Warningf("file %q already deleted", props.Path)
 		err = nil
 	}
 	return err
 }
 
-func (*File) Check(ctx p.Context, name string, oldInputs, newInputs resource.PropertyMap) (FileArgs, []p.CheckFailure, error) {
+func (*File) Check(ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap) (FileArgs, []p.CheckFailure, error) {
 	if _, ok := newInputs["path"]; !ok {
 		newInputs["path"] = resource.NewStringProperty(name)
 	}
 	return infer.DefaultCheck[FileArgs](newInputs)
 }
 
-func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
+func (*File) Update(ctx context.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
 	if !preview && olds.Content != news.Content {
 		f, err := os.Create(olds.Path)
 		if err != nil {
@@ -140,7 +139,7 @@ func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, pre
 
 }
 
-func (*File) Diff(ctx p.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
+func (*File) Diff(ctx context.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
 	diff := map[string]p.PropertyDiff{}
 	if news.Content != olds.Content {
 		diff["content"] = p.PropertyDiff{Kind: p.Update}
@@ -158,9 +157,9 @@ func (*File) Diff(ctx p.Context, id string, olds FileState, news FileArgs) (p.Di
 	}, nil
 }
 
-func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (canonicalID string, normalizedInputs FileArgs, normalizedState FileState, err error) {
+func (*File) Read(ctx context.Context, id string, inputs FileArgs, state FileState) (canonicalID string, normalizedInputs FileArgs, normalizedState FileState, err error) {
 	path := id
-	byteContent, err := ioutil.ReadFile(path)
+	byteContent, err := os.ReadFile(path)
 	if err != nil {
 		return "", FileArgs{}, FileState{}, err
 	}

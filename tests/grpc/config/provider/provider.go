@@ -15,6 +15,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -71,7 +72,7 @@ type GetState struct {
 	Config string `pulumi:"config"`
 }
 
-func (*Get) Create(ctx p.Context, name string, input GetArgs, preview bool) (string, GetState, error) {
+func (*Get) Create(ctx context.Context, name string, input GetArgs, preview bool) (string, GetState, error) {
 	config := infer.GetConfig[Config](ctx)
 	bytes, err := json.Marshal(&config)
 	return name, GetState{Config: string(bytes)}, err
