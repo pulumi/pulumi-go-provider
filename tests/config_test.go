@@ -61,7 +61,9 @@ func TestInferConfigWrap(t *testing.T) {
 				return nil
 			},
 			Check: func(ctx context.Context, _ p.CheckRequest) (p.CheckResponse, error) {
-				infer.GetConfig[*testConfig](ctx) // Will panic if config is missing
+				assert.NotPanics(t, func() {
+					infer.GetConfig[*testConfig](ctx)
+				}, "infer.GetConfig will panic if a config of the correct type cannot be found")
 				checkWasCalled = true
 				return p.CheckResponse{}, nil
 			},
