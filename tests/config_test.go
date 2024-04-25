@@ -47,7 +47,9 @@ func TestInferConfigWrap(t *testing.T) {
 	var baseConfigureWasCalled bool
 	var inferConfigureWasCalled bool
 
-	err := integration.NewServerWithContext(
+	var checkWasCalled bool
+
+	s := integration.NewServerWithContext(
 		context.WithValue(context.Background(),
 			ctxKey{},
 			&inferConfigureWasCalled),
@@ -58,14 +60,25 @@ func TestInferConfigWrap(t *testing.T) {
 				baseConfigureWasCalled = true
 				return nil
 			},
+			Check: func(ctx context.Context, _ p.CheckRequest) (p.CheckResponse, error) {
+				infer.GetConfig[*testConfig](ctx) // Will panic if config is missing
+				checkWasCalled = true
+				return p.CheckResponse{}, nil
+			},
 		}, infer.Options{
 			Config: infer.Config[*testConfig](),
 		}),
-	).Configure(p.ConfigureRequest{
+	)
+
+	err := s.Configure(p.ConfigureRequest{
 		Args: resource.PropertyMap{"field": resource.NewProperty("foo")},
 	})
 	require.NoError(t, err)
 
+	_, err = s.Check(p.CheckRequest{})
+	require.NoError(t, err)
+
 	assert.True(t, baseConfigureWasCalled)
 	assert.True(t, inferConfigureWasCalled)
+	assert.True(t, checkWasCalled)
 }
