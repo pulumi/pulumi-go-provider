@@ -2,15 +2,11 @@ module github.com/pulumi/pulumi-go-provider/infer/tests
 
 go 1.21
 
-replace (
-	github.com/pulumi/pulumi-go-provider => ../..
-	github.com/pulumi/pulumi-go-provider/integration => ../../integration
-)
+replace github.com/pulumi/pulumi-go-provider => ../..
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v0.10.1
-	github.com/pulumi/pulumi-go-provider/integration v0.10.0
 	github.com/pulumi/pulumi/sdk/v3 v3.95.0
 	github.com/stretchr/testify v1.8.4
 )
