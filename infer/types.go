@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -125,10 +126,11 @@ func isEnum(t reflect.Type) (enum, bool) {
 // Take a enum type and return it's base type.
 //
 // Example:
-// type Foo string
-// const foo Foo = "foo"
 //
-// Would result in coerseToBase(reflect.ValueOf(foo)) == string(foo)
+//	type Foo string
+//	const foo Foo = "foo"
+//
+// Would result in `coerseToBase(reflect.ValueOf(foo)) == string(foo)`
 func coerceToBase(v reflect.Value) any {
 	switch v.Kind() {
 	case reflect.String:
@@ -144,9 +146,13 @@ func coerceToBase(v reflect.Value) any {
 	}
 }
 
-type Crawler func(t reflect.Type) (drill bool, err error)
+type Crawler func(
+	t reflect.Type, isReference bool,
+	fieldInfo *introspect.FieldTag,
+	parent, field string,
+) (drill bool, err error)
 
-// crawlTypes recursively crawles T, calling the crawler on each new type it finds.
+// crawlTypes recursively crawls T, calling the crawler on each new type it finds.
 func crawlTypes[T any](crawler Crawler) error {
 	var i T
 	t := reflect.TypeOf(i)
@@ -165,8 +171,8 @@ func crawlTypes[T any](crawler Crawler) error {
 	}
 
 	// Drill will walk the types, calling crawl on types it finds.
-	var drill func(reflect.Type) error
-	drill = func(t reflect.Type) error {
+	var drill func(reflect.Type, bool, *introspect.FieldTag) error
+	drill = func(t reflect.Type, isReference bool, fieldInfo *introspect.FieldTag) error {
 		nT, inputty, err := underlyingType(t)
 		if err != nil {
 			return err
@@ -177,12 +183,14 @@ func crawlTypes[T any](crawler Crawler) error {
 		switch t.Kind() {
 		case reflect.String, reflect.Float64, reflect.Int, reflect.Bool:
 			// Primitive types could be enums
-			_, err := crawler(t)
+			_, err := crawler(t, isReference, fieldInfo, "", "")
 			return err
 		case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
 			// Holds a reference to other types
-			return drill(t.Elem())
+			return drill(t.Elem(), false, fieldInfo)
 		case reflect.Struct:
+			var errs []error
+		field:
 			for _, f := range reflect.VisibleFields(t) {
 				info, err := introspect.ParseTag(f)
 				if err != nil {
@@ -192,16 +200,21 @@ func crawlTypes[T any](crawler Crawler) error {
 				if info.Internal || (info.ExplicitRef != nil && info.ExplicitRef.Pkg != "") {
 					continue
 				}
+
+				fieldIsReference := false
+
 				typ := f.Type
 				for done := false; !done; {
 					switch typ.Kind() {
 					case reflect.Pointer, reflect.Array, reflect.Map, reflect.Slice:
 						// Could hold a reference to other types
 						typ = typ.Elem()
+						fieldIsReference = true
 					default:
 						nT, inputty, err := underlyingType(typ)
 						if err != nil {
-							return err
+							errs = append(errs, err)
+							continue field
 						}
 						if inputty {
 							typ = nT
@@ -210,26 +223,33 @@ func crawlTypes[T any](crawler Crawler) error {
 						}
 					}
 				}
-				further, err := crawler(typ)
+				further, err := crawler(typ, fieldIsReference, &info, t.String(), f.Name)
 				if err != nil {
-					return err
+					errs = append(errs, err)
+					continue field
 				}
 				if further {
-					err = drill(typ)
+					err = drill(typ, fieldIsReference, &info)
 					if err != nil {
-						return err
+						errs = append(errs, err)
+						continue field
 					}
 				}
 			}
+			return errors.Join(errs...)
+		default:
+			return nil
 		}
-		return nil
 	}
-	return drill(t)
+	return drill(t, false, nil)
 }
 
 // registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
 func registerTypes[T any](reg schema.RegisterDerivativeType) error {
-	crawler := func(t reflect.Type) (bool, error) {
+	crawler := func(
+		t reflect.Type, isReference bool, info *introspect.FieldTag,
+		parent, field string,
+	) (bool, error) {
 		if nT, inputty, err := underlyingType(t); err != nil {
 			return false, err
 		} else if inputty {
@@ -239,6 +259,14 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			return false, nil
 		}
 		if enum, ok := isEnum(t); ok {
+			if info != nil && info.Optional && !isReference {
+				return false, optionalNeedsPointerError{
+					ParentStruct: parent,
+					PropertyName: field,
+					Kind:         "enum",
+				}
+			}
+
 			tSpec := pschema.ComplexTypeSpec{}
 			for _, v := range enum.values {
 				tSpec.Enum = append(tSpec.Enum, pschema.EnumValueSpec{
@@ -267,9 +295,28 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 				return false, err
 			}
 
+			if info != nil && info.Optional && !isReference {
+				return false, optionalNeedsPointerError{
+					ParentStruct: parent,
+					PropertyName: field,
+					Kind:         t.Kind().String(),
+				}
+			}
+
 			return reg(tk, pschema.ComplexTypeSpec{ObjectTypeSpec: *spec}), nil
 		}
 		return true, nil
 	}
 	return crawlTypes[T](crawler)
+}
+
+type optionalNeedsPointerError struct {
+	ParentStruct string
+	PropertyName string
+	Kind         string
+}
+
+func (err optionalNeedsPointerError) Error() string {
+	const msg string = "%s.%s: cannot specify a optional %s without pointer indirection"
+	return fmt.Sprintf(msg, err.ParentStruct, err.PropertyName, err.Kind)
 }

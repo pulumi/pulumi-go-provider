@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"fmt"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -25,6 +26,8 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type configKeyType struct{}
@@ -33,11 +36,32 @@ var configKey configKeyType
 
 // Configure an inferred provider.
 type Options struct {
+	// Metadata describes provider level metadata for the schema.
+	//
+	// Look at [schema.Metadata] to see the set of configurable options.
+	//
+	// It does not contain runtime details for the provider.
 	schema.Metadata
-	Resources  []InferredResource  // Inferred resources served by the provider.
-	Components []InferredComponent // Inferred components served by the provider.
-	Functions  []InferredFunction  // Inferred functions served by the provider.
-	Config     InferredConfig
+
+	// The set of custom resources served by the provider.
+	//
+	// To create an [InferredResource], use [Resource].
+	Resources []InferredResource
+
+	// The set of component resources served by the provider.
+	//
+	// To create an [InferredComponent], use [Component].
+	Components []InferredComponent
+
+	// The set of functions served by the provider.
+	//
+	// To create an [InferredFunction], use [Function].
+	Functions []InferredFunction
+
+	// The config used by the provider, if any.
+	//
+	// To create an [InferredConfig], use [Config].
+	Config InferredConfig
 
 	// ModuleMap provides a mapping between go modules and pulumi modules.
 	//
@@ -101,22 +125,43 @@ func (o Options) schema() schema.Options {
 	}
 }
 
-// Create a new inferred provider from `opts`.
+// Provider creates a new inferred provider from `opts`.
+//
+// To customize the resulting provider, including setting resources, functions, config options and other
+// schema metadata, look at the [Options] struct.
 func Provider(opts Options) p.Provider {
 	return Wrap(p.Provider{}, opts)
 }
 
+// Wrap wraps a compatible underlying provider in an inferred provider (as described by options).
+//
+// The resulting provider will respond to resources and functions that are described in `opts`, delegating
+// unknown calls to the underlying provider.
 func Wrap(provider p.Provider, opts Options) p.Provider {
 	provider = dispatch.Wrap(provider, opts.dispatch())
 	provider = schema.Wrap(provider, opts.schema())
 
 	config := opts.Config
 	if config != nil {
-		provider.Configure = config.configure
+		if prev := provider.Configure; prev != nil {
+			provider.Configure = func(ctx context.Context, req p.ConfigureRequest) error {
+				err := config.configure(ctx, req)
+				if err != nil {
+					return err
+				}
+				err = prev(ctx, req)
+				if status.Code(err) == codes.Unimplemented {
+					return nil
+				}
+				return err
+			}
+		} else {
+			provider.Configure = config.configure
+		}
 		provider.DiffConfig = config.diffConfig
 		provider.CheckConfig = config.checkConfig
-		provider = mContext.Wrap(provider, func(ctx p.Context) p.Context {
-			return p.CtxWithValue(ctx, configKey, opts.Config)
+		provider = mContext.Wrap(provider, func(ctx context.Context) context.Context {
+			return context.WithValue(ctx, configKey, opts.Config)
 		})
 	}
 	return cancel.Wrap(provider)
@@ -126,7 +171,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 //
 // Note: GetConfig will panic if the type of T does not match the type of the config or if
 // the provider has not supplied a config.
-func GetConfig[T any](ctx p.Context) T {
+func GetConfig[T any](ctx context.Context) T {
 	v := ctx.Value(configKey)
 	var t T
 	if v == nil {

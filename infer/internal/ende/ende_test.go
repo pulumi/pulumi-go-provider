@@ -32,9 +32,8 @@ import (
 func testRoundTrip[T any](t *testing.T, pMap func() r.PropertyMap) {
 	t.Run("", func(t *testing.T) {
 		t.Parallel()
-		var typeInfo T
 		toDecode := pMap()
-		encoder, err := Decode(toDecode, &typeInfo)
+		encoder, typeInfo, err := Decode[T](toDecode)
 		require.NoError(t, err)
 
 		assert.Equalf(t, pMap(), toDecode, "mutated decode map")

@@ -1,15 +1,19 @@
 # pulumi-go-provider
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pulumi/pulumi-go-provider)](https://goreportcard.com/report/github.com/pulumi/pulumi-go-provider)
 
-A framework for building Go Providers for Pulumi
+A framework for building Go Providers for Pulumi.
 
-_Note_: This library is in active development, and not everthing is hooked up. You should
+**Library documentation can be found at** [![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
+
+_Note_: This library is in active development, and not everything is hooked up. You should
 expect breaking changes as we fine tune the exposed APIs. We definitely appreciate
 community feedback, but you should probably wait to port any existing providers over.
 
-For detailed instructions on building providers with `infer`, see [infer/README.md](./infer/README.md).
+The highest level of `pulumi-go-provider` is `infer`, which derives as much possible from
+your Go code. The "Hello, Pulumi" example below uses `infer`. For detailed instructions on
+building providers with `infer`, click
+[here](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider).
 
 ## The "Hello, Pulumi" Provider
 
@@ -51,7 +55,9 @@ type HelloWorldState struct {
 }
 
 // All resources must implement Create at a minumum.
-func (HelloWorld) Create(ctx p.Context, name string, input HelloWorldArgs, preview bool) (string, HelloWorldState, error) {
+func (HelloWorld) Create(
+	ctx context.Context, name string, input HelloWorldArgs, preview bool,
+) (string, HelloWorldState, error) {
 	state := HelloWorldState{HelloWorldArgs: input}
 	if preview {
 		return name, state, nil
@@ -86,3 +92,14 @@ things simple. The library comes in 4 parts:
    started with a provider in go.[^1]
 
 [^1]: The "Hello, Pulumi" example shows the `infer` layer.
+
+## Generating SDKs and schema
+
+Using [Pulumi YAML](https://www.pulumi.com/docs/languages-sdks/yaml/), you can use the
+provider as-is. In order to use the provider in
+[other languages](https://www.pulumi.com/docs/languages-sdks/), you need to generate at
+least one SDK. `pulumi package gen-sdk ./bin/your-provider` will do this, by default for
+all supported languages. See `pulumi package gen-sdk --help` for more options.
+
+It's not necessary to export the Pulumi schema to use the provider. If you would like to
+do so, e.g., for debugging purposes, you can use `pulumi package get-schema ./bin/your-provider`.

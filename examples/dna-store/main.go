@@ -1,15 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 )
 
 type Molecule int
@@ -67,9 +67,9 @@ type DNAStoreArgs struct {
 
 type DNAStore struct{}
 
-func (*DNAStore) Create(ctx p.Context, name string, input DNAStoreArgs, preview bool) (id string, output DNAStoreArgs, err error) {
+func (*DNAStore) Create(ctx context.Context, name string, input DNAStoreArgs, preview bool) (id string, output DNAStoreArgs, err error) {
 	path := filepath.Join(input.Storage, name)
-	ctx.Logf(diag.Warning, "path=%q", path)
+	p.GetLogger(ctx).Warningf("path=%q", path)
 	retErr := func(msg string, args ...any) (string, DNAStoreArgs, error) {
 		return "", DNAStoreArgs{}, fmt.Errorf(msg, args...)
 	}
@@ -113,7 +113,7 @@ func (*DNAStore) Create(ctx p.Context, name string, input DNAStoreArgs, preview 
 
 }
 
-func (*DNAStore) Delete(ctx p.Context, id string, _ DNAStoreArgs) error {
+func (*DNAStore) Delete(ctx context.Context, id string, _ DNAStoreArgs) error {
 	err := os.Remove(id)
 	if err != nil && os.IsNotExist(err) {
 		return err
@@ -125,7 +125,7 @@ func (*DNAStore) Delete(ctx p.Context, id string, _ DNAStoreArgs) error {
 	return nil
 }
 
-func (*DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNAStoreArgs) (
+func (*DNAStore) Read(ctx context.Context, id string, inputs DNAStoreArgs, state DNAStoreArgs) (
 	canonicalID string, normalizedInputs DNAStoreArgs, normalizedState DNAStoreArgs, err error) {
 	path := id
 	retErr := func(msg string, a ...any) (string, DNAStoreArgs, DNAStoreArgs, error) {
@@ -139,7 +139,7 @@ func (*DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNASt
 		return retErr("could not read DNAStore(%s): %w", id, err)
 	}
 	defer file.Close()
-	bytes, err := ioutil.ReadAll(file)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		return retErr("could not read DNAStore(%s): %w", id, err)
 	}
@@ -167,7 +167,7 @@ func (*DNAStore) Read(ctx p.Context, id string, inputs DNAStoreArgs, state DNASt
 		return retErr("failed to read metadata of DNAStore(%s): %w", id, err)
 	} else {
 		defer file.Close()
-		data, err := ioutil.ReadAll(file)
+		data, err := io.ReadAll(file)
 		if err != nil {
 			return retErr("failed to read metadata of DNAStore(%s): %w", id, err)
 		}

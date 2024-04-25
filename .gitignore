@@ -20,7 +20,11 @@
 **/sdk
 
 examples/**/pulumi-resource-*
+examples/**/schema-*.json
 
 /.vscode
 
 **/testdata/rapid/**
+
+go.work
+go.work.sum

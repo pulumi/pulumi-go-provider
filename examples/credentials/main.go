@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"hash/adler32"
 	"hash/crc32"
@@ -8,7 +9,6 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
@@ -66,7 +66,7 @@ func (c *Config) Annotate(a infer.Annotator) {
 
 var _ = (infer.CustomConfigure)((*Config)(nil))
 
-func (c *Config) Configure(ctx p.Context) error {
+func (c *Config) Configure(ctx context.Context) error {
 	msg := fmt.Sprintf("credentials provider setup with user: %q", c.User)
 	if c.Password != "" {
 		msg += fmt.Sprintf(" and a very secret password (its %q)", c.Password)
@@ -77,7 +77,7 @@ func (c *Config) Configure(ctx p.Context) error {
 	case HashCRC:
 		c.hashedPassword = fmt.Sprintf("%d", crc32.ChecksumIEEE([]byte(c.Password)))
 	}
-	ctx.Log(diag.Info, msg)
+	p.GetLogger(ctx).Info(msg)
 	return nil
 }
 
@@ -88,7 +88,7 @@ type UserState struct {
 	Password string `pulumi:"password"`
 }
 
-func (*User) Create(ctx p.Context, name string, input UserArgs, preview bool) (string, UserState, error) {
+func (*User) Create(ctx context.Context, name string, input UserArgs, preview bool) (string, UserState, error) {
 	config := infer.GetConfig[Config](ctx)
 	return name, UserState{
 		Name:     config.User,
@@ -98,7 +98,7 @@ func (*User) Create(ctx p.Context, name string, input UserArgs, preview bool) (s
 
 var _ = (infer.CustomDiff[UserArgs, UserState])((*User)(nil))
 
-func (*User) Diff(ctx p.Context, id string, olds UserState, news UserArgs) (p.DiffResponse, error) {
+func (*User) Diff(ctx context.Context, id string, olds UserState, news UserArgs) (p.DiffResponse, error) {
 	config := infer.GetConfig[Config](ctx)
 	if config.User != olds.Name {
 		return p.DiffResponse{

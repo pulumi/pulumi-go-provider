@@ -18,6 +18,7 @@
 package schema
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -88,7 +89,7 @@ type state struct {
 	schema         *cache
 	lowerSchema    *cache
 	combinedSchema *cache
-	innerGetSchema func(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
+	innerGetSchema func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
 }
 
 func (s *state) invalidateCache() {
@@ -112,16 +113,60 @@ type Options struct {
 	ModuleMap map[tokens.ModuleName]tokens.ModuleName
 }
 
+// Metadata describes additional metadata to embed in the generated Pulumi Schema.
 type Metadata struct {
-	LanguageMap       map[string]any
-	Description       string
-	DisplayName       string
-	Keywords          []string
-	Homepage          string
-	Repository        string
-	Publisher         string
-	LogoURL           string
-	License           string
+	// LanguageMap corresponds to the [schema.PackageSpec.Language] section of the
+	// resulting schema.
+	//
+	// Example:
+	//
+	// 	import (
+	// 		goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
+	// 		nodejsGen "github.com/pulumi/pulumi/pkg/v3/codegen/nodejs"
+	// 		pythonGen "github.com/pulumi/pulumi/pkg/v3/codegen/python"
+	// 		csharpGen "github.com/pulumi/pulumi/pkg/v3/codegen/dotnet"
+	// 		javaGen " github.com/pulumi/pulumi-java/pkg/codegen/java"
+	//	)
+	//
+	//	Metadata{
+	//		LanguageMap: map[string]any{
+	//			"go": goGen.GoPackageInfo{
+	//				RootPackageName: "go-specific",
+	//			},
+	//			"nodejs": nodejsGen.NodePackageInfo{
+	//				PackageName: "nodejs-specific",
+	//			},
+	//			"python": pythonGen.PackageInfo{
+	//				PackageName: "python-specific",
+	//			},
+	//			"csharp": csharpGen.CSharpPackageInfo{
+	//				RootNamespace: "csharp-specific",
+	//			},
+	//			"java": javaGen.PackageInfo{
+	//				BasePackage: "java-specific",
+	//			},
+	//		},
+	//	}
+	//
+	// Before embedding, each field is marshaled via [json.Marshal].
+	LanguageMap map[string]any
+	// Description sets the [schema.PackageSpec.Description] field.
+	Description string
+	// DisplayName sets the [schema.PackageSpec.DisplayName] field.
+	DisplayName string
+	// Keywords sets the [schema.PackageSpec.Keywords] field.
+	Keywords []string
+	// Homepage sets the [schema.PackageSpec.Homepage] field.
+	Homepage string
+	// Repository sets the [schema.PackageSpec.Repository] field.
+	Repository string
+	// Publisher sets the [schema.PackageSpec.Publisher] field.
+	Publisher string
+	// LogoURL sets the [schema.PackageSpec.LogoURL] field.
+	LogoURL string
+	// License sets the [schema.PackageSpec.License] field.
+	License string
+	// PluginDownloadURL sets the [schema.PackageSpec.PluginDownloadURL] field.
 	PluginDownloadURL string
 }
 
@@ -135,7 +180,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 	return provider
 }
 
-func (s *state) GetSchema(ctx p.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+func (s *state) GetSchema(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	if s.schema.isEmpty() {
 		spec, err := s.generateSchema(ctx)
 		if err != nil {
@@ -234,8 +279,8 @@ func (s *state) mergeSchemas() error {
 }
 
 // Generate a schema string from the currently present schema types.
-func (s *state) generateSchema(ctx p.Context) (schema.PackageSpec, error) {
-	info := ctx.RuntimeInformation()
+func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) {
+	info := p.GetRunInfo(ctx)
 	pkg := schema.PackageSpec{
 		Name:              info.PackageName,
 		Version:           info.Version,

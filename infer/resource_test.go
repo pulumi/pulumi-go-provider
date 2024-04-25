@@ -17,6 +17,7 @@ package infer
 import (
 	"context"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
@@ -25,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
-	provider "github.com/pulumi/pulumi-go-provider"
+	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	rRapid "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
@@ -219,7 +220,7 @@ func (c Context) Log(_ diag.Severity, _ string)                  {}
 func (c Context) Logf(_ diag.Severity, _ string, _ ...any)       {}
 func (c Context) LogStatus(_ diag.Severity, _ string)            {}
 func (c Context) LogStatusf(_ diag.Severity, _ string, _ ...any) {}
-func (c Context) RuntimeInformation() provider.RunInfo           { return provider.RunInfo{} }
+func (c Context) RuntimeInformation() p.RunInfo                  { return p.RunInfo{} }
 
 func TestDiff(t *testing.T) {
 	t.Parallel()
@@ -229,7 +230,7 @@ func TestDiff(t *testing.T) {
 	tests := []struct {
 		olds r.PropertyMap
 		news r.PropertyMap
-		diff map[string]provider.DiffKind
+		diff map[string]p.DiffKind
 	}{
 		{
 			olds: r.PropertyMap{
@@ -242,7 +243,7 @@ func TestDiff(t *testing.T) {
 					"FOO": r.NewStringProperty("bar"),
 				}),
 			},
-			diff: map[string]provider.DiffKind{"environment.FOO": "update"},
+			diff: map[string]p.DiffKind{"environment.FOO": "update"},
 		},
 		{
 			olds: r.PropertyMap{},
@@ -251,7 +252,7 @@ func TestDiff(t *testing.T) {
 					"FOO": r.NewStringProperty("bar"),
 				}),
 			},
-			diff: map[string]provider.DiffKind{"environment": "add"},
+			diff: map[string]p.DiffKind{"environment": "add"},
 		},
 		{
 			olds: r.PropertyMap{
@@ -260,7 +261,7 @@ func TestDiff(t *testing.T) {
 				}),
 			},
 			news: r.PropertyMap{},
-			diff: map[string]provider.DiffKind{"environment": "delete"},
+			diff: map[string]p.DiffKind{"environment": "delete"},
 		},
 		{
 			olds: r.PropertyMap{
@@ -270,7 +271,7 @@ func TestDiff(t *testing.T) {
 				"output": r.NewNumberProperty(42),
 			},
 			news: r.PropertyMap{},
-			diff: map[string]provider.DiffKind{"environment": "delete"},
+			diff: map[string]p.DiffKind{"environment": "delete"},
 		},
 		{
 			olds: r.PropertyMap{
@@ -281,12 +282,12 @@ func TestDiff(t *testing.T) {
 					"FOO": r.NewStringProperty("bar"),
 				}),
 			},
-			diff: map[string]provider.DiffKind{"environment": "add"},
+			diff: map[string]p.DiffKind{"environment": "add"},
 		},
 	}
 
 	for _, test := range tests {
-		diffRequest := provider.DiffRequest{
+		diffRequest := p.DiffRequest{
 			ID:   "foo",
 			Urn:  r.CreateURN("foo", "a:b:c", "", "proj", "stack"),
 			Olds: test.olds,
@@ -296,7 +297,7 @@ func TestDiff(t *testing.T) {
 			Context{context.Background()},
 			diffRequest,
 			&struct{}{},
-			func(s string) bool { return false },
+			func(string) bool { return false },
 		)
 		assert.NoError(t, err)
 		assert.Len(t, resp.DetailedDiff, len(test.diff))
@@ -304,4 +305,147 @@ func TestDiff(t *testing.T) {
 			assert.Equal(t, test.diff[k], v.Kind)
 		}
 	}
+}
+
+type testContext struct {
+	context.Context
+
+	t *testing.T
+}
+
+func (testContext) Log(diag.Severity, string)                {}
+func (testContext) Logf(diag.Severity, string, ...any)       {}
+func (testContext) LogStatus(diag.Severity, string)          {}
+func (testContext) LogStatusf(diag.Severity, string, ...any) {}
+func (ctx testContext) RuntimeInformation() p.RunInfo {
+	ctx.t.Logf("No RuntimeInformation on a test context")
+	ctx.t.FailNow()
+	return p.RunInfo{}
+}
+
+type CustomHydrateFromState[O any] struct{}
+
+func (CustomHydrateFromState[O]) StateMigrations(ctx context.Context) []StateMigrationFunc[O] {
+	return ctx.Value("migrations").([]StateMigrationFunc[O])
+}
+
+func testHydrateFromState[O any](
+	oldState, expected r.PropertyMap, expectedError error,
+	migrations ...StateMigrationFunc[O],
+) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testContext{
+			//nolint:revive
+			Context: context.WithValue(context.Background(), "migrations", migrations),
+		}
+
+		enc, actual, err := hydrateFromState[CustomHydrateFromState[O], struct{}, O](ctx, oldState)
+		if expectedError != nil {
+			assert.ErrorIs(t, err, expectedError)
+			return
+		}
+		m, err := enc.Encode(actual)
+		require.NoErrorf(t, err, "We should be able to encode the result to a p.Map")
+		assert.Equal(t, expected, m)
+	}
+}
+
+// False positives on t.Run(name, testHydrateFromState[T](...))
+//
+//nolint:paralleltest
+func TestHydrateFromState(t *testing.T) {
+	t.Parallel()
+
+	type numberMigrateTarget struct {
+		Number int `pulumi:"number"`
+	}
+	type numberMigrateSource struct {
+		Number string `pulumi:"number"`
+	}
+
+	t.Run("migrate type", testHydrateFromState[numberMigrateTarget](
+		r.PropertyMap{
+			"number": r.NewProperty("42"),
+		},
+		r.PropertyMap{
+			"number": r.NewProperty(42.0),
+		},
+		nil,
+		StateMigration(func(_ context.Context, old numberMigrateSource) (MigrationResult[numberMigrateTarget], error) {
+			n, err := strconv.ParseInt(old.Number, 10, 64)
+			if err != nil {
+				return MigrationResult[numberMigrateTarget]{}, err
+			}
+			return MigrationResult[numberMigrateTarget]{
+				Result: &numberMigrateTarget{
+					Number: int(n),
+				},
+			}, nil
+		}),
+	))
+
+	t.Run("migrate-raw", testHydrateFromState[numberMigrateTarget](
+		r.PropertyMap{
+			"number": r.NewProperty("42"),
+		},
+		r.PropertyMap{
+			"number": r.NewProperty(42.0),
+		},
+		nil,
+		StateMigration(func(_ context.Context, old r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+			n, err := strconv.ParseInt(old["number"].StringValue(), 10, 64)
+			if err != nil {
+				return MigrationResult[numberMigrateTarget]{}, err
+			}
+			return MigrationResult[numberMigrateTarget]{
+				Result: &numberMigrateTarget{
+					Number: int(n),
+				},
+			}, nil
+		}),
+	))
+
+	t.Run("ordering-success", testHydrateFromState[numberMigrateTarget](
+		r.PropertyMap{
+			"number": r.NewProperty("0"),
+		},
+		r.PropertyMap{
+			"number": r.NewProperty(1.0),
+		},
+		nil,
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+			return MigrationResult[numberMigrateTarget]{
+				Result: &numberMigrateTarget{
+					Number: int(1),
+				},
+			}, nil
+		}),
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+			panic("Should never be called")
+		}),
+	))
+
+	t.Run("ordering", testHydrateFromState[numberMigrateTarget](
+		r.PropertyMap{
+			"number": r.NewProperty("0"),
+		},
+		r.PropertyMap{
+			"number": r.NewProperty(2.0),
+		},
+		nil,
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+			return MigrationResult[numberMigrateTarget]{
+				Result: nil,
+			}, nil
+		}),
+		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+			return MigrationResult[numberMigrateTarget]{
+				Result: &numberMigrateTarget{
+					Number: int(2),
+				},
+			}, nil
+		}),
+	))
 }

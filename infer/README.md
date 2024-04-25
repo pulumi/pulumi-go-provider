@@ -163,7 +163,7 @@ func (f *FileState) Annotate(a infer.Annotator) {
 The only mandatory method for a `CustomResource` is `Create`.
 
 ```go
-func (*File) Create(ctx p.Context, name string, input FileArgs, preview bool) (
+func (*File) Create(ctx context.Context, name string, input FileArgs, preview bool) (
  id string, output FileState, err error) {
 	if !input.Force {
 		_, err := os.Stat(input.Path)
@@ -200,7 +200,7 @@ We would like the file to be deleted when the custom resource is deleted. We can
 that by implementing the `Delete` method:
 
 ```go
-func (*File) Delete(ctx p.Context, id string, props FileState) error {
+func (*File) Delete(ctx context.Context, id string, props FileState) error {
 	err := os.Remove(props.Path)
 	if os.IsNotExist(err) {
 		ctx.Logf(diag.Warning, "file %q already deleted", props.Path)
@@ -226,7 +226,7 @@ Instead, we automatically fill the `FileArgs.Path` field from name if it isn't p
 in our check implementation.
 
 ```go
-func (*File) Check(ctx p.Context, name string, oldInputs, newInputs resource.PropertyMap) (
+func (*File) Check(ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap) (
  FileArgs, []p.CheckFailure, error) {
 	if _, ok := newInputs["path"]; !ok {
 		newInputs["path"] = resource.NewStringProperty(name)
@@ -243,7 +243,7 @@ We want to allow our users to change the content of the file they are managing. 
 allow updates, we need to implement the `Update` method:
 
 ```go
-func (*File) Update(ctx p.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
+func (*File) Update(ctx context.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
 	if !preview && olds.Content != news.Content {
 		f, err := os.Create(olds.Path)
 		if err != nil {
@@ -275,7 +275,7 @@ be handled by updates, but that changes to `FileArgs.Path` require a replace, we
 to override how diff works:
 
 ```go
-func (*File) Diff(ctx p.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
+func (*File) Diff(ctx context.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
 	diff := map[string]p.PropertyDiff{}
 	if news.Content != olds.Content {
 		diff["content"] = p.PropertyDiff{Kind: p.Update}
@@ -303,7 +303,7 @@ Last but not least, we want to be able to read state from the file system as-is.
 Unsurprisingly, we do this by implementing yet another method:
 
 ```go
-func (*File) Read(ctx p.Context, id string, inputs FileArgs, state FileState) (
+func (*File) Read(ctx context.Context, id string, inputs FileArgs, state FileState) (
  string, FileArgs, FileState, error) {
 	path := id
 	byteContent, err := ioutil.ReadFile(path)

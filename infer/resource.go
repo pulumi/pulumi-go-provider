@@ -15,6 +15,8 @@
 package infer
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -30,13 +32,14 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// A resource that understands how to create itself. This is the minimum requirement for
-// defining a new custom resource.
+// A [custom resource](https://www.pulumi.com/docs/concepts/resources/) inferred from code. This is the
+// minimum requirement for defining a new custom resource.
 //
 // This interface should be implemented by the resource controller, with `I` the resource
 // inputs and `O` the full set of resource fields. It is recommended that `O` is a
@@ -45,17 +48,52 @@ import (
 // `pulumi.IntOutput`.
 //
 // The behavior of a CustomResource resource can be extended by implementing any of the
-// following traits:
-// - CustomCheck
-// - CustomDiff
-// - CustomUpdate
-// - CustomRead
-// - CustomDelete
+// following interfaces on the resource controller:
+//
+// - [CustomCheck]
+// - [CustomDiff]
+// - [CustomUpdate]
+// - [CustomRead]
+// - [CustomDelete]
+// - [CustomStateMigrations]
+// - [Annotated]
 //
 // Example:
-// TODO
-type CustomResource[I any, O any] interface {
-	Create(ctx p.Context, name string, input I, preview bool) (id string, output O, err error)
+//
+//	type MyResource struct{}
+//
+//	type MyResourceInputs struct {
+//		MyString string `pulumi:"myString"`
+//		OptionalInt *int `pulumi:"myInt,optional"`
+//	}
+//
+//	type MyResourceOutputs struct {
+//		MyResourceInputs
+//		Result string `pulumi:"result"`
+//	}
+//
+//	func (*MyResource) Create(
+//		ctx context.Context, name string, inputs MyResourceInputs, preview bool,
+//	) (string, MyResourceOutputs, error) {
+//		id := input.MyString + ".id"
+//		if preview {
+//			return id, MyResourceOutputs{MyResourceInputs: inputs}, nil
+//		}
+//
+//		result := input.MyString
+//		if inputs.OptionalInt != nil {
+//			result = fmt.Sprintf("%s.%d", result, *inputs.OptionalInt)
+//		}
+//
+//		return id, MyResourceOutputs{inputs, result}, nil
+//	}
+type CustomResource[I, O any] interface {
+	// All custom resources must be able to be created.
+	CustomCreate[I, O]
+}
+
+type CustomCreate[I, O any] interface {
+	Create(ctx context.Context, name string, inputs I, preview bool) (id string, output O, err error)
 }
 
 // A resource that understands how to check its inputs.
@@ -69,7 +107,7 @@ type CustomResource[I any, O any] interface {
 // actually happens.
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx p.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
+	Check(ctx context.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
 		I, []p.CheckFailure, error)
 }
 
@@ -82,7 +120,7 @@ type CustomCheck[I any] interface {
 // TODO - Indicate replacements for certain changes but not others.
 type CustomDiff[I, O any] interface {
 	// Maybe oldInputs can be of type I
-	Diff(ctx p.Context, id string, olds O, news I) (p.DiffResponse, error)
+	Diff(ctx context.Context, id string, olds O, news I) (p.DiffResponse, error)
 }
 
 // A resource that can adapt to new inputs with a delete and replace.
@@ -96,7 +134,7 @@ type CustomDiff[I, O any] interface {
 // Example:
 // TODO
 type CustomUpdate[I, O any] interface {
-	Update(ctx p.Context, id string, olds O, news I, preview bool) (O, error)
+	Update(ctx context.Context, id string, olds O, news I, preview bool) (O, error)
 }
 
 // A resource that can recover its state from the provider.
@@ -110,7 +148,7 @@ type CustomUpdate[I, O any] interface {
 type CustomRead[I, O any] interface {
 	// Read accepts a resource id, and a best guess of the input and output state. It returns
 	// a normalized version of each, assuming it can be recovered.
-	Read(ctx p.Context, id string, inputs I, state O) (
+	Read(ctx context.Context, id string, inputs I, state O) (
 		canonicalID string, normalizedInputs I, normalizedState O, err error)
 }
 
@@ -119,7 +157,95 @@ type CustomRead[I, O any] interface {
 // If a resource does not implement Delete, no code will be run on resource deletion.
 type CustomDelete[O any] interface {
 	// Delete is called before a resource is removed from pulumi state.
-	Delete(ctx p.Context, id string, props O) error
+	Delete(ctx context.Context, id string, props O) error
+}
+
+// StateMigrationFunc represents a stateless mapping from an old state shape to a new
+// state shape. Each StateMigrationFunc is parameterized by the shape of the type it
+// produces, ensuring that all successful migrations end up in a valid state.
+//
+// To create a StateMigrationFunc, use [StateMigration].
+type StateMigrationFunc[New any] interface {
+	isStateMigrationFunc()
+
+	oldShape() reflect.Type
+	newShape() reflect.Type
+	migrateFunc() reflect.Value
+}
+
+// StateMigration creates a mapping from an old state shape (type Old) to a new state
+// shape (type New).
+//
+// If Old = [resource.PropertyMap], then the migration is always run.
+//
+// Example:
+//
+//	type MyResource struct{}
+//
+//	type MyInput struct{}
+//
+//	type MyStateV1 struct {
+//		SomeInt *int `pulumi:"someInt,optional"`
+//	}
+//
+//	type MyStateV2 struct {
+//		AString string `pulumi:"aString"`
+//		AInt    *int   `pulumi:"aInt,optional"`
+//	}
+//
+//	func migrateFromV1(ctx context.Context, v1 StateV1) (infer.MigrationResult[MigrateStateV2], error) {
+//		return infer.MigrationResult[MigrateStateV2]{
+//			Result: &MigrateStateV2{
+//				AString: "default-string", // Add a new required field
+//				AInt: v1.SomeInt, // Rename an existing field
+//			},
+//		}, nil
+//	}
+//
+//	// Associate your migration with the resource it encapsulates.
+//	func (*MyResource) StateMigrations(context.Context) []infer.StateMigrationFunc[MigrateStateV2] {
+//		return []infer.StateMigrationFunc[MigrateStateV2]{
+//			infer.StateMigration(migrateFromV1),
+//		}
+//	}
+func StateMigration[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)](
+	f F,
+) StateMigrationFunc[New] {
+	return stateMigrationFunc[Old, New, F]{f}
+}
+
+// MigrationResult represents the result of a migration.
+type MigrationResult[T any] struct {
+	// Result is the result of the migration.
+	//
+	// If Result is nil, then the migration is considered to have been unnecessary.
+	//
+	// If Result is non-nil, then the migration is considered to have completed and
+	// the new value state value will be *Result.
+	Result *T
+}
+
+type stateMigrationFunc[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)] struct{ f F }
+
+// typeFor returns the [Type] that represents the type argument T.
+//
+// reflect.TypeFor is included in go1.22.
+func typeFor[T any]() reflect.Type {
+	return reflect.TypeOf((*T)(nil)).Elem()
+}
+
+func (stateMigrationFunc[O, N, F]) isStateMigrationFunc()        {}
+func (stateMigrationFunc[O, N, F]) oldShape() reflect.Type       { return typeFor[O]() }
+func (stateMigrationFunc[O, N, F]) newShape() reflect.Type       { return typeFor[N]() }
+func (m stateMigrationFunc[O, N, F]) migrateFunc() reflect.Value { return reflect.ValueOf(m.f) }
+
+type CustomStateMigrations[O any] interface {
+	// StateMigrations is the list of know migrations.
+	//
+	// Each migration should return a valid State object.
+	//
+	// The first migration to return a non-nil Result will be used.
+	StateMigrations(ctx context.Context) []StateMigrationFunc[O]
 }
 
 // The methods of Annotator must be called on pointers to fields of their receivers, or on
@@ -724,10 +850,9 @@ func (*derivedResourceController[R, I, O]) getInstance() *R {
 	return &r
 }
 
-func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRequest) (p.CheckResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var r R
-	var i I
-	encoder, err := ende.Decode(req.News, &i)
+	encoder, i, err := ende.Decode[I](req.News)
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that
 		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
@@ -768,8 +893,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx p.Context, req p.CheckRe
 
 // Ensure that `inputs` can deserialize cleanly into `I`.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
-	var i I
-	_, err := ende.Decode(inputs, &i)
+	_, i, err := ende.Decode[I](inputs)
 	if err == nil {
 		return i, nil, nil
 	}
@@ -797,12 +921,12 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 	return failures, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequest) (p.DiffResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r := rc.getInstance()
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
 	if hasUpdate {
-		schema, err := rc.GetSchema(func(tk tokens.Type, typ pschema.ComplexTypeSpec) (unknown bool) { return false })
+		schema, err := rc.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -820,21 +944,20 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx p.Context, req p.DiffRequ
 }
 
 // Compute a diff request.
-func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func(string) bool) (p.DiffResponse, error) {
+func diff[R, I, O any](
+	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
+) (p.DiffResponse, error) {
 
 	for _, ignoredChange := range req.IgnoreChanges {
 		req.News[ignoredChange] = req.Olds[ignoredChange]
 	}
 
 	if r, ok := ((interface{})(*r)).(CustomDiff[I, O]); ok {
-		var olds O
-		var news I
-		var err error
-		_, err = ende.Decode(req.Olds, &olds)
+		_, olds, err := hydrateFromState[R, I, O](ctx, req.Olds) // TODO
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		_, err = ende.Decode(req.News, &news)
+		_, news, err := ende.Decode[I](req.News)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -894,22 +1017,44 @@ func diff[R, I, O any](ctx p.Context, req p.DiffRequest, r *R, forceReplace func
 	}, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.CreateRequest) (p.CreateResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Create(
+	ctx context.Context, req p.CreateRequest,
+) (resp p.CreateResponse, retError error) {
 	r := rc.getInstance()
 
-	var input I
 	var err error
-	encoder, err := ende.Decode(req.Properties, &input)
+	encoder, input, err := ende.Decode[I](req.Properties)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
 
 	id, o, err := (*r).Create(ctx, req.Urn.Name(), input, req.Preview)
-	if err != nil {
+	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
+		defer func(createErr error) {
+			// If there was an error, it indicates a problem with serializing
+			// the output.
+			//
+			// Failing to return full properties here will leak the created
+			// resource so we should warn users.
+			if retError != nil {
+				retError = internal.Errorf("failed to return partial resource: %w;"+
+					" %s may be leaked", retError, req.Urn)
+			} else {
+				// We don't want to loose information conveyed in the
+				// error chain returned by the user.
+				retError = createErr
+			}
+
+			resp.PartialState = &p.InitializationFailed{
+				Reasons: initFailed.Reasons,
+			}
+		}(err)
+	} else if err != nil {
 		return p.CreateResponse{}, err
 	}
+
 	if id == "" && !req.Preview {
-		return p.CreateResponse{}, fmt.Errorf("internal error: '%s' was created without an id", req.Urn)
+		return p.CreateResponse{}, ProviderErrorf("'%s' was created without an id", req.Urn)
 	}
 
 	m, err := encoder.AllowUnknown(req.Preview).Encode(o)
@@ -926,22 +1071,46 @@ func (rc *derivedResourceController[R, I, O]) Create(ctx p.Context, req p.Create
 	return p.CreateResponse{
 		ID:         id,
 		Properties: m,
-	}, nil
+	}, err
 }
 
-func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequest) (p.ReadResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Read(
+	ctx context.Context, req p.ReadRequest,
+) (resp p.ReadResponse, retError error) {
 	r := rc.getInstance()
 	var inputs I
-	var state O
 	var err error
 	inputEncoder, err := ende.DecodeTolerateMissing(req.Inputs, &inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	stateEncoder, err := ende.DecodeTolerateMissing(req.Properties, &state)
-	if err != nil {
-		return p.ReadResponse{}, err
+
+	// We decode the resource state.
+	//
+	// The state can come from 2 places:
+	//
+	// 1. From the actual stack state.
+	//
+	// 2. From the state field for an import.
+	//
+	// Unfortunately, we are unable to distinguish between (1) and (2). We try (1), which has stricter
+	// requirements, then try (2).
+	var stateEncoder ende.Encoder
+	var state O
+
+	// If (1), then we expect that the state is complete and may need to be upgraded.
+	if enc, s, err := hydrateFromState[R, I, O](ctx, req.Properties); err == nil {
+		stateEncoder = enc
+		state = s
+	} else {
+		// That didn't work, so maybe we can get by decoding without state migration but by tolerating
+		// missing fields.
+		stateEncoder, err = ende.DecodeTolerateMissing(req.Properties, &state)
+		if err != nil {
+			return p.ReadResponse{}, err
+		}
 	}
+
 	read, ok := ((interface{})(*r)).(CustomRead[I, O])
 	if !ok {
 		// Default read implementation:
@@ -955,9 +1124,30 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 		}, nil
 	}
 	id, inputs, state, err := read.Read(ctx, req.ID, inputs, state)
-	if err != nil {
+	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
+		defer func(readErr error) {
+			// If there was an error, it indicates a problem with serializing
+			// the output.
+			//
+			// Failing to return full properties here will leak the created
+			// resource so we should warn users.
+			if retError != nil {
+				retError = internal.Errorf("failed to return partial resource: %w",
+					retError)
+			} else {
+				// We don't want to loose information conveyed in the
+				// error chain returned by the user.
+				retError = readErr
+			}
+
+			resp.PartialState = &p.InitializationFailed{
+				Reasons: initFailed.Reasons,
+			}
+		}(err)
+	} else if err != nil {
 		return p.ReadResponse{}, err
 	}
+
 	i, err := inputEncoder.Encode(inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
@@ -974,28 +1164,50 @@ func (rc *derivedResourceController[R, I, O]) Read(ctx p.Context, req p.ReadRequ
 	}, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
+func (rc *derivedResourceController[R, I, O]) Update(
+	ctx context.Context, req p.UpdateRequest,
+) (resp p.UpdateResponse, retError error) {
 	r := rc.getInstance()
 	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
 	if !ok {
 		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented,
 			"Update is not implemented for resource %s", req.Urn)
 	}
-	var news I
-	var olds O
-	var err error
 	for _, ignoredChange := range req.IgnoreChanges {
 		req.News[ignoredChange] = req.Olds[ignoredChange]
 	}
-	_, err = ende.Decode(req.Olds, &olds)
+
+	_, olds, err := hydrateFromState[R, I, O](ctx, req.Olds)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	encoder, err := ende.Decode(req.News, &news)
+	encoder, news, err := ende.Decode[I](req.News)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
 	o, err := update.Update(ctx, req.ID, olds, news, req.Preview)
+	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
+		defer func(updateErr error) {
+			// If there was an error, it indicates a problem with serializing
+			// the output.
+			//
+			// Failing to return full properties here will leak the created
+			// resource so we should warn users.
+			if retError != nil {
+				retError = internal.Errorf("failed to return partial resource: %w",
+					retError)
+			} else {
+				// We don't want to loose information conveyed in the
+				// error chain returned by the user.
+				retError = updateErr
+			}
+
+			resp.PartialState = &p.InitializationFailed{
+				Reasons: initFailed.Reasons,
+			}
+		}(err)
+		err = nil
+	}
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -1014,12 +1226,11 @@ func (rc *derivedResourceController[R, I, O]) Update(ctx p.Context, req p.Update
 	}, nil
 }
 
-func (rc *derivedResourceController[R, I, O]) Delete(ctx p.Context, req p.DeleteRequest) error {
+func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.DeleteRequest) error {
 	r := rc.getInstance()
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
-		var olds O
-		_, err := ende.Decode(req.Properties, &olds)
+		_, olds, err := hydrateFromState[R, I, O](ctx, req.Properties)
 		if err != nil {
 			return err
 		}
@@ -1067,4 +1278,91 @@ func getDependenciesRaw(
 	contract.AssertNoErrorf(fg.err.ErrorOrNil(), "Default dependency wiring failed")
 
 	return fg.MarkMap(isCreate, isPreview), nil
+}
+
+// hydrateFromState takes a blob from state and hydrates it for user consumption, running any relevant state
+// migrations.
+func hydrateFromState[R, I, O any](
+	ctx context.Context, state resource.PropertyMap,
+) (ende.Encoder, O, error) {
+	var r R
+	if r, ok := ((interface{})(r)).(CustomStateMigrations[O]); ok {
+		enc, newState, didMigrate, err := migrateState[O](ctx, r, state)
+		if err != nil || didMigrate {
+			return enc, newState, err
+		}
+	}
+
+	return ende.Decode[O](state)
+}
+
+func migrateState[O any](
+	ctx context.Context, r CustomStateMigrations[O], state resource.PropertyMap,
+) (ende.Encoder, O, bool, error) {
+	var o O
+	for _, upgrader := range r.StateMigrations(ctx) {
+		oldType := upgrader.oldShape()
+		f := upgrader.migrateFunc()
+
+		// If the old type is a resource.PropertyMap, we always run the migration
+		// func.
+
+		var results []reflect.Value
+		var enc ende.Encoder
+		if oldType == reflect.TypeOf(resource.PropertyMap{}) {
+			results = f.Call([]reflect.Value{
+				reflect.ValueOf(ctx), reflect.ValueOf(state),
+			})
+		} else {
+			oldValue := reflect.New(oldType)
+
+			var err error
+			enc, err = ende.DecodeAny(state, oldValue.Interface())
+			if err != nil {
+				// If we couldn't encode cleanly, then state doesn't fit into the migrator.
+				continue
+			}
+
+			results = f.Call([]reflect.Value{reflect.ValueOf(ctx), oldValue.Elem()})
+
+		}
+
+		contract.Assertf(len(results) == 2,
+			"upgrader.migrateFunc() returned an invalid value %#v (%[1]T)", f,
+		)
+
+		contract.Assertf(f.Type().Out(1).Name() == "error",
+			"The signature guarantees of f mandate the second argument is an error, found %s",
+			f.Type().Out(1))
+		err, _ := results[1].Interface().(error)
+		if err != nil {
+			return ende.Encoder{}, o, true, err
+		}
+		result, ok := results[0].Interface().(MigrationResult[O])
+		contract.Assertf(ok,
+			"The signature guarantees of f mandate the second argument is an %T, found %T",
+			result, results[0].Interface())
+
+		if result.Result == nil {
+			continue
+		}
+
+		// The migration succeeded, so we are done
+		//
+		// NOTE: This design throws away all secrets from the state when deserializing from raw, and
+		// doesn't move secrets with path changes when deserializing from non-raw.
+		//
+		// Should we warn if state contains secrets.
+		//
+		// Without a richer value representation
+		// (https://github.com/pulumi/pulumi-go-provider/issues/212), this is inevitable for any
+		// strongly typed design.
+		//
+		// We could allow an escape hatch by allowing MigrationResult[O] to be a union of O and
+		// resource.PropertyMap where resource.PropertyMap guarantees that it encodes into O safely.
+		return enc, *result.Result, true, nil
+	}
+
+	// No migration was run
+	return ende.Encoder{}, o, false, nil
 }

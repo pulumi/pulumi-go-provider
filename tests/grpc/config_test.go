@@ -17,7 +17,7 @@ package grpc
 import (
 	"testing"
 
-	replay "github.com/pulumi/pulumi-terraform-bridge/testing/x"
+	replay "github.com/pulumi/providertest/replay"
 	"github.com/stretchr/testify/require"
 
 	p "github.com/pulumi/pulumi-go-provider"

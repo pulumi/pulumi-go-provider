@@ -15,11 +15,11 @@
 package infer
 
 import (
+	"context"
 	"fmt"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
@@ -38,8 +38,9 @@ type ComponentResource[I any, O pulumi.ComponentResource] interface {
 	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
-// A component resource inferred from code. To get an instance of an InferredComponent,
-// call the function Component.
+// A component resource inferred from code.
+//
+// To create an [InferredComponent], call the [Component] function.
 type InferredComponent interface {
 	t.ComponentResource
 	schema.Resource
@@ -78,11 +79,8 @@ func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
 }
 
 func (rc *derivedComponentController[R, I, O]) Construct(
-	ctx p.Context, req p.ConstructRequest,
+	ctx context.Context, req p.ConstructRequest,
 ) (p.ConstructResponse, error) {
-	// Store the context in itself as a value, so we can retrieve the
-	// p.Context later.
-	ctx = p.CtxWithValue(ctx, componentContextKey{}, ctx)
 	return req.Construct(ctx,
 		func(
 			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
@@ -111,17 +109,4 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 			}
 			return res, err
 		})
-}
-
-type componentContextKey struct{}
-
-// Retrieve a provider.Context from a pulumi.Context.
-//
-// This function is only valid when the *pulumi.Context was passed in from the infer
-// library.
-func CtxFromPulumiContext(ctx *pulumi.Context) p.Context {
-	v := ctx.Context().Value(componentContextKey{})
-	contract.Assertf(v != nil,
-		"CtxFromPulumiContext must be called on the pulumi.Context passed in to infer.Component.Construct")
-	return v.(p.Context)
 }

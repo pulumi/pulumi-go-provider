@@ -15,25 +15,27 @@
 package middleware
 
 import (
+	"context"
+
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
 // A shared definition of a CustomResource.
 type CustomResource interface {
-	Check(p.Context, p.CheckRequest) (p.CheckResponse, error)
-	Diff(p.Context, p.DiffRequest) (p.DiffResponse, error)
-	Create(p.Context, p.CreateRequest) (p.CreateResponse, error)
-	Read(p.Context, p.ReadRequest) (p.ReadResponse, error)
-	Update(p.Context, p.UpdateRequest) (p.UpdateResponse, error)
-	Delete(p.Context, p.DeleteRequest) error
+	Check(context.Context, p.CheckRequest) (p.CheckResponse, error)
+	Diff(context.Context, p.DiffRequest) (p.DiffResponse, error)
+	Create(context.Context, p.CreateRequest) (p.CreateResponse, error)
+	Read(context.Context, p.ReadRequest) (p.ReadResponse, error)
+	Update(context.Context, p.UpdateRequest) (p.UpdateResponse, error)
+	Delete(context.Context, p.DeleteRequest) error
 }
 
 // A shared definition of a ComponentResource.
 type ComponentResource interface {
-	Construct(p.Context, p.ConstructRequest) (p.ConstructResponse, error)
+	Construct(context.Context, p.ConstructRequest) (p.ConstructResponse, error)
 }
 
 // A shared definition of an Invoke.
 type Invoke interface {
-	Invoke(p.Context, p.InvokeRequest) (p.InvokeResponse, error)
+	Invoke(context.Context, p.InvokeRequest) (p.InvokeResponse, error)
 }
