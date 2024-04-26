@@ -60,7 +60,7 @@ type server struct {
 	context context.Context
 }
 
-func (s *server) ctx(_ presource.URN) context.Context {
+func (s *server) ctx(presource.URN) context.Context {
 	return context.WithValue(s.context, key.RuntimeInfo, s.runInfo)
 }
 
