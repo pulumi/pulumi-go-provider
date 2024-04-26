@@ -2,8 +2,6 @@ module github.com/pulumi/pulumi-go-provider/examples/credentials
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 
-replace github.com/pulumi/pulumi-go-provider/integration => ../../integration
-
 go 1.21
 
 require (
