@@ -19,6 +19,7 @@ import (
 	"errors"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
+	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
@@ -298,6 +299,8 @@ func diffResponse(resp *rpc.DiffResponse, err error) (p.DiffResponse, error) {
 		for _, replace := range resp.GetReplaces() {
 			detailedDiff[replace] = p.PropertyDiff{Kind: p.UpdateReplace}
 		}
+		detailedDiff[key.ForceNoDetailedDiff] = p.PropertyDiff{}
+
 	}
 	if len(detailedDiff) == 0 {
 		detailedDiff = nil
@@ -332,7 +335,7 @@ func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error)
 		r.configuration = &rpc.ConfigureResponse{}
 	}
 	s, err := plugin.MarshalProperties(m, plugin.MarshalOptions{
-		KeepUnknowns:     r.configuration.SupportsPreview,
+		KeepUnknowns:     true,
 		KeepSecrets:      r.configuration.AcceptSecrets,
 		KeepResources:    r.configuration.AcceptResources,
 		KeepOutputValues: r.configuration.AcceptOutputs,

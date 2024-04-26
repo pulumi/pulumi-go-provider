@@ -230,10 +230,19 @@ func TestRPCConfigure(t *testing.T) {
 									Known:   true,
 									Element: resource.NewProperty("v1"),
 								}),
+								"unknown": resource.MakeComputed(
+									resource.NewProperty(""),
+								),
 							}, m)
 						} else {
 							assert.Equal(t, resource.PropertyMap{
 								"known": resource.NewProperty("v1"),
+								"output": resource.MakeComputed(
+									resource.NewProperty(""),
+								),
+								"unknown": resource.MakeComputed(
+									resource.NewProperty(""),
+								),
 							}, m)
 						}
 
@@ -737,6 +746,14 @@ func testRPCCheck(
 	})
 }
 
+func noDetailedDiff(m map[string]p.PropertyDiff) map[string]p.PropertyDiff {
+	if m == nil {
+		m = map[string]p.PropertyDiff{}
+	}
+	m["__x-force-no-detailed-diff"] = p.PropertyDiff{}
+	return m
+}
+
 // testRPCDiff tests a check function against a series of inputs.
 func testRPCDiff(
 	t *testing.T,
@@ -769,6 +786,7 @@ func testRPCDiff(
 		require.NoError(t, err)
 		assert.Equal(t, p.DiffResponse{
 			DeleteBeforeReplace: true,
+			DetailedDiff:        noDetailedDiff(nil),
 		}, resp)
 	})
 
@@ -818,7 +836,8 @@ func testRPCDiff(
 
 		require.NoError(t, err)
 		assert.Equal(t, p.DiffResponse{
-			HasChanges: false,
+			HasChanges:   false,
+			DetailedDiff: noDetailedDiff(nil),
 		}, resp)
 
 	})
@@ -838,11 +857,11 @@ func testRPCDiff(
 		require.NoError(t, err)
 		assert.Equal(t, p.DiffResponse{
 			HasChanges: true,
-			DetailedDiff: map[string]p.PropertyDiff{
+			DetailedDiff: noDetailedDiff(map[string]p.PropertyDiff{
 				"r1": {Kind: p.UpdateReplace},
 				"r2": {Kind: p.UpdateReplace},
 				"f3": {Kind: p.Update},
-			},
+			}),
 		}, resp)
 	})
 	t.Run("error", func(t *testing.T) {
