@@ -1,0 +1,14 @@
+name: consume-asset
+runtime: yaml
+
+plugins:
+  providers:
+    - name: asset
+      path: ..
+
+resources:
+  ourAsset:
+    type: asset:A
+    properties:
+      localAsset:
+        fn::fileAsset: ./Pulumi.yaml
