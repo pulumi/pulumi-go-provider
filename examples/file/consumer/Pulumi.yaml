@@ -1,4 +1,4 @@
-name: consume-random-login
+name: consume-file
 runtime: yaml
 
 plugins:
