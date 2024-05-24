@@ -895,6 +895,9 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
 	_, i, err := ende.Decode[I](inputs)
 	if err == nil {
+		if err := applyDefaults(&i); err != nil {
+			return i, nil, fmt.Errorf("unable to apply defaults: %w", err)
+		}
 		return i, nil, nil
 	}
 
