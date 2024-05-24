@@ -449,3 +449,20 @@ func TestHydrateFromState(t *testing.T) {
 		}),
 	))
 }
+
+type inputForDefaultCheck struct {
+	P1 string `pulumi:"str,optional"`
+}
+
+func (i *inputForDefaultCheck) Annotate(a Annotator) {
+	a.SetDefault(&i.P1, "default")
+}
+
+func TestDefaultCheckAppliesDefaultValues(t *testing.T) {
+	t.Parallel()
+
+	input, failures, err := DefaultCheck[inputForDefaultCheck](nil)
+	require.NoError(t, err)
+	assert.Empty(t, failures)
+	assert.Equal(t, "default", input.P1)
+}
