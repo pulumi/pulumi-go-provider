@@ -450,19 +450,57 @@ func TestHydrateFromState(t *testing.T) {
 	))
 }
 
-type inputForDefaultCheck struct {
+type checkResource struct {
 	P1 string `pulumi:"str,optional"`
 }
 
-func (i *inputForDefaultCheck) Annotate(a Annotator) {
-	a.SetDefault(&i.P1, "default")
+const defaultValue = "default"
+
+func (c *checkResource) Annotate(a Annotator) {
+	a.SetDefault(&c.P1, defaultValue)
 }
 
-func TestDefaultCheckAppliesDefaultValues(t *testing.T) {
+type checkResourceOutput struct{}
+
+func (c checkResource) Create(context.Context, string, checkResource, bool,
+) (id string, output checkResourceOutput, err error) {
+	return "", checkResourceOutput{}, nil
+}
+
+func TestCheck(t *testing.T) {
 	t.Parallel()
 
-	input, failures, err := DefaultCheck[inputForDefaultCheck](nil)
-	require.NoError(t, err)
-	assert.Empty(t, failures)
-	assert.Equal(t, "default", input.P1)
+	for tcName, tc := range map[string]struct {
+		input    r.PropertyMap
+		expected string
+	}{
+		"applies default for missing value":     {nil, defaultValue},
+		"applies default for empty value":       {r.PropertyMap{"str": r.NewStringProperty("")}, defaultValue},
+		"no change when default is already set": {r.PropertyMap{"str": r.NewStringProperty(defaultValue)}, defaultValue},
+		"respects non-default value":            {r.PropertyMap{"str": r.NewStringProperty("different")}, "different"},
+	} {
+		tc := tc
+
+		t.Run("Check "+tcName, func(t *testing.T) {
+			t.Parallel()
+			res := Resource[checkResource]()
+			checkResp, err := res.Check(context.Background(), p.CheckRequest{
+				Urn:  "a:b:c",
+				Olds: r.PropertyMap{},
+				News: tc.input,
+			})
+			require.NoError(t, err)
+			assert.Empty(t, checkResp.Failures)
+			assert.True(t, checkResp.Inputs.HasValue("str"))
+			assert.Equal(t, tc.expected, checkResp.Inputs["str"].StringValue())
+		})
+
+		t.Run("DefaultCheck "+tcName, func(t *testing.T) {
+			t.Parallel()
+			in, failures, err := DefaultCheck[checkResource](tc.input)
+			require.NoError(t, err)
+			assert.Empty(t, failures)
+			assert.Equal(t, tc.expected, in.P1)
+		})
+	}
 }
