@@ -851,8 +851,18 @@ func (*derivedResourceController[R, I, O]) getInstance() *R {
 }
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
+	encoder, i, failures, err := decodeCheckingMapErrors[I](req.News)
+	if err != nil {
+		return p.CheckResponse{}, err
+	}
+	if len(failures) > 0 {
+		return p.CheckResponse{
+			Inputs:   req.News,
+			Failures: failures,
+		}, nil
+	}
+
 	var r R
-	encoder, i, err := ende.Decode[I](req.News)
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that
 		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
@@ -860,48 +870,56 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 			return p.CheckResponse{}, err
 		}
 		inputs, err := encoder.Encode(i)
-		if err != nil {
-			return p.CheckResponse{}, err
-		}
 		return p.CheckResponse{
 			Inputs:   inputs,
 			Failures: failures,
-		}, nil
-	}
-	if err == nil {
-		if err := applyDefaults(&i); err != nil {
-			return p.CheckResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
-		}
-
-		inputs, err := encoder.Encode(i)
-
-		return p.CheckResponse{
-			Inputs: inputs,
 		}, err
 	}
 
-	failures, e := checkFailureFromMapError(err)
-	if e != nil {
-		return p.CheckResponse{}, e
+	if i, err = defaultCheck(i); err != nil {
+		return p.CheckResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
 	}
+
+	inputs, err := encoder.Encode(i)
 
 	return p.CheckResponse{
-		Inputs:   req.News,
-		Failures: failures,
-	}, nil
+		Inputs: inputs,
+	}, err
 }
 
-// Ensure that `inputs` can deserialize cleanly into `I`.
+// DefaultCheck verifies that `inputs` can deserialize cleanly into `I`. This is the default
+// validation that is performed when leaving `Check` unimplemented.
+// It also adds defaults to `inputs` as necessary, as defined by `Annotator.SetDefault“.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
-	_, i, err := ende.Decode[I](inputs)
-	if err == nil {
-		return i, nil, nil
+	_, i, failures, err := decodeCheckingMapErrors[I](inputs)
+	if err != nil || len(failures) > 0 {
+		return i, failures, err
 	}
 
-	failures, e := checkFailureFromMapError(err)
-	return i, failures, e
+	i, err = defaultCheck(i)
+	return i, nil, err
 }
 
+func defaultCheck[I any](i I) (I, error) {
+	if err := applyDefaults(&i); err != nil {
+		return i, fmt.Errorf("unable to apply defaults: %w", err)
+	}
+	return i, nil
+}
+
+func decodeCheckingMapErrors[I any](inputs resource.PropertyMap) (ende.Encoder, I, []p.CheckFailure, error) {
+	encoder, i, err := ende.Decode[I](inputs)
+	if err != nil {
+		failures, e := checkFailureFromMapError(err)
+		return encoder, i, failures, e
+	}
+
+	return encoder, i, nil, nil
+}
+
+// err is nil -> nil, nil
+// all err.Failures are FieldErrors -> []p.CheckFailure, nil
+// otherwise -> unspecified, err
 func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error) {
 	if err == nil {
 		return nil, nil
