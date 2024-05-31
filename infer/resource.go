@@ -646,11 +646,11 @@ func (g *fieldGenerator) ensureDefaultSecrets() {
 
 	args, ok, err := g.argsMatcher.TargetStructFields(g.args)
 	contract.Assertf(ok, "we match by construction")
-	contract.AssertNoError(err)
+	contract.AssertNoErrorf(err, "TargetStructFields on %v", g.args)
 
 	state, ok, err := g.stateMatcher.TargetStructFields(g.state)
 	contract.Assertf(ok, "we match by construction")
-	contract.AssertNoError(err)
+	contract.AssertNoErrorf(err, "TargetStructFields on %v", g.state)
 
 	for _, f := range state {
 		if f.Internal {
