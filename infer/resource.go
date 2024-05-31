@@ -705,9 +705,7 @@ func (i *inputField) Computed() InputField {
 	input.kind = inputComputed
 	// Copy input fields
 	input.fields = make([]introspect.FieldTag, len(i.fields))
-	for i, f := range i.fields {
-		input.fields[i] = f
-	}
+	copy(input.fields, i.fields)
 	return input
 }
 
@@ -716,9 +714,7 @@ func (i *inputField) Secret() InputField {
 	input.kind = inputSecret
 	// Copy input fields
 	input.fields = make([]introspect.FieldTag, len(i.fields))
-	for i, f := range i.fields {
-		input.fields[i] = f
-	}
+	copy(input.fields, i.fields)
 	return input
 }
 

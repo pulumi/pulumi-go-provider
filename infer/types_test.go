@@ -259,10 +259,6 @@ func TestInvalidOptionalProperty(t *testing.T) {
 	type invalidContainsOptionalEnum struct {
 		Foo MyEnum `pulumi:"name,optional"`
 	}
-	type validContainsEnum struct {
-		Foo MyEnum `pulumi:"name"`
-	}
-
 	type testInner struct {
 		Foo string `pulumi:"foo"`
 	}
