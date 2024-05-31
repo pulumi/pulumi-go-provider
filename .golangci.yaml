@@ -25,7 +25,7 @@ linters:
     - nakedret
     - unconvert
     - paralleltest
+    - staticcheck
     - stylecheck
     - unused
   disable:
-    - staticcheck # Disabled due to OOM errors in golangci-lint@v1.18.0
