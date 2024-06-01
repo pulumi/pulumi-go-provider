@@ -80,19 +80,19 @@ func (o Options) dispatch() dispatch.Options {
 	functions := map[tokens.Type]t.Invoke{}
 	for _, r := range o.Functions {
 		typ, err := r.GetToken()
-		contract.AssertNoError(err)
+		contract.AssertNoErrorf(err, "failed to get token for function %v", r)
 		functions[typ] = r
 	}
 	customs := map[tokens.Type]t.CustomResource{}
 	for _, r := range o.Resources {
 		typ, err := r.GetToken()
-		contract.AssertNoError(err)
+		contract.AssertNoErrorf(err, "failed to get token for resource %v", r)
 		customs[typ] = r
 	}
 	components := map[tokens.Type]t.ComponentResource{}
 	for _, r := range o.Components {
 		typ, err := r.GetToken()
-		contract.AssertNoError(err)
+		contract.AssertNoErrorf(err, "failed to get token for component %v", r)
 		components[typ] = r
 	}
 	return dispatch.Options{

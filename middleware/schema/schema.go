@@ -92,11 +92,6 @@ type state struct {
 	innerGetSchema func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
 }
 
-func (s *state) invalidateCache() {
-	s.schema = nil
-	s.combinedSchema = nil
-}
-
 type Options struct {
 	Metadata
 	// Resources from which to derive the schema

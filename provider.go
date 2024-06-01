@@ -482,9 +482,8 @@ func GetSchema(ctx context.Context, name, version string, provider Provider) (sc
 	if err != nil {
 		errs.Errors = append(errs.Errors, err)
 	}
-	for _, err := range collectingDiag.errs.Errors {
-		errs.Errors = append(errs.Errors, err)
-	}
+	errs.Errors = append(errs.Errors, collectingDiag.errs.Errors...)
+
 	spec := schema.PackageSpec{}
 	if err := errs.ErrorOrNil(); err != nil {
 		return spec, err

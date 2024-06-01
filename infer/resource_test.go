@@ -323,10 +323,14 @@ func (ctx testContext) RuntimeInformation() p.RunInfo {
 	return p.RunInfo{}
 }
 
+type contextKey string
+
+var migrationsKey = contextKey("migrations")
+
 type CustomHydrateFromState[O any] struct{}
 
 func (CustomHydrateFromState[O]) StateMigrations(ctx context.Context) []StateMigrationFunc[O] {
-	return ctx.Value("migrations").([]StateMigrationFunc[O])
+	return ctx.Value(migrationsKey).([]StateMigrationFunc[O])
 }
 
 func testHydrateFromState[O any](
@@ -338,7 +342,7 @@ func testHydrateFromState[O any](
 
 		ctx := testContext{
 			//nolint:revive
-			Context: context.WithValue(context.Background(), "migrations", migrations),
+			Context: context.WithValue(context.Background(), migrationsKey, migrations),
 		}
 
 		enc, actual, err := hydrateFromState[CustomHydrateFromState[O], struct{}, O](ctx, oldState)
