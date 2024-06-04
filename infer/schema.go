@@ -26,6 +26,7 @@ import (
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
+	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 func getAnnotated(t reflect.Type) introspect.Annotator {
@@ -125,6 +126,11 @@ func serializeTypeAsPropertyType(
 	if t == reflect.TypeOf(resource.Archive{}) {
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Archive",
+		}, nil
+	}
+	if t == reflect.TypeOf(types.AssetOrArchive{}) {
+		return schema.TypeSpec{
+			Ref: "pulumi.json#/Asset",
 		}, nil
 	}
 	if enum, ok := isEnum(t); ok {

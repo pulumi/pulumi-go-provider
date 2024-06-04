@@ -19,12 +19,15 @@ import (
 	"testing"
 
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/archive"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/asset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
 	rType "github.com/pulumi/pulumi-go-provider/internal/rapid/reflect"
 	rResource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
+	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 // testRoundTrip asserts that the result of pMap can be decoded onto T, and then
@@ -142,5 +145,84 @@ func TestRoundtripIn(t *testing.T) {
 				})),
 			})),
 		}
+	})
+}
+
+func TestDecodeAssets(t *testing.T) {
+	t.Parallel()
+
+	type foo struct {
+		AA types.AssetOrArchive `pulumi:"aa"`
+	}
+
+	simplify := func(v any) r.PropertyMap {
+		m := r.NewPropertyMap(v)
+		e := ende{}
+		return e.simplify(m, reflect.TypeOf(v))
+	}
+
+	assertDecodedFoo := func(kind string, m r.PropertyMap) {
+		key := r.PropertyKey(kind)
+
+		require.True(t, m["aa"].IsObject())
+		obj := m["aa"].ObjectValue()
+		require.True(t, obj.HasValue(key))
+		require.Len(t, obj, 1)
+
+		require.True(t, obj[key].IsObject())
+		arch := obj[key].ObjectValue()
+		require.True(t, arch.HasValue("path"))
+	}
+
+	t.Run("asset", func(t *testing.T) {
+		t.Parallel()
+
+		asset := asset.Asset{
+			Path: "asset://foo",
+		}
+		f := foo{
+			AA: types.AssetOrArchive{Asset: &asset},
+		}
+
+		mNew := simplify(f)
+
+		assertDecodedFoo("asset", mNew)
+	})
+
+	t.Run("archive", func(t *testing.T) {
+		t.Parallel()
+
+		archive := archive.Archive{
+			Path: "/data",
+		}
+		f := foo{
+			AA: types.AssetOrArchive{Archive: &archive},
+		}
+
+		mNew := simplify(f)
+
+		assertDecodedFoo("archive", mNew)
+	})
+
+	type bar struct {
+		Foo foo `pulumi:"foo"`
+	}
+
+	t.Run("nested", func(t *testing.T) {
+		t.Parallel()
+
+		asset := asset.Asset{
+			Path: "asset://foo",
+		}
+		f := foo{
+			AA: types.AssetOrArchive{Asset: &asset},
+		}
+		b := bar{Foo: f}
+
+		mNew := simplify(b)
+
+		require.True(t, mNew["foo"].IsObject())
+		inner := mNew["foo"].ObjectValue()
+		assertDecodedFoo("asset", inner)
 	})
 }

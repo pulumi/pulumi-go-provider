@@ -18,6 +18,8 @@ import (
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/types"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
@@ -60,7 +62,6 @@ func decode(
 		IgnoreUnrecognized: ignoreUnrecognized,
 		IgnoreMissing:      allowMissing,
 	}).Decode(m.Mappable(), target.Addr().Interface())
-
 }
 
 func DecodeAny(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
@@ -188,8 +189,17 @@ func (e *ende) walk(
 			if typ == nil || typ.Kind() != reflect.Struct {
 				return e.walkMap(v, path, elemType, alignTypes)
 			}
-		// This is a scalar value, so we can return it as is.
+		// This is a scalar value, so we can return it as is. The exception is types.AssetOrArchive, which we translate
+		// to a types.Asset or types.Archive, depending on what it contains, to match the SDK's AssetOrArchive type.
 		default:
+			if typ == reflect.TypeOf(types.AssetOrArchive{}) {
+				if v.IsAsset() {
+					v = resource.NewPropertyValue(types.AssetOrArchive{Asset: v.AssetValue()})
+				} else if v.IsArchive() {
+					v = resource.NewPropertyValue(types.AssetOrArchive{Archive: v.ArchiveValue()})
+				}
+			}
+
 			return v
 		}
 	}
