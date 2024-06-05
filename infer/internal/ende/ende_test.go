@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	rType "github.com/pulumi/pulumi-go-provider/internal/rapid/reflect"
 	rResource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
-	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 // testRoundTrip asserts that the result of pMap can be decoded onto T, and then

@@ -17,8 +17,8 @@ package ende
 import (
 	"reflect"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
-	"github.com/pulumi/pulumi-go-provider/types"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"

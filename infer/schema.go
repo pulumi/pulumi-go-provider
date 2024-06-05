@@ -24,9 +24,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
-	"github.com/pulumi/pulumi-go-provider/types"
 )
 
 func getAnnotated(t reflect.Type) introspect.Annotator {
