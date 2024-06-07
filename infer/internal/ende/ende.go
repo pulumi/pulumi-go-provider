@@ -15,6 +15,8 @@
 package ende
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/infer/types"
@@ -189,15 +191,19 @@ func (e *ende) walk(
 			if typ == nil || typ.Kind() != reflect.Struct {
 				return e.walkMap(v, path, elemType, alignTypes)
 			}
-		// This is a scalar value, so we can return it as is. The exception is types.AssetOrArchive, which we translate
-		// to a types.Asset or types.Archive, depending on what it contains, to match the SDK's AssetOrArchive type.
+		// This is a scalar value, so we can return it as is. The exception is assets and archives from Pulumi's
+		// AssetOrArchive union type, which we translate to types.AssetOrArchive.
 		default:
 			if typ == reflect.TypeOf(types.AssetOrArchive{}) {
+				// set v to a special value/property map as a signal to Encode
+				var aa types.AssetOrArchive
 				if v.IsAsset() {
-					v = resource.NewPropertyValue(types.AssetOrArchive{Asset: v.AssetValue()})
+					aa = types.AssetOrArchive{Asset: v.AssetValue()}
 				} else if v.IsArchive() {
-					v = resource.NewPropertyValue(types.AssetOrArchive{Archive: v.ArchiveValue()})
+					aa = types.AssetOrArchive{Archive: v.ArchiveValue()}
 				}
+
+				v = resource.NewPropertyValue(aa)
 			}
 
 			return v
@@ -225,8 +231,8 @@ func (e *ende) walk(
 			}
 			pName := resource.PropertyKey(tag.Name)
 			path := append(path, tag.Name)
-			if v, ok := result[pName]; ok {
-				result[pName] = e.walk(v, path, field.Type, alignTypes)
+			if vInner, ok := result[pName]; ok {
+				result[pName] = e.walk(vInner, path, field.Type, alignTypes)
 			} else {
 				if tag.Optional || !alignTypes {
 					continue
@@ -303,6 +309,13 @@ func (e *ende) walkMap(
 	return resource.NewObjectProperty(result)
 }
 
+func prettyPrint(v interface{}) {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err == nil {
+		fmt.Println(string(b))
+	}
+}
+
 func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(&mapper.Opts{
 		IgnoreMissing: true,
@@ -310,9 +323,38 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	if err != nil {
 		return nil, err
 	}
-	m := resource.NewObjectProperty(
-		resource.NewPropertyMapFromMap(props),
-	)
+
+	// If we see "asset" or "archive" properties who have the magic signatures inside, we assume we have an
+	// AssetOrArchive and need to pull the asset or archive out of the object.
+	// TODO,tkappler This is not safe: a user could have defined a property that looks like an
+	// AssetOrArchive but isn't.
+	m := resource.NewPropertyValueRepl(props,
+		nil, // keys are not changed
+		func(a any) (resource.PropertyValue, bool) {
+			if aMap, ok := a.(map[string]any); ok {
+				if rawAsset, ok := aMap["asset"]; ok {
+					if asset, ok := rawAsset.(map[string]any); ok {
+						if sig, ok := asset["4dabf18193072939515e22adb298388d"]; ok {
+							if sigStr, ok := sig.(string); ok && sigStr == "c44067f5952c0a294b673a41bacd8c17" {
+								// It's an asset inside an AssetOrArchive. Pull it out.
+								return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
+							}
+						}
+					}
+				} else if rawArchive, ok := aMap["archive"]; ok {
+					if asset, ok := rawArchive.(map[string]any); ok {
+						if sig, ok := asset["4dabf18193072939515e22adb298388d"]; ok {
+							if sigStr, ok := sig.(string); ok && sigStr == "0def7320c3a5731c473e5ecbe6d01bc7" {
+								// It's an archive inside an AssetOrArchive. Pull it out.
+								return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
+							}
+						}
+					}
+				}
+			}
+			return resource.NewNullProperty(), false
+		})
+
 	contract.Assertf(!m.ContainsUnknowns(),
 		"NewPropertyMapFromMap cannot produce unknown values")
 	contract.Assertf(!m.ContainsSecrets(),
@@ -339,6 +381,10 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 
 		s.path.Set(m, s.apply(v))
 	}
+
+	fmt.Println("Post Encode:")
+	prettyPrint(m)
+
 	return m.ObjectValue(), nil
 }
 

@@ -16,6 +16,7 @@ package infer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -1082,6 +1083,8 @@ func (rc *derivedResourceController[R, I, O]) Create(
 	}
 	setDeps(nil, req.Properties, m)
 
+	fmt.Println("CreateResponse")
+	prettyPrint(m)
 	return p.CreateResponse{
 		ID:         id,
 		Properties: m,
@@ -1248,9 +1251,19 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("Delete")
+		prettyPrint(olds)
 		return del.Delete(ctx, req.ID, olds)
 	}
 	return nil
+}
+
+func prettyPrint(v interface{}) {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err == nil {
+		fmt.Println(string(b))
+	}
 }
 
 // Apply dependencies to a property map, flowing secretness and computedness from input to
