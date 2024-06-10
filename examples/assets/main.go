@@ -32,31 +32,44 @@ func provider() p.Provider {
 	})
 }
 
-func assert(v bool, msg string) {
-	if !v {
-		fmt.Println("INVALID STATE: " + msg)
-	} else {
-		fmt.Println("valid state: " + msg)
-	}
-}
-
 // TODO,tkappler just prints failures for now, needs to actually fail the test later
 func assertState(s HasAssetsArgs) {
-	assert(s.A1.Asset == nil || s.A1.Archive == nil,
-		fmt.Sprintf("cannot specify both asset and archive for a1: %+v", s.A1))
-	assert(s.A2.Asset == nil || s.A2.Archive == nil,
-		fmt.Sprintf("cannot specify both asset and archive for a2: %+v", s.A2))
+	failures := []string{}
+	add := func(msg string, obj any) {
+		failures = append(failures, fmt.Sprintf(msg, obj))
+	}
 
-	assert(s.A1.Asset != nil || s.A1.Archive != nil, "must specify either asset or archive for a1")
-	assert(s.A2.Asset != nil || s.A2.Archive != nil, "must specify either asset or archive for a2")
+	if !(s.A1.Asset == nil || s.A1.Archive == nil) {
+		add("cannot specify both asset and archive for a1: %+v", s.A1)
+	}
+	if !(s.A2.Asset == nil || s.A2.Archive == nil) {
+		add("cannot specify both asset and archive for a2: %+v", s.A2)
+	}
 
-	assert(s.A1.Asset.IsPath(), fmt.Sprintf("a1 asset must be a path: %+v", s.A1.Asset))
-	assert(strings.HasSuffix(s.A1.Asset.Path, "file.txt"),
-		fmt.Sprintf("a1 path must have file.txt: %v", s.A1.Asset.Path))
+	if !(s.A1.Asset != nil || s.A1.Archive != nil) {
+		add("must specify either asset or archive for a1: %+v", s.A1)
+	}
+	if !(s.A2.Asset != nil || s.A2.Archive != nil) {
+		add("must specify either asset or archive for a2: %+v", s.A2)
+	}
 
-	assert(s.A2.Archive.IsPath(), fmt.Sprintf("a2 archive must be a path: %+v", s.A2.Archive))
-	assert(strings.HasSuffix(s.A2.Archive.Path, "file.txt.zip"),
-		fmt.Sprintf("a2 path must have file.txt.zip: %v", s.A2.Archive.Path))
+	if !s.A1.Asset.IsPath() {
+		add("a1 asset must be a path: %+v", s.A1.Asset)
+	}
+	if !strings.HasSuffix(s.A1.Asset.Path, "file.txt") {
+		add("a1 path must have file.txt: %v", s.A1.Asset.Path)
+	}
+
+	if !s.A2.Archive.IsPath() {
+		add("a2 archive must be a path: %+v", s.A2.Archive)
+	}
+	if !strings.HasSuffix(s.A2.Archive.Path, "file.txt.zip") {
+		add("a2 path must have file.txt.zip: %v", s.A2.Archive.Path)
+	}
+
+	if len(failures) > 0 {
+		fmt.Printf("INVALID state:\n  %s", strings.Join(failures, "\n  "))
+	}
 }
 
 func (*HasAssets) Create(ctx context.Context, name string, input HasAssetsArgs, preview bool) (id string, output HasAssetsArgs, err error) {
