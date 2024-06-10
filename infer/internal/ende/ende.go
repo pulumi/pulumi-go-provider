@@ -332,7 +332,7 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 		nil, // keys are not changed
 		func(a any) (resource.PropertyValue, bool) {
 			if aMap, ok := a.(map[string]any); ok {
-				if rawAsset, ok := aMap["asset"]; ok {
+				if rawAsset, ok := aMap[types.AssetSignature]; ok {
 					if asset, ok := rawAsset.(map[string]any); ok {
 						if sig, ok := asset["4dabf18193072939515e22adb298388d"]; ok {
 							if sigStr, ok := sig.(string); ok && sigStr == "c44067f5952c0a294b673a41bacd8c17" {
@@ -341,7 +341,7 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 							}
 						}
 					}
-				} else if rawArchive, ok := aMap["archive"]; ok {
+				} else if rawArchive, ok := aMap[types.ArchiveSignature]; ok {
 					if asset, ok := rawArchive.(map[string]any); ok {
 						if sig, ok := asset["4dabf18193072939515e22adb298388d"]; ok {
 							if sigStr, ok := sig.(string); ok && sigStr == "0def7320c3a5731c473e5ecbe6d01bc7" {

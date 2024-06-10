@@ -16,7 +16,10 @@ package types
 
 import "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 
+const AssetSignature = "a9e28acb8ab501f883219e7c9f624fb6"
+const ArchiveSignature = "195f3948f6769324d4661e1e245f3a4d"
+
 type AssetOrArchive struct {
-	Asset   *resource.Asset   `pulumi:"asset,optional"`
-	Archive *resource.Archive `pulumi:"archive,optional"`
+	Asset   *resource.Asset   `pulumi:"a9e28acb8ab501f883219e7c9f624fb6,optional"`
+	Archive *resource.Archive `pulumi:"195f3948f6769324d4661e1e245f3a4d,optional"`
 }

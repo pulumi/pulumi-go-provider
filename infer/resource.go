@@ -1252,7 +1252,6 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.
 			return err
 		}
 
-		fmt.Println("Delete")
 		prettyPrint(olds)
 		return del.Delete(ctx, req.ID, olds)
 	}

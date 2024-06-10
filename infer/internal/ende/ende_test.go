@@ -186,7 +186,7 @@ func TestDecodeAssets(t *testing.T) {
 
 		mNew := simplify(f)
 
-		assertDecodedFoo("asset", mNew)
+		assertDecodedFoo(types.AssetSignature, mNew)
 	})
 
 	t.Run("archive", func(t *testing.T) {
@@ -201,7 +201,7 @@ func TestDecodeAssets(t *testing.T) {
 
 		mNew := simplify(f)
 
-		assertDecodedFoo("archive", mNew)
+		assertDecodedFoo(types.ArchiveSignature, mNew)
 	})
 
 	type bar struct {
@@ -223,6 +223,6 @@ func TestDecodeAssets(t *testing.T) {
 
 		require.True(t, mNew["foo"].IsObject())
 		inner := mNew["foo"].ObjectValue()
-		assertDecodedFoo("asset", inner)
+		assertDecodedFoo(types.AssetSignature, inner)
 	})
 }
