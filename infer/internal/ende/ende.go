@@ -15,8 +15,6 @@
 package ende
 
 import (
-	"encoding/json"
-	"fmt"
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/infer/types"
@@ -191,8 +189,9 @@ func (e *ende) walk(
 			if typ == nil || typ.Kind() != reflect.Struct {
 				return e.walkMap(v, path, elemType, alignTypes)
 			}
-		// This is a scalar value, so we can return it as is. The exception is assets and archives from Pulumi's
-		// AssetOrArchive union type, which we translate to types.AssetOrArchive.
+		// This is a scalar value, so we can return it as is. The exception is assets and archives
+		// from Pulumi's AssetOrArchive union type, which we translate to types.AssetOrArchive.
+		// See #237 for more background.
 		default:
 			if typ == reflect.TypeOf(types.AssetOrArchive{}) {
 				// set v to a special value/property map as a signal to Encode
@@ -309,13 +308,6 @@ func (e *ende) walkMap(
 	return resource.NewObjectProperty(result)
 }
 
-func prettyPrint(v interface{}) {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err == nil {
-		fmt.Println(string(b))
-	}
-}
-
 func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	props, err := mapper.New(&mapper.Opts{
 		IgnoreMissing: true,
@@ -324,10 +316,10 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 		return nil, err
 	}
 
-	// If we see "asset" or "archive" properties who have the magic signatures inside, we assume we have an
-	// AssetOrArchive and need to pull the asset or archive out of the object.
-	// TODO,tkappler This is not safe: a user could have defined a property that looks like an
-	// AssetOrArchive but isn't.
+	// If we see the magic signatures meaning "asset" or "archive", it's an AssetOrArchive and need
+	// to pull the actual, inner asset or archive out of the object and discard the outer
+	// AssetOrArchive. See #237 for more background.
+	// The literal magic signatures are from pulumi/pulumi and are not exported by the SDK.
 	m := resource.NewPropertyValueRepl(props,
 		nil, // keys are not changed
 		func(a any) (resource.PropertyValue, bool) {
@@ -381,9 +373,6 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 
 		s.path.Set(m, s.apply(v))
 	}
-
-	fmt.Println("Post Encode:")
-	prettyPrint(m)
 
 	return m.ObjectValue(), nil
 }

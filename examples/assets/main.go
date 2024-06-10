@@ -32,8 +32,10 @@ func provider() p.Provider {
 	})
 }
 
-// TODO,tkappler just prints failures for now, needs to actually fail the test later
-func assertState(s HasAssetsArgs) {
+// assertState asserts invariants about the state of the resource defined in consumer/Pulumi.yaml.
+// Note on includesAssets: by default, the engine doesn't send assets to the provider for Delete
+// requests. See https://github.com/pulumi/pulumi/pull/548.
+func assertState(s HasAssetsArgs, includesAssets bool) {
 	failures := []string{}
 	add := func(msg string, obj any) {
 		failures = append(failures, fmt.Sprintf(msg, obj))
@@ -53,22 +55,31 @@ func assertState(s HasAssetsArgs) {
 		add("must specify either asset or archive for a2: %+v", s.A2)
 	}
 
-	if !s.A1.Asset.IsPath() {
-		add("a1 asset must be a path: %+v", s.A1.Asset)
+	if s.A1.Asset.Hash == "" {
+		add("a1 asset hash must be set: %+v", s.A1.Asset)
 	}
-	if !strings.HasSuffix(s.A1.Asset.Path, "file.txt") {
-		add("a1 path must have file.txt: %v", s.A1.Asset.Path)
+	if s.A2.Archive.Hash == "" {
+		add("a2 archive hash must be set: %+v", s.A2.Archive)
 	}
 
-	if !s.A2.Archive.IsPath() {
-		add("a2 archive must be a path: %+v", s.A2.Archive)
-	}
-	if !strings.HasSuffix(s.A2.Archive.Path, "file.txt.zip") {
-		add("a2 path must have file.txt.zip: %v", s.A2.Archive.Path)
+	if includesAssets {
+		if !s.A1.Asset.IsPath() {
+			add("a1 asset must be a path: %+v", s.A1.Asset)
+		}
+		if !strings.HasSuffix(s.A1.Asset.Path, "file.txt") {
+			add("a1 path must have file.txt: %v", s.A1.Asset.Path)
+		}
+
+		if !s.A2.Archive.IsPath() {
+			add("a2 archive must be a path: %+v", s.A2.Archive)
+		}
+		if !strings.HasSuffix(s.A2.Archive.Path, "file.txt.zip") {
+			add("a2 path must have file.txt.zip: %v", s.A2.Archive.Path)
+		}
 	}
 
 	if len(failures) > 0 {
-		fmt.Printf("INVALID state:\n  %s", strings.Join(failures, "\n  "))
+		panic(fmt.Sprintf("INVALID STATE:\n  %s", strings.Join(failures, "\n  ")))
 	}
 }
 
@@ -78,11 +89,11 @@ func (*HasAssets) Create(ctx context.Context, name string, input HasAssetsArgs, 
 	}
 
 	output = input
-	assertState(output)
+	assertState(output, true)
 	return name, output, nil
 }
 
 func (*HasAssets) Delete(ctx context.Context, id string, state HasAssetsArgs) error {
-	assertState(state)
+	assertState(state, false)
 	return nil
 }
