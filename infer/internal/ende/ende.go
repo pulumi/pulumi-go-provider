@@ -21,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 )
@@ -322,30 +323,7 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	// The literal magic signatures are from pulumi/pulumi and are not exported by the SDK.
 	m := resource.NewPropertyValueRepl(props,
 		nil, // keys are not changed
-		func(a any) (resource.PropertyValue, bool) {
-			if aMap, ok := a.(map[string]any); ok {
-				if rawAsset, ok := aMap[types.AssetSignature]; ok {
-					if asset, ok := rawAsset.(map[string]any); ok {
-						if sig, ok := asset["4dabf18193072939515e22adb298388d"]; ok {
-							if sigStr, ok := sig.(string); ok && sigStr == "c44067f5952c0a294b673a41bacd8c17" {
-								// It's an asset inside an AssetOrArchive. Pull it out.
-								return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
-							}
-						}
-					}
-				} else if rawArchive, ok := aMap[types.ArchiveSignature]; ok {
-					if asset, ok := rawArchive.(map[string]any); ok {
-						if sig, ok := asset["4dabf18193072939515e22adb298388d"]; ok {
-							if sigStr, ok := sig.(string); ok && sigStr == "0def7320c3a5731c473e5ecbe6d01bc7" {
-								// It's an archive inside an AssetOrArchive. Pull it out.
-								return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
-							}
-						}
-					}
-				}
-			}
-			return resource.NewNullProperty(), false
-		})
+		flattenAssets)
 
 	contract.Assertf(!m.ContainsUnknowns(),
 		"NewPropertyMapFromMap cannot produce unknown values")
@@ -383,7 +361,38 @@ const (
 	isEmptyArr = iota
 )
 
-// Mark a encoder as generating values only.
+func flattenAssets(a any) (resource.PropertyValue, bool) {
+	if aMap, ok := a.(map[string]any); ok {
+		rawAsset, hasAsset := aMap[types.AssetSignature]
+		rawArchive, hasArchive := aMap[types.ArchiveSignature]
+
+		if hasAsset && hasArchive {
+			panic(`Encountered both an asset and an archive in the same AssetOrArchive. This
+should never happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+		}
+
+		raw := rawAsset
+		if hasArchive {
+			raw = rawArchive
+		}
+
+		if asset, ok := raw.(map[string]any); ok {
+			if kind, ok := asset[sig.Key]; ok {
+				if kind, ok := kind.(string); ok {
+					if kind == sig.AssetSig || kind == sig.ArchiveSig {
+						// It's an asset/archive inside an AssetOrArchive. Pull it out.
+						return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
+					}
+					panic(`Encountered an unknown kind in an AssetOrArchive. This should never
+happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+				}
+			}
+		}
+	}
+	return resource.NewNullProperty(), false
+}
+
+// Mark an encoder as generating values only.
 //
 // This is appropriate when you are encoding a value where all fields must be known, such
 // as a non-preview create or update.
