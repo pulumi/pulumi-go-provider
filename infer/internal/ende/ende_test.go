@@ -21,6 +21,7 @@ import (
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/archive"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/asset"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
@@ -224,5 +225,75 @@ func TestDecodeAssets(t *testing.T) {
 		require.True(t, mNew["foo"].IsObject())
 		inner := mNew["foo"].ObjectValue()
 		assertDecodedFoo(types.AssetSignature, inner)
+	})
+}
+
+func TestEncodeAsset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("standard asset", func(t *testing.T) {
+		t.Parallel()
+
+		a, err := asset.FromText("pulumi")
+		require.NoError(t, err)
+		aa := types.AssetOrArchive{Asset: a}
+
+		encoder := Encoder{new(ende)}
+
+		properties, err := encoder.Encode(aa)
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			r.PropertyMap{
+				sig.Key: r.NewStringProperty(sig.AssetSig),
+				"hash":  r.NewStringProperty(a.Hash),
+				"text":  r.NewStringProperty("pulumi"),
+				"path":  r.NewStringProperty(""),
+				"uri":   r.NewStringProperty(""),
+			},
+			properties)
+	})
+
+	t.Run("standard archive", func(t *testing.T) {
+		t.Parallel()
+
+		a, err := archive.FromPath(t.TempDir())
+		require.NoError(t, err)
+		aa := types.AssetOrArchive{Archive: a}
+
+		encoder := Encoder{new(ende)}
+
+		properties, err := encoder.Encode(aa)
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			r.PropertyMap{
+				sig.Key: r.NewStringProperty(sig.ArchiveSig),
+				"hash":  r.NewStringProperty(a.Hash),
+				"path":  r.NewStringProperty(a.Path),
+				"uri":   r.NewStringProperty(""),
+			},
+			properties)
+	})
+
+	t.Run("invalid AssetOrArchive with archive and asset", func(t *testing.T) {
+		t.Parallel()
+
+		a, err := asset.FromText("pulumi")
+		require.NoError(t, err)
+
+		b, err := archive.FromPath(t.TempDir())
+		require.NoError(t, err)
+
+		aa := types.AssetOrArchive{
+			Asset:   a,
+			Archive: b,
+		}
+
+		encoder := Encoder{new(ende)}
+
+		assert.Panics(t, func() {
+			_, _ = encoder.Encode(aa)
+		})
 	})
 }
