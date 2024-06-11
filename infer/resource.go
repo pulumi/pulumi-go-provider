@@ -1248,7 +1248,6 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.
 		if err != nil {
 			return err
 		}
-
 		return del.Delete(ctx, req.ID, olds)
 	}
 	return nil
