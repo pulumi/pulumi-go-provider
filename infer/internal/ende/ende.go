@@ -357,34 +357,47 @@ const (
 	isEmptyArr = iota
 )
 
+// flattenAssets pulls out assets and archives from AssetOrArchive objects.
+// From:
+//
+//	types.AssetSignature:
+//		sig.Key: sig.AssetSig
+//			...
+//
+// To:
+//
+//	sig.Key: sig.AssetSig
+//		...
 func flattenAssets(a any) (resource.PropertyValue, bool) {
-	if aMap, ok := a.(map[string]any); ok {
-		rawAsset, hasAsset := aMap[types.AssetSignature]
-		rawArchive, hasArchive := aMap[types.ArchiveSignature]
+	aMap, ok := a.(map[string]any)
+	if !ok {
+		return resource.NewNullProperty(), false
+	}
 
-		if hasAsset && hasArchive {
-			panic(`Encountered both an asset and an archive in the same AssetOrArchive. This
+	rawAsset, hasAsset := aMap[types.AssetSignature]
+	rawArchive, hasArchive := aMap[types.ArchiveSignature]
+
+	if hasAsset && hasArchive {
+		panic(`Encountered both an asset and an archive in the same AssetOrArchive. This
 should never happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
-		}
+	}
 
-		raw := rawAsset
-		if hasArchive {
-			raw = rawArchive
-		}
+	// After `raw` is set, it doesn't matter if we have an asset or an archive.
+	raw := rawAsset
+	if hasArchive {
+		raw = rawArchive
+	}
 
-		if asset, ok := raw.(map[string]any); ok {
-			if kind, ok := asset[sig.Key]; ok {
-				if kind, ok := kind.(string); ok {
-					if kind == sig.AssetSig || kind == sig.ArchiveSig {
-						// It's an asset/archive inside an AssetOrArchive. Pull it out.
-						return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
-					}
-					panic(`Encountered an unknown kind in an AssetOrArchive. This should never
-happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
-				}
+	if asset, ok := raw.(map[string]any); ok {
+		if kind, ok := asset[sig.Key]; ok {
+			if kind == sig.AssetSig || kind == sig.ArchiveSig {
+				return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
 			}
+			panic(`Encountered an unknown kind in an AssetOrArchive. This should never
+happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
 		}
 	}
+
 	return resource.NewNullProperty(), false
 }
 
