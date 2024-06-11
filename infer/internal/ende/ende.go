@@ -190,22 +190,18 @@ func (e *ende) walk(
 			if typ == nil || typ.Kind() != reflect.Struct {
 				return e.walkMap(v, path, elemType, alignTypes)
 			}
-		// This is a scalar value, so we can return it as is. The exception is assets and archives
-		// from Pulumi's AssetOrArchive union type, which we translate to types.AssetOrArchive.
-		// See #237 for more background.
-		default:
-			if typ == reflect.TypeOf(types.AssetOrArchive{}) {
-				// set v to a special value/property map as a signal to Encode
-				var aa types.AssetOrArchive
-				if v.IsAsset() {
-					aa = types.AssetOrArchive{Asset: v.AssetValue()}
-				} else if v.IsArchive() {
-					aa = types.AssetOrArchive{Archive: v.ArchiveValue()}
-				}
-
-				v = resource.NewPropertyValue(aa)
+		case typ == reflect.TypeOf(types.AssetOrArchive{}):
+			// Translate Pulumi's AssetOrArchive union type to types.AssetOrArchive.
+			// See #237 for more background.
+			var aa types.AssetOrArchive
+			if v.IsAsset() {
+				aa = types.AssetOrArchive{Asset: v.AssetValue()}
+			} else if v.IsArchive() {
+				aa = types.AssetOrArchive{Archive: v.ArchiveValue()}
 			}
-
+			return resource.NewPropertyValue(aa)
+		// This is a scalar value, so we can return it as is.
+		default:
 			return v
 		}
 	}
