@@ -806,15 +806,15 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct{}
 
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
-func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+func (*derivedResourceController[R, I, O]) GetSchema(ctx context.Context, reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
-	if err := registerTypes[I](reg); err != nil {
+	if err := registerTypes[I](ctx, reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := registerTypes[O](reg); err != nil {
+	if err := registerTypes[O](ctx, reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r, errs := getResourceSchema[R, I, O](false)
+	r, errs := getResourceSchema[R, I, O](ctx, false)
 	return r, errs.ErrorOrNil()
 }
 
@@ -940,7 +940,7 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.Di
 	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
 	if hasUpdate {
-		schema, err := rc.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
+		schema, err := rc.GetSchema(ctx, func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
 		if err != nil {
 			return p.DiffResponse{}, err
 		}

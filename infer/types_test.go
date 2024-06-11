@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -162,7 +163,7 @@ func TestCrawlTypes(t *testing.T) {
 		m[typ.String()] = spec
 		return true
 	}
-	err := registerTypes[Foo](reg)
+	err := registerTypes[Foo](context.Background(), reg)
 	assert.NoError(t, err)
 
 	assert.Equal(t,
@@ -228,10 +229,10 @@ func TestReservedFields(t *testing.T) {
 	reg := func(tokens.Type, pschema.ComplexTypeSpec) bool {
 		return true
 	}
-	err := registerTypes[outer](reg)
+	err := registerTypes[outer](context.Background(), reg)
 	assert.NoError(t, err, "id isn't reserved on nested fields")
 
-	err = registerTypes[inner](reg)
+	err = registerTypes[inner](context.Background(), reg)
 	assert.ErrorContains(t, err, `"id" is a reserved field name`)
 }
 
@@ -247,7 +248,7 @@ func noOpRegister() schema.RegisterDerivativeType {
 func registerOk[T any]() func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
-		err := registerTypes[T](noOpRegister())
+		err := registerTypes[T](context.Background(), noOpRegister())
 		assert.NoError(t, err)
 	}
 }
@@ -268,7 +269,7 @@ func TestInvalidOptionalProperty(t *testing.T) {
 
 	t.Run("invalid optional enum", func(t *testing.T) {
 		t.Parallel()
-		err := registerTypes[invalidContainsOptionalEnum](noOpRegister())
+		err := registerTypes[invalidContainsOptionalEnum](context.Background(), noOpRegister())
 
 		var actual optionalNeedsPointerError
 		if assert.ErrorAs(t, err, &actual) {
@@ -290,7 +291,7 @@ func TestInvalidOptionalProperty(t *testing.T) {
 
 	t.Run("invalid optional struct", func(t *testing.T) {
 		t.Parallel()
-		err := registerTypes[invalidContainsOptionalStruct](noOpRegister())
+		err := registerTypes[invalidContainsOptionalStruct](context.Background(), noOpRegister())
 
 		var actual optionalNeedsPointerError
 		if assert.ErrorAs(t, err, &actual) {

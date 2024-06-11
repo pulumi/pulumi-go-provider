@@ -59,16 +59,16 @@ func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() I
 
 type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.ComponentResource] struct{}
 
-func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+func (rc *derivedComponentController[R, I, O]) GetSchema(ctx context.Context, reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
-	r, err := getResourceSchema[R, I, O](true)
+	r, err := getResourceSchema[R, I, O](ctx, true)
 	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := registerTypes[I](reg); err != nil {
+	if err := registerTypes[I](ctx, reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	if err := registerTypes[O](reg); err != nil {
+	if err := registerTypes[O](ctx, reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
 	return r, nil

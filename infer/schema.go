@@ -20,9 +20,11 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	provider "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"golang.org/x/net/context"
 
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -83,18 +85,18 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 	return ret
 }
 
-func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, multierror.Error) {
+func getResourceSchema[R, I, O any](ctx context.Context, isComponent bool) (schema.ResourceSpec, multierror.Error) {
 	var r R
 	var errs multierror.Error
 	descriptions := getAnnotated(reflect.TypeOf(r))
 
-	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent)
+	properties, required, err := propertyListFromType(ctx, reflect.TypeOf(new(O)), isComponent)
 	if err != nil {
 		var o O
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent)
+	inputProperties, requiredInputs, err := propertyListFromType(ctx, reflect.TypeOf(new(I)), isComponent)
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
@@ -112,18 +114,33 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	}, errs
 }
 
+// serializeTypeAsPropertyType is called often and we want to avoid repeated identical warnings.
+var warnedAboutAsset = false
+
+func warnAboutAsset(ctx context.Context) {
+	if warnedAboutAsset {
+		return
+	}
+	provider.GetLogger(ctx).WarningStatus(
+		"Please use pulumi-go-provider's types.AssetOrArchive type instead of resource.Asset or " +
+			"resource.Archive. For context, see https://github.com/pulumi/pulumi-go-provider/issues/237.")
+	warnedAboutAsset = true
+}
+
 func serializeTypeAsPropertyType(
-	t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType,
+	ctx context.Context, t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType,
 ) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t == reflect.TypeOf(resource.Asset{}) {
+		warnAboutAsset(ctx)
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Asset",
 		}, nil
 	}
 	if t == reflect.TypeOf(resource.Archive{}) {
+		warnAboutAsset(ctx)
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Archive",
 		}, nil
@@ -165,7 +182,7 @@ func serializeTypeAsPropertyType(
 		if t.Key().Kind() != reflect.String {
 			return schema.TypeSpec{}, fmt.Errorf("map keys must be strings, found %s", t.Key().String())
 		}
-		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain, extType)
+		el, err := serializeTypeAsPropertyType(ctx, t.Elem(), indicatePlain, extType)
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
@@ -174,7 +191,7 @@ func serializeTypeAsPropertyType(
 			AdditionalProperties: &el,
 		}, nil
 	case reflect.Array, reflect.Slice:
-		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain, extType)
+		el, err := serializeTypeAsPropertyType(ctx, t.Elem(), indicatePlain, extType)
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
@@ -247,7 +264,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromType(typ reflect.Type, indicatePlain bool) (
+func propertyListFromType(ctx context.Context, typ reflect.Type, indicatePlain bool) (
 	props map[string]schema.PropertySpec, required []string, err error) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -267,7 +284,7 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 		if tags.Internal {
 			continue
 		}
-		serialized, err := serializeTypeAsPropertyType(fieldType, indicatePlain, tags.ExplicitRef)
+		serialized, err := serializeTypeAsPropertyType(ctx, fieldType, indicatePlain, tags.ExplicitRef)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid type '%s' on '%s.%s': %w", fieldType, typ, field.Name, err)
 		}
