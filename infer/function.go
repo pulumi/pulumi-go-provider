@@ -78,25 +78,23 @@ func fnToken(tk tokens.Type) tokens.Type {
 	return tokens.NewTypeToken(tk.Module(), tokens.TypeName(name))
 }
 
-func (*derivedInvokeController[F, I, O]) GetSchema(
-	ctx context.Context, reg schema.RegisterDerivativeType,
-) (pschema.FunctionSpec, error) {
+func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
 	var f F
 	descriptions := getAnnotated(reflect.TypeOf(f))
 
-	input, err := objectSchema(ctx, reflect.TypeOf(new(I)))
+	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	output, err := objectSchema(ctx, reflect.TypeOf(new(O)))
+	output, err := objectSchema(reflect.TypeOf(new(O)))
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
 
-	if err := registerTypes[I](ctx, reg); err != nil {
+	if err := registerTypes[I](reg); err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	if err := registerTypes[O](ctx, reg); err != nil {
+	if err := registerTypes[O](reg); err != nil {
 		return pschema.FunctionSpec{}, err
 	}
 
@@ -107,9 +105,9 @@ func (*derivedInvokeController[F, I, O]) GetSchema(
 	}, nil
 }
 
-func objectSchema(ctx context.Context, t reflect.Type) (*pschema.ObjectTypeSpec, error) {
+func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 	descriptions := getAnnotated(t)
-	props, required, err := propertyListFromType(ctx, t, false)
+	props, required, err := propertyListFromType(t, false)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
 	}

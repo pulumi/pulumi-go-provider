@@ -15,7 +15,6 @@
 package infer
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -246,7 +245,7 @@ func crawlTypes[T any](crawler Crawler) error {
 }
 
 // registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
-func registerTypes[T any](ctx context.Context, reg schema.RegisterDerivativeType) error {
+func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 	crawler := func(
 		t reflect.Type, isReference bool, info *introspect.FieldTag,
 		parent, field string,
@@ -286,7 +285,7 @@ func registerTypes[T any](ctx context.Context, reg schema.RegisterDerivativeType
 			return false, err
 		}
 		if t.Kind() == reflect.Struct {
-			spec, err := objectSchema(ctx, t)
+			spec, err := objectSchema(t)
 			if err != nil {
 				return false, err
 			}

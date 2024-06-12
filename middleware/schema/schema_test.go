@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRenamePackage(t *testing.T) {
+func TestRenamePacakge(t *testing.T) {
 	t.Parallel()
 	p := schema.ResourceSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{

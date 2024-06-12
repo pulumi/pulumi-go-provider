@@ -47,7 +47,7 @@ type Resource interface {
 	// Return the Resource's schema definition. The passed in function should be called on
 	// types transitively referenced by the resource. See the documentation of
 	// RegisterDerivativeType for more details.
-	GetSchema(context.Context, RegisterDerivativeType) (schema.ResourceSpec, error)
+	GetSchema(RegisterDerivativeType) (schema.ResourceSpec, error)
 }
 
 // A Function that can generate its own schema definition.
@@ -57,7 +57,7 @@ type Function interface {
 	// Return the Function's schema definition. The passed in function should be called on
 	// types transitively referenced by the function. See the documentation of
 	// RegisterDerivativeType for more details.
-	GetSchema(context.Context, RegisterDerivativeType) (schema.FunctionSpec, error)
+	GetSchema(RegisterDerivativeType) (schema.FunctionSpec, error)
 }
 
 type cache struct {
@@ -309,13 +309,13 @@ func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) 
 		pkg.Types[tkString] = renamePackage(t, info.PackageName, s.ModuleMap)
 		return true
 	}
-	errs := addElements(ctx, s.Resources, pkg.Resources, info.PackageName, registerDerivative, s.ModuleMap)
-	e := addElements(ctx, s.Invokes, pkg.Functions, info.PackageName, registerDerivative, s.ModuleMap)
+	errs := addElements(s.Resources, pkg.Resources, info.PackageName, registerDerivative, s.ModuleMap)
+	e := addElements(s.Invokes, pkg.Functions, info.PackageName, registerDerivative, s.ModuleMap)
 	errs.Errors = append(errs.Errors, e.Errors...)
 
 	if s.Provider != nil {
 		_, prov, err := addElement[Resource, schema.ResourceSpec](
-			ctx, info.PackageName, registerDerivative, s.ModuleMap, s.Provider)
+			info.PackageName, registerDerivative, s.ModuleMap, s.Provider)
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 		}
@@ -333,15 +333,15 @@ func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) 
 
 type canGetSchema[T any] interface {
 	GetToken() (tokens.Type, error)
-	GetSchema(context.Context, RegisterDerivativeType) (T, error)
+	GetSchema(RegisterDerivativeType) (T, error)
 }
 
-func addElements[T canGetSchema[S], S any](ctx context.Context,
-	els []T, m map[string]S, pkgName string, reg RegisterDerivativeType,
+func addElements[T canGetSchema[S], S any](els []T, m map[string]S,
+	pkgName string, reg RegisterDerivativeType,
 	modMap map[tokens.ModuleName]tokens.ModuleName) multierror.Error {
 	errs := multierror.Error{}
 	for _, f := range els {
-		tk, element, err := addElement[T, S](ctx, pkgName, reg, modMap, f)
+		tk, element, err := addElement[T, S](pkgName, reg, modMap, f)
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 			continue
@@ -351,7 +351,7 @@ func addElements[T canGetSchema[S], S any](ctx context.Context,
 	return errs
 }
 
-func addElement[T canGetSchema[S], S any](ctx context.Context, pkgName string, reg RegisterDerivativeType,
+func addElement[T canGetSchema[S], S any](pkgName string, reg RegisterDerivativeType,
 	modMap map[tokens.ModuleName]tokens.ModuleName, f T) (tokens.Type, S, error) {
 	var s S
 	tk, err := f.GetToken()
@@ -359,7 +359,7 @@ func addElement[T canGetSchema[S], S any](ctx context.Context, pkgName string, r
 		return "", s, err
 	}
 	tk = assignTo(tk, pkgName, modMap)
-	fun, err := f.GetSchema(ctx, reg)
+	fun, err := f.GetSchema(reg)
 	if err != nil {
 		return "", s, fmt.Errorf("failed to get schema for '%s': %w", tk, err)
 	}
