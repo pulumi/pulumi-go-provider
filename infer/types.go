@@ -24,6 +24,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -255,7 +256,12 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 		} else if inputty {
 			t = nT
 		}
+		// The pulumi/pulumi core Asset types are defined there, don't repeat them here.
 		if t == reflect.TypeOf(resource.Asset{}) || t == reflect.TypeOf(resource.Archive{}) {
+			return false, nil
+		}
+		// AssetOrArchive is only for provider authors and shouldn't be in the provider schema.
+		if t == reflect.TypeOf(types.AssetOrArchive{}) {
 			return false, nil
 		}
 		if enum, ok := isEnum(t); ok {
