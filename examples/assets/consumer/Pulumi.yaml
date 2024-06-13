@@ -1,0 +1,16 @@
+name: consume-assets
+runtime: yaml
+
+plugins:
+  providers:
+    - name: assets
+      path: ..
+
+resources:
+  assetsResource:
+    type: assets:HasAssets
+    properties:
+      a1:
+        fn::fileAsset: ./file.txt
+      a2:
+        fn::fileArchive: ./file.txt.zip

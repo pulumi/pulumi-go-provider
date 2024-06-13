@@ -22,12 +22,15 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/asset"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	rRapid "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
 
@@ -451,6 +454,30 @@ func TestHydrateFromState(t *testing.T) {
 				},
 			}, nil
 		}),
+	))
+
+	type hasAsset struct {
+		AA types.AssetOrArchive `pulumi:"aa"`
+	}
+	testAsset, err := asset.FromText("pulumi")
+	require.NoError(t, err)
+
+	// testHydrateFromState decodes and encodes, so the asset should come back out as a plain asset
+	// after having been decoded to an AssetOrArchive.
+	t.Run("assets", testHydrateFromState[hasAsset](
+		r.PropertyMap{
+			"aa": r.NewPropertyValue(testAsset),
+		},
+		r.PropertyMap{
+			"aa": r.NewObjectProperty(r.PropertyMap{
+				sig.Key: r.NewStringProperty(sig.AssetSig),
+				"text":  r.NewStringProperty("pulumi"),
+				"hash":  r.NewStringProperty(testAsset.Hash),
+				"path":  r.NewStringProperty(""),
+				"uri":   r.NewStringProperty(""),
+			}),
+		},
+		nil,
 	))
 }
 

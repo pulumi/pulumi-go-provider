@@ -24,6 +24,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -118,6 +119,7 @@ func serializeTypeAsPropertyType(
 		t = t.Elem()
 	}
 	if t == reflect.TypeOf(resource.Asset{}) {
+		// Provider authors should not be using resource.Asset directly, but rather types.AssetOrArchive. #243
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Asset",
 		}, nil
@@ -125,6 +127,11 @@ func serializeTypeAsPropertyType(
 	if t == reflect.TypeOf(resource.Archive{}) {
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Archive",
+		}, nil
+	}
+	if t == reflect.TypeOf(types.AssetOrArchive{}) {
+		return schema.TypeSpec{
+			Ref: "pulumi.json#/Asset",
 		}, nil
 	}
 	if enum, ok := isEnum(t); ok {

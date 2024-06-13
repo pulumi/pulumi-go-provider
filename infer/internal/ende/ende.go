@@ -17,11 +17,20 @@ package ende
 import (
 	"reflect"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 )
+
+// A unique key for use for assets in the AssetOrArchive union type.
+const AssetSignature = "a9e28acb8ab501f883219e7c9f624fb6"
+
+// A unique key for use for archives in the AssetOrArchive union type.
+const ArchiveSignature = "195f3948f6769324d4661e1e245f3a4d"
 
 type Encoder struct{ *ende }
 
@@ -60,7 +69,6 @@ func decode(
 		IgnoreUnrecognized: ignoreUnrecognized,
 		IgnoreMissing:      allowMissing,
 	}).Decode(m.Mappable(), target.Addr().Interface())
-
 }
 
 func DecodeAny(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
@@ -188,6 +196,16 @@ func (e *ende) walk(
 			if typ == nil || typ.Kind() != reflect.Struct {
 				return e.walkMap(v, path, elemType, alignTypes)
 			}
+		case typ == reflect.TypeOf(types.AssetOrArchive{}):
+			// Translate Pulumi's AssetOrArchive union type to types.AssetOrArchive.
+			// See #237 for more background.
+			var aa types.AssetOrArchive
+			if v.IsAsset() {
+				aa = types.AssetOrArchive{Asset: v.AssetValue()}
+			} else if v.IsArchive() {
+				aa = types.AssetOrArchive{Archive: v.ArchiveValue()}
+			}
+			return resource.NewPropertyValue(aa)
 		// This is a scalar value, so we can return it as is.
 		default:
 			return v
@@ -215,8 +233,8 @@ func (e *ende) walk(
 			}
 			pName := resource.PropertyKey(tag.Name)
 			path := append(path, tag.Name)
-			if v, ok := result[pName]; ok {
-				result[pName] = e.walk(v, path, field.Type, alignTypes)
+			if vInner, ok := result[pName]; ok {
+				result[pName] = e.walk(vInner, path, field.Type, alignTypes)
 			} else {
 				if tag.Optional || !alignTypes {
 					continue
@@ -300,9 +318,11 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	if err != nil {
 		return nil, err
 	}
-	m := resource.NewObjectProperty(
-		resource.NewPropertyMapFromMap(props),
-	)
+
+	m := resource.NewPropertyValueRepl(props,
+		nil, // keys are not changed
+		flattenAssets)
+
 	contract.Assertf(!m.ContainsUnknowns(),
 		"NewPropertyMapFromMap cannot produce unknown values")
 	contract.Assertf(!m.ContainsSecrets(),
@@ -329,6 +349,7 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 
 		s.path.Set(m, s.apply(v))
 	}
+
 	return m.ObjectValue(), nil
 }
 
@@ -338,7 +359,52 @@ const (
 	isEmptyArr = iota
 )
 
-// Mark a encoder as generating values only.
+// flattenAssets pulls out assets and archives from AssetOrArchive objects.
+// See #237 for more background.
+// From:
+//
+//	types.AssetSignature:
+//		sig.Key: sig.AssetSig
+//			...
+//
+// To:
+//
+//	sig.Key: sig.AssetSig
+//		...
+func flattenAssets(a any) (resource.PropertyValue, bool) {
+	aMap, ok := a.(map[string]any)
+	if !ok {
+		return resource.NewNullProperty(), false
+	}
+
+	rawAsset, hasAsset := aMap[AssetSignature]
+	rawArchive, hasArchive := aMap[ArchiveSignature]
+
+	if hasAsset && hasArchive {
+		panic(`Encountered both an asset and an archive in the same AssetOrArchive. This
+should never happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+	}
+
+	// After `raw` is set, it doesn't matter if we have an asset or an archive.
+	raw := rawAsset
+	if hasArchive {
+		raw = rawArchive
+	}
+
+	if asset, ok := raw.(map[string]any); ok {
+		if kind, ok := asset[sig.Key]; ok {
+			if kind == sig.AssetSig || kind == sig.ArchiveSig {
+				return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
+			}
+			panic(`Encountered an unknown kind in an AssetOrArchive. This should never
+happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+		}
+	}
+
+	return resource.NewNullProperty(), false
+}
+
+// Mark an encoder as generating values only.
 //
 // This is appropriate when you are encoding a value where all fields must be known, such
 // as a non-preview create or update.

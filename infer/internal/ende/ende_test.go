@@ -19,10 +19,14 @@ import (
 	"testing"
 
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/archive"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/asset"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 	rType "github.com/pulumi/pulumi-go-provider/internal/rapid/reflect"
 	rResource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
@@ -142,5 +146,154 @@ func TestRoundtripIn(t *testing.T) {
 				})),
 			})),
 		}
+	})
+}
+
+func TestDecodeAssets(t *testing.T) {
+	t.Parallel()
+
+	type foo struct {
+		AA types.AssetOrArchive `pulumi:"aa"`
+	}
+
+	simplify := func(v any) r.PropertyMap {
+		m := r.NewPropertyMap(v)
+		e := ende{}
+		return e.simplify(m, reflect.TypeOf(v))
+	}
+
+	assertDecodedFoo := func(kind string, m r.PropertyMap) {
+		key := r.PropertyKey(kind)
+
+		require.True(t, m["aa"].IsObject())
+		obj := m["aa"].ObjectValue()
+		require.True(t, obj.HasValue(key))
+		require.Len(t, obj, 1)
+
+		require.True(t, obj[key].IsObject())
+		arch := obj[key].ObjectValue()
+		require.True(t, arch.HasValue("path"))
+	}
+
+	t.Run("asset", func(t *testing.T) {
+		t.Parallel()
+
+		asset := asset.Asset{
+			Path: "asset://foo",
+		}
+		f := foo{
+			AA: types.AssetOrArchive{Asset: &asset},
+		}
+
+		mNew := simplify(f)
+
+		assertDecodedFoo(AssetSignature, mNew)
+	})
+
+	t.Run("archive", func(t *testing.T) {
+		t.Parallel()
+
+		archive := archive.Archive{
+			Path: "/data",
+		}
+		f := foo{
+			AA: types.AssetOrArchive{Archive: &archive},
+		}
+
+		mNew := simplify(f)
+
+		assertDecodedFoo(ArchiveSignature, mNew)
+	})
+
+	type bar struct {
+		Foo foo `pulumi:"foo"`
+	}
+
+	t.Run("nested", func(t *testing.T) {
+		t.Parallel()
+
+		asset := asset.Asset{
+			Path: "asset://foo",
+		}
+		f := foo{
+			AA: types.AssetOrArchive{Asset: &asset},
+		}
+		b := bar{Foo: f}
+
+		mNew := simplify(b)
+
+		require.True(t, mNew["foo"].IsObject())
+		inner := mNew["foo"].ObjectValue()
+		assertDecodedFoo(AssetSignature, inner)
+	})
+}
+
+func TestEncodeAsset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("standard asset", func(t *testing.T) {
+		t.Parallel()
+
+		a, err := asset.FromText("pulumi")
+		require.NoError(t, err)
+		aa := types.AssetOrArchive{Asset: a}
+
+		encoder := Encoder{new(ende)}
+
+		properties, err := encoder.Encode(aa)
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			r.PropertyMap{
+				sig.Key: r.NewStringProperty(sig.AssetSig),
+				"hash":  r.NewStringProperty(a.Hash),
+				"text":  r.NewStringProperty("pulumi"),
+				"path":  r.NewStringProperty(""),
+				"uri":   r.NewStringProperty(""),
+			},
+			properties)
+	})
+
+	t.Run("standard archive", func(t *testing.T) {
+		t.Parallel()
+
+		a, err := archive.FromPath(t.TempDir())
+		require.NoError(t, err)
+		aa := types.AssetOrArchive{Archive: a}
+
+		encoder := Encoder{new(ende)}
+
+		properties, err := encoder.Encode(aa)
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			r.PropertyMap{
+				sig.Key: r.NewStringProperty(sig.ArchiveSig),
+				"hash":  r.NewStringProperty(a.Hash),
+				"path":  r.NewStringProperty(a.Path),
+				"uri":   r.NewStringProperty(""),
+			},
+			properties)
+	})
+
+	t.Run("invalid AssetOrArchive with archive and asset", func(t *testing.T) {
+		t.Parallel()
+
+		a, err := asset.FromText("pulumi")
+		require.NoError(t, err)
+
+		b, err := archive.FromPath(t.TempDir())
+		require.NoError(t, err)
+
+		aa := types.AssetOrArchive{
+			Asset:   a,
+			Archive: b,
+		}
+
+		encoder := Encoder{new(ende)}
+
+		assert.Panics(t, func() {
+			_, _ = encoder.Encode(aa)
+		})
 	})
 }
