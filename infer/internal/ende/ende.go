@@ -313,10 +313,6 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 		return nil, err
 	}
 
-	// If we see the magic signatures meaning "asset" or "archive", it's an AssetOrArchive and need
-	// to pull the actual, inner asset or archive out of the object and discard the outer
-	// AssetOrArchive. See #237 for more background.
-	// The literal magic signatures are from pulumi/pulumi and are not exported by the SDK.
 	m := resource.NewPropertyValueRepl(props,
 		nil, // keys are not changed
 		flattenAssets)
@@ -358,6 +354,7 @@ const (
 )
 
 // flattenAssets pulls out assets and archives from AssetOrArchive objects.
+// See #237 for more background.
 // From:
 //
 //	types.AssetSignature:
