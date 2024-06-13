@@ -26,6 +26,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 )
 
+// A unique key for use for assets in the AssetOrArchive union type.
+const AssetSignature = "a9e28acb8ab501f883219e7c9f624fb6"
+
+// A unique key for use for archives in the AssetOrArchive union type.
+const ArchiveSignature = "195f3948f6769324d4661e1e245f3a4d"
+
 type Encoder struct{ *ende }
 
 // Decode a property map to a `pulumi:"x"` annotated struct.
@@ -371,8 +377,8 @@ func flattenAssets(a any) (resource.PropertyValue, bool) {
 		return resource.NewNullProperty(), false
 	}
 
-	rawAsset, hasAsset := aMap[types.AssetSignature]
-	rawArchive, hasArchive := aMap[types.ArchiveSignature]
+	rawAsset, hasAsset := aMap[AssetSignature]
+	rawArchive, hasArchive := aMap[ArchiveSignature]
 
 	if hasAsset && hasArchive {
 		panic(`Encountered both an asset and an archive in the same AssetOrArchive. This
