@@ -119,6 +119,7 @@ func serializeTypeAsPropertyType(
 		t = t.Elem()
 	}
 	if t == reflect.TypeOf(resource.Asset{}) {
+		// Provider authors should not be using resource.Asset directly, but rather types.AssetOrArchive. #243
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Asset",
 		}, nil
