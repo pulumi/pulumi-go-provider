@@ -29,12 +29,12 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// The set of allowed enum underlying values.
+// EnumKind is the set of allowed underlying values for [Enum].
 type EnumKind interface {
 	~string | ~float64 | ~bool | ~int
 }
 
-// An Enum in the Pulumi type system.
+// Enum is an enum in the Pulumi type system.
 type Enum[T EnumKind] interface {
 	// A list of all allowed values for the enum.
 	Values() []EnumValue[T]
@@ -131,7 +131,7 @@ func isEnum(t reflect.Type) (enum, bool) {
 //	type Foo string
 //	const foo Foo = "foo"
 //
-// Would result in `coerseToBase(reflect.ValueOf(foo)) == string(foo)`
+// The above would result in `coerseToBase(reflect.ValueOf(foo)) == string(foo)`.
 func coerceToBase(v reflect.Value) any {
 	switch v.Kind() {
 	case reflect.String:

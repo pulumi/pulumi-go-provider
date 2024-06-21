@@ -12,18 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The `cancel` package provides a middle-ware that ties the Cancel gRPC call from Pulumi
-// to Go's `context.Context` cancellation system.
-//
-// Wrapping a provider in `cancel.Wrap` ensures 2 things:
-//
-// 1. When a resource operation times out, the associated context is canceled.
-//
-// 2. When `Cancel` is called, all outstanding gRPC methods have their associated contexts
-// canceled.
-//
-// A `cancel.Wrap`ed provider will still call the `Cancel` method on the underlying
-// provider. If NotImplemented is returned, it will be swallowed.
+// Package cancel provides a middle-ware that ties the Cancel gRPC call from Pulumi to
+// Go's [context.Context] cancellation system. See [Wrap].
 package cancel
 
 import (
@@ -37,6 +27,16 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/cancel/internal/evict"
 )
 
+// Wrap ties a Pulumi's cancellation system to Go's [context.Context]'s cancellation
+// system. It guarantees two things:
+//
+// 1. When a resource operation times out, the associated context is canceled.
+//
+// 2. When `Cancel` is called, all outstanding gRPC methods have their associated contexts
+// canceled.
+//
+// A `Wrap`ped provider will still call the `Cancel` method on the underlying provider. If
+// NotImplemented is returned, it will be swallowed.
 func Wrap(provider p.Provider) p.Provider {
 	cancelFuncs := evict.Pool[context.CancelFunc]{
 		OnEvict: func(f context.CancelFunc) { f() },

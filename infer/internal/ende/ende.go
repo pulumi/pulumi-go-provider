@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package ende - ENcoding and DEcoding resource.Property* values
 package ende
 
 import (
@@ -26,10 +27,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 )
 
-// A unique key for use for assets in the AssetOrArchive union type.
+// AssetSignature is a unique key for use for assets in the AssetOrArchive union type.
 const AssetSignature = "a9e28acb8ab501f883219e7c9f624fb6"
 
-// A unique key for use for archives in the AssetOrArchive union type.
+// ArchiveSignature is a unique key for use for archives in the AssetOrArchive union type.
 const ArchiveSignature = "195f3948f6769324d4661e1e245f3a4d"
 
 type Encoder struct{ *ende }
@@ -75,7 +76,7 @@ func DecodeAny(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
 	return decode(m, dst, false, false)
 }
 
-// An ENcoder DEcoder
+// An ENcoder DEcoder.
 type ende struct{ changes []change }
 
 type change struct {

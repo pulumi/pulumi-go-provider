@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package reflect provides [rapid.Generator]s for [reflect] types.
 package reflect
 
 import (
@@ -21,15 +22,25 @@ import (
 	"pgregory.net/rapid"
 )
 
+// GenerateType is a [rapid] generator for [reflect.Type].
 type GenerateType = *rapid.Generator[reflect.Type]
 
 var pulumiFieldName = rapid.StringMatching("[a-zA-Z]+")
 var structFieldName = rapid.StringMatching("[A-Z][a-zA-Z]*")
 
+// String returns a generator for a [reflect] string type.
 func String() GenerateType { return rapid.Just(reflect.TypeOf("")) }
-func Bool() GenerateType   { return rapid.Just(reflect.TypeOf(false)) }
+
+// Bool returns a generator for a [reflect] bool type.
+func Bool() GenerateType { return rapid.Just(reflect.TypeOf(false)) }
+
+// Number returns a generator for a [reflect] number type.
 func Number() GenerateType { return rapid.Just(reflect.TypeOf(float64(0.0))) }
-func Null() GenerateType   { return rapid.Just(reflect.TypeOf(nil)) }
+
+// Null returns a generator for a [reflect] type with no value.
+func Null() GenerateType { return rapid.Just(reflect.TypeOf(nil)) }
+
+// Struct returns a generator for some [reflect] struct type.
 func Struct(maxDepth int) GenerateType {
 	return rapid.Custom(func(t *rapid.T) reflect.Type {
 		if maxDepth <= 0 {
@@ -88,6 +99,7 @@ func Struct(maxDepth int) GenerateType {
 	})
 }
 
+// Type creates a random [GenerateType].
 func Type(maxDepth int) GenerateType {
 	if maxDepth <= 1 {
 		return Primitive()
@@ -101,6 +113,9 @@ func Type(maxDepth int) GenerateType {
 	)
 }
 
+// Primitive creates a random [GenerateType] of a primitive scalar type.
+//
+// Types are primitive when they do not contain any other type.
 func Primitive() GenerateType {
 	return rapid.OneOf(
 		String(),
@@ -109,11 +124,16 @@ func Primitive() GenerateType {
 	)
 }
 
-func Ptr(maxDepth int) GenerateType   { return PtrOf(Type(maxDepth - 1)) }
-func Map(maxDepth int) GenerateType   { return MapOf(Type(maxDepth - 1)) }
+// Ptr generates a random [GenerateType] starting with a *T.
+func Ptr(maxDepth int) GenerateType { return PtrOf(Type(maxDepth - 1)) }
+
+// Map generates a random [GenerateType] starting with a map[string]T.
+func Map(maxDepth int) GenerateType { return MapOf(Type(maxDepth - 1)) }
+
+// Array generates a random [GenerateType] starting with a []T.
 func Array(maxDepth int) GenerateType { return ArrayOf(Type(maxDepth - 1)) }
 
-// Return a pointer to typ.
+// PtrOf yields a generator to *T, where T is the type given by typ.
 //
 // If typ is already a pointer, typ is returned as is.
 func PtrOf(typ GenerateType) GenerateType {
@@ -126,11 +146,14 @@ func PtrOf(typ GenerateType) GenerateType {
 	})
 }
 
+// ArrayOf yields a generator to []T, where T is the type given by typ.
 func ArrayOf(typ GenerateType) GenerateType {
 	return rapid.Custom(func(t *rapid.T) reflect.Type {
 		return reflect.SliceOf(typ.Draw(t, "elem"))
 	})
 }
+
+// MapOf yields a generator to map[string]T, where T is the type given by typ.
 func MapOf(typ GenerateType) GenerateType {
 	return rapid.Custom(func(t *rapid.T) reflect.Type {
 		return reflect.MapOf(reflect.TypeOf(""), typ.Draw(t, "elem"))

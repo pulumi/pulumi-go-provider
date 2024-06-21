@@ -16,14 +16,17 @@ package ende
 
 import "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 
+// IsComputed checks if v is some form of a computed/unknown value.
 func IsComputed(v resource.PropertyValue) bool {
 	return v.IsComputed() || (v.IsOutput() && !v.OutputValue().Known)
 }
 
+// IsSecret checks if v should be treated as secret.
 func IsSecret(v resource.PropertyValue) bool {
 	return v.IsSecret() || (v.IsOutput() && v.OutputValue().Secret)
 }
 
+// MakeComputed wraps v in a computed value if it is not already computed.
 func MakeComputed(v resource.PropertyValue) resource.PropertyValue {
 	switch {
 	case v.IsOutput():

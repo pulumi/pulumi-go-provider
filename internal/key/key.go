@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// key provides an internal set of keys for use with [context.WithValue] and
+// Package key provides an internal set of keys for use with [context.WithValue] and
 // [context.Context.Value] that can be shared across packages source.
 //
 // Each key has a private type (a `struct{}`) and a public instance of that type.
@@ -25,9 +25,12 @@ type (
 )
 
 var (
+	// RuntimeInfo is used to retrieve an [infer.RuntimeInfo] from ctx.
 	RuntimeInfo = runtimeInfoType{}
-	Logger      = logType{}
-	URN         = urnType{}
+	// Logger is used to retrieve an [infer.Logger] from ctx.
+	Logger = logType{}
+	// URN is used to retrieve an URN from ctx.
+	URN = urnType{}
 )
 
 // ForceNoDetailedDiff acts as a side-channel in

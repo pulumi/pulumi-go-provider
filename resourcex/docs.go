@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2016-2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,5 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package middleware defines common interfaces multiple middleware components use.
-package middleware
+// Package resourcex provides experimental utilities for manipulating
+// [github.com/pulumi/pulumi/sdk/v3/go/common/resource] types.
+package resourcex

@@ -30,7 +30,7 @@ func NewAnnotator(resource any) Annotator {
 	}
 }
 
-// Implements the Annotator interface as defined in resource/resource.go
+// Annotator implements the Annotator interface as defined in resource/resource.go.
 type Annotator struct {
 	Descriptions       map[string]string
 	Defaults           map[string]any
@@ -81,8 +81,8 @@ func (a *Annotator) Describe(i any, description string) {
 	a.Descriptions[field.Name] = description
 }
 
-// Annotate a a struct field with a default value. The default value must be a primitive
-// type in the pulumi type system.
+// SetDefault annotates a struct field with a default value. The default value must be a
+// primitive type in the pulumi type system.
 func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 	field := a.mustGetField(i)
 	a.Defaults[field.Name] = defaultValue

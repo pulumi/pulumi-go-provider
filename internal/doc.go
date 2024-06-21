@@ -12,27 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package internal holds types that should only be used by this module.
+//
+// This is enforced by Go's compiler.
 package internal
-
-import "fmt"
-
-// Error indicates a bug in the pulumi-go-provider framework.
-type Error struct {
-	Inner error
-}
-
-// Errorf creates a new [Error] by delegating to [fmt.Errorf].
-func Errorf(msg string, a ...any) error {
-	return Error{fmt.Errorf(msg, a...)}
-}
-
-func (err Error) Error() string {
-	const (
-		prefix = "internal error"
-		suffix = "; please report this to https://github.com/pulumi/pulumi-go-provider/issues"
-	)
-	if err.Inner == nil {
-		return prefix + suffix
-	}
-	return prefix + ": " + err.Inner.Error() + suffix
-}

@@ -29,14 +29,15 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// A Function (also called Invoke) inferred from code. `I` is the function input, and `O`
-// is the function output. Both must be structs.
+// Fn is a function (also called fnvoke) inferred from code. `I` is the function input,
+// and `O` is the function output. Both must be structs.
 type Fn[I any, O any] interface {
 	// A function is a mapping from `I` to `O`.
 	Call(ctx context.Context, input I) (output O, err error)
 }
 
-// A function inferred from code. See Function for creating a InferredFunction.
+// InferredFunction is a function inferred from code. See [Function] for creating a
+// InferredFunction.
 type InferredFunction interface {
 	t.Invoke
 	schema.Function
@@ -44,7 +45,7 @@ type InferredFunction interface {
 	isInferredFunction()
 }
 
-// Infer a function from `F`, which maps `I` to `O`.
+// Function infers a function from `F`, which maps `I` to `O`.
 func Function[F Fn[I, O], I, O any]() InferredFunction {
 	return &derivedInvokeController[F, I, O]{}
 }

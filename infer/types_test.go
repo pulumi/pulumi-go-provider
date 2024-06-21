@@ -139,7 +139,7 @@ type Foo struct {
 	External External `pulumi:"external,optional" provider:"type=example@0.1.2:mod:Internal"`
 }
 
-// This type should never show up in the schema
+// This type should never show up in the schema.
 type Internal struct{}
 
 type External struct {

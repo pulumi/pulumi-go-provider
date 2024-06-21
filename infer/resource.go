@@ -38,8 +38,8 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// A [custom resource](https://www.pulumi.com/docs/concepts/resources/) inferred from code. This is the
-// minimum requirement for defining a new custom resource.
+// CustomResource is a [custom resource](https://www.pulumi.com/docs/concepts/resources/)
+// inferred from code. This is the minimum requirement for defining a new custom resource.
 //
 // This interface should be implemented by the resource controller, with `I` the resource
 // inputs and `O` the full set of resource fields. It is recommended that `O` is a
@@ -96,7 +96,7 @@ type CustomCreate[I, O any] interface {
 	Create(ctx context.Context, name string, inputs I, preview bool) (id string, output O, err error)
 }
 
-// A resource that understands how to check its inputs.
+// CustomCheck describes a resource that understands how to check its inputs.
 //
 // By default, infer handles checks by ensuring that a inputs de-serialize correctly. This
 // is where you can extend that behavior. The returned input is given to subsequent calls
@@ -111,7 +111,8 @@ type CustomCheck[I any] interface {
 		I, []p.CheckFailure, error)
 }
 
-// A resource that understands how to diff itself given a new set of inputs.
+// CustomDiff describes a resource that understands how to diff itself given a new set of
+// inputs.
 //
 // By default, infer handles diffs by structural equality among inputs. If CustomUpdate is
 // implemented, changes will result in updates. Otherwise changes will result in replaces.
@@ -123,7 +124,8 @@ type CustomDiff[I, O any] interface {
 	Diff(ctx context.Context, id string, olds O, news I) (p.DiffResponse, error)
 }
 
-// A resource that can adapt to new inputs with a delete and replace.
+// CustomUpdate descibes a resource that can adapt to new inputs with a delete and
+// replace.
 //
 // There is no default behavior for CustomUpdate.
 //
@@ -132,12 +134,13 @@ type CustomDiff[I, O any] interface {
 // the update is part of `pulumi preview` and no changes should be made.
 //
 // Example:
-// TODO
+//
+//	TODO
 type CustomUpdate[I, O any] interface {
 	Update(ctx context.Context, id string, olds O, news I, preview bool) (O, error)
 }
 
-// A resource that can recover its state from the provider.
+// CustomRead describes resource that can recover its state from the provider.
 //
 // If CustomRead is not implemented, it will default to checking that the inputs and state
 // fit into I and O respectively. If they do, then the values will be returned as is.
@@ -152,7 +155,7 @@ type CustomRead[I, O any] interface {
 		canonicalID string, normalizedInputs I, normalizedState O, err error)
 }
 
-// A resource that knows how to delete itself.
+// CustomDelete describes a resource that knows how to delete itself.
 //
 // If a resource does not implement Delete, no code will be run on resource deletion.
 type CustomDelete[O any] interface {
@@ -248,6 +251,9 @@ type CustomStateMigrations[O any] interface {
 	StateMigrations(ctx context.Context) []StateMigrationFunc[O]
 }
 
+// Annotator is used as part of [Annotated] to describe schema metadata for a resource or
+// type.
+//
 // The methods of Annotator must be called on pointers to fields of their receivers, or on
 // their receiver itself.
 //
@@ -299,7 +305,7 @@ type Annotated interface {
 	Annotate(Annotator)
 }
 
-// An interface to help wire fields together.
+// FieldSelector is used to describe the relationship between fields.
 type FieldSelector interface {
 	// Create an input field. The argument to InputField must be a pointer to a field of
 	// the associated input type I.
@@ -327,10 +333,10 @@ type FieldSelector interface {
 
 func (*fieldGenerator) isFieldSelector() {}
 
-// A custom resource with the dataflow between its arguments (`I`) and outputs (`O`)
-// specified. If a CustomResource implements ExplicitDependencies then WireDependencies
-// will be called for each Create and Update call with `args` and `state` holding the
-// values they will have for that call.
+// ExplicitDependencies describes a custom resource with the dataflow between its
+// arguments (`I`) and outputs (`O`) specified. If a CustomResource implements
+// ExplicitDependencies then WireDependencies will be called for each Create and Update
+// call with `args` and `state` holding the values they will have for that call.
 //
 // If ExplicitDependencies is not implemented, it is assumed that all outputs depend on
 // all inputs.
@@ -339,7 +345,9 @@ type ExplicitDependencies[I, O any] interface {
 	WireDependencies(f FieldSelector, args *I, state *O)
 }
 
-// A field of the output (state).
+// OutputField represents an output/state field to apply metadata to.
+//
+// See [FieldSelector] for details on usage.
 type OutputField interface {
 	// Specify that a state (output) field is always secret, regardless of its dependencies.
 	AlwaysSecret()
@@ -355,7 +363,9 @@ type OutputField interface {
 	isOutputField()
 }
 
-// A field of the input (args).
+// InputField represents an argument/input field to apply metadata to.
+//
+// See [FieldSelector] for details on usage.
 type InputField interface {
 	// Seal the interface.
 	isInputField()
@@ -796,7 +806,7 @@ func (f *outputField) DependsOn(deps ...InputField) {
 
 func (*outputField) isOutputField() {}
 
-// A resource inferred by the Resource function.
+// InferredResource is a resource inferred by the Resource function.
 //
 // This interface cannot be implemented directly. Instead consult the Resource function.
 type InferredResource interface {
@@ -806,8 +816,8 @@ type InferredResource interface {
 	isInferredResource()
 }
 
-// Create a new InferredResource, where `R` is the resource controller, `I` is the
-// resources inputs and `O` is the resources outputs.
+// Resource creates a new InferredResource, where `R` is the resource controller, `I` is
+// the resources inputs and `O` is the resources outputs.
 func Resource[R CustomResource[I, O], I, O any]() InferredResource {
 	return &derivedResourceController[R, I, O]{}
 }
@@ -923,9 +933,11 @@ func decodeCheckingMapErrors[I any](inputs resource.PropertyMap) (ende.Encoder, 
 	return encoder, i, nil, nil
 }
 
-// err is nil -> nil, nil
-// all err.Failures are FieldErrors -> []p.CheckFailure, nil
-// otherwise -> unspecified, err
+// checkFailureFromMapError converts from a [mapper.MappingError] to a [p.CheckFailure]:
+//
+//	err is nil -> nil, nil
+//	all err.Failures are FieldErrors -> []p.CheckFailure, nil
+//	otherwise -> unspecified, err
 func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error) {
 	if err == nil {
 		return nil, nil
