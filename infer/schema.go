@@ -58,6 +58,8 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 			(*dst).DefaultEnvs[k] = v
 		}
 		dst.Token = src.Token
+		dst.Aliases = append(dst.Aliases, src.Aliases...)
+		dst.DeprecationMessage = src.DeprecationMessage
 	}
 
 	ret := introspect.Annotator{
@@ -86,7 +88,7 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, multierror.Error) {
 	var r R
 	var errs multierror.Error
-	descriptions := getAnnotated(reflect.TypeOf(r))
+	annotations := getAnnotated(reflect.TypeOf(r))
 
 	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent)
 	if err != nil {
@@ -100,15 +102,23 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
 	}
 
+	var aliases []schema.AliasSpec
+	for _, alias := range annotations.Aliases {
+		a := alias
+		aliases = append(aliases, schema.AliasSpec{Type: &a})
+	}
+
 	return schema.ResourceSpec{
 		ObjectTypeSpec: schema.ObjectTypeSpec{
 			Properties:  properties,
-			Description: descriptions.Descriptions[""],
+			Description: annotations.Descriptions[""],
 			Required:    required,
 		},
-		InputProperties: inputProperties,
-		RequiredInputs:  requiredInputs,
-		IsComponent:     isComponent,
+		InputProperties:    inputProperties,
+		RequiredInputs:     requiredInputs,
+		IsComponent:        isComponent,
+		Aliases:            aliases,
+		DeprecationMessage: annotations.DeprecationMessage,
 	}, errs
 }
 

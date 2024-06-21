@@ -32,10 +32,12 @@ func NewAnnotator(resource any) Annotator {
 
 // Implements the Annotator interface as defined in resource/resource.go
 type Annotator struct {
-	Descriptions map[string]string
-	Defaults     map[string]any
-	DefaultEnvs  map[string][]string
-	Token        string
+	Descriptions       map[string]string
+	Defaults           map[string]any
+	DefaultEnvs        map[string][]string
+	Token              string
+	Aliases            []string
+	DeprecationMessage string
 
 	matcher FieldMatcher
 }
@@ -88,11 +90,25 @@ func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 }
 
 func (a *Annotator) SetToken(module, token string) {
+	a.Token = formatToken(module, token)
+}
+
+func (a *Annotator) AddAlias(module, token string) {
+	a.Aliases = append(a.Aliases, formatToken(module, token))
+}
+
+func (a *Annotator) SetResourceDeprecationMessage(message string) {
+	a.DeprecationMessage = message
+}
+
+// Formates module and token into a valid token string.
+// Panics when module or token are invalid.
+func formatToken(module, token string) string {
 	if !tokens.IsQName(module) {
 		panic(fmt.Sprintf("Module (%q) must comply with %s, but does not", module, tokens.QNameRegexp))
 	}
 	if !tokens.IsName(token) {
 		panic(fmt.Sprintf("Token (%q) must comply with %s, but does not", token, tokens.NameRegexp))
 	}
-	a.Token = fmt.Sprintf("pkg:%s:%s", module, token)
+	return fmt.Sprintf("pkg:%s:%s", module, token)
 }
