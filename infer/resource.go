@@ -280,6 +280,10 @@ type Annotator interface {
 	//	mypkg:mymodule:MyResource
 	//
 	SetToken(module, name string)
+
+	AddAlias(module, name string)
+
+	SetResourceDeprecationMessage(message string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be

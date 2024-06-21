@@ -109,6 +109,7 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 		InputProperties: inputProperties,
 		RequiredInputs:  requiredInputs,
 		IsComponent:     isComponent,
+		Aliases:         []schema.AliasSpec{},
 	}, errs
 }
 
