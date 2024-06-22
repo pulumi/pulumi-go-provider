@@ -279,16 +279,14 @@ type Annotator interface {
 	//
 	//	mypkg:mymodule:MyResource
 	//
-	SetToken(module, name string)
+	SetToken(module tokens.ModuleName, name tokens.TypeName)
 
-	// Add an [alias](https://www.pulumi.com/docs/using-pulumi/pulumi-packages/schema/#alias) for
+	// Add a type [alias](https://www.pulumi.com/docs/using-pulumi/pulumi-packages/schema/#alias) for
 	// this resource.
-	// The given module and name need to be valid
-	// [QNames](https://pkg.go.dev/github.com/pulumi/pulumi/sdk/v3/go/common/tokens#QName)
-	// as defined by the Pulumi SDK.
-	// The module and the name will be assembled into a type specifier of the form `pkg:module:name`,
-	// in the same way `SetToken` does.
-	AddAlias(module, name string)
+	//
+	// The module and the name will be assembled into a type specifier of the form
+	// `mypkg:mymodule:MyResource`, in the same way `SetToken` does.
+	AddAlias(module tokens.ModuleName, name tokens.TypeName)
 
 	// Set a deprecation message for the resource, which officially marks it as deprecated.
 	SetResourceDeprecationMessage(message string)
