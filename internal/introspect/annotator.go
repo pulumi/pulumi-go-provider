@@ -89,11 +89,11 @@ func (a *Annotator) SetDefault(i any, defaultValue any, env ...string) {
 	a.DefaultEnvs[field.Name] = append(a.DefaultEnvs[field.Name], env...)
 }
 
-func (a *Annotator) SetToken(module, token string) {
+func (a *Annotator) SetToken(module tokens.ModuleName, token tokens.TypeName) {
 	a.Token = formatToken(module, token)
 }
 
-func (a *Annotator) AddAlias(module, token string) {
+func (a *Annotator) AddAlias(module tokens.ModuleName, token tokens.TypeName) {
 	a.Aliases = append(a.Aliases, formatToken(module, token))
 }
 
@@ -101,14 +101,15 @@ func (a *Annotator) SetResourceDeprecationMessage(message string) {
 	a.DeprecationMessage = message
 }
 
-// Formates module and token into a valid token string.
+// formatToken formats a (module, token) pair into a valid token string.
+//
 // Panics when module or token are invalid.
-func formatToken(module, token string) string {
-	if !tokens.IsQName(module) {
+func formatToken(module tokens.ModuleName, token tokens.TypeName) string {
+	if !tokens.IsQName(module.String()) {
 		panic(fmt.Sprintf("Module (%q) must comply with %s, but does not", module, tokens.QNameRegexp))
 	}
-	if !tokens.IsName(token) {
+	if !tokens.IsName(token.String()) {
 		panic(fmt.Sprintf("Token (%q) must comply with %s, but does not", token, tokens.NameRegexp))
 	}
-	return fmt.Sprintf("pkg:%s:%s", module, token)
+	return tokens.NewTypeToken(tokens.NewModuleToken("pkg", module), token).String()
 }

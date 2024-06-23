@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 )
@@ -120,8 +122,9 @@ func TestSetTokenValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		module, name string
-		fail         bool
+		module tokens.ModuleName
+		name   tokens.TypeName
+		fail   bool
 	}{
 		{name: "foo"},
 		{name: "FOO"},
@@ -155,7 +158,7 @@ func TestSetTokenValidation(t *testing.T) {
 				assert.Panics(t, func() { f() })
 			} else {
 				a := f()
-				assert.Equal(t, a.Token, "pkg:"+tt.module+":"+tt.name)
+				assert.Equal(t, a.Token, "pkg:"+string(tt.module)+":"+string(tt.name))
 			}
 		})
 	}
