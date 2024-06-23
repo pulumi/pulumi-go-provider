@@ -33,6 +33,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -454,7 +455,8 @@ func (e *errCollectingContext) Log(severity diag.Severity, msg string) {
 	if severity == diag.Error {
 		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
 	}
-	fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
+	_, err := fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
+	contract.IgnoreError(err)
 }
 
 func (e *errCollectingContext) Logf(severity diag.Severity, msg string, args ...any) {
@@ -465,7 +467,8 @@ func (e *errCollectingContext) LogStatus(severity diag.Severity, msg string) {
 	if severity == diag.Error {
 		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
 	}
-	fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
+	_, err := fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
+	contract.IgnoreError(err)
 }
 
 func (e *errCollectingContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
