@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
-
-import (
-	"reflect"
-)
-
-type Enum struct {
-	Type   reflect.Type
-	Values []EnumValue
-}
-
-type EnumValue struct {
-	Name  string
-	Value any
-}
+// Package internal holds types that should only be used by this module.
+//
+// This is enforced by Go's compiler.
+package internal

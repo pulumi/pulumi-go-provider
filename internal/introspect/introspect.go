@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package introspect has shared utilities for reflecting.
+//
+// Introspection is one level up from reflection.
 package introspect
 
 import (
@@ -77,7 +80,7 @@ func FindProperties(r any) (map[string]FieldTag, error) {
 	return m, nil
 }
 
-// Get the token that represents a struct.
+// GetToken calculates the Pulumi token that typ would be projected into.
 func GetToken(pkg tokens.Package, typ reflect.Type) (tokens.Type, error) {
 	if typ == nil {
 		return "", fmt.Errorf("cannot get token of nil type")
@@ -173,7 +176,7 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 	}, nil
 }
 
-// An explicitly specified type ref token.
+// ExplicitType is an explicitly specified type ref token.
 type ExplicitType struct {
 	Pkg     string
 	Version string
@@ -222,6 +225,8 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 	return FieldTag{}, false, nil
 }
 
+// TargetStructFields returns the set of fields that `t` describes for a given matcher.
+//
 // If `t` is the struct that the field matcher is based on, return all visible fields on
 // the struct. Otherwise `nil, false, nil` is returned.
 func (f *FieldMatcher) TargetStructFields(t any) ([]FieldTag, bool, error) {

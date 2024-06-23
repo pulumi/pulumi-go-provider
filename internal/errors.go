@@ -16,11 +16,12 @@ package internal
 
 import "fmt"
 
-// A error that indicates a bug in the pulumi-go-provider framework.
+// Error indicates a bug in the pulumi-go-provider framework.
 type Error struct {
 	Inner error
 }
 
+// Errorf creates a new [Error] by delegating to [fmt.Errorf].
 func Errorf(msg string, a ...any) error {
 	return Error{fmt.Errorf(msg, a...)}
 }

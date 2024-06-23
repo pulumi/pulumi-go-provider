@@ -20,7 +20,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
-// A shared definition of a CustomResource.
+// CustomResource provides a shared high-level definition of a Pulumi custom resource.
 type CustomResource interface {
 	Check(context.Context, p.CheckRequest) (p.CheckResponse, error)
 	Diff(context.Context, p.DiffRequest) (p.DiffResponse, error)
@@ -30,12 +30,13 @@ type CustomResource interface {
 	Delete(context.Context, p.DeleteRequest) error
 }
 
-// A shared definition of a ComponentResource.
+// ComponentResource provides a shared definition of a Pulumi component resource for
+// middleware to use.
 type ComponentResource interface {
 	Construct(context.Context, p.ConstructRequest) (p.ConstructResponse, error)
 }
 
-// A shared definition of an Invoke.
+// Invoke provides a shared definition of a Pulumi function for middleware to use.
 type Invoke interface {
 	Invoke(context.Context, p.InvokeRequest) (p.InvokeResponse, error)
 }

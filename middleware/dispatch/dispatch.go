@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// A provider that dispatches provider level calls such as `Create` to resource level
-// invocations.
+// Package dispatch provides a provider that dispatches calls by URN such as `Create` to
+// resource level invocations.
 package dispatch
 
 import (
@@ -27,8 +27,8 @@ import (
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 )
 
-// Create a new Dispatch provider around another provider. If `provider` is nil then an
-// empty provider will be used.
+// Wrap creates a new Dispatch provider around another provider. If `provider` is nil then
+// an empty provider will be used.
 func Wrap(provider p.Provider, opts Options) p.Provider {
 	fix := func(tk tokens.Type) string {
 		m := tk.Module().Name()
@@ -151,6 +151,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 	return wrapper
 }
 
+// Options configures [Wrap] with dispatch tables.
 type Options struct {
 	Customs    map[tokens.Type]t.CustomResource
 	Components map[tokens.Type]t.ComponentResource

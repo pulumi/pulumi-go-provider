@@ -29,12 +29,12 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// Turn an object into a description for the provider configuration.
+// Config turns an object into a description for the provider configuration.
 //
 // `T` has the same properties as an input or output type for a custom resource, and is
 // responsive to the same interfaces.
 //
-// `T` can implement [CustomDiff] and [CustomCheck] and [CustomConfigure].
+// `T` can implement [CustomDiff] and [CustomCheck] and [CustomConfigure] and [Annotated].
 func Config[T any]() InferredConfig {
 	return &config[T]{}
 }
@@ -47,7 +47,7 @@ type InferredConfig interface {
 	configure(ctx context.Context, req p.ConfigureRequest) error
 }
 
-// A provider that requires custom configuration before running.
+// CustomConfigure describes a provider that requires custom configuration before running.
 //
 // This interface should be implemented by reference to allow setting private fields on
 // its receiver.

@@ -29,7 +29,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// A component resource.
+// ComponentResource may be turned into an [InferredComponent] with [Component].
 type ComponentResource[I any, O pulumi.ComponentResource] interface {
 	// Construct a component resource
 	//
@@ -38,7 +38,7 @@ type ComponentResource[I any, O pulumi.ComponentResource] interface {
 	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
 }
 
-// A component resource inferred from code.
+// InferredComponent is a component resource inferred from code.
 //
 // To create an [InferredComponent], call the [Component] function.
 type InferredComponent interface {
@@ -50,9 +50,9 @@ type InferredComponent interface {
 
 func (derivedComponentController[R, I, O]) isInferredComponent() {}
 
-// Define a component resource from go code. Here `R` is the component resource anchor,
-// `I` describes its inputs and `O` its outputs. To add descriptions to `R`, `I` and `O`,
-// see the `Annotated` trait defined in this module.
+// Component defines a component resource from go code. Here `R` is the component resource
+// anchor, `I` describes its inputs and `O` its outputs. To add descriptions to `R`, `I`
+// and `O`, see the `Annotated` trait defined in this module.
 func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferredComponent {
 	return &derivedComponentController[R, I, O]{}
 }

@@ -18,7 +18,7 @@ import (
 	"fmt"
 )
 
-// An error indicating that the resource was created but failed to initialize.
+// ResourceInitFailedError indicates that the resource was created but failed to initialize.
 //
 // This error is treated specially in Create, Update and Read. If the returner error for a
 // Create, Update or Read returns true for Errors.Is, state is updated to correspond to
@@ -57,12 +57,17 @@ type ResourceInitFailedError struct {
 
 func (err ResourceInitFailedError) Error() string { return "resource failed to initialize" }
 
-// An error indicating a bug in the provider implementation.
+// ProviderError indicates a bug in the provider implementation.
+//
+// When displayed, ProviderError tells the user that the issue was internal and should be
+// reported.
 type ProviderError struct {
 	Inner error
 }
 
-// Create a new [ProviderErrorf].
+// ProviderErrorf create a new [ProviderError].
+//
+// Arguments are formatted with [fmt.Errorf].
 func ProviderErrorf(msg string, a ...any) error {
 	return ProviderError{fmt.Errorf(msg, a...)}
 }

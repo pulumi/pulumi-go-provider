@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package types provides ancillary types for use with [github.com/pulumi/pulumi-go-provider/infer].
 package types
 
 import "github.com/pulumi/pulumi/sdk/v3/go/common/resource"

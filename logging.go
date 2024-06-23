@@ -26,15 +26,29 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 )
 
+// Logger provides methods for user visible logging.
+//
+// Log info will be associated with the URN passed if any.
 type Logger struct {
 	ctx   context.Context
 	inner logSink
 	urn   resource.URN
 }
 
-func (l Logger) Debug(msg string)                  { l.inner.Log(l.ctx, l.urn, diag.Debug, msg) }
-func (l Logger) Debugf(msg string, a ...any)       { l.Debug(fmt.Sprintf(msg, a...)) }
-func (l Logger) DebugStatus(msg string)            { l.inner.LogStatus(l.ctx, l.urn, diag.Debug, msg) }
+// Debug logs a debug message visible to the user.
+func (l Logger) Debug(msg string) { l.inner.Log(l.ctx, l.urn, diag.Debug, msg) }
+
+// Debugf logs a debug message visible to the user, formatting it with [fmt.Sprintf].
+func (l Logger) Debugf(msg string, a ...any) { l.Debug(fmt.Sprintf(msg, a...)) }
+
+// DebugStatus logs a debug message visible to the user.
+//
+// The message will only be displayed while it is the latest message.
+func (l Logger) DebugStatus(msg string) { l.inner.LogStatus(l.ctx, l.urn, diag.Debug, msg) }
+
+// DebugStatusf logs a debug message visible to the user, formatting it with [fmt.Sprintf].
+//
+// The message will only be displayed while it is the latest message.
 func (l Logger) DebugStatusf(msg string, a ...any) { l.DebugStatus(fmt.Sprintf(msg, a...)) }
 
 func (l Logger) Info(msg string)                  { l.inner.Log(l.ctx, l.urn, diag.Info, msg) }

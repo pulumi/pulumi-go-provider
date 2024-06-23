@@ -12,5 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package middleware defines common interfaces multiple middleware components use.
-package middleware
+// Package infer is a framework to define Pulumi resources and functions derived from go types.
+//
+// You could say that the Pulumi types are inferred from the Go types.
+package infer

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package provider works as a shared high-level interface for [rpc.ResourceProviderServer].
+//
+// It is the lowest level that the rest of this repo should target, and servers as an
+// interoperability layer between middle-wares.
 package provider
 
 import (
@@ -29,6 +33,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
@@ -282,7 +287,7 @@ type InitializationFailed struct {
 	Reasons []string
 }
 
-// Provide a structured error for missing provider keys.
+// ConfigMissingKeys creates a structured error for missing provider keys.
 func ConfigMissingKeys(missing map[string]string) error {
 	if len(missing) == 0 {
 		return nil
@@ -343,12 +348,13 @@ type Provider struct {
 	Construct func(context.Context, ConstructRequest) (ConstructResponse, error)
 }
 
-// Provide a default value for each function.
+// WithDefaults returns a provider with sensible defaults. It does not mutate its
+// receiver.
 //
 // Most default values return a NotYetImplemented error, which the engine knows to ignore.
-// Others are no-op functions.
+// Other defaults are no-op functions.
 //
-// You should not need to call this function manually. It will be automatically called
+// You should not need to call this function manually. It will be automatically invoked
 // before a provider is run.
 func (d Provider) WithDefaults() Provider {
 	nyi := func(fn string) error {
@@ -422,14 +428,14 @@ func (d Provider) WithDefaults() Provider {
 	return d
 }
 
-// Run a provider with the given name and version.
+// RunProvider runs a provider with the given name and version.
 func RunProvider(name, version string, provider Provider) error {
 	return pprovider.Main(name, newProvider(name, version, provider.WithDefaults()))
 }
 
 // RawServer converts the Provider into a factory for gRPC servers.
 //
-// If you are trying to set up a standard main function, see RunProvider.
+// If you are trying to set up a standard main function, see [RunProvider].
 func RawServer(
 	name, version string,
 	provider Provider,
@@ -437,7 +443,7 @@ func RawServer(
 	return newProvider(name, version, provider.WithDefaults())
 }
 
-// A context which prints its diagnostics, collecting all errors
+// A context which prints its diagnostics, collecting all errors.
 type errCollectingContext struct {
 	context.Context
 	errs   multierror.Error
@@ -449,7 +455,8 @@ func (e *errCollectingContext) Log(severity diag.Severity, msg string) {
 	if severity == diag.Error {
 		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
 	}
-	fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
+	_, err := fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
+	contract.IgnoreError(err)
 }
 
 func (e *errCollectingContext) Logf(severity diag.Severity, msg string, args ...any) {
@@ -460,7 +467,8 @@ func (e *errCollectingContext) LogStatus(severity diag.Severity, msg string) {
 	if severity == diag.Error {
 		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
 	}
-	fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
+	_, err := fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
+	contract.IgnoreError(err)
 }
 
 func (e *errCollectingContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
@@ -471,7 +479,14 @@ func (e *errCollectingContext) RuntimeInformation() RunInfo {
 	return e.info
 }
 
-// Retrieve the schema from the provider by invoking GetSchema on the provider.
+// GetSchema retrieves the schema from the provider by invoking GetSchema on the provider.
+//
+// This is a helper method to retrieve the schema from a provider without running the
+// provider in a separate process. It should not be necessary for most providers.
+//
+// To retrieve the schema from a provider binary, use
+//
+//	pulumi package get-schema ./pulumi-resource-MYPROVIDER
 func GetSchema(ctx context.Context, name, version string, provider Provider) (schema.PackageSpec, error) {
 	collectingDiag := errCollectingContext{Context: ctx, stderr: os.Stderr, info: RunInfo{
 		PackageName: name,

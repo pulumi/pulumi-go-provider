@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package integration is a test library for validating in-memory providers behave
+// correctly.
+//
+// It sits just above the gRPC level. For full unit testing, see
+// [github.com/pulumi/pulumi/pkg/v3/testing/integration].
 package integration
 
 import (
@@ -116,7 +121,9 @@ func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) 
 	return s.p.Construct(s.ctx(req.URN), req)
 }
 
-// TODO: Add support for diff verification
+// Operation describes a step in a [LifeCycleTest].
+//
+// TODO: Add support for diff verification.
 type Operation struct {
 	// The inputs for the operation
 	Inputs presource.PropertyMap
@@ -130,7 +137,7 @@ type Operation struct {
 	CheckFailures []p.CheckFailure
 }
 
-// Steps describing the lifecycle of a resource.
+// LifeCycleTest describing the lifecycle of a resource test.
 type LifeCycleTest struct {
 	Resource tokens.Type
 	Create   Operation
@@ -139,10 +146,11 @@ type LifeCycleTest struct {
 
 // Run a resource through it's lifecycle asserting that its output is as expected.
 // The resource is
-// 1. Previewed
-// 2. Created
+//
+// 1. Previewed.
+// 2. Created.
 // 2. Previewed and Updated for each update in the Updates list.
-// 3. Deleted
+// 3. Deleted.
 func (l LifeCycleTest) Run(t *testing.T, server Server) {
 	urn := presource.NewURN("test", "provider", "", l.Resource, "test")
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package resource provides [rapid.Generator]s for [resource.PropertyValue]s.
 package resource
 
 import (
@@ -27,7 +28,10 @@ type Typed struct {
 	Value resource.PropertyValue
 }
 
-// Annotate a type with a value that fits inside of it.
+// ValueOf annotates a [reflect.Type] with an appropriate random [resource.PropertyValue].
+//
+// A value is considered "appropriate" to a type if the vlaue can be safely unmarshaled
+// into the type.
 func ValueOf(typ *rapid.Generator[reflect.Type]) *rapid.Generator[Typed] {
 	// Note: we generate values from types instead of vice versa because the set of
 	// possible resource.PropertyValue is much larger then the set of possible

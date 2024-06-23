@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package rpc allows projecting a [rpc.ResourceProviderServer] into a [p.Provider].
+//
+// The entry point for this package is [Provider].
 package rpc
 
 import (

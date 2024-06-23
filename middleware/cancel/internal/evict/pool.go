@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package evict is a helper package for
+// [github.com/pulumi/pulumi-go-provider/middleware/cancel].
 package evict
 
 import (
@@ -20,7 +22,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
-// A data structure which provides amortized O(1) insertion, removal, and draining.
+// Pool is a data structure which provides amortized O(1) insertion, removal, and
+// draining.
 type Pool[T any] struct {
 	entries []entry[T]
 
@@ -34,12 +37,14 @@ type Pool[T any] struct {
 	OnEvict func(T)
 }
 
+// Handle represents an entry in a [Pool].
 type Handle[T any] struct {
 	cache    *Pool[T]
 	idx      int
 	revision int
 }
 
+// Evict the entry from the [Pool].
 func (h Handle[T]) Evict() {
 	h.cache.m.Lock()
 	defer h.cache.m.Unlock()

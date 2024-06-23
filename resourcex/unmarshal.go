@@ -120,7 +120,7 @@ func mergeDependencies(slice []resource.URN, elems ...resource.URN) []resource.U
 }
 
 var (
-	// matches a path component of the form: "^x", ".x", "[0]", "[*]", "[x]"
+	// matches a path component of the form: "^x", ".x", "[0]", "[*]", "[x]".
 	pathRegexp = regexp.MustCompile(`(?:(?:(?:^|[.])(?P<key>[A-Za-z0-9_-]+))|(?:\[(?P<index>\d+|\*|[A-Za-z0-9_.-]+)\]))`)
 )
 

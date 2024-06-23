@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Context allows systemic wrapping of provider.Context before invoking a subsidiary provider.
+// Package context allows systemic wrapping of provider.Context before invoking a
+// subsidiary provider.
 package context
 
 import (
@@ -21,10 +22,11 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
-// The function applied to each provider.Context that passes through this Provider.
+// Wrapper describes a function applied to each provider.Context that passes through this
+// Provider.
 type Wrapper = func(context.Context) context.Context
 
-// Create a Provider that calls `wrapper` on each context passed into `provider`.
+// Wrap a Provider that calls `wrapper` on each [context.Context] passed into `provider`.
 func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 	return p.Provider{
 		GetSchema:   delegateIO(wrapper, provider.GetSchema),

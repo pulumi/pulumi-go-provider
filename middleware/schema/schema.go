@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The schema middleware provides facilities to respond to GetSchema. It handles combining
+// Package schema provides a middleware to respond to GetSchema. It handles combining
 // multiple resources and functions into a coherent and correct schema. It correctly sets
 // the `name` field and the first segment of each token to match the provider name.
 package schema
@@ -34,6 +34,8 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
+// RegisterDerivativeType registers a type for the schema being generated.
+//
 // When a resource is collecting it's schema, it should register all of the types it uses.
 // The function will return `true` if the user should recursively register register used
 // types. A return of `false` indicates that the type is already known, and children types
@@ -92,6 +94,7 @@ type state struct {
 	innerGetSchema func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
 }
 
+// Options sets the schema options used by [Wrap].
 type Options struct {
 	Metadata
 	// Resources from which to derive the schema

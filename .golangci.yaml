@@ -3,6 +3,7 @@ run:
 issues:
   # Enable checking the by default skipped "examples" dirs
   exclude-dirs-use-default: false
+  exclude-use-default: false
   exclude-dirs:
     - vendor$
     - third_party$
@@ -29,3 +30,11 @@ linters:
     - stylecheck
     - unused
   disable:
+    - godot
+linters-settings:
+  revive:
+    rules:
+      # Require that exported types and functions have comments.
+      - name: package-comments
+        # We do not require this for internal types.
+        exclude: ["**/internal/**"]

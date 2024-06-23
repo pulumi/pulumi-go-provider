@@ -34,7 +34,9 @@ type configKeyType struct{}
 
 var configKey configKeyType
 
-// Configure an inferred provider.
+// Options to configure an inferred provider.
+//
+// See [Provider] to turn a set of Options into a [p.Provider].
 type Options struct {
 	// Metadata describes provider level metadata for the schema.
 	//
@@ -167,7 +169,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 	return cancel.Wrap(provider)
 }
 
-// Retrieve the configuration of this provider.
+// GetConfig retrieves the configuration of this provider.
 //
 // Note: GetConfig will panic if the type of T does not match the type of the config or if
 // the provider has not supplied a config.
