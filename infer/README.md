@@ -203,14 +203,14 @@ that by implementing the `Delete` method:
 func (*File) Delete(ctx context.Context, id string, props FileState) error {
 	err := os.Remove(props.Path)
 	if os.IsNotExist(err) {
-		ctx.Logf(diag.Warning, "file %q already deleted", props.Path)
+		p.GetLogger(ctx).Warningf("file %q already deleted", props.Path)
 		err = nil
 	}
 	return err
 }
 ```
 
-Note that we can issue diagnostics to the user via the passed on `Context`. The
+Note that we can issue diagnostics to the user via the `p.GetLogger(ctx)` function. The
 diagnostic messages are tied to the resource that the method is called on, and pulumi
 will group them nicely:
 
