@@ -873,14 +873,19 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 	}
 	if len(failures) > 0 {
 		return p.CheckResponse{
-			Inputs:   req.News,
+			// If we failed to decode, we apply secrets pro-actively to ensure
+			// that they don't leak into previews.
+			Inputs:   applySecrets[I](req.News),
 			Failures: failures,
 		}, nil
 	}
 
 	var r R
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
-		// The user implemented check manually, so call that
+		// The user implemented check manually, so call that.
+		//
+		// We do not apply defaults or secrets if the user has implemented Check
+		// themselves. Both are applied by [DefaultCheck].
 		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
@@ -898,15 +903,14 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 
 	inputs, err := encoder.Encode(i)
 
-	return p.CheckResponse{
-		Inputs: inputs,
-	}, err
+	return p.CheckResponse{Inputs: applySecrets[I](inputs)}, err
 }
 
 // DefaultCheck verifies that `inputs` can deserialize cleanly into `I`. This is the default
 // validation that is performed when leaving `Check` unimplemented.
 // It also adds defaults to `inputs` as necessary, as defined by `Annotator.SetDefault“.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
+	inputs = applySecrets[I](inputs)
 	_, i, failures, err := decodeCheckingMapErrors[I](inputs)
 	if err != nil || len(failures) > 0 {
 		return i, failures, err
@@ -924,7 +928,6 @@ func defaultCheck[I any](i I) (I, error) {
 }
 
 func decodeCheckingMapErrors[I any](inputs resource.PropertyMap) (ende.Encoder, I, []p.CheckFailure, error) {
-	inputs = applySecrets[I](inputs)
 	encoder, i, err := ende.Decode[I](inputs)
 	if err != nil {
 		failures, e := checkFailureFromMapError(err)
@@ -956,16 +959,6 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 		}
 	}
 	return failures, nil
-}
-
-func applySecrets[I any](inputs resource.PropertyMap) resource.PropertyMap {
-	var walker secretsWalker
-	result := walker.walk(reflect.TypeFor[I](), resource.NewProperty(inputs))
-	contract.AssertNoErrorf(errors.Join(walker.errs...),
-		`secretsWalker only produces errors when the type it walks has invalid property tags
-I can't have invalid property tags because we have gotten to runtime, and it would have failed at
-schema generation time already.`)
-	return result.ObjectValue()
 }
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {

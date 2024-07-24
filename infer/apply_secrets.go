@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"errors"
 	"reflect"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -23,6 +24,16 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 )
+
+func applySecrets[I any](inputs resource.PropertyMap) resource.PropertyMap {
+	var walker secretsWalker
+	result := walker.walk(reflect.TypeFor[I](), resource.NewProperty(inputs))
+	contract.AssertNoErrorf(errors.Join(walker.errs...),
+		`secretsWalker only produces errors when the type it walks has invalid property tags
+I can't have invalid property tags because we have gotten to runtime, and it would have failed at
+schema generation time already.`)
+	return result.ObjectValue()
+}
 
 // The object that controls default application.
 type secretsWalker struct{ errs []error }

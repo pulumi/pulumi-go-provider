@@ -89,7 +89,7 @@ func MakeKnown(v resource.PropertyValue) resource.PropertyValue {
 		}
 		return resource.NewOutputProperty(o)
 	case v.IsComputed():
-		return v.SecretValue().Element
+		return v.V.(resource.Computed).Element
 	default:
 		return v
 	}

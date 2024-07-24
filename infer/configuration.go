@@ -20,7 +20,6 @@ import (
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
@@ -85,13 +84,12 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		t = reflect.New(v.Type().Elem()).Interface().(T)
 	}
 
-	r, err := c.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
-	if err != nil {
-		return p.CheckResponse{}, fmt.Errorf("could not get config secrets: %w", err)
-	}
 	encoder, decodeError := ende.DecodeConfig(req.News, &t)
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
-		// The user implemented check manually, so call that
+		// The user implemented check manually, so call that.
+		//
+		// We don't apply defaults or secrets if the user has implemented
+		// Check. [DefaultCheck] does both.
 		i, failures, err := t.Check(ctx, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
@@ -122,23 +120,8 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		return p.CheckResponse{}, err
 	}
 
-	ip := r.InputProperties
-	op := r.Properties
-	if ip == nil {
-		ip = map[string]pschema.PropertySpec{}
-	}
-	if op == nil {
-		op = map[string]pschema.PropertySpec{}
-	}
-
-	for k, v := range news {
-		if (op[string(k)].Secret || ip[string(k)].Secret) && !v.IsSecret() {
-			req.News[k] = resource.MakeSecret(v)
-		}
-	}
-
 	return p.CheckResponse{
-		Inputs:   news,
+		Inputs:   applySecrets[T](news),
 		Failures: failures,
 	}, nil
 }
