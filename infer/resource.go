@@ -230,13 +230,6 @@ type MigrationResult[T any] struct {
 
 type stateMigrationFunc[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)] struct{ f F }
 
-// typeFor returns the [Type] that represents the type argument T.
-//
-// reflect.TypeFor is included in go1.22.
-func typeFor[T any]() reflect.Type {
-	return reflect.TypeOf((*T)(nil)).Elem()
-}
-
 func (stateMigrationFunc[O, N, F]) isStateMigrationFunc()        {}
 func (stateMigrationFunc[O, N, F]) oldShape() reflect.Type       { return typeFor[O]() }
 func (stateMigrationFunc[O, N, F]) newShape() reflect.Type       { return typeFor[N]() }
@@ -1008,7 +1001,7 @@ func diff[R, I, O any](
 		return diff, nil
 	}
 
-	inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
+	inputProps, err := introspect.FindProperties(typeFor[I]())
 	if err != nil {
 		return p.DiffResponse{}, err
 	}
