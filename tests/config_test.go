@@ -84,3 +84,24 @@ func TestInferConfigWrap(t *testing.T) {
 	assert.True(t, inferConfigureWasCalled)
 	assert.True(t, checkWasCalled)
 }
+
+func TestInferCheckConfigSecrets(t *testing.T) {
+	t.Parallel()
+
+	type config struct {
+		Field string `pulumi:"field" provider:"secret"`
+	}
+
+	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
+		Config: infer.Config[config](),
+	})).CheckConfig(p.CheckRequest{
+		News: map[resource.PropertyKey]resource.PropertyValue{
+			"field": resource.NewProperty("value"),
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resp.Failures)
+	assert.Equal(t, resource.PropertyMap{
+		"field": resource.MakeSecret(resource.NewProperty("value")),
+	}, resp.Inputs)
+}
