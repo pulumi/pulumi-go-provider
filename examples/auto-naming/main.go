@@ -47,7 +47,7 @@ func (*User) Check(
 	ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap,
 ) (UserArgs, []p.CheckFailure, error) {
 	// Apply default arguments
-	args, failures, err := infer.DefaultCheck[UserArgs](newInputs)
+	args, failures, err := infer.DefaultCheck[UserArgs](ctx, newInputs)
 	if err != nil {
 		return args, failures, err
 	}

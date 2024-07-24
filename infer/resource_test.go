@@ -528,7 +528,7 @@ func TestCheck(t *testing.T) {
 
 		t.Run("DefaultCheck "+tcName, func(t *testing.T) {
 			t.Parallel()
-			in, failures, err := DefaultCheck[checkResource](tc.input.Copy())
+			in, failures, err := DefaultCheck[checkResource](context.Background(), tc.input.Copy())
 			require.NoError(t, err)
 			assert.Empty(t, failures)
 			assert.Equal(t, tc.expected, in.P1)

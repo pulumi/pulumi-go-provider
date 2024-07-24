@@ -93,9 +93,13 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		if req.Urn != "" {
 			name = req.Urn.Name()
 		}
-		i, failures, err := t.Check(ctx, name, req.Olds, req.News)
+		defCheckEnc, i, failures, err := callCustomCheck(ctx, t, name, req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
+		}
+
+		if defCheckEnc != nil {
+			encoder = *defCheckEnc
 		}
 
 		inputs, err := encoder.Encode(i)
@@ -103,7 +107,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 			return p.CheckResponse{}, err
 		}
 		return p.CheckResponse{
-			Inputs:   applySecrets[T](inputs),
+			Inputs:   inputs,
 			Failures: failures,
 		}, nil
 	}

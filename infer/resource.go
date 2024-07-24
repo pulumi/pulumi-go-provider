@@ -110,8 +110,9 @@ type CustomCreate[I, O any] interface {
 // actually happens.
 type CustomCheck[I any] interface {
 	// Maybe oldInputs can be of type I
-	Check(ctx context.Context, name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap) (
-		I, []p.CheckFailure, error)
+	Check(
+		ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap,
+	) (I, []p.CheckFailure, error)
 }
 
 // CustomDiff describes a resource that understands how to diff itself given a new set of
@@ -880,12 +881,17 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that.
 		//
-		// We do not apply defaults if the user has implemented Check
-		// themselves. Defaults are applied by [DefaultCheck].
-		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
+		// We do not apply defaults or secrets if the user has implemented Check
+		// themselves. Defaults and secrets are applied by [DefaultCheck].
+
+		defCheckEnc, i, failures, err := callCustomCheck(ctx, r, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
+		if defCheckEnc != nil {
+			encoder = *defCheckEnc
+		}
+
 		inputs, err := encoder.Encode(i)
 		return p.CheckResponse{
 			Inputs:   inputs,
@@ -902,12 +908,37 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 	return p.CheckResponse{Inputs: applySecrets[I](inputs)}, err
 }
 
-// DefaultCheck verifies that `inputs` can deserialize cleanly into `I`. This is the default
-// validation that is performed when leaving `Check` unimplemented.
-// It also adds defaults to `inputs` as necessary, as defined by `Annotator.SetDefault“.
-func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
+// This (key,value) pair provide a mechanism for [DefaultCheck] to silently return the
+// encoder it derives.
+type (
+	defaultCheckEncoderKey   struct{}
+	defaultCheckEncoderValue struct{ enc *ende.Encoder }
+)
+
+// callCustomCheck should be used to call [CustomCheck.Check].
+//
+// callCustomCheck facilitates extracting the encoder created with [DefaultCheck].
+func callCustomCheck[T any](
+	ctx context.Context, r CustomCheck[T], name string, olds, news resource.PropertyMap,
+) (*ende.Encoder, T, []p.CheckFailure, error) {
+	defaultCheckEncoder := new(defaultCheckEncoderValue)
+	ctx = context.WithValue(ctx, defaultCheckEncoderKey{}, defaultCheckEncoder)
+	i, failures, err := r.Check(ctx, name, olds, news)
+	return defaultCheckEncoder.enc, i, failures, err
+}
+
+// DefaultCheck verifies that inputs can deserialize cleanly into I. This is the default
+// validation that is performed when leaving Check unimplemented.
+//
+// It also adds defaults to inputs as necessary, as defined by [Annotator.SetDefault].
+func DefaultCheck[I any](ctx context.Context, inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
 	inputs = applySecrets[I](inputs)
-	_, i, failures, err := decodeCheckingMapErrors[I](inputs)
+	enc, i, failures, err := decodeCheckingMapErrors[I](inputs)
+
+	if v, ok := ctx.Value(defaultCheckEncoderKey{}).(*defaultCheckEncoderValue); ok {
+		v.enc = &enc
+	}
+
 	if err != nil || len(failures) > 0 {
 		return i, failures, err
 	}
