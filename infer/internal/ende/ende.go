@@ -33,6 +33,12 @@ const AssetSignature = "a9e28acb8ab501f883219e7c9f624fb6"
 // ArchiveSignature is a unique key for use for archives in the AssetOrArchive union type.
 const ArchiveSignature = "195f3948f6769324d4661e1e245f3a4d"
 
+// Encoder holds a look-aside table of information that can be encoded into a
+// [resource.PropertyMap] but cannot be encoded into a plain Go struct.
+//
+// Encoder is a byproduct of [Decode], and a non-zero Encoder should be used whenever
+// possible. If it is not possible to derive an Encoder, it safe to use the zero value of
+// Encoder.
 type Encoder struct{ *ende }
 
 // Decode a property map to a `pulumi:"x"` annotated struct.

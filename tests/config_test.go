@@ -149,12 +149,9 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 }
 
 type config struct {
-	Field  string `pulumi:"field" provider:"secret"`
-	Nested struct {
-		Int       int    `pulumi:"int" provider:"secret"`
-		NotSecret string `pulumi:"not-nested"`
-	} `pulumi:"nested"`
-	NotSecret string `pulumi:"not"`
+	Field         string `pulumi:"field" provider:"secret"`
+	NotSecret     string `pulumi:"not"`
+	ApplyDefaults bool   `pulumi:"applyDefaults,optional"`
 }
 
 var _ infer.CustomCheck[*config] = &config{}
@@ -166,34 +163,64 @@ func (c *config) Check(
 		return c, nil, fmt.Errorf("found secrets")
 	}
 
-	d, f, err := infer.DefaultCheck[config](newInputs)
-	return &d, f, err
+	if v, ok := newInputs["applyDefaults"]; ok && v.IsBool() && v.BoolValue() {
+		d, f, err := infer.DefaultCheck[config](ctx, newInputs)
+		*c = d
+		return &d, f, err
+	}
+
+	// No defaults, so apply manually
+	if v := newInputs["field"]; v.IsString() {
+		c.Field = v.StringValue()
+	}
+	if v := newInputs["not"]; v.IsString() {
+		c.NotSecret = v.StringValue()
+	}
+	if v := newInputs["apply-defaults"]; v.IsBool() {
+		c.ApplyDefaults = v.BoolValue()
+	}
+	return c, nil, nil
 }
 
 func TestInferCustomCheckConfig(t *testing.T) {
 	t.Parallel()
 
-	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
+	s := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Config: infer.Config[*config](),
-	})).CheckConfig(p.CheckRequest{
-		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
-		News: resource.PropertyMap{
-			"field": resource.NewProperty("value"),
-			"nested": resource.NewProperty(resource.PropertyMap{
-				"int":        resource.NewProperty(1.0),
-				"not-nested": resource.NewProperty("not-secret"),
-			}),
-			"not": resource.NewProperty("not-secret"),
-		},
+	}))
+
+	t.Run("with-default-check", func(t *testing.T) {
+		resp, err := s.CheckConfig(p.CheckRequest{
+			Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+			News: resource.PropertyMap{
+				"field":         resource.NewProperty("value"),
+				"not":           resource.NewProperty("not-secret"),
+				"applyDefaults": resource.NewProperty(true),
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.Failures)
+		assert.Equal(t, resource.PropertyMap{
+			"field":         resource.MakeSecret(resource.NewProperty("value")),
+			"not":           resource.NewProperty("not-secret"),
+			"applyDefaults": resource.NewProperty(true),
+		}, resp.Inputs)
 	})
-	require.NoError(t, err)
-	require.Empty(t, resp.Failures)
-	assert.Equal(t, resource.PropertyMap{
-		"field": resource.MakeSecret(resource.NewProperty("value")),
-		"nested": resource.NewProperty(resource.PropertyMap{
-			"int":        resource.MakeSecret(resource.NewProperty(1.0)),
-			"not-nested": resource.NewProperty("not-secret"),
-		}),
-		"not": resource.NewProperty("not-secret"),
-	}, resp.Inputs)
+
+	t.Run("without-default-check", func(t *testing.T) {
+		resp, err := s.CheckConfig(p.CheckRequest{
+			News: resource.PropertyMap{
+				"field":         resource.NewProperty("value"),
+				"not":           resource.NewProperty("not-secret"),
+				"applyDefaults": resource.NewProperty(false),
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.Failures)
+		assert.Equal(t, resource.PropertyMap{
+			"field":         resource.NewProperty("value"),
+			"not":           resource.NewProperty("not-secret"),
+			"applyDefaults": resource.NewProperty(false),
+		}, resp.Inputs)
+	})
 }

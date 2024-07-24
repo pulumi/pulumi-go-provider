@@ -112,7 +112,7 @@ func (*File) Check(ctx context.Context, name string, oldInputs, newInputs resour
 	if _, ok := newInputs["path"]; !ok {
 		newInputs["path"] = resource.NewStringProperty(name)
 	}
-	return infer.DefaultCheck[FileArgs](newInputs)
+	return infer.DefaultCheck[FileArgs](ctx, newInputs)
 }
 
 func (*File) Update(ctx context.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
