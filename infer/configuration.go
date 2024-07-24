@@ -88,9 +88,12 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that.
 		//
-		// We don't apply defaults or secrets if the user has implemented
-		// Check. [DefaultCheck] does both.
-		i, failures, err := t.Check(ctx, req.Urn.Name(), req.Olds, req.News)
+		// We don't apply defaults, but [DefaultCheck] does.
+		var name string
+		if req.Urn != "" {
+			req.Urn.Name()
+		}
+		i, failures, err := t.Check(ctx, name, req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -100,7 +103,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 			return p.CheckResponse{}, err
 		}
 		return p.CheckResponse{
-			Inputs:   inputs,
+			Inputs:   applySecrets[T](inputs),
 			Failures: failures,
 		}, nil
 	}

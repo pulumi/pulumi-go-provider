@@ -16,6 +16,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/blang/semver"
@@ -89,19 +90,83 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	t.Parallel()
 
 	type config struct {
-		Field string `pulumi:"field" provider:"secret"`
+		Field  string `pulumi:"field" provider:"secret"`
+		Nested struct {
+			Int       int    `pulumi:"int" provider:"secret"`
+			NotSecret string `pulumi:"not-nested"`
+		} `pulumi:"nested"`
+		NotSecret string `pulumi:"not"`
 	}
 
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Config: infer.Config[config](),
 	})).CheckConfig(p.CheckRequest{
-		News: map[resource.PropertyKey]resource.PropertyValue{
+		News: resource.PropertyMap{
 			"field": resource.NewProperty("value"),
+			"nested": resource.NewProperty(resource.PropertyMap{
+				"int":        resource.NewProperty(1.0),
+				"not-nested": resource.NewProperty("not-secret"),
+			}),
+			"not": resource.NewProperty("not-secret"),
 		},
 	})
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
 	assert.Equal(t, resource.PropertyMap{
 		"field": resource.MakeSecret(resource.NewProperty("value")),
+		"nested": resource.NewProperty(resource.PropertyMap{
+			"int":        resource.MakeSecret(resource.NewProperty(1.0)),
+			"not-nested": resource.NewProperty("not-secret"),
+		}),
+		"not": resource.NewProperty("not-secret"),
+	}, resp.Inputs)
+}
+
+type config struct {
+	Field  string `pulumi:"field" provider:"secret"`
+	Nested struct {
+		Int       int    `pulumi:"int" provider:"secret"`
+		NotSecret string `pulumi:"not-nested"`
+	} `pulumi:"nested"`
+	NotSecret string `pulumi:"not"`
+}
+
+var _ infer.CustomCheck[*config] = &config{}
+
+func (c *config) Check(
+	ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap,
+) (*config, []p.CheckFailure, error) {
+	if newInputs.ContainsSecrets() {
+		return c, nil, fmt.Errorf("found secrets")
+	}
+
+	d, f, err := infer.DefaultCheck[config](newInputs)
+	return &d, f, err
+}
+
+func TestInferCustomCheckConfig(t *testing.T) {
+	t.Parallel()
+
+	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
+		Config: infer.Config[*config](),
+	})).CheckConfig(p.CheckRequest{
+		News: resource.PropertyMap{
+			"field": resource.NewProperty("value"),
+			"nested": resource.NewProperty(resource.PropertyMap{
+				"int":        resource.NewProperty(1.0),
+				"not-nested": resource.NewProperty("not-secret"),
+			}),
+			"not": resource.NewProperty("not-secret"),
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resp.Failures)
+	assert.Equal(t, resource.PropertyMap{
+		"field": resource.MakeSecret(resource.NewProperty("value")),
+		"nested": resource.NewProperty(resource.PropertyMap{
+			"int":        resource.MakeSecret(resource.NewProperty(1.0)),
+			"not-nested": resource.NewProperty("not-secret"),
+		}),
+		"not": resource.NewProperty("not-secret"),
 	}, resp.Inputs)
 }

@@ -884,8 +884,8 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that.
 		//
-		// We do not apply defaults or secrets if the user has implemented Check
-		// themselves. Both are applied by [DefaultCheck].
+		// We do not apply defaults if the user has implemented Check
+		// themselves. Defaults are applied by [DefaultCheck].
 		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
