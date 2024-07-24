@@ -278,7 +278,6 @@ func applyDefaults[T any](value *T) error {
 	contract.Assertf(v.CanSet(), "Cannot accept an un-editable pointer")
 
 	var walker defaultsWalker
-
 	_, err := walker.walk(v)
 	return err
 }

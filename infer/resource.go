@@ -924,6 +924,7 @@ func defaultCheck[I any](i I) (I, error) {
 }
 
 func decodeCheckingMapErrors[I any](inputs resource.PropertyMap) (ende.Encoder, I, []p.CheckFailure, error) {
+	inputs = applySecrets[I](inputs)
 	encoder, i, err := ende.Decode[I](inputs)
 	if err != nil {
 		failures, e := checkFailureFromMapError(err)
@@ -955,6 +956,16 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 		}
 	}
 	return failures, nil
+}
+
+func applySecrets[I any](inputs resource.PropertyMap) resource.PropertyMap {
+	var walker secretsWalker
+	result := walker.walk(reflect.TypeFor[I](), resource.NewProperty(inputs))
+	contract.AssertNoErrorf(errors.Join(walker.errs...),
+		`secretsWalker only produces errors when the type it walks has invalid property tags
+I can't have invalid property tags because we have gotten to runtime, and it would have failed at
+schema generation time already.`)
+	return result.ObjectValue()
 }
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
@@ -1004,7 +1015,7 @@ func diff[R, I, O any](
 		return diff, nil
 	}
 
-	inputProps, err := introspect.FindProperties(new(I))
+	inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
 	if err != nil {
 		return p.DiffResponse{}, err
 	}

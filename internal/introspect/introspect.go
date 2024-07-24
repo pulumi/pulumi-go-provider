@@ -60,12 +60,11 @@ type ToPropertiesOptions struct {
 	ComputedKeys []string
 }
 
-func FindProperties(r any) (map[string]FieldTag, error) {
-	typ := reflect.TypeOf(r)
+func FindProperties(typ reflect.Type) (map[string]FieldTag, error) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
-	contract.Assertf(typ.Kind() == reflect.Struct, "Expected struct, found %s (%T)", typ.Kind(), r)
+	contract.Assertf(typ.Kind() == reflect.Struct, "Expected struct, found %s (%s)", typ.Kind(), typ.String())
 	m := map[string]FieldTag{}
 	for _, f := range reflect.VisibleFields(typ) {
 		info, err := ParseTag(f)
