@@ -35,11 +35,11 @@ schema generation time already.`)
 	return result.ObjectValue()
 }
 
-// The object that controls default application.
+// The object that controls secrets application.
 type secretsWalker struct{ errs []error }
 
 func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out resource.PropertyValue) {
-	// If v is untyped, we have no information, so return.
+	// If t is nil, we have no type information, so return.
 	if t == nil {
 		return p
 	}
@@ -62,6 +62,12 @@ func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out reso
 		t = t.Elem()
 	}
 
+	// Here is where we attempt to apply secrets from type information.
+	//
+	// If the shape of p does not match the type of t, we will simply return
+	// p. Because secrets are applied in Check (which may have failed), we can't
+	// assume that p conforms to the type of t.
+
 	switch t.Kind() {
 	// Structs can carry secret information, so this is where we add secrets.
 	case reflect.Struct:
@@ -77,13 +83,16 @@ func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out reso
 				continue
 			}
 
-			v, ok := obj[resource.PropertyKey(info.Name)]
-			if !ok {
+			if info.Internal {
 				continue
 			}
-			field, ok := t.FieldByName(field.Name)
-			contract.Assertf(ok,
-				"fieldName must exist in t because introspect.FindProperties only returns fields in t")
+
+			v, ok := obj[resource.PropertyKey(info.Name)]
+			if !ok {
+				// Since info.Name is missing from obj, we don't need to
+				// worry about if field should be secret.
+				continue
+			}
 			v = w.walk(field.Type, v)
 			if info.Secret {
 				v = ende.MakeSecret(v)
@@ -110,7 +119,7 @@ func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out reso
 			m[k] = w.walk(t.Elem(), v)
 		}
 		return resource.NewProperty(m)
-	// Primitive types
+	// Primitive types can't have tags, so there's nothing to apply here
 	default:
 		return p
 	}

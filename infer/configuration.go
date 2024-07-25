@@ -91,7 +91,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		// We don't apply defaults, but [DefaultCheck] does.
 		var name string
 		if req.Urn != "" {
-			req.Urn.Name()
+			name = req.Urn.Name()
 		}
 		i, failures, err := t.Check(ctx, name, req.Olds, req.News)
 		if err != nil {

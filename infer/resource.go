@@ -98,9 +98,12 @@ type CustomCreate[I, O any] interface {
 
 // CustomCheck describes a resource that understands how to check its inputs.
 //
-// By default, infer handles checks by ensuring that a inputs de-serialize correctly. This
-// is where you can extend that behavior. The returned input is given to subsequent calls
-// to `Create` and `Update`.
+// By default, infer handles checks by ensuring that a inputs de-serialize correctly,
+// applying default values and secrets. If to build on the default version of Check, you
+// can delegate to [DefaultCheck].
+//
+// This is where you can extend that behavior. The
+// returned input is given to subsequent calls to `Create` and `Update`.
 //
 // Example:
 // TODO - Maybe a resource that has a regex. We could reject invalid regex before the up
