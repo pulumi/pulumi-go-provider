@@ -95,7 +95,13 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 			Int       int    `pulumi:"int" provider:"secret"`
 			NotSecret string `pulumi:"not-nested"`
 		} `pulumi:"nested"`
-		NotSecret string `pulumi:"not"`
+		NotSecret   string `pulumi:"not"`
+		ArrayNested []struct {
+			Field string `pulumi:"field" provider:"secret"`
+		} `pulumi:"arrayNested"`
+		MapNested map[string]struct {
+			Field string `pulumi:"field" provider:"secret"`
+		} `pulumi:"mapNested"`
 	}
 
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
@@ -107,6 +113,16 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 				"int":        resource.NewProperty(1.0),
 				"not-nested": resource.NewProperty("not-secret"),
 			}),
+			"arrayNested": resource.NewProperty([]resource.PropertyValue{
+				resource.NewProperty(resource.PropertyMap{
+					"field": resource.NewProperty("123"),
+				}),
+			}),
+			"mapNested": resource.NewProperty(resource.PropertyMap{
+				"key": resource.NewProperty(resource.PropertyMap{
+					"field": resource.NewProperty("123"),
+				}),
+			}),
 			"not": resource.NewProperty("not-secret"),
 		},
 	})
@@ -117,6 +133,16 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 		"nested": resource.NewProperty(resource.PropertyMap{
 			"int":        resource.MakeSecret(resource.NewProperty(1.0)),
 			"not-nested": resource.NewProperty("not-secret"),
+		}),
+		"arrayNested": resource.NewProperty([]resource.PropertyValue{
+			resource.NewProperty(resource.PropertyMap{
+				"field": resource.MakeSecret(resource.NewProperty("123")),
+			}),
+		}),
+		"mapNested": resource.NewProperty(resource.PropertyMap{
+			"key": resource.NewProperty(resource.PropertyMap{
+				"field": resource.MakeSecret(resource.NewProperty("123")),
+			}),
 		}),
 		"not": resource.NewProperty("not-secret"),
 	}, resp.Inputs)
@@ -150,6 +176,7 @@ func TestInferCustomCheckConfig(t *testing.T) {
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Config: infer.Config[*config](),
 	})).CheckConfig(p.CheckRequest{
+		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
 		News: resource.PropertyMap{
 			"field": resource.NewProperty("value"),
 			"nested": resource.NewProperty(resource.PropertyMap{
