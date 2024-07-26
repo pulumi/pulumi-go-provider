@@ -98,9 +98,12 @@ type CustomCreate[I, O any] interface {
 
 // CustomCheck describes a resource that understands how to check its inputs.
 //
-// By default, infer handles checks by ensuring that a inputs de-serialize correctly. This
-// is where you can extend that behavior. The returned input is given to subsequent calls
-// to `Create` and `Update`.
+// By default, infer handles checks by ensuring that a inputs de-serialize correctly,
+// applying default values and secrets. You can wrap the default behavior of Check by
+// calling [DefaultCheck] inside of your custom Check implementation.
+//
+// This is where you can extend that behavior. The
+// returned input is given to subsequent calls to `Create` and `Update`.
 //
 // Example:
 // TODO - Maybe a resource that has a regex. We could reject invalid regex before the up
@@ -229,13 +232,6 @@ type MigrationResult[T any] struct {
 }
 
 type stateMigrationFunc[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)] struct{ f F }
-
-// typeFor returns the [Type] that represents the type argument T.
-//
-// reflect.TypeFor is included in go1.22.
-func typeFor[T any]() reflect.Type {
-	return reflect.TypeOf((*T)(nil)).Elem()
-}
 
 func (stateMigrationFunc[O, N, F]) isStateMigrationFunc()        {}
 func (stateMigrationFunc[O, N, F]) oldShape() reflect.Type       { return typeFor[O]() }
@@ -873,14 +869,19 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 	}
 	if len(failures) > 0 {
 		return p.CheckResponse{
-			Inputs:   req.News,
+			// If we failed to decode, we apply secrets pro-actively to ensure
+			// that they don't leak into previews.
+			Inputs:   applySecrets[I](req.News),
 			Failures: failures,
 		}, nil
 	}
 
 	var r R
 	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
-		// The user implemented check manually, so call that
+		// The user implemented check manually, so call that.
+		//
+		// We do not apply defaults if the user has implemented Check
+		// themselves. Defaults are applied by [DefaultCheck].
 		i, failures, err := r.Check(ctx, req.Urn.Name(), req.Olds, req.News)
 		if err != nil {
 			return p.CheckResponse{}, err
@@ -898,15 +899,14 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 
 	inputs, err := encoder.Encode(i)
 
-	return p.CheckResponse{
-		Inputs: inputs,
-	}, err
+	return p.CheckResponse{Inputs: applySecrets[I](inputs)}, err
 }
 
 // DefaultCheck verifies that `inputs` can deserialize cleanly into `I`. This is the default
 // validation that is performed when leaving `Check` unimplemented.
 // It also adds defaults to `inputs` as necessary, as defined by `Annotator.SetDefault“.
 func DefaultCheck[I any](inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
+	inputs = applySecrets[I](inputs)
 	_, i, failures, err := decodeCheckingMapErrors[I](inputs)
 	if err != nil || len(failures) > 0 {
 		return i, failures, err
@@ -1004,7 +1004,7 @@ func diff[R, I, O any](
 		return diff, nil
 	}
 
-	inputProps, err := introspect.FindProperties(new(I))
+	inputProps, err := introspect.FindProperties(typeFor[I]())
 	if err != nil {
 		return p.DiffResponse{}, err
 	}

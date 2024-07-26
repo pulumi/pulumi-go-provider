@@ -518,7 +518,7 @@ func TestCheck(t *testing.T) {
 			checkResp, err := res.Check(context.Background(), p.CheckRequest{
 				Urn:  "a:b:c",
 				Olds: r.PropertyMap{},
-				News: tc.input,
+				News: tc.input.Copy(),
 			})
 			require.NoError(t, err)
 			assert.Empty(t, checkResp.Failures)
@@ -528,7 +528,7 @@ func TestCheck(t *testing.T) {
 
 		t.Run("DefaultCheck "+tcName, func(t *testing.T) {
 			t.Parallel()
-			in, failures, err := DefaultCheck[checkResource](tc.input)
+			in, failures, err := DefaultCheck[checkResource](tc.input.Copy())
 			require.NoError(t, err)
 			assert.Empty(t, failures)
 			assert.Equal(t, tc.expected, in.P1)
