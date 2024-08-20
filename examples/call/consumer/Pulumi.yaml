@@ -1,0 +1,6 @@
+runtime: python
+name: dev
+plugins:
+  providers:
+    - name: test
+      path: ..

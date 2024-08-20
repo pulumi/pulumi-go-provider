@@ -1,0 +1,2 @@
+pulumi>=v1.129.0
+sdks/test

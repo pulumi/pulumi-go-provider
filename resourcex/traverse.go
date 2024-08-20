@@ -73,3 +73,47 @@ func Traverse(v resource.PropertyValue, p resource.PropertyPath, f func(resource
 		}
 	}
 }
+
+// Walk traverses a property value along all paths, performing a depth first search.
+func Walk(v resource.PropertyValue, f func(resource.PropertyValue, WalkState)) {
+	walk(v, f, WalkState{})
+}
+
+type WalkState struct {
+	// We are entering the value. The children of the value have not yet been visited.
+	Entering bool
+	// The value is not transitively computed.
+	IsKnown bool
+	// The value is not transitively secret.
+	IsSecret bool
+}
+
+func walk(v resource.PropertyValue, f func(resource.PropertyValue, WalkState), state WalkState) {
+	state.Entering = true
+	f(v, state)
+	switch {
+	case v.IsObject():
+		for _, v := range v.ObjectValue() {
+			walk(v, f, state)
+		}
+	case v.IsArray():
+		for _, v := range v.ArrayValue() {
+			walk(v, f, state)
+		}
+	case v.IsSecret():
+		elemState := state
+		state.IsSecret = true
+		walk(v.SecretValue().Element, f, elemState)
+	case v.IsOutput():
+		elemState := state
+		state.IsSecret = v.OutputValue().Secret
+		state.IsKnown = v.OutputValue().Known
+		walk(v.OutputValue().Element, f, elemState)
+	case v.IsComputed():
+		elemState := state
+		state.IsKnown = false
+		walk(v.V.(resource.Computed).Element, f, elemState)
+	}
+	state.Entering = false
+	f(v, state)
+}
