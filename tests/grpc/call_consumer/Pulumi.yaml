@@ -1,0 +1,6 @@
+name: "call_consumer"
+runtime: python
+plugins:
+  providers:
+    - name: test
+      path: .

@@ -38,12 +38,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/pulumi/pulumi-go-provider/internal/key"
+	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
 
 type GetSchemaRequest struct {
@@ -342,7 +344,14 @@ type Provider struct {
 	Read   func(context.Context, ReadRequest) (ReadResponse, error)
 	Update func(context.Context, UpdateRequest) (UpdateResponse, error)
 	Delete func(context.Context, DeleteRequest) error
-	// TODO Call
+
+	// Call allows methods to be attached to resources.
+	//
+	// Right now, Call is restricted to methods on component resources.[^1][^2]
+	//
+	// [^1]: On the provider resource: https://github.com/pulumi/pulumi/issues/17025
+	// [^2]: On custom resources: https://github.com/pulumi/pulumi/issues/16257
+	Call func(context.Context, CallRequest) (CallResponse, error)
 
 	// Components Resources
 	Construct func(context.Context, ConstructRequest) (ConstructResponse, error)
@@ -418,6 +427,11 @@ func (d Provider) WithDefaults() Provider {
 	if d.Delete == nil {
 		d.Delete = func(context.Context, DeleteRequest) error {
 			return nyi("Delete")
+		}
+	}
+	if d.Call == nil {
+		d.Call = func(context.Context, CallRequest) (CallResponse, error) {
+			return CallResponse{}, nyi("Call")
 		}
 	}
 	if d.Construct == nil {
@@ -718,8 +732,102 @@ func (p *provider) StreamInvoke(*rpc.InvokeRequest, rpc.ResourceProvider_StreamI
 	return status.Error(codes.Unimplemented, "StreamInvoke is not yet implemented")
 }
 
-func (p *provider) Call(context.Context, *rpc.CallRequest) (*rpc.CallResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Call is not yet implemented")
+func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
+
+	configPropertyMap := make(presource.PropertyMap, len(req.GetConfig()))
+	for k, v := range req.GetConfig() {
+		configPropertyMap[presource.PropertyKey(k)] = presource.NewProperty(v)
+	}
+	pulumiContext, err := pulumi.NewContext(ctx, pulumi.RunInfo{
+		Project:           req.GetProject(),
+		Stack:             req.GetStack(),
+		Config:            req.GetConfig(),
+		ConfigSecretKeys:  req.GetConfigSecretKeys(),
+		ConfigPropertyMap: configPropertyMap,
+		Parallel:          int(req.GetParallel()),
+		DryRun:            req.GetDryRun(),
+		MonitorAddr:       req.GetMonitorEndpoint(),
+		Organization:      req.GetOrganization(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pulumi.Context: %w", err)
+	}
+
+	args, err := p.getMap(req.GetArgs())
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert args into a property map: %w", err)
+	}
+
+	resp, err := p.client.Call(ctx, CallRequest{
+		Tok:     tokens.ModuleMember(req.GetTok()),
+		Args:    args,
+		Context: pulumiContext,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// [comProvider.Call] acts as a synchronization point, ensuring that all actions
+	// within p.client.Call are witnessed before Call returns.
+	//
+	// Eventually, [comProvider.Call] results in a call to [pulumi.Context.wait],
+	// which is what forces the synchronization.
+	var engineConn *grpc.ClientConn
+	if p.host != nil {
+		engineConn = p.host.EngineConn()
+	}
+	_, err = comProvider.Call(ctx, req, engineConn,
+		func(ctx *pulumi.Context, tok string, args comProvider.CallArgs) (*comProvider.CallResult, error) {
+			return &comProvider.CallResult{}, nil
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
+	for name, v := range resp.Return {
+		var urns []string
+		resourcex.Walk(v, func(v presource.PropertyValue, state resourcex.WalkState) {
+			if state.Entering || !v.IsOutput() {
+				return
+			}
+			for _, dep := range v.OutputValue().Dependencies {
+				urns = append(urns, string(dep))
+			}
+		})
+
+		returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+	}
+
+	_return, err := p.asStruct(resp.Return)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpc.CallResponse{
+		Return:             _return,
+		ReturnDependencies: returnDependencies,
+		Failures:           checkFailureList(resp.Failures).rpc(),
+	}, nil
+}
+
+// CallRequest represents a requested resource method invocation.
+//
+// It corresponds to [rpc.CallRequest] on the wire.
+type CallRequest struct {
+	Tok     tokens.ModuleMember
+	Args    presource.PropertyMap
+	Context *pulumi.Context
+}
+
+// CallResponse represents a completed resource method invocation.
+//
+// It corresponds to [rpc.CallResponse] on the wire.
+type CallResponse struct {
+	// The returned values, if the call was successful.
+	Return presource.PropertyMap
+	// The failures if any arguments didn't pass verification.
+	Failures []CheckFailure
 }
 
 func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
