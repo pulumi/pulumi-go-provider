@@ -1,0 +1,3 @@
+pulumi-resource-*
+venv
+__pycache__

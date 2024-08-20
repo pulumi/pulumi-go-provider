@@ -1,0 +1,13 @@
+setup.py
+pulumi_test/__init__.py
+pulumi_test/_utilities.py
+pulumi_test/component.py
+pulumi_test/provider.py
+pulumi_test/pulumi-plugin.json
+pulumi_test/py.typed
+pulumi_test.egg-info/PKG-INFO
+pulumi_test.egg-info/SOURCES.txt
+pulumi_test.egg-info/dependency_links.txt
+pulumi_test.egg-info/not-zip-safe
+pulumi_test.egg-info/requires.txt
+pulumi_test.egg-info/top_level.txt

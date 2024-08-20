@@ -24,7 +24,7 @@ lint: lint-golang lint-copyright
 lint-golang:
 	golangci-lint run -c .golangci.yaml --timeout 5m
 lint-copyright:
-	pulumictl copyright -x 'examples/**'
+	pulumictl copyright -x 'examples/**,**/sdks/test/**'
 
 build_examples: build
 	@for ex in ${wildcard examples/*}; do \
