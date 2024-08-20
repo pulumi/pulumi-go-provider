@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: pulumi_test
+Version: 0.0.0
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: parver>=0.2.1
+Requires-Dist: pulumi<4.0.0,>=3.0.0
+Requires-Dist: semver>=2.8.1
+
+test Pulumi Package - Development Version
