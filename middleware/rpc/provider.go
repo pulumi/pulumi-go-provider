@@ -20,6 +20,8 @@ package rpc
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
@@ -42,7 +44,16 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 	var runtime runtime // the runtime configuration of the server
 	return p.Provider{
 		GetSchema: func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+			if req.Version > math.MaxInt32 {
+				return p.GetSchemaResponse{}, fmt.Errorf("schema version overflow: %d", req.Version)
+			}
+			if req.Version < math.MinInt32 {
+				return p.GetSchemaResponse{}, fmt.Errorf("schema version underflow: %d", req.Version)
+			}
 			s, err := server.GetSchema(ctx, &rpc.GetSchemaRequest{
+				//cast validated above
+				//
+				//nolint:gosec
 				Version: int32(req.Version),
 			})
 			return p.GetSchemaResponse{
