@@ -453,7 +453,7 @@ type errCollectingContext struct {
 
 func (e *errCollectingContext) Log(severity diag.Severity, msg string) {
 	if severity == diag.Error {
-		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
+		e.errs.Errors = append(e.errs.Errors, errors.New(msg))
 	}
 	_, err := fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
 	contract.IgnoreError(err)
@@ -465,7 +465,7 @@ func (e *errCollectingContext) Logf(severity diag.Severity, msg string, args ...
 
 func (e *errCollectingContext) LogStatus(severity diag.Severity, msg string) {
 	if severity == diag.Error {
-		e.errs.Errors = append(e.errs.Errors, fmt.Errorf(msg))
+		e.errs.Errors = append(e.errs.Errors, errors.New(msg))
 	}
 	_, err := fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
 	contract.IgnoreError(err)
