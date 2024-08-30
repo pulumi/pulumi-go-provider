@@ -2,7 +2,7 @@ module github.com/pulumi/pulumi-go-provider/examples/credentials
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 
-go 1.21
+go 1.22
 
 require (
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000

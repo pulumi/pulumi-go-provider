@@ -67,36 +67,6 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           stable: ${{ matrix.go-stable }}
-      # We are not testing on languages beyond go right now
-      # name: Set up Python ${{ inputs.python-version }}
-      #   uses: actions/setup-python@v1
-      #   with:
-      #     python-version: ${{ inputs.python-version }}
-      # - name: Install Python deps
-      #   run: |
-      #     python -m pip install --upgrade pip requests wheel urllib3 chardet
-      # - name: Set up DotNet ${{ inputs.dotnet-version }}
-      #   uses: actions/setup-dotnet@v1
-      #   with:
-      #     dotnet-version: ${{ inputs.dotnet-version }}
-      # - name: Set up Node ${{ inputs.node-version }}
-      #   uses: actions/setup-node@v2
-      #   with:
-      #     node-version: ${{ inputs.node-version }}
-      # - name: Install yarn
-      #   run: |
-      #     npm install -g yarn@1.22
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v1
-      #   # Skip on dry-run
-      #   if: ${{ inputs.live-test }}
-      #   with:
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-region: ${{ env.AWS_REGION }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     role-duration-seconds: 3600
-      #     role-session-name: pulumi-go-provider@githubActions
-      #     role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
       - name: Install Pulumi CLI
         uses: pulumi/action-install-pulumi-cli@v2
       - name: Test
@@ -105,6 +75,6 @@ jobs:
       fail-fast: false
       matrix:
         go-version:
-          - 1.21.x
           - 1.22.x
+          - 1.23.x
         go-stable: [true]
