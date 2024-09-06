@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package putil contains utility functions for working with [resource.PropertyValue]s.
 package putil
 
 import "github.com/pulumi/pulumi/sdk/v3/go/common/resource"

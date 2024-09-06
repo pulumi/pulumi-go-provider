@@ -160,6 +160,7 @@ func PropertyValue(maxDepth int) *rapid.Generator[resource.PropertyValue] {
 		Object(maxDepth),
 		Secret(maxDepth),
 		Computed(maxDepth),
+		Output(maxDepth),
 	)
 }
 
@@ -267,6 +268,34 @@ func Computed(maxDepth int) *rapid.Generator[resource.PropertyValue] {
 	})
 }
 
+func Output(maxDepth int) *rapid.Generator[resource.PropertyValue] {
+	return rapid.Custom(func(t *rapid.T) resource.PropertyValue {
+		o := resource.Output{
+			Secret:       rapid.Bool().Draw(t, "is-secret"),
+			Dependencies: outputDependencies().Draw(t, "dependencies"),
+		}
+
+		// The wire doesn't transport elements unless they are known, so we don't
+		// generate non-round-trip-able values.
+		if rapid.Bool().Draw(t, "is-known") {
+			o.Element = PropertyValue(maxDepth-1).Draw(t, "V")
+			o.Known = true
+		}
+
+		return resource.NewProperty(o)
+	})
+}
+
+func outputDependencies() *rapid.Generator[[]resource.URN] {
+	return rapid.SliceOfN(urn(), 0, 10)
+}
+
+func urn() *rapid.Generator[resource.URN] {
+	return rapid.Custom(func(t *rapid.T) resource.URN {
+		return resource.URN(rapid.String().Draw(t, "urn-body"))
+	})
+}
+
 func makeComputed(t *rapid.T, v resource.PropertyValue) resource.PropertyValue {
 	// If a value is marker, we fold the computedness into it.
 	if v.IsComputed() {
@@ -285,10 +314,6 @@ func makeComputed(t *rapid.T, v resource.PropertyValue) resource.PropertyValue {
 		return resource.NewOutputProperty(o)
 	}
 
-	// Otherwise we pick between the two kinds of secretness we can accept.
-	if rapid.Bool().Draw(t, "isOutput") {
-		return resource.MakeOutput(v)
-	}
 	return resource.MakeComputed(v)
 
 }
