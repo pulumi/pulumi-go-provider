@@ -29,8 +29,8 @@ import (
 	"pgregory.net/rapid"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	rRapid "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
 
@@ -94,13 +94,13 @@ func TestDefaultDependencies(t *testing.T) {
 		if newInput.ContainsUnknowns() {
 			for k, v := range output {
 				if newV, ok := newInput[k]; ok &&
-					ende.DeepEquals(newV, v) {
+					putil.DeepEquals(newV, v) {
 					continue
 				}
-				assert.True(t, ende.IsComputed(v),
+				assert.True(t, putil.IsComputed(v),
 					"key: %q", string(k))
 			}
-		} else if !ende.DeepEquals(
+		} else if !putil.DeepEquals(
 			r.NewObjectProperty(oldInput),
 			r.NewObjectProperty(newInput)) {
 			// If there is a change, then every item item should be
@@ -108,10 +108,10 @@ func TestDefaultDependencies(t *testing.T) {
 			for k, v := range output {
 				newV, ok := newInput[k]
 				if !ok {
-					assert.True(t, ende.IsComputed(v),
+					assert.True(t, putil.IsComputed(v),
 						"key: %q", string(k))
-				} else if !ende.IsComputed(v) {
-					assert.True(t, ende.DeepEquals(v, newV))
+				} else if !putil.IsComputed(v) {
+					assert.True(t, putil.DeepEquals(v, newV))
 				}
 			}
 		}
@@ -119,7 +119,7 @@ func TestDefaultDependencies(t *testing.T) {
 		for k, v := range output {
 			// An input of the same name is secret, so this should be too.
 			if newInput[k].ContainsSecrets() {
-				assert.Truef(t, ende.IsSecret(v),
+				assert.Truef(t, putil.IsSecret(v),
 					"key: %q", string(k))
 			}
 		}

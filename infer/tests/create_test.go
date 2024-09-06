@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	ende "github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 )
 
 func TestCreate(t *testing.T) {
@@ -148,7 +148,7 @@ func TestCreate(t *testing.T) {
 		prov := provider()
 		c := resource.MakeComputed
 		s := resource.NewStringProperty
-		sec := ende.MakeSecret
+		sec := putil.MakeSecret
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Wired", "preview"),
 			Properties: resource.PropertyMap{

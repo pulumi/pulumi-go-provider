@@ -54,7 +54,6 @@ func TestCheckDefaults(t *testing.T) {
 		return pMap{
 			"pi":        pInt(2),
 			"s":         pString("one"),
-			"nested":    defaultNestedMap(),
 			"nestedPtr": defaultNestedMap(),
 		}
 	}

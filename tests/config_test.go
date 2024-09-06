@@ -89,19 +89,21 @@ func TestInferConfigWrap(t *testing.T) {
 func TestInferCheckConfigSecrets(t *testing.T) {
 	t.Parallel()
 
+	type nestedElem struct {
+		Field string `pulumi:"field" provider:"secret"`
+	}
+
+	type nested struct {
+		Int       int    `pulumi:"int" provider:"secret"`
+		NotSecret string `pulumi:"not-nested"`
+	}
+
 	type config struct {
-		Field  string `pulumi:"field" provider:"secret"`
-		Nested struct {
-			Int       int    `pulumi:"int" provider:"secret"`
-			NotSecret string `pulumi:"not-nested"`
-		} `pulumi:"nested"`
-		NotSecret   string `pulumi:"not"`
-		ArrayNested []struct {
-			Field string `pulumi:"field" provider:"secret"`
-		} `pulumi:"arrayNested"`
-		MapNested map[string]struct {
-			Field string `pulumi:"field" provider:"secret"`
-		} `pulumi:"mapNested"`
+		Field       string                `pulumi:"field" provider:"secret"`
+		Nested      nested                `pulumi:"nested"`
+		NotSecret   string                `pulumi:"not"`
+		ArrayNested []nestedElem          `pulumi:"arrayNested"`
+		MapNested   map[string]nestedElem `pulumi:"mapNested"`
 	}
 
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{

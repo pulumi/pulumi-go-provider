@@ -34,6 +34,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -430,11 +431,11 @@ func markComputed(
 	oldInputs, inputs resource.PropertyMap, isCreate bool,
 ) resource.PropertyValue {
 	// If the value is already computed or if it is guaranteed to be known, we don't need to do anything
-	if field.known || ende.IsComputed(prop) {
+	if field.known || putil.IsComputed(prop) {
 		return prop
 	}
 
-	if input, ok := inputs[key]; ok && !ende.IsComputed(prop) && ende.DeepEquals(input, prop) {
+	if input, ok := inputs[key]; ok && !putil.IsComputed(prop) && putil.DeepEquals(input, prop) {
 		// prop is an output during a create, but the output mirrors an
 		// input in name and value. We don't make it computed.
 		return prop
@@ -442,7 +443,7 @@ func markComputed(
 
 	// If this is during a create and the value is not explicitly marked as known, we mark it computed.
 	if isCreate {
-		return ende.MakeComputed(prop)
+		return putil.MakeComputed(prop)
 	}
 
 	// If a dependency is computed or has changed, we mark this field as computed.
@@ -464,8 +465,8 @@ func markComputed(
 		// (or do it for the user), ensuring that we have access to information
 		// that changed..
 		oldInput, hasOldInput := oldInputs[k]
-		if ende.IsComputed(inputs[k]) || (hasOldInput && !ende.DeepEquals(inputs[k], oldInput)) {
-			return ende.MakeComputed(prop)
+		if putil.IsComputed(inputs[k]) || (hasOldInput && !putil.DeepEquals(inputs[k], oldInput)) {
+			return putil.MakeComputed(prop)
 		}
 	}
 
@@ -478,20 +479,20 @@ func markSecret(
 	// If we should never return a secret, ensure that the field *is not* marked as
 	// secret, then return.
 	if field.neverSecret {
-		return ende.MakePublic(prop)
+		return putil.MakePublic(prop)
 	}
 
-	if ende.IsSecret(prop) {
+	if putil.IsSecret(prop) {
 		return prop
 	}
 
 	// If we should always return a secret, ensure that the field *is* marked as secret,
 	// then return.
 	if field.alwaysSecret {
-		return ende.MakeSecret(prop)
+		return putil.MakeSecret(prop)
 	}
 
-	if input, ok := inputs[key]; ok && ende.DeepEquals(input, prop) {
+	if input, ok := inputs[key]; ok && putil.DeepEquals(input, prop) {
 		// prop might depend on a secret value, but the output mirrors a input in
 		// name and value. We don't make it secret since it will either be public
 		// in the state as an input, or is already a secret.
@@ -505,7 +506,7 @@ func markSecret(
 			continue
 		}
 		if inputs[resource.PropertyKey(k.name)].ContainsSecrets() {
-			return ende.MakeSecret(prop)
+			return putil.MakeSecret(prop)
 		}
 	}
 

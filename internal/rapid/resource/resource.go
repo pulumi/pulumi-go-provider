@@ -30,7 +30,7 @@ type Typed struct {
 
 // ValueOf annotates a [reflect.Type] with an appropriate random [resource.PropertyValue].
 //
-// A value is considered "appropriate" to a type if the vlaue can be safely unmarshaled
+// A value is considered "appropriate" to a type if the value can be safely unmarshaled
 // into the type.
 func ValueOf(typ *rapid.Generator[reflect.Type]) *rapid.Generator[Typed] {
 	// Note: we generate values from types instead of vice versa because the set of
@@ -161,6 +161,13 @@ func PropertyValue(maxDepth int) *rapid.Generator[resource.PropertyValue] {
 		Secret(maxDepth),
 		Computed(maxDepth),
 	)
+}
+
+func PropertyMap(maxDepth int) *rapid.Generator[resource.PropertyMap] {
+	return rapid.Map(MapOf(PropertyValue(maxDepth-1)),
+		func(v resource.PropertyValue) resource.PropertyMap {
+			return v.ObjectValue()
+		})
 }
 
 func Primitive() *rapid.Generator[resource.PropertyValue] {
