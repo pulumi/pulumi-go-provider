@@ -745,7 +745,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 		Config:            req.GetConfig(),
 		ConfigSecretKeys:  req.GetConfigSecretKeys(),
 		ConfigPropertyMap: configPropertyMap,
-		Parallel:          int(req.GetParallel()),
+		Parallel:          req.GetParallel(),
 		DryRun:            req.GetDryRun(),
 		MonitorAddr:       req.GetMonitorEndpoint(),
 		Organization:      req.GetOrganization(),

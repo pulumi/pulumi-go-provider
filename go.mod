@@ -5,8 +5,8 @@ go 1.22
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/pulumi/pulumi/pkg/v3 v3.126.0
-	github.com/pulumi/pulumi/sdk/v3 v3.126.0
+	github.com/pulumi/pulumi/pkg/v3 v3.131.0
+	github.com/pulumi/pulumi/sdk/v3 v3.131.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 	pgregory.net/rapid v1.1.0
@@ -89,16 +89,15 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.9.0
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
-	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/term v0.21.0 // indirect
+	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/term v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
