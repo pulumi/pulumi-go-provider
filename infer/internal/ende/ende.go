@@ -20,6 +20,7 @@ import (
 
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
@@ -104,10 +105,10 @@ func (p change) apply(v resource.PropertyValue) resource.PropertyValue {
 		})
 	}
 	if p.computed {
-		v = MakeComputed(v)
+		v = putil.MakeComputed(v)
 	}
 	if p.secret {
-		v = MakeSecret(v)
+		v = putil.MakeSecret(v)
 	}
 	return v
 }
@@ -219,8 +220,8 @@ func (e *ende) walk(
 		}
 	}
 
-	contract.Assertf(!IsComputed(v), "failed to strip computed")
-	contract.Assertf(!IsSecret(v), "failed to strip secrets")
+	contract.Assertf(!putil.IsComputed(v), "failed to strip computed")
+	contract.Assertf(!putil.IsSecret(v), "failed to strip secrets")
 	contract.Assertf(!v.IsOutput(), "failed to strip outputs")
 
 	switch typ.Kind() {

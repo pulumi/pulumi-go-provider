@@ -21,8 +21,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 
-	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 )
 
 func applySecrets[I any](inputs resource.PropertyMap) resource.PropertyMap {
@@ -46,14 +46,14 @@ func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out reso
 
 	// Ensure we are working in raw value types for p
 
-	if ende.IsSecret(p) {
-		p = ende.MakePublic(p)
-		defer func() { out = ende.MakeSecret(p) }()
+	if putil.IsSecret(p) {
+		p = putil.MakePublic(p)
+		defer func() { out = putil.MakeSecret(p) }()
 	}
 
-	if ende.IsComputed(p) {
-		p = ende.MakeKnown(p)
-		defer func() { out = ende.MakeComputed(p) }()
+	if putil.IsComputed(p) {
+		p = putil.MakeKnown(p)
+		defer func() { out = putil.MakeComputed(p) }()
 	}
 
 	// Ensure we are working in raw value types for t
@@ -95,7 +95,7 @@ func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out reso
 			}
 			v = w.walk(field.Type, v)
 			if info.Secret {
-				v = ende.MakeSecret(v)
+				v = putil.MakeSecret(v)
 			}
 			obj[resource.PropertyKey(info.Name)] = v
 		}

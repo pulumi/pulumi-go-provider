@@ -21,6 +21,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/cancel"
+	"github.com/pulumi/pulumi-go-provider/middleware/complexconfig" //nolint:staticcheck
 	mContext "github.com/pulumi/pulumi-go-provider/middleware/context"
 	"github.com/pulumi/pulumi-go-provider/middleware/dispatch"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -166,6 +167,8 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			return context.WithValue(ctx, configKey, opts.Config)
 		})
 	}
+
+	provider = complexconfig.Wrap(provider)
 	return cancel.Wrap(provider)
 }
 

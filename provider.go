@@ -44,6 +44,7 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
@@ -1104,3 +1105,30 @@ func (p *provider) Attach(_ context.Context, req *rpc.PluginAttach) (*emptypb.Em
 	p.host = host
 	return &emptypb.Empty{}, nil
 }
+
+// InternalErrorf indicates that the provider encountered an internal error.
+//
+// This will tell the user that the provider had a bug, and the bug should be reported to
+// the provider author.
+//
+// This is different then [internal.Error], which indicates that pulumi-go-provider has a
+// bug.
+func InternalErrorf(msg string, a ...any) error {
+	return internalError{fmt.Errorf(msg, a...)}
+}
+
+type internalError struct{ err error }
+
+func (e internalError) Error() string {
+	// If the root cause is an internal error, then we don't need to indicate this is
+	// a provider author error.
+	if errors.Is(e, internal.Error{}) {
+		return e.Unwrap().Error()
+	}
+
+	return fmt.Sprintf(`This is an error in the provider. Please report it to the provider author:
+
+%s`, e.err.Error())
+}
+
+func (e internalError) Unwrap() error { return e.err }

@@ -194,7 +194,7 @@ type WithDefaultsArgs struct {
 	// NestedDefaults.
 	String       string                     `pulumi:"s,optional"`
 	IntPtr       *int                       `pulumi:"pi,optional"`
-	Nested       NestedDefaults             `pulumi:"nested,optional"`
+	Nested       *NestedDefaults            `pulumi:"nested,optional"`
 	NestedPtr    *NestedDefaults            `pulumi:"nestedPtr"`
 	OptWithReq   *OptWithReq                `pulumi:"optWithReq,optional"`
 	ArrNested    []NestedDefaults           `pulumi:"arrNested,optional"`
@@ -306,7 +306,7 @@ func (w *RecursiveArgs) Annotate(a infer.Annotator) {
 }
 
 type Config struct {
-	Value string `pulumi:"value,optional"`
+	Value *string `pulumi:"value,optional"`
 }
 
 type ReadConfig struct{}

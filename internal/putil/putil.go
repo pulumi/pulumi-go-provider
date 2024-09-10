@@ -1,4 +1,4 @@
-// Copyright 2023, Pulumi Corporation.
+// Copyright 2024, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ende
+// Package putil contains utility functions for working with [resource.PropertyValue]s.
+package putil
 
 import "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 

@@ -27,6 +27,10 @@ import (
 // These inputs were created by running `pulumi up` with PULUMI_DEBUG_GRPC=logs.json in
 // ./config/consumer.
 
+// TestBasicConfig checks that we can handle deserializing basic configuration values.
+//
+// These test values were derived from a Pulumi YAML program, which does not JSON encode
+// it's values.
 func TestBasicConfig(t *testing.T) {
 	sequence := `[
   {
@@ -469,6 +473,105 @@ func TestConfigWithSecrets(t *testing.T) {
   }
 ]`
 	replayConfig(t, sequence)
+}
+
+// TestJSONEncodedConfig shows that we can correctly interpret JSON encoded config values.
+//
+// These test values were derived from the following TypeScript program. TypeScript does
+// JSON encode it's values:
+//
+//	import * as pulumi from "@pulumi/pulumi";
+//	import * as p from "config";
+//
+//	export const c = new p.Provider("ts", {
+//	  s: pulumi.secret("foo"),
+//	  b: true,
+//	  i: 42,
+//	  m: {    fizz: "buzz",  },
+//	  a: [
+//	    pulumi.secret("one"),
+//	    "two",
+//	  ],
+//	  n: {
+//	    s: pulumi.secret("foo"),
+//	    b: true,
+//	    i: 42,
+//	    m: {    fizz: "buzz",  },
+//	    a: [
+//	      "one",
+//	      "two",
+//	    ],
+//	  },
+//	});
+//
+//	export const config = new p.Get("get", {}, {provider: c}).config;
+//
+// To re-generate these values, build the `config` test provider:
+//
+//	cd tests/grpc/config && go build -o pulumi-resource-config .
+//
+// Then create a Pulumi project, specify the provider path to the binary:
+//
+//	plugins:
+//	  providers:
+//	    - name: config
+//	      path: ..
+//
+// Write the program and run `consumer/run.sh` to generate gRPC logs.
+func TestJSONEncodedConfig(t *testing.T) {
+	replayConfig(t, `[{
+    "method": "/pulumirpc.ResourceProvider/CheckConfig",
+    "request": {
+        "urn": "urn:pulumi:test::test::pulumi:providers:config::ts",
+        "olds": {},
+        "news": {
+            "a": "[\"one\",\"two\"]",
+            "b": "true",
+            "db": "true",
+            "di": "42",
+            "ds": "defString",
+            "i": "42",
+            "m": "{\"fizz\":\"buzz\"}",
+            "n": "{\"s\":\"foo\",\"b\":true,\"i\":42,\"m\":{\"fizz\":\"buzz\"},\"a\":[\"one\",\"two\"]}",
+            "s": "foo",
+            "version": "0.0.1"
+        }
+    },
+    "response": {
+        "inputs": {
+            "a": [
+                "one",
+                "two"
+            ],
+            "b": true,
+            "db": true,
+            "di": 42,
+            "ds": "defString",
+            "i": 42,
+            "m": {
+                "fizz": "buzz"
+            },
+            "n": {
+                "a": [
+                    "one",
+                    "two"
+                ],
+                "b": true,
+                "i": 42,
+                "m": {
+                    "fizz": "buzz"
+                },
+                "s": "foo"
+            },
+            "s": "foo"
+        }
+    },
+    "metadata": {
+        "kind": "resource",
+        "mode": "client",
+        "name": "config"
+    }
+}]`)
 }
 
 func replayConfig(t *testing.T, jsonLog string) {
