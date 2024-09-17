@@ -1,10 +1,9 @@
-name: Run Acceptance Tests from PR
+name: Run Acceptance Tests on main
 
 on:
-  pull_request:
-    paths-ignore:
-      - 'CHANGELOG.md'
-      - 'CHANGELOG_PENDING.md'
+  push:
+    branches:
+    - main
 
 jobs:
   lint:
