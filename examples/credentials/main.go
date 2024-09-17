@@ -27,6 +27,9 @@ func provider() p.Provider {
 			"credentials": "index",
 		},
 		Config: infer.Config[*Config](),
+		Functions: []infer.InferredFunction{
+			infer.Function[*Sign](),
+		},
 	})
 }
 
@@ -109,4 +112,29 @@ func (*User) Diff(ctx context.Context, id string, olds UserState, news UserArgs)
 		}, nil
 	}
 	return p.DiffResponse{}, nil
+}
+
+type Sign struct{}
+
+func (Sign) Call(ctx context.Context, args SignArgs) (SignRes, error) {
+	config := infer.GetConfig[Config](ctx)
+	return SignRes{
+		Out: fmt.Sprintf("%s by %s", args.Message, config.User),
+	}, nil
+}
+
+func (r *Sign) Annotate(a infer.Annotator) {
+	a.Describe(r, "Signs the message with the user name and returns the result as a secret.")
+}
+
+type SignArgs struct {
+	Message string `pulumi:"message"`
+}
+
+func (ra *SignArgs) Annotate(a infer.Annotator) {
+	a.Describe(&ra.Message, "Message to sign.")
+}
+
+type SignRes struct {
+	Out string `pulumi:"out" provider:"secret"`
 }
