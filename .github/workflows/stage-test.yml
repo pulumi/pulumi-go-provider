@@ -39,6 +39,7 @@ on:
       ARM_CLIENT_SECRET: { required: false }
       ARM_SUBSCRIPTION_ID: { required: false }
       ARM_TENANT_ID: { required: false }
+      CODECOV_TOKEN: { required: false }
 
 env:
   PULUMI_LIVE_TEST: ${{ inputs.live-test }}
@@ -50,6 +51,7 @@ env:
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   PULUMI_TEST_PARALLEL: false
   NODE_OPTIONS: --max-old-space-size=3072
 
@@ -71,6 +73,10 @@ jobs:
         uses: pulumi/action-install-pulumi-cli@v2
       - name: Test
         run: make test
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:

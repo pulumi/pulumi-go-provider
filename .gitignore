@@ -28,3 +28,6 @@ examples/**/schema-*.json
 
 go.work
 go.work.sum
+
+# Code coverage reports
+**/coverage.txt
