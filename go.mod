@@ -5,8 +5,8 @@ go 1.22
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/pulumi/pulumi/pkg/v3 v3.131.0
-	github.com/pulumi/pulumi/sdk/v3 v3.131.0
+	github.com/pulumi/pulumi/pkg/v3 v3.132.0
+	github.com/pulumi/pulumi/sdk/v3 v3.132.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 	pgregory.net/rapid v1.1.0
@@ -39,7 +39,7 @@ require (
 	github.com/pgavlin/fx v0.1.6 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/esc v0.9.1 // indirect
+	github.com/pulumi/esc v0.9.2-0.20240910221656-328d3204100f // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 // indirect
 	golang.org/x/mod v0.18.0 // indirect
