@@ -15,7 +15,10 @@
 // Package putil contains utility functions for working with [resource.PropertyValue]s.
 package putil
 
-import "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+import (
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+)
 
 // IsComputed checks if v is some form of a computed/unknown value.
 func IsComputed(v resource.PropertyValue) bool {
@@ -106,6 +109,8 @@ func MakeKnown(v resource.PropertyValue) resource.PropertyValue {
 // 2. It doesn't panic when computed values are present.
 func DeepEquals(a, b resource.PropertyValue) bool {
 	a, b = foldOutputValue(a), foldOutputValue(b)
+	contract.Assertf(!a.IsSecret() && !b.IsSecret(), "Secrets should be Outputs at this point")
+	contract.Assertf(!a.IsComputed() && !b.IsComputed(), "Computed should be Outputs at this point")
 	switch {
 	case a.IsOutput() && b.IsOutput():
 		a, b := a.OutputValue(), b.OutputValue()
