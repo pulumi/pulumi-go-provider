@@ -6,3 +6,6 @@ coverage:
     patch:
       default:
         informational: true
+ignore:
+  # Examples implementation code should not count against coverage.
+  - "examples/"
