@@ -1,6 +1,6 @@
 .PHONY: build build_examples install_examples lint lint-copyright lint-golang
 
-GO_TEST_FLAGS=-race -coverprofile="coverage.txt"
+GO_TEST_FLAGS=-race -coverprofile="coverage.txt" -coverpkg=github.com/pulumi/pulumi-go-provider/...
 GO_TEST=go test ${GO_TEST_FLAGS}
 
 build:
