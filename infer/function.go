@@ -154,6 +154,6 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 		return p.InvokeResponse{}, err
 	}
 	return p.InvokeResponse{
-		Return: m,
+		Return: applySecrets[O](m),
 	}, nil
 }
