@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/blang/semver"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
@@ -315,6 +316,20 @@ type Provider struct {
 
 	// GetSchema fetches the schema for this resource provider.
 	GetSchema func(context.Context, GetSchemaRequest) (GetSchemaResponse, error)
+
+	// Parameterize sets up the provider as a replacement parameterized provider.
+	//
+	// If a SDK was generated with parameters, then Parameterize should be called once before
+	// [Provider.CheckConfig], [Provider.DiffConfig] or [Provider.Configure].
+	//
+	// Parameterize can be called in 2 configurations: with [ParameterizeRequest.Args] specified or with
+	// [ParameterizeRequest.Value] specified. Parameterize should leave the provider in the same state
+	// regardless of which variant was used.
+	//
+	// For more through documentation on Parameterize, see
+	// https://pulumi-developer-docs.readthedocs.io/latest/docs/architecture/providers.html#parameterized-providers.
+	Parameterize func(context.Context, ParameterizeRequest) (ParameterizeResponse, error)
+
 	// Cancel signals the provider to gracefully shut down and abort any ongoing resource operations.
 	// Operations aborted in this way will return an error (e.g., `Update` and `Create` will either return a
 	// creation error or an initialization error). Since Cancel is advisory and non-blocking, it is up
@@ -380,6 +395,13 @@ func (d Provider) WithDefaults() Provider {
 			return nyi("Cancel")
 		}
 	}
+
+	if d.Parameterize == nil {
+		d.Parameterize = func(context.Context, ParameterizeRequest) (ParameterizeResponse, error) {
+			return ParameterizeResponse{}, nyi("Parameterize")
+		}
+	}
+
 	if d.CheckConfig == nil {
 		d.CheckConfig = func(context.Context, CheckRequest) (CheckResponse, error) {
 			return CheckResponse{}, nyi("CheckConfig")
@@ -1089,6 +1111,79 @@ func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty
 	}
 	return &emptypb.Empty{}, nil
 
+}
+
+type (
+	// ParameterizeRequest configures the provider as parameterized.
+	//
+	// Parameterize can be called in 2 configurations: with Args non-nil or with Value non-nil. Exactly
+	// one of Args or Value will be non-nil. Parameterize should leave the provider in the same state
+	// regardless of which variant was used.
+	ParameterizeRequest struct {
+		// Args indicates that the provider has been configured from the CLI.
+		Args *ParameterizeRequestArgs
+		// Value re-parameterizes an existing provider.
+		Value *ParameterizeRequestValue
+	}
+
+	ParameterizeRequestArgs struct {
+		// Args is the un-processed CLI args for the parameterization.
+		//
+		// For example:
+		//
+		//	pulumi package add my-provider arg1 arg2
+		//	                               ^^^^ ^^^^
+		//
+		// Then ParameterizeRequestArgs{Args:[]string{"arg1", "arg2"}} will be sent.
+		Args []string
+	}
+
+	// ParameterizeRequestValue represents a re-parameterization from an already generated parameterized
+	// SDK.
+	//
+	// Name and Version will match what was in the ParameterizeResponse that generated the SDK. Value will
+	// match what was in the schema returned during SDK generation.
+	ParameterizeRequestValue struct {
+		Name    string
+		Version semver.Version
+		Value   []byte
+	}
+
+	ParameterizeResponse struct {
+		Name    string
+		Version semver.Version
+	}
+)
+
+func (p *provider) Parameterize(ctx context.Context, req *rpc.ParameterizeRequest) (*rpc.ParameterizeResponse, error) {
+	var parsedRequest ParameterizeRequest
+
+	switch params := req.Parameters.(type) {
+	case *rpc.ParameterizeRequest_Args:
+		parsedRequest.Args = &ParameterizeRequestArgs{
+			Args: params.Args.GetArgs(),
+		}
+	case *rpc.ParameterizeRequest_Value:
+		version, err := semver.Parse(params.Value.Version)
+		if err != nil {
+			return nil, rpcerror.Wrapf(codes.InvalidArgument, err, "invalid version %q", params.Value.Version)
+		}
+		parsedRequest.Value = &ParameterizeRequestValue{
+			Name:    params.Value.Name,
+			Version: version,
+			Value:   params.Value.Value,
+		}
+	}
+
+	resp, err := p.client.Parameterize(p.ctx(ctx, ""), parsedRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpc.ParameterizeResponse{
+		Name:    resp.Name,
+		Version: resp.Version.String(),
+	}, nil
 }
 
 func (p *provider) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginInfo, error) {

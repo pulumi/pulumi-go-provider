@@ -5,8 +5,8 @@ go 1.22
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/pulumi/pulumi/pkg/v3 v3.134.0
-	github.com/pulumi/pulumi/sdk/v3 v3.134.0
+	github.com/pulumi/pulumi/pkg/v3 v3.137.0
+	github.com/pulumi/pulumi/sdk/v3 v3.137.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 	pgregory.net/rapid v1.1.0
