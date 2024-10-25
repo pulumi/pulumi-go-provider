@@ -9,8 +9,8 @@ require (
 	github.com/pulumi/providertest v0.0.12
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.3
-	github.com/pulumi/pulumi/pkg/v3 v3.134.0
-	github.com/pulumi/pulumi/sdk/v3 v3.134.0
+	github.com/pulumi/pulumi/pkg/v3 v3.137.0
+	github.com/pulumi/pulumi/sdk/v3 v3.137.0
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/protobuf v1.33.0
 )
