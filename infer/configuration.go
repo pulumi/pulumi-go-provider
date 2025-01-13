@@ -107,7 +107,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 			return p.CheckResponse{}, err
 		}
 		return p.CheckResponse{
-			Inputs:   inputs,
+			Inputs:   applySecrets[T](inputs),
 			Failures: failures,
 		}, nil
 	}

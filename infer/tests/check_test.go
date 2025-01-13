@@ -255,5 +255,25 @@ func TestCheckDefaultsRecursive(t *testing.T) {
 			}},
 		}},
 	}, resp.Inputs)
+}
 
+// TestCheckAlwaysAppliesSecrets checks that if a inferred provider resource has (1) a
+// field marked as secret with a field annotation (`provider:"secret"`), and (2)
+// implements [infer.CustomCheck] without calling [infer.DefaultDiff], the field is still
+// marked as secret.
+func TestCheckAlwaysAppliesSecrets(t *testing.T) {
+	t.Parallel()
+
+	prov := provider()
+	resp, err := prov.Check(p.CheckRequest{
+		Urn: urn("CustomCheckNoDefaults", "check-env"),
+		News: resource.PropertyMap{
+			"input": resource.NewProperty("value"),
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, resource.PropertyMap{
+		"input": resource.MakeSecret(resource.NewProperty("value")),
+	}, resp.Inputs)
 }

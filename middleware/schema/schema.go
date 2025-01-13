@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -92,6 +93,8 @@ type state struct {
 	lowerSchema    *cache
 	combinedSchema *cache
 	innerGetSchema func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
+
+	m sync.Mutex
 }
 
 // Options sets the schema options used by [Wrap].
@@ -179,6 +182,9 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 }
 
 func (s *state) GetSchema(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
 	if s.schema.isEmpty() {
 		spec, err := s.generateSchema(ctx)
 		if err != nil {
