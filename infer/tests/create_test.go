@@ -25,7 +25,10 @@ import (
 )
 
 func TestCreate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("unwired-preview", func(t *testing.T) {
+		t.Parallel()
 		prov := provider()
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Echo", "preview"),
@@ -57,6 +60,8 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("unwired-up", func(t *testing.T) {
+		t.Parallel()
+
 		prov := provider()
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Echo", "create"),
@@ -90,6 +95,8 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("unwired-secrets", func(t *testing.T) {
+		t.Parallel()
+
 		prov := provider()
 		sec := resource.MakeSecret
 		str := resource.NewStringProperty
@@ -125,6 +132,8 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("unwired-secrets-mutated-input", func(t *testing.T) {
+		t.Parallel()
+
 		prov := provider()
 		sec := resource.MakeSecret
 		num := resource.NewNumberProperty
@@ -145,6 +154,8 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("wired-secrets", func(t *testing.T) {
+		t.Parallel()
+
 		prov := provider()
 		c := resource.MakeComputed
 		s := resource.NewStringProperty
@@ -167,6 +178,8 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("wired-preview", func(t *testing.T) {
+		t.Parallel()
+
 		prov := provider()
 		c := resource.MakeComputed
 		s := resource.NewStringProperty
@@ -188,6 +201,8 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("wired-up", func(t *testing.T) {
+		t.Parallel()
+
 		prov := provider()
 		s := resource.NewStringProperty
 		resp, err := prov.Create(p.CreateRequest{

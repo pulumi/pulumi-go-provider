@@ -32,7 +32,9 @@ import (
 
 type HasAssets struct{}
 
-func (*HasAssets) Create(ctx context.Context, name string, inputs HasAssetsInputs, preview bool) (string, HasAssetsOutputs, error) {
+func (*HasAssets) Create(
+	_ context.Context, _ string, inputs HasAssetsInputs, _ bool,
+) (string, HasAssetsOutputs, error) {
 	state := HasAssetsOutputs{HasAssetsInputs: inputs}
 	return "id", state, nil
 }
@@ -55,6 +57,8 @@ type HasAssetsOutputs struct {
 }
 
 func TestOmittingAssetTypes(t *testing.T) {
+	t.Parallel()
+
 	providerOpts := infer.Options{
 		Resources: []infer.InferredResource{
 			infer.Resource[*HasAssets, HasAssetsInputs, HasAssetsOutputs](),

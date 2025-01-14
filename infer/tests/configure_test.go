@@ -52,10 +52,11 @@ func TestConfigureCustom(t *testing.T) {
 	pString := resource.NewStringProperty
 	pNumber := resource.NewNumberProperty
 	type pMap = resource.PropertyMap
-	type pValue = resource.PropertyValue
 
 	test := func(inputs, expected pMap) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
+
 			prov := providerWithConfig[*ConfigCustom]()
 			err := prov.Configure(p.ConfigureRequest{
 				Args: inputs,
@@ -70,13 +71,13 @@ func TestConfigureCustom(t *testing.T) {
 		}
 	}
 
-	t.Run("empty", test(
+	t.Run("empty", test( //nolint:paralleltest // test already calls t.Parallel.
 		nil,
 		pMap{"config": pString(`{"Number":null,"Squared":0}`)}))
-	t.Run("unknown", test(
+	t.Run("unknown", test( //nolint:paralleltest // test already calls t.Parallel.
 		pMap{"unknownField": pString("bar")},
 		pMap{"config": pString(`{"Number":null,"Squared":0}`)}))
-	t.Run("number", test(
+	t.Run("number", test( //nolint:paralleltest // test already calls t.Parallel.
 		pMap{"number": pNumber(42)},
 		pMap{"config": pString(`{"Number":42,"Squared":1764}`)}))
 }

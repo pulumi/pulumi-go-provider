@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package tests contains integration tests of [infer].
 package tests
 
 import (
@@ -34,7 +35,7 @@ func urn(typ, name string) resource.URN {
 		tokens.Type("test:index:"+typ), name)
 }
 
-// This type helps us test the highly suspicious behavior of naming an input the same as
+// Increment helps us test the highly suspicious behavior of naming an input the same as
 // an output, while giving them different values. This should never be done in practice,
 // but we need to accommodate the behavior while we allow it.
 type Increment struct{}
@@ -45,7 +46,7 @@ type IncrementArgs struct {
 
 type IncrementOutput struct{ IncrementArgs }
 
-func (*Increment) Create(ctx context.Context, name string, inputs IncrementArgs, preview bool) (string, IncrementOutput, error) {
+func (*Increment) Create(_ context.Context, _ string, inputs IncrementArgs, _ bool) (string, IncrementOutput, error) {
 	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: inputs.Number + 1}}
 	return fmt.Sprintf("id-%d", inputs.Number), output, nil
 }
@@ -77,7 +78,7 @@ func (*Echo) Create(ctx context.Context, name string, inputs EchoInputs, preview
 	return id, state, nil
 }
 
-func (*Echo) Update(ctx context.Context, id string, olds EchoOutputs, news EchoInputs, preview bool) (EchoOutputs, error) {
+func (*Echo) Update(_ context.Context, _ string, olds EchoOutputs, news EchoInputs, preview bool) (EchoOutputs, error) {
 	if preview {
 		return olds, nil
 	}
@@ -142,7 +143,7 @@ func (*Wired) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *WiredOu
 
 var _ = (infer.ExplicitDependencies[WiredInputs, WiredOutputs])((*Wired)(nil))
 
-// Wired plus is like wired, but has its inputs embedded with its outputs.
+// WiredPlus plus is like wired, but has its inputs embedded with its outputs.
 //
 // This allows it to remember old inputs when calculating which fields have changed.
 type WiredPlus struct{}
@@ -151,7 +152,9 @@ type WiredPlusOutputs struct {
 	WiredOutputs
 }
 
-func (*WiredPlus) Create(ctx context.Context, name string, inputs WiredInputs, preview bool) (string, WiredPlusOutputs, error) {
+func (*WiredPlus) Create(
+	ctx context.Context, name string, inputs WiredInputs, preview bool,
+) (string, WiredPlusOutputs, error) {
 	r := new(Wired)
 	id, out, err := r.Create(ctx, name, inputs, preview)
 	return id, WiredPlusOutputs{
@@ -215,7 +218,7 @@ func (o *OptWithReq) Annotate(a infer.Annotator) {
 	a.SetDefault(&o.Optional, "default-value")
 }
 
-// We want to make sure we don't effect structs or maps that don't have default values.
+// NoDefaults is a struct that doesn't have an associated default value.
 type NoDefaults struct {
 	String string `pulumi:"s,optional"`
 }
@@ -265,7 +268,7 @@ func (w *WithDefaults) Create(
 	return "validated", WithDefaultsOutput{inputs}, nil
 }
 
-// Test reading environmental variables as default values.
+// ReadEnv has fields with default values filled by environmental variables.
 type ReadEnv struct{}
 type ReadEnvArgs struct {
 	String  string  `pulumi:"s,optional"`

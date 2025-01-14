@@ -25,6 +25,8 @@ import (
 )
 
 func TestCheckDefaults(t *testing.T) {
+	t.Parallel()
+
 	// Helper bindings for constructing property maps
 	pInt := func(i int) resource.PropertyValue {
 		return resource.NewNumberProperty(float64(i))
@@ -93,8 +95,8 @@ func TestCheckDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("empty", against(pMap{}, defaultMap()))
-	t.Run("required-under-optional", against(pMap{
+	t.Run("empty", against(pMap{}, defaultMap()))  //nolint:paralleltest // against already calls t.Parallel.
+	t.Run("required-under-optional", against(pMap{ //nolint:paralleltest // against already calls t.Parallel.
 		"optWithReq": pValue{V: pMap{
 			"req": pString("user-value"),
 		}},
@@ -104,7 +106,7 @@ func TestCheckDefaults(t *testing.T) {
 			"opt": pString("default-value"),
 		}}
 	})))
-	t.Run("some-values", against(pMap{
+	t.Run("some-values", against(pMap{ //nolint:paralleltest // against already calls t.Parallel.
 		"pi": pInt(3),
 		"nestedPtr": pValue{V: pMap{
 			"i": pInt(3),
@@ -117,7 +119,7 @@ func TestCheckDefaults(t *testing.T) {
 			})
 		}),
 	))
-	t.Run("set-optional-value-as-zero", against(pMap{
+	t.Run("set-optional-value-as-zero", against(pMap{ //nolint:paralleltest // against already calls t.Parallel.
 		"pi": pInt(0), // We can set a pointer to its elements zero value.
 
 		// We cannot set a element to its zero value, since that looks identical
@@ -134,9 +136,9 @@ func TestCheckDefaults(t *testing.T) {
 		array := resource.PropertyKey(arrayName)
 		t.Run("behind-"+arrayName, against(pMap{
 			array: pValue{V: []pValue{
-				pValue{V: pMap{"s": pString("foo")}},
-				pValue{V: pMap{}},
-				pValue{V: pMap{"s": pString("bar")}},
+				{V: pMap{"s": pString("foo")}},
+				{V: pMap{}},
+				{V: pMap{"s": pString("bar")}},
 			}},
 		},
 			withDefault(func(m pMap) {
@@ -153,7 +155,7 @@ func TestCheckDefaults(t *testing.T) {
 		))
 	}
 
-	for _, mapName := range []string{"mapNested", "mapNestedPtr"} {
+	for _, mapName := range []string{"mapNested", "mapNestedPtr"} { //nolint:paralleltest
 		mapName := mapName
 		mapK := resource.PropertyKey(mapName)
 		t.Run("behind-"+mapName, against(pMap{
@@ -187,7 +189,6 @@ func TestCheckDefaultsEnv(t *testing.T) {
 	pBool := resource.NewBoolProperty
 	pString := resource.NewStringProperty
 	type pMap = resource.PropertyMap
-	type pValue = resource.PropertyValue
 
 	t.Setenv("STRING", "str")
 	t.Setenv("INT", "1")

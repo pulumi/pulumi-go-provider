@@ -48,29 +48,33 @@ func TestCheckConfig(t *testing.T) {
 
 func TestCheckConfigCustom(t *testing.T) {
 	t.Parallel()
+
 	pString := resource.NewStringProperty
 	pNumber := resource.NewNumberProperty
 	type pMap = resource.PropertyMap
-	type pValue = resource.PropertyValue
 
-	test := func(inputs, expected pMap) func(t *testing.T) {
-		return func(t *testing.T) {
-			prov := providerWithConfig[*ConfigCustom]()
-			resp, err := prov.CheckConfig(p.CheckRequest{
-				Urn:  urn("provider", "provider"),
-				News: inputs,
-			})
-			require.NoError(t, err)
+	test := func(t *testing.T, inputs, expected pMap) {
+		prov := providerWithConfig[*ConfigCustom]()
+		resp, err := prov.CheckConfig(p.CheckRequest{
+			Urn:  urn("provider", "provider"),
+			News: inputs,
+		})
+		require.NoError(t, err)
 
-			assert.Equal(t, expected, resp.Inputs)
-		}
+		assert.Equal(t, expected, resp.Inputs)
 	}
 
-	t.Run("empty", test(nil, pMap{}))
-	t.Run("unknown", test(
-		pMap{"unknownField": pString("bar")},
-		pMap{}))
-	t.Run("number", test(
-		pMap{"number": pNumber(42)},
-		pMap{"number": pNumber(42.5)}))
+	t.Run("empty", func(t *testing.T) { t.Parallel(); test(t, nil, pMap{}) })
+	t.Run("unknown", func(t *testing.T) {
+		t.Parallel()
+		test(t,
+			pMap{"unknownField": pString("bar")},
+			pMap{})
+	})
+	t.Run("number", func(t *testing.T) {
+		t.Parallel()
+		test(t,
+			pMap{"number": pNumber(42)},
+			pMap{"number": pNumber(42.5)})
+	})
 }

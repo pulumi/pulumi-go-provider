@@ -76,6 +76,8 @@ type ObjectToken struct {
 func (c *ObjectToken) Annotate(a infer.Annotator) { a.SetToken("obj", "Customized") }
 
 func TestTokens(t *testing.T) {
+	t.Parallel()
+
 	provider := infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
 			infer.Resource[*CustomToken, TokenArgs, TokenResult](),
