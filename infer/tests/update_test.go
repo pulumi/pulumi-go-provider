@@ -24,6 +24,8 @@ import (
 )
 
 func TestUpdateManualDeps(t *testing.T) {
+	t.Parallel()
+
 	type m = resource.PropertyMap
 	c := resource.MakeComputed
 	s := resource.NewStringProperty
@@ -34,7 +36,9 @@ func TestUpdateManualDeps(t *testing.T) {
 		olds, newsPreview, newsUpdate, expectedPreview, expectedUp m,
 	) {
 		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 			t.Run("preview", func(t *testing.T) {
+				t.Parallel()
 				prov := provider()
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:   "some-id",
@@ -48,6 +52,7 @@ func TestUpdateManualDeps(t *testing.T) {
 				}, resp)
 			})
 			t.Run("update", func(t *testing.T) {
+				t.Parallel()
 				prov := provider()
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:   "some-id",
@@ -117,6 +122,7 @@ func TestUpdateManualDeps(t *testing.T) {
 }
 
 func TestUpdateDefaultDeps(t *testing.T) {
+	t.Parallel()
 	c := resource.MakeComputed
 	s := resource.NewStringProperty
 	n := resource.NewNumberProperty
@@ -124,6 +130,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 	test := func(t *testing.T, newString resource.PropertyValue,
 		expectedPreview, expectedUp resource.PropertyMap) {
 		t.Run("preview", func(t *testing.T) {
+			t.Parallel()
 			prov := provider()
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
@@ -148,6 +155,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 			}, resp)
 		})
 		t.Run("update", func(t *testing.T) {
+			t.Parallel()
 			prov := provider()
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
@@ -172,6 +180,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		})
 	}
 	t.Run("computed", func(t *testing.T) {
+		t.Parallel()
 		test(t, c(s("old-string")),
 			resource.PropertyMap{
 				"string":    c(s("old-string")),
@@ -190,6 +199,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		)
 	})
 	t.Run("changed", func(t *testing.T) {
+		t.Parallel()
 		test(t, s("new-string"),
 			resource.PropertyMap{
 				"string":    c(s("old-string")),
@@ -208,6 +218,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		)
 	})
 	t.Run("unchanged", func(t *testing.T) {
+		t.Parallel()
 		test(t, s("old-string"),
 			resource.PropertyMap{
 				"string":    s("old-string"),
