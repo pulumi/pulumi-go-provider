@@ -191,38 +191,27 @@ func TestInferCustomCheckConfig(t *testing.T) {
 		Config: infer.Config[*config](),
 	}))
 
-	t.Run("with-default-check", func(t *testing.T) {
-		resp, err := s.CheckConfig(p.CheckRequest{
-			Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
-			News: resource.PropertyMap{
-				"field":         resource.NewProperty("value"),
+	// Test that our manual implementation of check works the same as the default
+	// version, and that secrets are applied regardless of if check is used.
+	for _, applyDefaults := range []bool{true, false} {
+		applyDefaults := applyDefaults
+		t.Run(fmt.Sprintf("%t", applyDefaults), func(t *testing.T) {
+			t.Parallel()
+			resp, err := s.CheckConfig(p.CheckRequest{
+				Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+				News: resource.PropertyMap{
+					"field":         resource.NewProperty("value"),
+					"not":           resource.NewProperty("not-secret"),
+					"applyDefaults": resource.NewProperty(applyDefaults),
+				},
+			})
+			require.NoError(t, err)
+			require.Empty(t, resp.Failures)
+			assert.Equal(t, resource.PropertyMap{
+				"field":         resource.MakeSecret(resource.NewProperty("value")),
 				"not":           resource.NewProperty("not-secret"),
-				"applyDefaults": resource.NewProperty(true),
-			},
+				"applyDefaults": resource.NewProperty(applyDefaults),
+			}, resp.Inputs)
 		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Failures)
-		assert.Equal(t, resource.PropertyMap{
-			"field":         resource.MakeSecret(resource.NewProperty("value")),
-			"not":           resource.NewProperty("not-secret"),
-			"applyDefaults": resource.NewProperty(true),
-		}, resp.Inputs)
-	})
-
-	t.Run("without-default-check", func(t *testing.T) {
-		resp, err := s.CheckConfig(p.CheckRequest{
-			News: resource.PropertyMap{
-				"field":         resource.NewProperty("value"),
-				"not":           resource.NewProperty("not-secret"),
-				"applyDefaults": resource.NewProperty(false),
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Failures)
-		assert.Equal(t, resource.PropertyMap{
-			"field":         resource.NewProperty("value"),
-			"not":           resource.NewProperty("not-secret"),
-			"applyDefaults": resource.NewProperty(false),
-		}, resp.Inputs)
-	})
+	}
 }

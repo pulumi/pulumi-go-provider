@@ -865,6 +865,39 @@ func (*derivedResourceController[R, I, O]) getInstance() *R {
 }
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
+	var r R
+	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
+		// The user implemented check manually, so call that.
+		//
+		// We do not apply defaults if the user has implemented Check
+		// themselves. Defaults are applied by [DefaultCheck].
+		encoder, i, failures, err := callCustomCheck(ctx, r, req.Urn.Name(), req.Olds, req.News)
+		if err != nil {
+			return p.CheckResponse{}, err
+		}
+
+		// callCustomCheck will have an encoder if and only if the custom check
+		// calls [DefaultCheck].
+		//
+		// If it doesn't have an encoder, but no error was returned, we do our
+		// best to recover secrets, unknowns, etc by calling
+		// decodeCheckingMapErrors to re-derive an encoder to use.
+		//
+		// There isn't any guaranteed relationship between the shape of `req.News`
+		// and `I`, so we are not guaranteed that `decodeCheckingMapErrors` won't
+		// produce errors.
+		if encoder == nil {
+			backupEncoder, _, _, _ := decodeCheckingMapErrors[I](req.News)
+			encoder = &backupEncoder
+		}
+
+		inputs, err := encoder.Encode(i)
+		return p.CheckResponse{
+			Inputs:   applySecrets[I](inputs),
+			Failures: failures,
+		}, err
+	}
+
 	encoder, i, failures, err := decodeCheckingMapErrors[I](req.News)
 	if err != nil {
 		return p.CheckResponse{}, err
@@ -876,28 +909,6 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 			Inputs:   applySecrets[I](req.News),
 			Failures: failures,
 		}, nil
-	}
-
-	var r R
-	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
-		// The user implemented check manually, so call that.
-		//
-		// We do not apply defaults or secrets if the user has implemented Check
-		// themselves. Defaults and secrets are applied by [DefaultCheck].
-
-		defCheckEnc, i, failures, err := callCustomCheck(ctx, r, req.Urn.Name(), req.Olds, req.News)
-		if err != nil {
-			return p.CheckResponse{}, err
-		}
-		if defCheckEnc != nil {
-			encoder = *defCheckEnc
-		}
-
-		inputs, err := encoder.Encode(i)
-		return p.CheckResponse{
-			Inputs:   inputs,
-			Failures: failures,
-		}, err
 	}
 
 	if i, err = defaultCheck(i); err != nil {
@@ -933,7 +944,6 @@ func callCustomCheck[T any](
 //
 // It also adds defaults to inputs as necessary, as defined by [Annotator.SetDefault].
 func DefaultCheck[I any](ctx context.Context, inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
-	inputs = applySecrets[I](inputs)
 	enc, i, failures, err := decodeCheckingMapErrors[I](inputs)
 
 	if v, ok := ctx.Value(defaultCheckEncoderKey{}).(*defaultCheckEncoderValue); ok {

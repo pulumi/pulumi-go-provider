@@ -386,6 +386,31 @@ func (w *ReadConfigCustom) Create(
 	return "read", ReadConfigCustomOutput{Config: string(bytes)}, err
 }
 
+var (
+	_ infer.CustomResource[CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput] = &CustomCheckNoDefaults{}
+	_ infer.CustomCheck[CustomCheckNoDefaultsArgs]                                 = &CustomCheckNoDefaults{}
+)
+
+type (
+	CustomCheckNoDefaults     struct{}
+	CustomCheckNoDefaultsArgs struct {
+		Input string `pulumi:"input" provider:"secret"`
+	}
+	CustomCheckNoDefaultsOutput struct{ CustomCheckNoDefaultsArgs }
+)
+
+func (w *CustomCheckNoDefaults) Check(_ context.Context,
+	_ string, _ resource.PropertyMap, m resource.PropertyMap,
+) (CustomCheckNoDefaultsArgs, []p.CheckFailure, error) {
+	return CustomCheckNoDefaultsArgs{Input: m["input"].StringValue()}, nil, nil
+}
+
+func (w *CustomCheckNoDefaults) Create(
+	ctx context.Context, name string, inputs CustomCheckNoDefaultsArgs, preview bool,
+) (string, CustomCheckNoDefaultsOutput, error) {
+	return "id", CustomCheckNoDefaultsOutput{inputs}, nil
+}
+
 func providerOpts(config infer.InferredConfig) infer.Options {
 	return infer.Options{
 		Config: config,
@@ -399,6 +424,7 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource[*Recursive, RecursiveArgs, RecursiveOutput](),
 			infer.Resource[*ReadConfig, ReadConfigArgs, ReadConfigOutput](),
 			infer.Resource[*ReadConfigCustom, ReadConfigCustomArgs, ReadConfigCustomOutput](),
+			infer.Resource[*CustomCheckNoDefaults, CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput](),
 		},
 		Functions: []infer.InferredFunction{
 			infer.Function[*GetJoin, JoinArgs, JoinResult](),
