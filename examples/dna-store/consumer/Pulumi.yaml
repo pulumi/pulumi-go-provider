@@ -3,7 +3,7 @@ runtime: yaml
 plugins:
   providers:
     - name: dna-store
-      path: ..
+      path: ../../../bin/examples
 
 
 resources:

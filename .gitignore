@@ -14,13 +14,7 @@
 # macOS
 .DS_Store
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
 **/sdk
-
-examples/**/pulumi-resource-*
-examples/**/schema-*.json
 
 /.vscode
 
@@ -31,3 +25,5 @@ go.work.sum
 
 # Code coverage reports
 **/coverage.txt
+
+bin
