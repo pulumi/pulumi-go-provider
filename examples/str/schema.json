@@ -1,24 +1,32 @@
 {
   "name": "str",
   "version": "0.1.0",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
   "config": {},
-  "provider": {},
+  "provider": {
+    "type": "object"
+  },
   "functions": {
-    "str:index:GiveMeAString": {
+    "str:index:giveMeAString": {
       "description": "Return a string, withing any inputs",
+      "inputs": {
+        "type": "object"
+      },
       "outputs": {
         "properties": {
           "out": {
             "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "out"
-        ]
+        ],
+        "type": "object"
       }
     },
-    "str:index:Print": {
+    "str:index:print": {
       "description": "Print to stdout",
       "inputs": {
         "properties": {
@@ -30,27 +38,36 @@
         "required": [
           "s"
         ]
+      },
+      "outputs": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
       }
     },
-    "str:index:Replace": {
+    "str:index:replace": {
       "description": "Replace returns a copy of the string s with all\nnon-overlapping instances of old replaced by new.\nIf old is empty, it matches at the beginning of the string\nand after each UTF-8 sequence, yielding up to k+1 replacements\nfor a k-rune string.",
       "inputs": {
         "properties": {
           "new": {
-            "type": "string"
+            "type": "string",
+            "description": "The string to replace `Old` with."
           },
           "old": {
-            "type": "string"
+            "type": "string",
+            "description": "The string to replace."
           },
           "s": {
-            "type": "string"
+            "type": "string",
+            "description": "The string where the replacement takes place."
           }
         },
         "type": "object",
         "required": [
-          "s",
+          "new",
           "old",
-          "new"
+          "s"
         ]
       },
       "outputs": {
@@ -59,20 +76,20 @@
             "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "out"
-        ]
+        ],
+        "type": "object"
       }
     },
-    "str:regex:Replace": {
+    "str:regex:replace": {
       "description": "Replace returns a copy of `s`, replacing matches of the `old`\nwith the replacement string `new`.",
       "inputs": {
         "properties": {
           "new": {
             "type": "string"
           },
-          "old": {
+          "pattern": {
             "type": "string"
           },
           "s": {
@@ -81,9 +98,9 @@
         },
         "type": "object",
         "required": [
-          "s",
-          "old",
-          "new"
+          "new",
+          "pattern",
+          "s"
         ]
       },
       "outputs": {
@@ -92,10 +109,10 @@
             "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "out"
-        ]
+        ],
+        "type": "object"
       }
     }
   }

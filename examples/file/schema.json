@@ -1,0 +1,53 @@
+{
+  "name": "file",
+  "version": "0.1.0",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
+  "config": {},
+  "provider": {
+    "type": "object"
+  },
+  "resources": {
+    "file:index:File": {
+      "description": "A file projected into a pulumi resource",
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "The content of the file."
+        },
+        "force": {
+          "type": "boolean",
+          "description": "If an already existing file should be deleted if it exists."
+        },
+        "path": {
+          "type": "string",
+          "description": "The path of the file."
+        }
+      },
+      "type": "object",
+      "required": [
+        "content",
+        "force",
+        "path"
+      ],
+      "inputProperties": {
+        "content": {
+          "type": "string",
+          "description": "The content of the file."
+        },
+        "force": {
+          "type": "boolean",
+          "description": "If an already existing file should be deleted if it exists."
+        },
+        "path": {
+          "type": "string",
+          "description": "The path of the file. This defaults to the name of the pulumi resource."
+        }
+      },
+      "requiredInputs": [
+        "content"
+      ]
+    }
+  }
+}

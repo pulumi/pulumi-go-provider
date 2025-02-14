@@ -1,0 +1,40 @@
+{
+  "name": "assets",
+  "version": "0.1.0",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
+  "config": {},
+  "provider": {
+    "type": "object"
+  },
+  "resources": {
+    "assets:index:HasAssets": {
+      "properties": {
+        "a1": {
+          "$ref": "pulumi.json#/Asset"
+        },
+        "a2": {
+          "$ref": "pulumi.json#/Asset"
+        }
+      },
+      "type": "object",
+      "required": [
+        "a1",
+        "a2"
+      ],
+      "inputProperties": {
+        "a1": {
+          "$ref": "pulumi.json#/Asset"
+        },
+        "a2": {
+          "$ref": "pulumi.json#/Asset"
+        }
+      },
+      "requiredInputs": [
+        "a1",
+        "a2"
+      ]
+    }
+  }
+}

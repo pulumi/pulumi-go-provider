@@ -1,77 +1,116 @@
 {
-  "name": "schema-test",
+  "name": "dna-store",
   "version": "0.1.0",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
   "config": {},
   "types": {
-    "schema-test:index:Enum": {
-      "type": "integer",
-      "enum": [
-        {
-          "name": "A",
-          "value": 0
-        },
-        {
-          "name": "C",
-          "value": 1
-        },
-        {
-          "name": "T",
-          "value": 2
-        },
-        {
-          "name": "G",
-          "value": 3
-        }
-      ]
-    },
-    "schema-test:index:Strct": {
-      "description": "This is a holder for enums",
+    "dna-store:index:Metadata": {
       "properties": {
-        "enum": {
-          "$ref": "#/types/schema-test:index:Enum",
-          "default": 0
+        "sampleType": {
+          "$ref": "#/types/dna-store:index:SampleType",
+          "description": "sample type of the dna"
         },
-        "names": {
-          "type": "array",
-          "items": {
+        "tags": {
+          "type": "object",
+          "additionalProperties": {
             "type": "string"
           },
-          "description": "Names for the default value"
+          "description": "optional tags associated with the dna sample"
         }
       },
       "type": "object",
       "required": [
-        "enum",
-        "names"
+        "sampleType"
+      ]
+    },
+    "dna-store:index:Molecule": {
+      "type": "integer",
+      "enum": [
+        {
+          "description": "adenine",
+          "value": 0
+        },
+        {
+          "description": "cytosine",
+          "value": 1
+        },
+        {
+          "description": "thymine",
+          "value": 2
+        },
+        {
+          "description": "guanine",
+          "value": 3
+        }
+      ]
+    },
+    "dna-store:index:SampleType": {
+      "type": "string",
+      "enum": [
+        {
+          "value": "human"
+        },
+        {
+          "value": "dog"
+        },
+        {
+          "value": "cat"
+        },
+        {
+          "value": "other"
+        }
       ]
     }
   },
-  "provider": {},
+  "provider": {
+    "type": "object"
+  },
   "resources": {
-    "schema-test:index:EnumStore": {
+    "dna-store:index:DNAStore": {
       "properties": {
-        "e": {
-          "$ref": "#/types/schema-test:index:Enum"
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/types/dna-store:index:Molecule"
+          },
+          "description": "molecule data"
         },
-        "filepath": {
+        "filedir": {
           "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/types/dna-store:index:Metadata",
+          "description": "stores information related to a particular dna"
         }
       },
+      "type": "object",
       "required": [
-        "e",
-        "filepath"
+        "data",
+        "filedir",
+        "metadata"
       ],
       "inputProperties": {
-        "e": {
-          "$ref": "#/types/schema-test:index:Enum"
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/types/dna-store:index:Molecule"
+          },
+          "description": "molecule data"
         },
-        "filepath": {
+        "filedir": {
           "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/types/dna-store:index:Metadata",
+          "description": "stores information related to a particular dna"
         }
       },
       "requiredInputs": [
-        "e",
-        "filepath"
+        "data",
+        "filedir",
+        "metadata"
       ]
     }
   }
