@@ -4,7 +4,7 @@ runtime: yaml
 plugins:
   providers:
     - name: file
-      path: ..
+      path: ../../../bin/examples
 
 resources:
   managedFile:

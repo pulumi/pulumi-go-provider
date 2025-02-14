@@ -26,57 +26,6 @@ lint-golang:
 lint-copyright:
 	pulumictl copyright -x 'examples/**,**/sdks/test/**'
 
-build_examples: build
-	@for ex in ${wildcard examples/*}; do \
-		if [ -d $$ex ]; then \
-		cd $$ex; \
-		echo "Building github.com/pulumi/pulumi-go-provider/$$ex"; \
-		go build -o pulumi-resource-$${ex#examples/} github.com/pulumi/pulumi-go-provider/$$ex || exit 1; \
-		cd - > /dev/null; \
-		fi; \
-	done
-
-.PHONY: test_examples
-export PULUMI_CONFIG_PASSPHRASE := "not-secret"
-# Runs up, update, destroy on all consumers.
-test_examples: build_examples
-	@for ex in ${wildcard examples/*}; do \
-		if [ -d $$ex ] && [ -d $$ex/consumer ]; then \
-		cd $$ex/consumer; \
-		echo "Setting up example for $$ex"; \
-		rm -rf $$PWD/state; \
-		mkdir $$PWD/state; \
-		pulumi login --cloud-url file://$$PWD/state || exit 1; \
-		pulumi stack init test || exit 1; \
-		pulumi up --yes || exit 1; \
-		pulumi up --yes || exit 1; \
-		pulumi destroy --yes || exit 1; \
-		echo "Tearing down example for $$ex"; \
-		pulumi stack rm --yes || exit 1; \
-		pulumi logout; \
-		rm -r $$PWD/state; \
-		cd - > /dev/null; \
-		fi; \
-	done; \
-	if [[ "$$CI" == "" ]]; then pulumi login; fi; \
-
-
-install_examples: build_examples
-	@for i in command,v0.3.2 random-login,v0.1.0 schema-test,v0.1.0 str,v0.1.0; do \
-		IFS=","; set -- $$i; \
-		echo Installing $$1 provider; \
-		if [ -d ~/.pulumi/plugins/resource-$$1-$$2/ ]; then \
-			mkdir -p ~/.pulumi/plugins/resource-$$1-$$2/; \
-		fi; \
-		rm -rf examples/$$1/sdk; \
-		cd examples/$$1 && ./$$1 -sdkGen -emitSchema || exit 1; \
-		mkdir -p ~/.pulumi/plugins/resource-$$1-$$2; \
-		cp $$1 ~/.pulumi/plugins/resource-$$1-$$2/pulumi-resource-$$1 || exit 1; \
-		cd sdk/go/$${1//-/} || exit 1;\
-		go mod init && go mod edit -replace github.com/pulumi/pulumi-go-provider=../../../../ && go mod tidy || exit 1; \
-		cd ../../../../../; \
-	done
-
 .PHONY: tidy
 tidy:
 	@for f in $$(find . -name go.mod); do\
@@ -84,3 +33,52 @@ tidy:
 		echo "tidying $$f";\
 		go mod tidy || exit 1;\
 		cd - > /dev/null; done
+
+HELPMAKEGO_VERSION := v0.1.0
+HELPMAKEGO := bin/${HELPMAKEGO_VERSION}/helpmakego
+
+# Ensure that `helpmakego` is installed at ${HELPMAKEGO} before it is used to resolve targets.
+#
+# This has the side effect of ensuring that the `bin` directory is present.
+_ := $(shell if ! [ -x ${HELPMAKEGO} ]; then \
+	GOBIN=$(shell pwd)/bin/${HELPMAKEGO_VERSION} go install github.com/iwahbe/helpmakego@${HELPMAKEGO_VERSION}; \
+	fi \
+)
+.SECONDEXPANSION:
+.SECONDARY: # Don't delete any intermediary targets, like example provider binaries
+
+.PHONY: test_examples
+# test_examples runs schema generation and tests for every example in "examples/".
+test_examples: $(foreach dir,$(wildcard examples/*/),$(dir)schema.json) $(foreach dir,$(wildcard examples/*/),$(dir)test)
+
+# Build the provider binary for %, where % is the name of a directory in "examples/".
+bin/examples/pulumi-resource-%: $$(shell $${HELPMAKEGO} examples/$$*)
+	go build -C examples/$* -o ../../bin/examples/pulumi-resource-$* github.com/pulumi/pulumi-go-provider/examples/$*
+
+# Generate a provider schema from an example provider binary
+examples/%/schema.json: bin/examples/pulumi-resource-%
+	pulumi package get-schema ./$< > $@
+
+.PHONY: examples/%/test
+export PULUMI_CONFIG_PASSPHRASE := "not-secret"
+examples/%/test: bin/examples/pulumi-resource-%
+	@cd examples/$* && go test ./... # Run unit tests
+
+	@# Run an integration test, if any is present.
+	@if [ -d examples/$*/consumer ]; then \
+		echo 'Run the integration test for "$*":' && \
+		echo "1. Run Pulumi up" && \
+		echo "2. Run Pulumi up again - to show a preview on an existing stack" && \
+		echo "3. Destroy the stack" && \
+		rm -rf examples/$*/consumer/state && \
+		mkdir examples/$*/consumer/state && \
+		pulumi login --cloud-url file://$$PWD/examples/$*/consumer/state && \
+		pulumi -C examples/$*/consumer stack init test && \
+		pulumi -C examples/$*/consumer up --yes && \
+		pulumi -C examples/$*/consumer up --yes && \
+		pulumi -C examples/$*/consumer destroy --yes && \
+		pulumi -C examples/$*/consumer stack rm --yes && \
+		pulumi -C examples/$*/consumer logout && \
+		rm -r examples/$*/consumer/state && \
+		echo 'Integration test for "$*" complete' \
+	|| exit 1; fi

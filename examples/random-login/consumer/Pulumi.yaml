@@ -4,7 +4,7 @@ runtime: yaml
 plugins:
   providers:
     - name: random-login
-      path: ..
+      path: ../../../bin/examples
 
 resources:
   generator:

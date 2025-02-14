@@ -1,0 +1,119 @@
+{
+  "name": "random-login",
+  "version": "0.1.0",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
+  "config": {
+    "variables": {
+      "itsasecret": {
+        "type": "boolean"
+      }
+    }
+  },
+  "provider": {
+    "type": "object",
+    "inputProperties": {
+      "itsasecret": {
+        "type": "boolean"
+      }
+    }
+  },
+  "resources": {
+    "random-login:index:MoreRandomPassword": {
+      "properties": {
+        "length": {
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomInteger:RandomInteger"
+        },
+        "password": {
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword"
+        }
+      },
+      "type": "object",
+      "required": [
+        "length",
+        "password"
+      ],
+      "inputProperties": {
+        "length": {
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomInteger:RandomInteger"
+        }
+      },
+      "requiredInputs": [
+        "length"
+      ],
+      "isComponent": true
+    },
+    "random-login:index:RandomLogin": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "passwordLength": {
+          "type": "integer"
+        },
+        "petName": {
+          "type": "boolean",
+          "plain": true
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "password",
+        "passwordLength",
+        "petName",
+        "username"
+      ],
+      "inputProperties": {
+        "passwordLength": {
+          "type": "integer"
+        },
+        "petName": {
+          "type": "boolean",
+          "plain": true
+        }
+      },
+      "requiredInputs": [
+        "passwordLength",
+        "petName"
+      ],
+      "isComponent": true
+    },
+    "random-login:index:RandomSalt": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "salt": {
+          "type": "string"
+        },
+        "saltedLength": {
+          "type": "integer"
+        },
+        "saltedPassword": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "password",
+        "salt",
+        "saltedPassword"
+      ],
+      "inputProperties": {
+        "password": {
+          "type": "string"
+        },
+        "saltedLength": {
+          "type": "integer"
+        }
+      },
+      "requiredInputs": [
+        "password"
+      ]
+    }
+  }
+}
