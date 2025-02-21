@@ -19,6 +19,13 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+)
+
+const (
+	// frameworkStateKeyName is the key name used to store the framework version in
+	// a program's state.
+	frameworkStateKeyName = "__pulumi-go-provider-version"
 )
 
 //go:embed .version
@@ -31,4 +38,10 @@ var Version semver.Version
 
 func init() {
 	Version = semver.MustParse(strings.TrimSpace(version))
+}
+
+// addVersionToPropertyMap adds the framework version to the given property map.
+func addVersionToPropertyMap(m presource.PropertyMap) presource.PropertyMap {
+	m[frameworkStateKeyName] = presource.NewStringProperty(Version.String())
+	return m
 }
