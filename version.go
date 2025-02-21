@@ -21,6 +21,12 @@ import (
 	"github.com/blang/semver"
 )
 
+const (
+	// frameworkStateKeyName is the key name used to store the framework version in
+	// a program's state.
+	frameworkStateKeyName = "__pulumi-go-provider-version"
+)
+
 //go:embed .version
 var versionStr string
 

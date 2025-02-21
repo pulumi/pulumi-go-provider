@@ -654,6 +654,7 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	if err != nil {
 		return nil, err
 	}
+
 	r, err := p.client.CheckConfig(ctx, CheckRequest{
 		Urn:        presource.URN(req.GetUrn()),
 		Olds:       olds,
@@ -664,6 +665,9 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	if err != nil {
 		return nil, err
 	}
+
+	// Inject the version of pulumi-go-provider into the news map to store in state.
+	r.Inputs[frameworkStateKeyName] = presource.NewStringProperty(frameworkVersion.String())
 
 	inputs, err := p.asStruct(r.Inputs)
 	if err != nil {
