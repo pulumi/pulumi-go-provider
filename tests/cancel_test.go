@@ -181,3 +181,46 @@ func TestCancelTimeout(t *testing.T) {
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 }
+
+// Test that a `Cancel` call will cancel in-flight operations, even if they already have a
+// timeout associated with them.
+//
+//	Main routine                   Server routine                 Cancel routine
+//	 |                              |                              |
+//	 | `s.Create`-----------------> |                              |
+//	 |                              | `hasCreated <- true` ------> |
+//	 |                              |                              |
+//	 |                              | <---------------------------- `s.Cancel`
+//	 |                              |                              |
+//	 |                              | `<-ctx.Done()`               |
+//	 |                              |                              |
+//	 | <---------------------------- `Error: context.Canceled`     |
+//	 |                              |                              |
+func TestCancelCreateWithTimeout(t *testing.T) {
+	t.Parallel()
+
+	// Used to block until the create call has started.
+	//
+	// We use this because we want to ensure that our request is in-flight when it is
+	// canceled.
+	hasCreated := make(chan bool)
+
+	s := integration.NewServer("cancel", semver.MustParse("1.2.3"), cancel.Wrap(p.Provider{
+		Create: func(ctx context.Context, _ p.CreateRequest) (p.CreateResponse, error) {
+			hasCreated <- true
+			<-ctx.Done()
+			return p.CreateResponse{}, ctx.Err()
+		},
+	}))
+
+	go func() {
+		<-hasCreated
+		err := s.Cancel()
+		require.NoError(t, err)
+	}()
+
+	_, err := s.Create(p.CreateRequest{
+		Timeout: 1,
+	})
+	assert.ErrorIs(t, err, context.Canceled)
+}
