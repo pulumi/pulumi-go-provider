@@ -1,0 +1,29 @@
+{
+  "name": "echo",
+  "version": "0.1.0-dev",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
+  "config": {},
+  "provider": {
+    "type": "object"
+  },
+  "resources": {
+    "echo:index:Echo": {
+      "properties": {
+        "value": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "inputProperties": {
+        "value": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
