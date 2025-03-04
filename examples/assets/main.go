@@ -28,7 +28,7 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*HasAssets, HasAssetsArgs]()},
+		Resources: []infer.InferredResource{infer.Resource[*HasAssets]()},
 	})
 }
 
