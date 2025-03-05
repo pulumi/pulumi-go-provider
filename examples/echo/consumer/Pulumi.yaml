@@ -1,0 +1,16 @@
+name: test-echo
+runtime: yaml
+
+plugins:
+  providers:
+    - name: echo
+      path: ../../../bin/examples
+
+resources:
+  echo:
+    type: echo:Echo
+    properties:
+      value: "echo-me"
+
+outputs:
+  echo: ${echo.value}
