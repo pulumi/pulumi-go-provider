@@ -22,7 +22,8 @@ import (
 type RandomComponent struct {
 	pulumi.ResourceState
 	RandomComponentArgs
-	Password pulumi.StringOutput `pulumi:"password"`
+	Password        pulumi.StringOutput `pulumi:"password"`
+	HardcodedOutput pulumi.StringOutput `pulumi:"hardcodedOutput"`
 }
 
 type RandomComponentArgs struct {
@@ -46,6 +47,7 @@ func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentAr
 	}
 
 	comp.Password = password.Result
+	comp.HardcodedOutput = pulumi.String("This is a hardcoded output string").ToStringOutput()
 
 	return comp, nil
 }

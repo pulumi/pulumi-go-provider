@@ -12,13 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package main shows how a [component] based provider can be created.
 package main
 
 import (
-	"github.com/pulumi/pulumi-go-provider/component"
+	"fmt"
+	"os"
+
+	"github.com/pulumi/pulumi-go-provider/component/cmd/typeregistration-gen/generator"
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	component.ProviderHost()
+	var rootFolder string
+
+	var rootCmd = &cobra.Command{
+		Use:   "typeregistration_gen",
+		Short: "A CLI tool for type registration generation for comopnent based providers",
+		Run:   generator.GenerateTypeRegistration(&rootFolder),
+	}
+
+	rootCmd.Flags().StringVarP(&rootFolder, "root-folder", "r", "./", "Root folder for type registration generation. Uses the current directory if not specified.")
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

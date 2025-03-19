@@ -110,3 +110,70 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 			return res, err
 		})
 }
+
+// Implementations for a component provider using an existing Go program.
+
+// func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error)
+
+// ComponentFn describes the type signature of a Pulumi custom component resource that users create.
+type ComponentFn[I any, O pulumi.ComponentResource] func(*pulumi.Context, string, I, ...pulumi.ResourceOption) (O, error)
+
+func ComponentProviderResource[I any, O pulumi.ComponentResource](fn ComponentFn[I, O]) InferredComponent {
+	return &derivedComponentProviderController[I, O]{
+		create: ComponentFn[I, O](fn),
+	}
+}
+
+type derivedComponentProviderController[I any, O pulumi.ComponentResource] struct {
+	create ComponentFn[I, O]
+}
+
+func (rc *derivedComponentProviderController[I, O]) GetToken() (tokens.Type, error) {
+	return getToken[O](nil)
+}
+
+func (derivedComponentProviderController[I, O]) isInferredComponent() {}
+
+func (rc *derivedComponentProviderController[I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+	pschema.ResourceSpec, error) {
+	r, err := getResourceSchema[O, I, O](true)
+	if err := err.ErrorOrNil(); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := registerTypes[I](reg); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := registerTypes[O](reg); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	return r, nil
+}
+
+func (rc *derivedComponentProviderController[I, O]) Construct(ctx context.Context, req p.ConstructRequest,
+) (p.ConstructResponse, error) {
+	return req.Construct(ctx,
+		func(
+			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
+		) (pulumi.ComponentResource, error) {
+			var i I
+			urn := req.URN
+			err := inputs.CopyTo(&i)
+			if err != nil {
+				return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
+					urn.Name(), urn.Type(), err)
+			}
+
+			res, err := rc.create(ctx, urn.Name(), i, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component resource %s (%s): %w",
+					urn.Name(), urn.Type(), err)
+			}
+
+			m := introspect.StructToMap(res)
+			err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
+			if err != nil {
+				return nil, err
+			}
+			return res, err
+		})
+}

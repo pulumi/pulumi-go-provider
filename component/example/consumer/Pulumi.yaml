@@ -3,13 +3,19 @@ runtime: yaml
 
 plugins:
   providers:
-    - name: go-component
-      path: ../
+    - name: go-components
+      path: ..
 
 resources:
   myrandom:
     type: go-components:RandomComponent
     properties:
       length: 10
+  mynginx:
+    type: go-components:kubernetes:NginxDeployment
+    properties:
+      replicas: 3
 outputs:
   password: ${myrandom.password}
+  hardcoded: ${myrandom.hardcodedOutput}
+  image: ${mynginx.image}
