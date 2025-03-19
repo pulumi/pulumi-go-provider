@@ -29,16 +29,16 @@ import (
 )
 
 type globalRegistry struct {
-	types map[string]any
+	InferredComponents []infer.InferredComponent
 }
 
-var registry = &globalRegistry{
-	types: make(map[string]any),
+var registry = globalRegistry{
+	InferredComponents: []infer.InferredComponent{},
 }
 
 // RegisterType registers a type with the global registry.
-func RegisterType(t any) {
-	registry.types["a'"] = t
+func RegisterType(ic infer.InferredComponent) {
+	registry.InferredComponents = append(registry.InferredComponents, ic)
 }
 
 // FunctionCallInfo stores function details
@@ -52,6 +52,7 @@ type FunctionCallInfo struct {
 }
 
 // findRegisterComponentResourceFuncs parses a Go file to find functions that call ctx.RegisterComponentResource.
+// We can use this to scafolld the generated code for the provider.
 func findRegisterComponentResourceFuncs(filename string) ([]FunctionCallInfo, error) {
 	src, err := os.ReadFile(filename)
 	if err != nil {
@@ -148,17 +149,11 @@ func walkDir(root string) ([]FunctionCallInfo, error) {
 	return results, err
 }
 
-func ProviderHost(path string) {
-	// Find all files in the given path
-	componentFunctions, err := walkDir(path)
-	if err != nil {
-		panic(err)
-	}
-
-	p.RunProvider("go-components", "0.1.0", provider(componentFunctions))
+func ProviderHost() {
+	p.RunProvider("go-components", "0.1.0", provider())
 }
 
-func provider(componentFunctions []FunctionCallInfo) p.Provider {
+func provider() p.Provider {
 	opt := infer.Options{
 		// Components: []infer.InferredComponent{
 		// 	infer.Component[*RandomComponent, RandomComponentArgs, *RandomComponentState](),
@@ -193,6 +188,7 @@ func provider(componentFunctions []FunctionCallInfo) p.Provider {
 		},
 	}
 
-	for _, comp := range componentFunctions {
-	}
+	opt.Components = append(opt.Components, registry.InferredComponents...)
+
+	return infer.Provider(opt)
 }

@@ -25,10 +25,6 @@ type RandomComponent struct {
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func (r *RandomComponent) Construct(ctx *pulumi.Context, name, typ string, args RandomComponentArgs, opts pulumi.ResourceOption) (*RandomComponent, error) {
-	return NewMyComponent(ctx, name, args)
-}
-
 type RandomComponentArgs struct {
 	Length pulumi.IntInput `pulumi:"length"`
 }

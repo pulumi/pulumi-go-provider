@@ -17,16 +17,22 @@ package main
 
 import (
 	"github.com/pulumi/pulumi-go-provider/component"
+	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // Register all the types that this provider supports.
-// TODO: This could be done with code generation.
+// TODO: This should be scafolded with code generation.
 func init() {
-	component.RegisterType(&RandomComponent{})
-	component.RegisterType(&RandomComponentArgs{})
+	component.RegisterType(infer.Component[*RandomComponent, RandomComponentArgs, *RandomComponent]())
+}
+
+// Scafold a wrapped Construct method.
+func (r *RandomComponent) Construct(ctx *pulumi.Context, name, typ string, args RandomComponentArgs, opts pulumi.ResourceOption) (*RandomComponent, error) {
+	return NewMyComponent(ctx, name, args)
 }
 
 func main() {
 	// Start the provider host using source code in the current directory.
-	component.ProviderHost(".")
+	component.ProviderHost()
 }
