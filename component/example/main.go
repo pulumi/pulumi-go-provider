@@ -20,5 +20,5 @@ import (
 )
 
 func main() {
-	component.ProviderHost()
+	component.ProviderHost("go-components", "0.0.1")
 }

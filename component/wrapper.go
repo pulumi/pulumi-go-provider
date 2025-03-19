@@ -33,15 +33,12 @@ func RegisterType(ic infer.InferredComponent) {
 	registry.InferredComponents = append(registry.InferredComponents, ic)
 }
 
-func ProviderHost() {
-	p.RunProvider("go-components", "0.1.0", provider())
+func ProviderHost(name string, version string) {
+	p.RunProvider(name, version, provider())
 }
 
 func provider() p.Provider {
 	opt := infer.Options{
-		// Components: []infer.InferredComponent{
-		// 	infer.Component[*RandomComponent, RandomComponentArgs, *RandomComponentState](),
-		// },
 		Metadata: schema.Metadata{
 			LanguageMap: map[string]any{
 				"nodejs": map[string]any{
@@ -73,6 +70,5 @@ func provider() p.Provider {
 	}
 
 	opt.Components = append(opt.Components, registry.InferredComponents...)
-
 	return infer.Provider(opt)
 }
