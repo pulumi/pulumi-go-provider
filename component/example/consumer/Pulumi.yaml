@@ -1,0 +1,15 @@
+name: consume-go-component
+runtime: yaml
+
+plugins:
+  providers:
+    - name: go-component
+      path: ../
+
+resources:
+  myrandom:
+    type: go-components:RandomComponent
+    properties:
+      length: 10
+outputs:
+  password: ${myrandom.password}
