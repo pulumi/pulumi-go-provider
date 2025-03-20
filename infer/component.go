@@ -111,30 +111,33 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 		})
 }
 
-// Implementations for a component provider using an existing Go program.
-
-// func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error)
+// ** Implementations for creating an [InferredComponent] using existing Pulumi component programs. **
 
 // ComponentFn describes the type signature of a Pulumi custom component resource that users create.
 type ComponentFn[I any, O pulumi.ComponentResource] func(*pulumi.Context, string, I, ...pulumi.ResourceOption) (O, error)
 
-func ComponentProviderResource[I any, O pulumi.ComponentResource](fn ComponentFn[I, O]) InferredComponent {
-	return &derivedComponentProviderController[I, O]{
-		create: ComponentFn[I, O](fn),
+// ProgramComponent creates an [InferredComponent] using functions and types that a existing Pulumi component program
+// would have implemented. See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
+// The required inputs are the inputs and outputs struct, and the function that creates the component resource.
+func ProgramComponent[I any, O pulumi.ComponentResource](fn ComponentFn[I, O]) InferredComponent {
+	return &derivedProgramComponentController[I, O]{
+		construct: ComponentFn[I, O](fn),
 	}
 }
 
-type derivedComponentProviderController[I any, O pulumi.ComponentResource] struct {
-	create ComponentFn[I, O]
+// derivedProgramComponentController is a controller for a component resource authored as a Pulumi program.
+type derivedProgramComponentController[I any, O pulumi.ComponentResource] struct {
+	// construct is the function that works on the component resource.
+	construct ComponentFn[I, O]
 }
 
-func (rc *derivedComponentProviderController[I, O]) GetToken() (tokens.Type, error) {
+func (rc *derivedProgramComponentController[I, O]) GetToken() (tokens.Type, error) {
 	return getToken[O](nil)
 }
 
-func (derivedComponentProviderController[I, O]) isInferredComponent() {}
+func (derivedProgramComponentController[I, O]) isInferredComponent() {}
 
-func (rc *derivedComponentProviderController[I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+func (rc *derivedProgramComponentController[I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
 	r, err := getResourceSchema[O, I, O](true)
 	if err := err.ErrorOrNil(); err != nil {
@@ -149,7 +152,7 @@ func (rc *derivedComponentProviderController[I, O]) GetSchema(reg schema.Registe
 	return r, nil
 }
 
-func (rc *derivedComponentProviderController[I, O]) Construct(ctx context.Context, req p.ConstructRequest,
+func (rc *derivedProgramComponentController[I, O]) Construct(ctx context.Context, req p.ConstructRequest,
 ) (p.ConstructResponse, error) {
 	return req.Construct(ctx,
 		func(
@@ -163,17 +166,20 @@ func (rc *derivedComponentProviderController[I, O]) Construct(ctx context.Contex
 					urn.Name(), urn.Type(), err)
 			}
 
-			res, err := rc.create(ctx, urn.Name(), i, opts)
+			// Construct the component resource.
+			res, err := rc.construct(ctx, urn.Name(), i, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component resource %s (%s): %w",
 					urn.Name(), urn.Type(), err)
 			}
 
+			// Register any outputs.
 			m := introspect.StructToMap(res)
 			err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
 			if err != nil {
 				return nil, err
 			}
+
 			return res, err
 		})
 }
