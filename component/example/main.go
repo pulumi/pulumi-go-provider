@@ -16,8 +16,17 @@
 package main
 
 import (
+	"example/nested"
+
 	"github.com/pulumi/pulumi-go-provider/component"
 )
+
+func init() {
+	component.RegisterType(component.ProgramComponent(
+		component.ConstructorFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent)))
+	component.RegisterType(component.ProgramComponent(
+		component.ConstructorFn[RandomComponentArgs, *RandomComponent](NewMyComponent)))
+}
 
 func main() {
 	component.ProviderHost("go-components", "0.0.1")

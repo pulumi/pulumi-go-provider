@@ -12,27 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package nested
 
 import (
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type RandomComponent struct {
+type NestedRandomComponent struct {
 	pulumi.ResourceState
-	RandomComponentArgs
+	NestedRandomComponentArgs
 	Password        pulumi.StringOutput `pulumi:"password"`
 	HardcodedOutput pulumi.StringOutput `pulumi:"hardcodedOutput"`
 }
 
-type RandomComponentArgs struct {
+type NestedRandomComponentArgs struct {
 	Length pulumi.IntInput `pulumi:"length"`
 }
 
-func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
-	comp := &RandomComponent{}
-	err := ctx.RegisterComponentResource("go-components:RandomComponent", name, comp, opts...)
+func CreateNestedRandomComponent(ctx *pulumi.Context, name string, compArgs NestedRandomComponentArgs, opts ...pulumi.ResourceOption) (*NestedRandomComponent, error) {
+	comp := &NestedRandomComponent{}
+	err := ctx.RegisterComponentResource("go-components:nested:NestedRandomComponent", name, comp, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentAr
 	}
 
 	comp.Password = password.Result
-	comp.HardcodedOutput = pulumi.String("This is a hardcoded output string").ToStringOutput()
+	comp.HardcodedOutput = pulumi.String("This is a hardcoded output string from a nested module.").ToStringOutput()
 
 	return comp, nil
 }

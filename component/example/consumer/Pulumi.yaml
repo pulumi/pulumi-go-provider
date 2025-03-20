@@ -11,11 +11,12 @@ resources:
     type: go-components:RandomComponent
     properties:
       length: 10
-  mynginx:
-    type: go-components:kubernetes:NginxDeployment
+  myrandom-2:
+    type: go-components:nested:NestedRandomComponent
     properties:
-      replicas: 3
+      length: 2
 outputs:
   password: ${myrandom.password}
   hardcoded: ${myrandom.hardcodedOutput}
-  image: ${mynginx.image}
+  nestedPassword: ${myrandom-2.password}
+  nestedHardcoded: ${myrandom-2.hardcodedOutput}
