@@ -2,7 +2,9 @@ module github.com/pulumi/pulumi-go-provider/examples/file
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 
-go 1.22
+go 1.24
+
+toolchain go1.24.0
 
 require (
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
