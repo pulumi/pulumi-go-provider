@@ -22,13 +22,14 @@ import (
 )
 
 type registry struct {
-	inferredComponents []Resource
+	// inferredComponents is a set of inferred components
+	inferredComponents map[Resource]struct{}
 }
 
 // globalRegistry is a global registry for all inferred components. This is used to
 // register the components with the provider during initialization.
 var globalRegistry = registry{
-	inferredComponents: []infer.InferredComponent{},
+	inferredComponents: make(map[Resource]struct{}),
 }
 
 // Resource is a type alias for the inferred component resource type.
@@ -47,7 +48,7 @@ func ProgramComponent[I any, O pulumi.ComponentResource](fn ConstructorFn[I, O])
 // RegisterType registers a type within the global registry for this wrapper package. This
 // allows the provider to access the custom types and functions required to infer its schema.
 func RegisterType(ic Resource) {
-	globalRegistry.inferredComponents = append(globalRegistry.inferredComponents, ic)
+	globalRegistry.inferredComponents[ic] = struct{}{}
 }
 
 // ProviderHost starts a provider that contains all inferred components.
@@ -83,7 +84,9 @@ func provider() p.Provider {
 	}
 
 	// Register all the inferred components with the provider.
-	opt.Components = append(opt.Components, globalRegistry.inferredComponents...)
+	for ic := range globalRegistry.inferredComponents {
+		opt.Components = append(opt.Components, ic)
+	}
 
 	return infer.Provider(opt)
 }
