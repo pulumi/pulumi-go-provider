@@ -166,6 +166,12 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		}
 	}
 
+	// Check to see if `secret` was mistakenly used as a `pulumi` tag, instead of the
+	// `provider` tag.
+	if pulumi["secret"] {
+		provider["secret"] = true
+	}
+
 	return FieldTag{
 		Name:             name,
 		Optional:         pulumi["optional"],
