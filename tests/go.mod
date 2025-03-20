@@ -1,6 +1,8 @@
 module github.com/pulumi/pulumi-go-provider/tests
 
-go 1.22
+go 1.24
+
+toolchain go1.24.0
 
 replace github.com/pulumi/pulumi-go-provider => ../.
 

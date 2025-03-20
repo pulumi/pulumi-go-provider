@@ -1,4 +1,4 @@
-module github.com/pulumi/pulumi-go-provider/examples/assets
+module github.com/pulumi/pulumi-go-provider/examples/auto-naming
 
 replace github.com/pulumi/pulumi-go-provider => ../..
 
@@ -6,7 +6,12 @@ go 1.24
 
 toolchain go1.24.0
 
-require github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
+require (
+	github.com/blang/semver v3.5.1+incompatible
+	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
+	github.com/pulumi/pulumi/sdk/v3 v3.142.0
+	github.com/stretchr/testify v1.10.0
+)
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -19,7 +24,6 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/charmbracelet/bubbles v0.16.1 // indirect
 	github.com/charmbracelet/bubbletea v0.25.0 // indirect
 	github.com/charmbracelet/lipgloss v0.7.1 // indirect
@@ -27,6 +31,7 @@ require (
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/djherbis/times v1.5.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -63,10 +68,10 @@ require (
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.10.0 // indirect
 	github.com/pulumi/pulumi/pkg/v3 v3.142.0 // indirect
-	github.com/pulumi/pulumi/sdk/v3 v3.142.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
