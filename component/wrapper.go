@@ -18,21 +18,39 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type globalRegistry struct {
-	InferredComponents []infer.InferredComponent
+type registry struct {
+	inferredComponents []Resource
 }
 
-var registry = globalRegistry{
-	InferredComponents: []infer.InferredComponent{},
+// globalRegistry is a global registry for all inferred components. This is used to
+// register the components with the provider during initialization.
+var globalRegistry = registry{
+	inferredComponents: []infer.InferredComponent{},
 }
 
-// RegisterType registers a type with the global registry.
-func RegisterType(ic infer.InferredComponent) {
-	registry.InferredComponents = append(registry.InferredComponents, ic)
+// Resource is a type alias for the inferred component resource type.
+type Resource = infer.InferredComponent
+
+// ConstructorFn is a type alias for infer.ConstructorFn which represents
+// a function that creates a component resource.
+type ConstructorFn[I any, O pulumi.ComponentResource] = infer.ComponentFn[I, O]
+
+// ProgramComponent allows us to create a component resource that can be understood by the
+// underlying provider. This is a wrapper around the infer.ProgramComponent function.
+func ProgramComponent[I any, O pulumi.ComponentResource](fn ConstructorFn[I, O]) Resource {
+	return infer.ProgramComponent[I, O](fn)
 }
 
+// RegisterType registers a type within the global registry for this wrapper package. This
+// allows the provider to access the custom types and functions required to infer its schema.
+func RegisterType(ic Resource) {
+	globalRegistry.inferredComponents = append(globalRegistry.inferredComponents, ic)
+}
+
+// ProviderHost starts a provider that contains all inferred components.
 func ProviderHost(name string, version string) {
 	p.RunProvider(name, version, provider())
 }
@@ -42,9 +60,6 @@ func provider() p.Provider {
 		Metadata: schema.Metadata{
 			LanguageMap: map[string]any{
 				"nodejs": map[string]any{
-					"dependencies": map[string]any{
-						"@pulumi/random": "^4.16.8",
-					},
 					"respectSchemaVersion": true,
 				},
 				"go": map[string]any{
@@ -53,15 +68,13 @@ func provider() p.Provider {
 				},
 				"python": map[string]any{
 					"requires": map[string]any{
-						"pulumi":        ">=3.0.0,<4.0.0",
-						"pulumi_random": ">=4.0.0,<5.0.0",
+						"pulumi": ">=3.0.0,<4.0.0",
 					},
 					"respectSchemaVersion": true,
 				},
 				"csharp": map[string]any{
 					"packageReferences": map[string]any{
-						"Pulumi":        "3.*",
-						"Pulumi.Random": "4.*",
+						"Pulumi": "3.*",
 					},
 					"respectSchemaVersion": true,
 				},
@@ -69,6 +82,8 @@ func provider() p.Provider {
 		},
 	}
 
-	opt.Components = append(opt.Components, registry.InferredComponents...)
+	// Register all the inferred components with the provider.
+	opt.Components = append(opt.Components, globalRegistry.inferredComponents...)
+
 	return infer.Provider(opt)
 }
