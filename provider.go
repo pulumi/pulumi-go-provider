@@ -933,6 +933,7 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 	if err != nil {
 		return nil, err
 	}
+	addVersionToPropertyMap(r.Properties)
 
 	propStruct, err := p.asStruct(r.Properties)
 	if err != nil {
@@ -980,6 +981,7 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 	if err != nil {
 		return nil, err
 	}
+	addVersionToPropertyMap(r.Properties)
 	propStruct, err := p.asStruct(r.Properties)
 	if err != nil {
 		return nil, err
@@ -1010,6 +1012,7 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
 		Preview:       req.GetPreview(),
 	})
+	addVersionToPropertyMap(r.Properties)
 	if initFailed := r.PartialState; initFailed != nil {
 		prop, propErr := p.asStruct(r.Properties)
 		err = errors.Join(rpcerror.WithDetails(
