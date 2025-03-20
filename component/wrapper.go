@@ -15,21 +15,28 @@
 package component
 
 import (
+	"fmt"
+	"sync"
+
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type registry struct {
+type state struct {
+	sync.Mutex
+
 	// inferredComponents is a set of inferred components
 	inferredComponents map[Resource]struct{}
+	providerStarted    bool
 }
 
-// globalRegistry is a global registry for all inferred components. This is used to
+// globalState is a global registry for all inferred components. This is used to
 // register the components with the provider during initialization.
-var globalRegistry = registry{
+var globalState = state{
 	inferredComponents: make(map[Resource]struct{}),
+	providerStarted:    false,
 }
 
 // Resource is a type alias for the inferred component resource type.
@@ -48,11 +55,36 @@ func ProgramComponent[I any, O pulumi.ComponentResource](fn ConstructorFn[I, O])
 // RegisterType registers a type within the global registry for this wrapper package. This
 // allows the provider to access the custom types and functions required to infer its schema.
 func RegisterType(ic Resource) {
-	globalRegistry.inferredComponents[ic] = struct{}{}
+	globalState.Lock()
+	defer globalState.Unlock()
+	if globalState.providerStarted {
+		panic("provider has already started; cannot register new types")
+	}
+
+	globalState.inferredComponents[ic] = struct{}{}
 }
 
 // ProviderHost starts a provider that contains all inferred components.
 func ProviderHost(name string, version string) error {
+	err := func() error {
+		globalState.Lock()
+		defer globalState.Unlock()
+
+		switch {
+		case len(globalState.inferredComponents) == 0:
+			return fmt.Errorf("no resource components were registered with the provider")
+		case globalState.providerStarted:
+			return fmt.Errorf("provider had already started")
+		}
+
+		globalState.providerStarted = true
+		return nil
+	}()
+
+	if err != nil {
+		return err
+	}
+
 	return p.RunProvider(name, version, provider())
 }
 
@@ -84,7 +116,7 @@ func provider() p.Provider {
 	}
 
 	// Register all the inferred components with the provider.
-	for ic := range globalRegistry.inferredComponents {
+	for ic := range globalState.inferredComponents {
 		opt.Components = append(opt.Components, ic)
 	}
 

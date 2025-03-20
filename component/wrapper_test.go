@@ -16,6 +16,7 @@ package component
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,7 @@ func NewMockComponentResource(
 
 func createMockInferredComoponent() Resource {
 	// Reset the global registry before the test
-	globalRegistry = registry{inferredComponents: make(map[Resource]struct{})}
+	globalState = state{inferredComponents: make(map[Resource]struct{})}
 
 	// Create a mock component
 	return ProgramComponent(ConstructorFn[MockComponentResourceInput, *MockComponentResource](NewMockComponentResource))
@@ -57,20 +58,20 @@ func TestRegisterType(t *testing.T) {
 	RegisterType(mockComponent)
 
 	// Verify the component was registered
-	assert.Equal(t, 1, len(globalRegistry.inferredComponents))
-	assert.Contains(t, globalRegistry.inferredComponents, mockComponent)
+	assert.Equal(t, 1, len(globalState.inferredComponents))
+	assert.Contains(t, globalState.inferredComponents, mockComponent)
 
 	// Register the same component again, and verify it doesn't duplicate.
 	RegisterType(mockComponent)
-	assert.Equal(t, 1, len(globalRegistry.inferredComponents))
-	assert.Contains(t, globalRegistry.inferredComponents, mockComponent)
+	assert.Equal(t, 1, len(globalState.inferredComponents))
+	assert.Contains(t, globalState.inferredComponents, mockComponent)
 }
 
 // TestProvider tests that provider returns a non-nil provider
 func TestProvider(t *testing.T) {
 	// Create a provider without any components and ensure that it returns a nil construct method.
-	globalRegistry = registry{inferredComponents: make(map[Resource]struct{})}
-	require.Empty(t, globalRegistry.inferredComponents)
+	globalState = state{inferredComponents: make(map[Resource]struct{})}
+	require.Empty(t, globalState.inferredComponents)
 	p := provider()
 	require.NotNil(t, p)
 	require.Nil(t, p.Construct, "Construct method: %+v", p.Construct)
@@ -82,4 +83,45 @@ func TestProvider(t *testing.T) {
 	// Create a provider and ensure the construct method is not nil.
 	p = provider()
 	assert.NotNil(t, p.Construct)
+}
+
+func TestProviderHost(t *testing.T) {
+	// Create a provider without any components and ensure that it returns an error.
+	globalState = state{inferredComponents: make(map[Resource]struct{})}
+	err := ProviderHost("test", "v1.0.0")
+	assert.Error(t, err)
+	assert.Equal(t, "no resource components were registered with the provider", err.Error())
+
+	// Create and register a mock component and reset the state prior.
+	globalState = state{inferredComponents: make(map[Resource]struct{})}
+	mockComponent := createMockInferredComoponent()
+	RegisterType(mockComponent)
+
+	go func() {
+		// Start the provider in a separate goroutine as it blocks the main thread.
+		err := ProviderHost("test", "v1.0.0")
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(1 * time.Millisecond) // Wait for the provider to start
+	assertPanic(t, func() {
+		RegisterType(mockComponent)
+	})
+
+	// Attempt to start the provider again and ensure it returns an error.
+	err = ProviderHost("test", "v1.0.0")
+	assert.Error(t, err)
+	assert.Equal(t, "provider had already started", err.Error())
+}
+
+// assertPanic is a helper function that asserts that a function call panics.
+func assertPanic(t *testing.T, f func()) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("the code did not panic")
+		}
+	}()
+
+	f()
 }

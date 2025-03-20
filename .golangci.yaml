@@ -16,6 +16,8 @@ issues:
       text: "Function TestRegisterType missing the call to method parallel"
     - linters: [paralleltest]
       text: "Function TestProvider missing the call to method parallel"
+    - linters: [paralleltest]
+      text: "Function TestProviderHost missing the call to method parallel"
 
 
 linters:
