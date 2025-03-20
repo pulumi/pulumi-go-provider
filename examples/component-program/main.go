@@ -30,5 +30,7 @@ func init() {
 }
 
 func main() {
-	component.ProviderHost("go-components", "0.0.1")
+	if err := component.ProviderHost("go-components", "0.0.1"); err != nil {
+		panic(err)
+	}
 }

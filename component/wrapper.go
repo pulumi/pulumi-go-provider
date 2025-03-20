@@ -51,8 +51,8 @@ func RegisterType(ic Resource) {
 }
 
 // ProviderHost starts a provider that contains all inferred components.
-func ProviderHost(name string, version string) {
-	p.RunProvider(name, version, provider())
+func ProviderHost(name string, version string) error {
+	return p.RunProvider(name, version, provider())
 }
 
 func provider() p.Provider {

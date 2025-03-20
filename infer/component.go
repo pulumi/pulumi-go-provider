@@ -114,14 +114,16 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 // ** Implementations for creating an [InferredComponent] using existing Pulumi component programs. **
 
 // ComponentFn describes the type signature of a Pulumi custom component resource that users create.
-type ComponentFn[I any, O pulumi.ComponentResource] func(*pulumi.Context, string, I, ...pulumi.ResourceOption) (O, error)
+type ComponentFn[I any, O pulumi.ComponentResource] func(
+	*pulumi.Context, string, I, ...pulumi.ResourceOption) (O, error)
 
 // ProgramComponent creates an [InferredComponent] using functions and types that a existing Pulumi component program
-// would have implemented. See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
-// The required inputs are the inputs and outputs struct, and the function that creates the component resource.
+// would have implemented. The required inputs are the inputs and outputs struct, and the function that creates
+// the component resource.
+// See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
 func ProgramComponent[I any, O pulumi.ComponentResource](fn ComponentFn[I, O]) InferredComponent {
 	return &derivedProgramComponentController[I, O]{
-		construct: ComponentFn[I, O](fn),
+		construct: fn,
 	}
 }
 
