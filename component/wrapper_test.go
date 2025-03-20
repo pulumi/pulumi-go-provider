@@ -32,7 +32,11 @@ type MockComponentResource struct {
 type MockComponentResourceInput struct{}
 
 // NewMockComponentResource creates a new instance of MockComponentResource
-func NewMockComponentResource(ctx *pulumi.Context, name string, inputs MockComponentResourceInput, options ...pulumi.ResourceOption) (*MockComponentResource, error) {
+func NewMockComponentResource(
+	ctx *pulumi.Context,
+	name string,
+	inputs MockComponentResourceInput,
+	options ...pulumi.ResourceOption) (*MockComponentResource, error) {
 	return &MockComponentResource{}, nil
 }
 
@@ -75,7 +79,7 @@ func TestProvider(t *testing.T) {
 	mockComponent := createMockInferredComoponent()
 	RegisterType(mockComponent)
 
-	// Create a provider and ensure the contruct method is not nil.
+	// Create a provider and ensure the construct method is not nil.
 	p = provider()
 	assert.NotNil(t, p.Construct)
 }

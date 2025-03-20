@@ -10,6 +10,14 @@ issues:
     - testdata$
     - Godeps$
     - builtin$
+  exclude-rules:
+    # Disable paralleltesting for these two functions that require global state.
+    - linters: [paralleltest]
+      text: "Function TestRegisterType missing the call to method parallel"
+    - linters: [paralleltest]
+      text: "Function TestProvider missing the call to method parallel"
+
+
 linters:
   enable-all: false
   enable:
