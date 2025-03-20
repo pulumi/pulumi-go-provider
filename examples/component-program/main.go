@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package main shows how a [component] based provider can be created.
+// package main shows how a simple comoponent provider can be created using existing
+// Pulumi programs that contain components.
 package main
 
 import (
-	"example/nested"
-
 	"github.com/pulumi/pulumi-go-provider/component"
+	"github.com/pulumi/pulumi-go-provider/examples/component-program/nested"
 )
 
+// We need to register all the component resource types we want to expose during initialization.
 func init() {
 	component.RegisterType(component.ProgramComponent(
-		component.ConstructorFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent)))
-	component.RegisterType(component.ProgramComponent(
 		component.ConstructorFn[RandomComponentArgs, *RandomComponent](NewMyComponent)))
+	component.RegisterType(component.ProgramComponent(
+		component.ConstructorFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent)))
 }
 
 func main() {

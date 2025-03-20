@@ -1,6 +1,8 @@
-module example
+module github.com/pulumi/pulumi-go-provider/examples/component-program
 
-go 1.24.0
+replace github.com/pulumi/pulumi-go-provider => ../..
+
+go 1.23
 
 require (
 	github.com/pulumi/pulumi-go-provider v0.24.1
@@ -98,5 +100,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/frand v1.4.2 // indirect
 )
-
-replace github.com/pulumi/pulumi-go-provider => ../../
