@@ -1,0 +1,90 @@
+{
+  "name": "go-components",
+  "version": "0.0.1",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
+  "language": {
+    "csharp": {
+      "packageReferences": {
+        "Pulumi": "3.*"
+      },
+      "respectSchemaVersion": true
+    },
+    "go": {
+      "generateResourceContainerTypes": true,
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "requires": {
+        "pulumi": "\u003e=3.0.0,\u003c4.0.0"
+      },
+      "respectSchemaVersion": true
+    }
+  },
+  "config": {},
+  "provider": {
+    "type": "object"
+  },
+  "resources": {
+    "go-components:index:RandomComponent": {
+      "properties": {
+        "hardcodedOutput": {
+          "type": "string"
+        },
+        "length": {
+          "type": "integer"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "hardcodedOutput",
+        "length",
+        "password"
+      ],
+      "inputProperties": {
+        "length": {
+          "type": "integer"
+        }
+      },
+      "requiredInputs": [
+        "length"
+      ],
+      "isComponent": true
+    },
+    "go-components:nested:NestedRandomComponent": {
+      "properties": {
+        "hardcodedOutput": {
+          "type": "string"
+        },
+        "length": {
+          "type": "integer"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "hardcodedOutput",
+        "length",
+        "password"
+      ],
+      "inputProperties": {
+        "length": {
+          "type": "integer"
+        }
+      },
+      "requiredInputs": [
+        "length"
+      ],
+      "isComponent": true
+    }
+  }
+}

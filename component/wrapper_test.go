@@ -46,7 +46,7 @@ func createMockInferredComoponent() Resource {
 	globalState = state{inferredComponents: make(map[Resource]struct{})}
 
 	// Create a mock component
-	return ProgramComponent(ConstructorFn[MockComponentResourceInput, *MockComponentResource](NewMockComponentResource))
+	return ProgramComponent(NewMockComponentResource)
 }
 
 // TestRegisterType tests the RegisterType function
