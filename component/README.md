@@ -67,7 +67,7 @@ func NewMyComponent(ctx *pulumi.Context, name string, args LoginArgs, opts ...pu
 
 To serve this Pulumi Go component resource as a provider, create a new Go file and follow these steps:  
 
-1. Register the component resource type and its constructor.  
+1. Register the component resource type and its constructor using `WithResources` on provider start-up.
 2. Start the provider using `ProviderHost`.  
 
 ```go
@@ -80,14 +80,18 @@ import (
 	"github.com/pulumi/pulumi-go-provider/component"
 )
 
-// Register the component resource type during initialization.
-func init() {
-	component.RegisterType(component.ProgramComponent(
-		component.ConstructorFn[LoginArgs, *Login](NewMyComponent)))
-}
-
 func main() {
-	if err := component.ProviderHost("random-login", "0.1.0"); err != nil {
+	err := component.ProviderHost(
+		component.WithName("random-login"),
+		component.WithVersion("v0.1.0"),
+		component.WithResources(
+			component.ProgramComponent(
+				component.ConstructorFn[LoginArgs, *Login](NewMyComponent),
+			),
+		),
+	)
+
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
