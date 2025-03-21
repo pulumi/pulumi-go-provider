@@ -50,6 +50,8 @@ func createMockInferredComoponent() Resource {
 }
 
 // TestRegisterType tests the RegisterType function
+//
+//nolint:paralleltest
 func TestRegisterType(t *testing.T) {
 	// Create a mock component
 	mockComponent := createMockInferredComoponent()
@@ -68,6 +70,8 @@ func TestRegisterType(t *testing.T) {
 }
 
 // TestProvider tests that provider returns a non-nil provider
+//
+//nolint:paralleltest
 func TestProvider(t *testing.T) {
 	// Create a provider without any components and ensure that it returns a nil construct method.
 	globalState = state{inferredComponents: make(map[Resource]struct{})}
@@ -85,6 +89,7 @@ func TestProvider(t *testing.T) {
 	assert.NotNil(t, p.Construct)
 }
 
+//nolint:paralleltest
 func TestProviderHost(t *testing.T) {
 	// Create a provider without any components and ensure that it returns an error.
 	globalState = state{inferredComponents: make(map[Resource]struct{})}
@@ -104,24 +109,12 @@ func TestProviderHost(t *testing.T) {
 	}()
 
 	time.Sleep(1 * time.Millisecond) // Wait for the provider to start
-	assertPanic(t, func() {
+	require.PanicsWithValue(t, "provider has already started; cannot register new types", func() {
 		RegisterType(mockComponent)
 	})
 
 	// Attempt to start the provider again and ensure it returns an error.
 	err = ProviderHost("test", "v1.0.0")
-	assert.Error(t, err)
-	assert.Equal(t, "provider had already started", err.Error())
-}
-
-// assertPanic is a helper function that asserts that a function call panics.
-func assertPanic(t *testing.T, f func()) {
-	t.Helper()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("the code did not panic")
-		}
-	}()
-
-	f()
+	require.Error(t, err)
+	require.Equal(t, "provider had already started", err.Error())
 }
