@@ -9,6 +9,10 @@ This example demonstrates how to define a Pulumi Go program with a component res
 For more details on authoring component resources in Pulumi Go, refer to the [official documentation](https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource).  
 
 ```go
+package main
+
+import (...)
+
 type LoginArgs struct {
 	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
 	PetName        bool               `pulumi:"petName"`

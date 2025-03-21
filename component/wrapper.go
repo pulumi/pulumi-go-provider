@@ -26,13 +26,13 @@ import (
 // Resource is a type alias for the inferred component resource type.
 type Resource = infer.InferredComponent
 
-// ConstructorFn is a type alias for infer.ConstructorFn which represents
+// ComponentFn is a type alias for infer.ComponentFn which represents
 // a function that creates a component resource.
-type ConstructorFn[I any, O pulumi.ComponentResource] = infer.ComponentFn[I, O]
+type ComponentFn[I any, O pulumi.ComponentResource] = infer.ComponentFn[I, O]
 
 // ProgramComponent allows us to create a component resource that can be understood by the
 // underlying provider. This is a wrapper around the infer.ProgramComponent function.
-func ProgramComponent[I any, O pulumi.ComponentResource](fn ConstructorFn[I, O]) Resource {
+func ProgramComponent[I any, O pulumi.ComponentResource](fn ComponentFn[I, O]) Resource {
 	return infer.ProgramComponent[I, O](fn)
 }
 

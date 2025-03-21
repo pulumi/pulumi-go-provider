@@ -27,9 +27,9 @@ func main() {
 		component.WithVersion("v0.0.1"),
 		component.WithResources(
 			component.ProgramComponent(
-				component.ConstructorFn[RandomComponentArgs, *RandomComponent](NewMyComponent)),
+				component.ComponentFn[RandomComponentArgs, *RandomComponent](NewMyComponent)),
 			component.ProgramComponent(
-				component.ConstructorFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent))),
+				component.ComponentFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent))),
 	)
 
 	if err != nil {
