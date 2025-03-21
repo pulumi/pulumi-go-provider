@@ -27,7 +27,7 @@ type providerOpts struct {
 // providerOpt is a function that modifies ProviderOpts.
 type providerOpt func(*providerOpts)
 
-// WithResource adds a component resource to the provider options to be served by the provider.
+// WithResources adds a component resource to the provider options to be served by the provider.
 func WithResources(r ...Resource) providerOpt {
 	return func(opts *providerOpts) {
 		if opts.components == nil {
