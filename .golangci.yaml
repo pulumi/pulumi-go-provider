@@ -10,6 +10,7 @@ issues:
     - testdata$
     - Godeps$
     - builtin$
+
 linters:
   enable-all: false
   enable:

@@ -54,10 +54,32 @@ func (derivedComponentController[R, I, O]) isInferredComponent() {}
 // anchor, `I` describes its inputs and `O` its outputs. To add descriptions to `R`, `I`
 // and `O`, see the `Annotated` trait defined in this module.
 func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferredComponent {
-	return &derivedComponentController[R, I, O]{}
+	var r R
+	return &derivedComponentController[R, I, O]{r.Construct}
 }
 
-type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.ComponentResource] struct{}
+// ComponentFn describes the type signature of a Pulumi custom component resource that users create.
+type ComponentFn[I any, O pulumi.ComponentResource] = func(
+	*pulumi.Context, string, I, ...pulumi.ResourceOption,
+) (O, error)
+
+// ProgramComponent creates an [InferredComponent] using functions and types that a existing Pulumi component program
+// would have implemented.
+//
+// fn is the function you would use to construct the program.
+//
+// See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
+func ProgramComponent[I any, O pulumi.ComponentResource](fn ComponentFn[I, O]) InferredComponent {
+	return &derivedComponentController[O, I, O]{
+		func(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error) {
+			return fn(ctx, name, inputs, opts)
+		},
+	}
+}
+
+type derivedComponentController[R any, I any, O pulumi.ComponentResource] struct {
+	construct func(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
+}
 
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
@@ -85,7 +107,6 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 		func(
 			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
 		) (pulumi.ComponentResource, error) {
-			var r R
 			var i I
 			urn := req.URN
 			err := inputs.CopyTo(&i)
@@ -93,7 +114,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 				return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
 					urn.Name(), urn.Type(), err)
 			}
-			res, err := r.Construct(ctx,
+			res, err := rc.construct(ctx,
 				urn.Name(),
 				urn.Type().String(),
 				i, opts)

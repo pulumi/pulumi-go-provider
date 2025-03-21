@@ -1,0 +1,22 @@
+name: consume-go-component
+runtime: yaml
+
+plugins:
+  providers:
+    - name: go-components
+      path: ..
+
+resources:
+  myrandom:
+    type: go-components:RandomComponent
+    properties:
+      length: 10
+  myrandom-2:
+    type: go-components:nested:NestedRandomComponent
+    properties:
+      length: 2
+outputs:
+  password: ${myrandom.password}
+  hardcoded: ${myrandom.hardcodedOutput}
+  nestedPassword: ${myrandom-2.password}
+  nestedHardcoded: ${myrandom-2.hardcodedOutput}
