@@ -41,80 +41,81 @@ func NewMockComponentResource(
 	return &MockComponentResource{}, nil
 }
 
-func createMockInferredComoponent() Resource {
-	// Reset the global registry before the test
-	globalState = state{inferredComponents: make(map[Resource]struct{})}
-
-	// Create a mock component
-	return ProgramComponent(NewMockComponentResource)
-}
-
-// TestRegisterType tests the RegisterType function
-//
-//nolint:paralleltest
-func TestRegisterType(t *testing.T) {
-	// Create a mock component
-	mockComponent := createMockInferredComoponent()
-
-	// Register the component
-	RegisterType(mockComponent)
-
-	// Verify the component was registered
-	assert.Equal(t, 1, len(globalState.inferredComponents))
-	assert.Contains(t, globalState.inferredComponents, mockComponent)
-
-	// Register the same component again, and verify it doesn't duplicate.
-	RegisterType(mockComponent)
-	assert.Equal(t, 1, len(globalState.inferredComponents))
-	assert.Contains(t, globalState.inferredComponents, mockComponent)
-}
-
 // TestProvider tests that provider returns a non-nil provider
-//
-//nolint:paralleltest
 func TestProvider(t *testing.T) {
-	// Create a provider without any components and ensure that it returns a nil construct method.
-	globalState = state{inferredComponents: make(map[Resource]struct{})}
-	require.Empty(t, globalState.inferredComponents)
-	p := provider()
+	t.Parallel()
+	p := provider(nil)
 	require.NotNil(t, p)
-	require.Nil(t, p.Construct, "Construct method: %+v", p.Construct)
+	require.Nil(t, p.Construct, "construct method should be nil if no components are registered")
 
-	// Create and register a mock component.
-	mockComponent := createMockInferredComoponent()
-	RegisterType(mockComponent)
-
-	// Create a provider and ensure the construct method is not nil.
-	p = provider()
+	// Create a provider with resources and ensure the construct method is not nil.
+	components := map[Resource]struct{}{
+		ProgramComponent(NewMockComponentResource): {}}
+	p = provider(components)
 	assert.NotNil(t, p.Construct)
 }
 
-//nolint:paralleltest
 func TestProviderHost(t *testing.T) {
+	t.Parallel()
 	// Create a provider without any components and ensure that it returns an error.
-	globalState = state{inferredComponents: make(map[Resource]struct{})}
-	err := ProviderHost("test", "v1.0.0")
+	err := ProviderHost()
 	assert.Error(t, err)
 	assert.Equal(t, "no resource components were registered with the provider", err.Error())
 
-	// Create and register a mock component and reset the state prior.
-	globalState = state{inferredComponents: make(map[Resource]struct{})}
-	mockComponent := createMockInferredComoponent()
-	RegisterType(mockComponent)
-
 	go func() {
 		// Start the provider in a separate goroutine as it blocks the main thread.
-		err := ProviderHost("test", "v1.0.0")
+		err := ProviderHost(WithResources(ProgramComponent(NewMockComponentResource)))
 		require.NoError(t, err)
 	}()
 
-	time.Sleep(1 * time.Millisecond) // Wait for the provider to start
-	require.PanicsWithValue(t, "provider has already started; cannot register new types", func() {
-		RegisterType(mockComponent)
+	time.Sleep(2 * time.Second) // Wait for the provider to start to ensure it doesn't error.
+}
+func TestProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	// Test WithResource
+	t.Run("WithResource", func(t *testing.T) {
+		opts := &providerOpts{
+			components: make(map[Resource]struct{}),
+		}
+		resource := ProgramComponent(NewMockComponentResource)
+		WithResources(resource)(opts)
+
+		_, exists := opts.components[resource]
+		assert.True(t, exists)
+		assert.Len(t, opts.components, 1)
 	})
 
-	// Attempt to start the provider again and ensure it returns an error.
-	err = ProviderHost("test", "v1.0.0")
-	require.Error(t, err)
-	require.Equal(t, "provider had already started", err.Error())
+	// Test WithName
+	t.Run("WithName", func(t *testing.T) {
+		opts := &providerOpts{}
+		WithName("test-provider")(opts)
+
+		assert.Equal(t, "test-provider", opts.name)
+	})
+
+	// Test WithVersion
+	t.Run("WithVersion", func(t *testing.T) {
+		opts := &providerOpts{}
+		WithVersion("1.0.0")(opts)
+
+		assert.Equal(t, "1.0.0", opts.version)
+	})
+
+	// Test multiple options together
+	t.Run("MultipleOptions", func(t *testing.T) {
+		opts := &providerOpts{
+			components: make(map[Resource]struct{}),
+		}
+		resource := ProgramComponent(NewMockComponentResource)
+
+		WithResources(resource)(opts)
+		WithName("test-provider")(opts)
+		WithVersion("1.0.0")(opts)
+
+		_, exists := opts.components[resource]
+		assert.True(t, exists)
+		assert.Equal(t, "test-provider", opts.name)
+		assert.Equal(t, "1.0.0", opts.version)
+	})
 }

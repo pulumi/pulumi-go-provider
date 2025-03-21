@@ -21,16 +21,18 @@ import (
 	"github.com/pulumi/pulumi-go-provider/examples/component-program/nested"
 )
 
-// We need to register all the component resource types we want to expose during initialization.
-func init() {
-	component.RegisterType(component.ProgramComponent(
-		component.ConstructorFn[RandomComponentArgs, *RandomComponent](NewMyComponent)))
-	component.RegisterType(component.ProgramComponent(
-		component.ConstructorFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent)))
-}
-
 func main() {
-	if err := component.ProviderHost("go-components", "0.0.1"); err != nil {
+	err := component.ProviderHost(
+		component.WithName("go-components"),
+		component.WithVersion("v0.0.1"),
+		component.WithResources(
+			component.ProgramComponent(
+				component.ConstructorFn[RandomComponentArgs, *RandomComponent](NewMyComponent)),
+			component.ProgramComponent(
+				component.ConstructorFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent))),
+	)
+
+	if err != nil {
 		panic(err)
 	}
 }
