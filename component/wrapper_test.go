@@ -62,19 +62,27 @@ func TestProviderHost(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "no resource components were registered with the provider", err.Error())
 
+	errChan := make(chan error)
 	go func() {
 		// Start the provider in a separate goroutine as it blocks the main thread.
-		err := ProviderHost(WithResources(ProgramComponent(NewMockComponentResource)))
+		errChan <- ProviderHost(WithResources(ProgramComponent(NewMockComponentResource)))
 		require.NoError(t, err)
 	}()
 
-	time.Sleep(2 * time.Second) // Wait for the provider to start to ensure it doesn't error.
+	select {
+	case err := <-errChan:
+		require.NoError(t, err, "provider startup should not fail")
+	case <-time.After(5 * time.Second):
+		return // The provider started successfully, so we can return.
+	}
+
 }
 func TestProviderOptions(t *testing.T) {
 	t.Parallel()
 
 	// Test WithResource
 	t.Run("WithResource", func(t *testing.T) {
+		t.Parallel()
 		opts := &providerOpts{
 			components: make(map[Resource]struct{}),
 		}
@@ -88,6 +96,7 @@ func TestProviderOptions(t *testing.T) {
 
 	// Test WithName
 	t.Run("WithName", func(t *testing.T) {
+		t.Parallel()
 		opts := &providerOpts{}
 		WithName("test-provider")(opts)
 
@@ -96,6 +105,7 @@ func TestProviderOptions(t *testing.T) {
 
 	// Test WithVersion
 	t.Run("WithVersion", func(t *testing.T) {
+		t.Parallel()
 		opts := &providerOpts{}
 		WithVersion("1.0.0")(opts)
 
@@ -104,6 +114,7 @@ func TestProviderOptions(t *testing.T) {
 
 	// Test multiple options together
 	t.Run("MultipleOptions", func(t *testing.T) {
+		t.Parallel()
 		opts := &providerOpts{
 			components: make(map[Resource]struct{}),
 		}
