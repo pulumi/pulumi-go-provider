@@ -29,15 +29,6 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-// ComponentResource may be turned into an [InferredComponent] with [Component].
-type ComponentResource[I any, O pulumi.ComponentResource] interface {
-	// Construct a component resource
-	//
-	// ctx.RegisterResource needs to be called, but ctx.RegisterOutputs does not need to
-	// be called.
-	Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error)
-}
-
 // InferredComponent is a component resource inferred from code.
 //
 // To create an [InferredComponent], call the [Component] function.
@@ -50,14 +41,24 @@ type InferredComponent interface {
 
 func (derivedComponentController[R, I, O]) isInferredComponent() {}
 
-// Component defines a component resource from go code. Here `R` is the component resource
-// anchor, `I` describes its inputs and `O` its outputs. To add descriptions to `R`, `I`
-// and `O`, see the `Annotated` trait defined in this module.
-func Component[R ComponentResource[I, O], I any, O pulumi.ComponentResource]() InferredComponent {
-	return &derivedComponentController[R, I, O]{}
+// ComponentFn describes the type signature of a Pulumi component resource defined in Go.
+type ComponentFn[A any, R pulumi.ComponentResource] = func(
+	ctx *pulumi.Context, name string, args A, opts ...pulumi.ResourceOption,
+) (R, error)
+
+// Component creates an [InferredComponent] using functions and types that a existing Pulumi component program
+// would have implemented.
+//
+// fn is the function you would use to construct the program.
+//
+// See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
+func Component[A any, R pulumi.ComponentResource, F ComponentFn[A, R]](fn F) InferredComponent {
+	return &derivedComponentController[R, A, R]{fn}
 }
 
-type derivedComponentController[R ComponentResource[I, O], I any, O pulumi.ComponentResource] struct{}
+type derivedComponentController[R any, I any, O pulumi.ComponentResource] struct {
+	construct ComponentFn[I, O]
+}
 
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error) {
@@ -85,7 +86,6 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 		func(
 			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
 		) (pulumi.ComponentResource, error) {
-			var r R
 			var i I
 			urn := req.URN
 			err := inputs.CopyTo(&i)
@@ -93,10 +93,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 				return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
 					urn.Name(), urn.Type(), err)
 			}
-			res, err := r.Construct(ctx,
-				urn.Name(),
-				urn.Type().String(),
-				i, opts)
+			res, err := rc.construct(ctx, urn.Name(), i, opts)
 			if err != nil {
 				return nil, err
 			}

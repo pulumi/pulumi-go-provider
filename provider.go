@@ -1227,3 +1227,18 @@ func (e internalError) Error() string {
 }
 
 func (e internalError) Unwrap() error { return e.err }
+
+// GetTypeToken returns the type associated with the current call.
+//
+// ctx can either be the [context.Context] associated with currently gRPC method being
+// served or a [*pulumi.Context] within [github.com/pulumi/pulumi-go-provider/infer]'s
+// component resources.
+//
+// If no type token is available, then the empty string will be returned.
+func GetTypeToken[Ctx interface{ Value(any) any }](ctx Ctx) string {
+	urn, _ := ctx.Value(key.URN).(presource.URN)
+	if urn.IsValid() {
+		return urn.Type().String()
+	}
+	return ""
+}

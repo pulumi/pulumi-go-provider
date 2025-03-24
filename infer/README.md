@@ -14,14 +14,13 @@ To encapsulate the idea of a new component resource, we define the resource, its
 and its outputs:
 
 ```go
-type Login struct{}
 type LoginArgs struct {
-  PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
-  PetName        bool               `pulumi:"petName"`
+	 PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
+	 PetName        bool               `pulumi:"petName"`
 }
 
-type LoginState struct {
-  pulumi.ResourceState
+type Login struct {
+	 pulumi.ResourceState
 
 	 PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
 	 PetName        bool               `pulumi:"petName"`
@@ -46,10 +45,10 @@ Now that we have defined the type of the component, we need to define how to act
 construct the component resource:
 
 ```go
-func (r *Login) Construct(ctx *pulumi.Context, name, typ string, args LoginArgs, opts pulumi.ResourceOption) (
- *LoginState, error) {
-	comp := &LoginState{}
-	err := ctx.RegisterComponentResource(typ, name, comp, opts)
+func NewLogin(ctx *pulumi.Context, name string, args LoginArgs, opts ...pulumi.ResourceOption) (
+ *Login, error) {
+	comp := &Login{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +102,7 @@ func main() {
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
 		Components: []infer.InferredComponent{
-			infer.Component[*Login, LoginArgs, *LoginState](),
+			infer.Component(NewLogin),
 		},
 	})
 }

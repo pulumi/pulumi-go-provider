@@ -60,6 +60,7 @@ const schema = `{
       "isComponent": true
     },
     "random-login:index:RandomLogin": {
+      "description": "Generate a random login.",
       "properties": {
         "password": {
           "type": "string"
@@ -69,7 +70,8 @@ const schema = `{
         },
         "petName": {
           "type": "boolean",
-          "plain": true
+          "plain": true,
+          "description": "Whether to use a memorable pet name or a random string for the Username."
         },
         "username": {
           "type": "string"

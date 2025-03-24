@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"time"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
@@ -26,10 +25,10 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*RandomSalt, RandomSaltArgs, RandomSaltState]()},
+		Resources: []infer.InferredResource{infer.Resource[*RandomSalt]()},
 		Components: []infer.InferredComponent{
-			infer.Component[*RandomLogin, RandomLoginArgs, *RandomLoginOutput](),
-			infer.Component[*MoreRandomPassword, MoreRandomPasswordArgs, *MoreRandomPasswordState](),
+			infer.Component(NewRandomLogin),
+			infer.Component(NewMoreRandomPassword),
 		},
 		Config: infer.Config[Config](),
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
@@ -40,22 +39,21 @@ func provider() p.Provider {
 
 // TODO: Deserialization does not yet work for external resources. Right now, it looks
 // like this structure is only implementable in typescript, but that will need to change.
-type MoreRandomPassword struct{}
 type MoreRandomPasswordArgs struct {
 	Length *random.RandomInteger `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
 }
 
-type MoreRandomPasswordState struct {
+type MoreRandomPassword struct {
 	pulumi.ResourceState
 	Length   *random.RandomInteger  `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
 	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
 }
 
-func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, args MoreRandomPasswordArgs, opts pulumi.ResourceOption) (*MoreRandomPasswordState, error) {
-	comp := &MoreRandomPasswordState{
+func NewMoreRandomPassword(ctx *pulumi.Context, name string, args MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
+	comp := &MoreRandomPassword{
 		Length: args.Length,
 	}
-	err := ctx.RegisterComponentResource(typ, name, comp, opts)
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,27 +71,26 @@ func (r *MoreRandomPassword) Construct(ctx *pulumi.Context, name, typ string, ar
 	if err != nil {
 		return nil, err
 	}
+
 	return comp, nil
 }
 
-type RandomLogin struct{}
 type RandomLoginArgs struct {
 	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
 	PetName        bool               `pulumi:"petName"`
 }
 
-type RandomLoginOutput struct {
+type RandomLogin struct {
 	pulumi.ResourceState
-	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
-	PetName        bool               `pulumi:"petName"`
-	// Outputs
+	RandomLoginArgs
+
 	Username pulumi.StringOutput `pulumi:"username"`
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginOutput, error) {
-	comp := &RandomLoginOutput{}
-	err := ctx.RegisterComponentResource(typ, name, comp, opts)
+func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts ...pulumi.ResourceOption) (*RandomLogin, error) {
+	comp := &RandomLogin{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +124,11 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args Rand
 	return comp, nil
 }
 
+func (l *RandomLogin) Annotate(a infer.Annotator) {
+	a.Describe(&l, "Generate a random login.")
+	a.Describe(&l.PetName, "Whether to use a memorable pet name or a random string for the Username.")
+}
+
 type RandomSalt struct{}
 
 type RandomSaltState struct {
@@ -144,7 +146,6 @@ type RandomSaltArgs struct {
 func makeSalt(length int) string {
 	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	b := make([]rune, length)
-	rand.Seed(time.Now().UnixNano())
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
