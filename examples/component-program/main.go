@@ -12,27 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package main shows how a simple comoponent provider can be created using existing
+// package main shows how a simple component provider can be created using existing
 // Pulumi programs that contain components.
 package main
 
 import (
-	"github.com/pulumi/pulumi-go-provider/component"
+	"fmt"
+	"os"
+
 	"github.com/pulumi/pulumi-go-provider/examples/component-program/nested"
+	"github.com/pulumi/pulumi-go-provider/infer"
 )
 
 func main() {
-	err := component.ProviderHost(
-		component.WithName("go-components"),
-		component.WithVersion("v0.0.1"),
-		component.WithResources(
-			component.ProgramComponent(
-				component.ComponentFn[RandomComponentArgs, *RandomComponent](NewMyComponent)),
-			component.ProgramComponent(
-				component.ComponentFn[nested.NestedRandomComponentArgs, *nested.NestedRandomComponent](nested.CreateNestedRandomComponent))),
-	)
+	err := infer.Default().
+		WithName("go-components").
+		WithVersion("v0.0.1").
+		WithComponent(
+			infer.ProgramComponent(NewMyComponent),
+			infer.ProgramComponent(nested.CreateNestedRandomComponent),
+		).BuildAndRun()
 
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "Error: "+err.Error())
+		os.Exit(1)
 	}
 }
