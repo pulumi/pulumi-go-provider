@@ -87,3 +87,5 @@ examples/%/test: bin/examples/pulumi-resource-%
 		rm -r examples/$*/consumer/state && \
 		echo 'Integration test for "$*" complete' \
 	|| exit 1; fi
+
+examples/random-login/test: examples/random-login/gen-sdk
