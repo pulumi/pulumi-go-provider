@@ -30,7 +30,7 @@ import (
 
 type Foo struct{ pulumi.ComponentResource }
 
-func (*Foo) Construct(ctx *pulumi.Context, name string, typ string, inputs FooArgs, opts pulumi.ResourceOption) (*Foo, error) {
+func NewFoo(ctx *pulumi.Context, name string, inputs FooArgs, opts ...pulumi.ResourceOption) (*Foo, error) {
 	return nil, nil
 }
 
@@ -47,7 +47,7 @@ type Bundle struct {
 func provider() integration.Server {
 	return integration.NewServer("foo", semver.Version{Major: 1},
 		infer.Provider(infer.Options{
-			Components: []infer.InferredComponent{infer.Component[*Foo, FooArgs, *Foo]()},
+			Components: []infer.InferredComponent{infer.Component(NewFoo)},
 		}),
 	)
 }

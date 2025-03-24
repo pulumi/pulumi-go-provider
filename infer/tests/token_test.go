@@ -50,13 +50,11 @@ type TokenResult struct {
 
 type TokenComponent struct{ pulumi.ResourceState }
 
-type ComponentToken struct{}
-
 // Check that we allow other capitalization schemes
-func (c *ComponentToken) Annotate(a infer.Annotator) { a.SetToken("cmp", "tK") }
+func (c *TokenComponent) Annotate(a infer.Annotator) { a.SetToken("cmp", "tK") }
 
-func (*ComponentToken) Construct(
-	ctx *pulumi.Context, name, typ string, inputs TokenArgs, opts pulumi.ResourceOption,
+func Construct(
+	ctx *pulumi.Context, name string, inputs TokenArgs, opts ...pulumi.ResourceOption,
 ) (*TokenComponent, error) {
 	panic("unimplemented")
 }
@@ -83,7 +81,7 @@ func TestTokens(t *testing.T) {
 			infer.Resource[*CustomToken, TokenArgs, TokenResult](),
 		},
 		Components: []infer.InferredComponent{
-			infer.Component[*ComponentToken, TokenArgs, *TokenComponent](),
+			infer.Component(Construct),
 		},
 		Functions: []infer.InferredFunction{
 			infer.Function[*FnToken, TokenArgs, TokenResult](),
