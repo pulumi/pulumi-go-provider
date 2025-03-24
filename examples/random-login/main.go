@@ -9,10 +9,14 @@ import (
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	randomlogin "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	pschema "github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	goGen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 )
 
 func main() {
@@ -33,6 +37,13 @@ func provider() p.Provider {
 		Config: infer.Config[Config](),
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
+		},
+		Metadata: pschema.Metadata{
+			LanguageMap: map[string]any{
+				"go": goGen.GoPackageInfo{
+					ImportBasePath: "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin",
+				},
+			},
 		},
 	})
 }
@@ -109,17 +120,22 @@ func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts
 		}
 		comp.Username = id.ID().ToStringOutput()
 	}
-	var length pulumi.IntInput = pulumi.Int(16)
-	if args.PasswordLength != nil {
-		length = args.PasswordLength.ToIntPtrOutput().Elem()
+
+	// create a variable-length password using a nested component
+	length, err := random.NewRandomInteger(ctx, name+"-length", &random.RandomIntegerArgs{
+		Min: pulumi.Int(8),
+		Max: pulumi.Int(24),
+	}, pulumi.Parent(comp))
+	if err != nil {
+		return nil, err
 	}
-	password, err := random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
+	password, err := randomlogin.NewMoreRandomPassword(ctx, name+"-password", &randomlogin.MoreRandomPasswordArgs{
 		Length: length,
 	}, pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}
-	comp.Password = password.Result
+	comp.Password = password.Password.Result()
 
 	return comp, nil
 }
