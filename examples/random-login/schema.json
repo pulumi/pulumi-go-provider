@@ -4,6 +4,11 @@
   "meta": {
     "moduleFormat": "(.*)"
   },
+  "language": {
+    "go": {
+      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
+    }
+  },
   "config": {
     "variables": {
       "itsasecret": {
