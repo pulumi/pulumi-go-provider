@@ -40,7 +40,7 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.Describe(&m.Fizz, "Fizz is not MyStruct.Foo.")
 	a.SetDefault(&m.Foo, "Fizz")
 	a.SetToken("myMod", "MyToken")
-	a.SetResourceDeprecationMessage("This resource is deprecated.")
+	a.Deprecate("This resource is deprecated.")
 	a.AddAlias("myMod", "MyAlias")
 }
 

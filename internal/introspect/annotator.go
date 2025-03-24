@@ -97,7 +97,7 @@ func (a *Annotator) AddAlias(module tokens.ModuleName, token tokens.TypeName) {
 	a.Aliases = append(a.Aliases, formatToken(module, token))
 }
 
-func (a *Annotator) SetResourceDeprecationMessage(message string) {
+func (a *Annotator) Deprecate(message string) {
 	a.DeprecationMessage = message
 }
 
