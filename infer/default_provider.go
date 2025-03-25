@@ -33,7 +33,7 @@ type DefaultProvider struct {
 }
 
 // NewDefaultProvider creates an inferred provider which fills as many defaults as possible.
-func NewDefaultProvider() *DefaultProvider {
+func NewDefaultProvider(opts *Options) *DefaultProvider {
 	defaultMetadata := schema.Metadata{
 		LanguageMap: map[string]any{
 			"nodejs": map[string]any{
@@ -58,9 +58,37 @@ func NewDefaultProvider() *DefaultProvider {
 		},
 	}
 
-	return &DefaultProvider{
-		metadata: defaultMetadata,
+	if opts == nil {
+		return &DefaultProvider{
+			metadata: defaultMetadata,
+		}
 	}
+
+	dp := &DefaultProvider{
+		metadata: schema.Metadata{
+			LanguageMap:       opts.Metadata.LanguageMap,
+			Description:       opts.Metadata.Description,
+			DisplayName:       opts.Metadata.DisplayName,
+			Keywords:          opts.Metadata.Keywords,
+			Homepage:          opts.Metadata.Homepage,
+			Repository:        opts.Metadata.Repository,
+			Publisher:         opts.Metadata.Publisher,
+			LogoURL:           opts.Metadata.LogoURL,
+			License:           opts.Metadata.License,
+			PluginDownloadURL: opts.Metadata.PluginDownloadURL,
+		},
+		resources:  opts.Resources,
+		components: opts.Components,
+		functions:  opts.Functions,
+		config:     opts.Config,
+		moduleMap:  opts.ModuleMap,
+	}
+
+	if dp.metadata.LanguageMap == nil {
+		dp.metadata.LanguageMap = defaultMetadata.LanguageMap
+	}
+
+	return dp
 }
 
 // WithResources adds the given custom resources to the provider.

@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	err := infer.NewDefaultProvider().
+	err := infer.NewDefaultProvider(nil).
 		WithName("go-components").
 		WithVersion("v0.0.1").
 		WithComponents(
