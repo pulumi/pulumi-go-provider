@@ -10,7 +10,6 @@ import (
 	"time"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	randomlogin "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	pschema "github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
@@ -132,13 +131,16 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args Rand
 	if err != nil {
 		return nil, err
 	}
-	password, err := randomlogin.NewMoreRandomPassword(ctx, name+"-password", &randomlogin.MoreRandomPasswordArgs{
+
+	moreRndPwdCtrl := &MoreRandomPassword{}
+	password, err := moreRndPwdCtrl.Construct(ctx, name+"-password", "random-login:index:MoreRandomPassword", MoreRandomPasswordArgs{
+		// password, err := randomlogin.NewMoreRandomPassword(ctx, name+"-password", &randomlogin.MoreRandomPasswordArgs{
 		Length: length,
 	}, pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}
-	comp.Password = password.Password.Result()
+	comp.Password = password.Password.Result
 
 	return comp, nil
 }
