@@ -17,7 +17,7 @@
 package main
 
 import (
-	"github.com/pulumi/pulumi-go-provider/examples/component-program/nested"
+	"github.com/pulumi/pulumi-go-provider/examples/component-provider/nested"
 	"github.com/pulumi/pulumi-go-provider/infer"
 )
 
