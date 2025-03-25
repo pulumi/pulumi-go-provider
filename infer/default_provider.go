@@ -33,6 +33,37 @@ type DefaultProvider struct {
 }
 
 // NewDefaultProvider creates an inferred provider which fills as many defaults as possible.
+//
+// A base set of defaults are provided to create a minimal provider, but can be initially overridden by
+// passing in an [Options] struct. Further customization can be done by chaining method calls
+// on the returned [DefaultProvider] object.
+//
+// This is an example of how to create a simple provider with a single component resource:
+//
+//	type RandomComponent struct {
+//		pulumi.ResourceState
+//		RandomComponentArgs
+//	 	Password        pulumi.StringOutput `pulumi:"password"`
+//	}
+//
+//	type RandomComponentArgs struct {
+//		Length pulumi.IntInput `pulumi:"length"`
+//	}
+//
+//	func NewMyComponent(ctx *pulumi.Context, name string,
+//			compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+//		// Define your component constructor logic here.
+//	}
+//
+//	func main() {
+//		err := infer.NewDefaultProvider(nil).
+//			WithName("go-components").
+//			WithVersion("v0.0.1").
+//			WithComponents(
+//				infer.Component(NewMyComponent),
+//			).
+//			BuildAndRun()
+//	}
 func NewDefaultProvider(opts *Options) *DefaultProvider {
 	defaultMetadata := schema.Metadata{
 		LanguageMap: map[string]any{
