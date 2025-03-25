@@ -313,9 +313,8 @@ func TestValidate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+//nolint:paralleltest // Running in parallel causes a data race.
 func TestBuildAndRun(t *testing.T) {
-	t.Parallel()
-
 	// 1. Create a provider without any components and ensure that it returns an error.
 	err := NewDefaultProvider().BuildAndRun()
 	require.Error(t, err)
@@ -323,15 +322,16 @@ func TestBuildAndRun(t *testing.T) {
 	// 2. Create a provider with a component and ensure that it starts successfully by starting the
 	// provider in a separate goroutine as it blocks the main thread.
 	errChan := make(chan error)
-	go func() {
-		errChan <- NewDefaultProvider().
+
+	go func(errCh chan error) {
+		errCh <- NewDefaultProvider().
 			WithComponents(Component(NewMockComponentResource)).
 			WithName("test-provider").
 			WithVersion("1.0.0").
 			BuildAndRun()
 
-		close(errChan)
-	}()
+		close(errCh)
+	}(errChan)
 
 	select {
 	case err := <-errChan:
@@ -339,5 +339,4 @@ func TestBuildAndRun(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		return // The provider started successfully, so we can return.
 	}
-
 }
