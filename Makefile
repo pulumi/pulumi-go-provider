@@ -59,6 +59,11 @@ bin/examples/pulumi-resource-%: $$(shell $${HELPMAKEGO} examples/$$*)
 examples/%/schema.json: bin/examples/pulumi-resource-%
 	pulumi package get-schema ./$< > $@
 
+# Generate a Go SDK from an example provider schema
+.PHONY: examples/%/gen-sdk
+examples/%/gen-sdk:  examples/%/schema.json
+	@cd examples/$* && pulumi package gen-sdk ./schema.json --language go # Run schema generation
+
 .PHONY: examples/%/test
 export PULUMI_CONFIG_PASSPHRASE := "not-secret"
 examples/%/test: bin/examples/pulumi-resource-%
