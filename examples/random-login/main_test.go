@@ -70,9 +70,6 @@ const schema = `{
         "password": {
           "type": "string"
         },
-        "passwordLength": {
-          "type": "integer"
-        },
         "petName": {
           "type": "boolean",
           "plain": true,
@@ -83,22 +80,17 @@ const schema = `{
         }
       },
       "required": [
-        "passwordLength",
         "petName",
         "username",
         "password"
       ],
       "inputProperties": {
-        "passwordLength": {
-          "type": "integer"
-        },
         "petName": {
           "type": "boolean",
           "plain": true
         }
       },
       "requiredInputs": [
-        "passwordLength",
         "petName"
       ],
       "isComponent": true
