@@ -15,10 +15,9 @@ import (
 type RandomLogin struct {
 	pulumi.ResourceState
 
-	Password       pulumi.StringOutput `pulumi:"password"`
-	PasswordLength pulumi.IntOutput    `pulumi:"passwordLength"`
-	PetName        pulumi.BoolOutput   `pulumi:"petName"`
-	Username       pulumi.StringOutput `pulumi:"username"`
+	Password pulumi.StringOutput `pulumi:"password"`
+	PetName  pulumi.BoolOutput   `pulumi:"petName"`
+	Username pulumi.StringOutput `pulumi:"username"`
 }
 
 // NewRandomLogin registers a new resource with the given unique name, arguments, and options.
@@ -28,9 +27,6 @@ func NewRandomLogin(ctx *pulumi.Context,
 		return nil, errors.New("missing one or more required arguments")
 	}
 
-	if args.PasswordLength == nil {
-		return nil, errors.New("invalid value for required argument 'PasswordLength'")
-	}
 	opts = internal.PkgResourceDefaultOpts(opts)
 	var resource RandomLogin
 	err := ctx.RegisterRemoteComponentResource("random-login:index:RandomLogin", name, args, &resource, opts...)
@@ -41,14 +37,12 @@ func NewRandomLogin(ctx *pulumi.Context,
 }
 
 type randomLoginArgs struct {
-	PasswordLength int  `pulumi:"passwordLength"`
-	PetName        bool `pulumi:"petName"`
+	PetName bool `pulumi:"petName"`
 }
 
 // The set of arguments for constructing a RandomLogin resource.
 type RandomLoginArgs struct {
-	PasswordLength pulumi.IntInput
-	PetName        bool
+	PetName bool
 }
 
 func (RandomLoginArgs) ElementType() reflect.Type {
@@ -90,10 +84,6 @@ func (o RandomLoginOutput) ToRandomLoginOutputWithContext(ctx context.Context) R
 
 func (o RandomLoginOutput) Password() pulumi.StringOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.StringOutput { return v.Password }).(pulumi.StringOutput)
-}
-
-func (o RandomLoginOutput) PasswordLength() pulumi.IntOutput {
-	return o.ApplyT(func(v *RandomLogin) pulumi.IntOutput { return v.PasswordLength }).(pulumi.IntOutput)
 }
 
 func (o RandomLoginOutput) PetName() pulumi.BoolOutput {

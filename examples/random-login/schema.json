@@ -55,9 +55,6 @@
         "password": {
           "type": "string"
         },
-        "passwordLength": {
-          "type": "integer"
-        },
         "petName": {
           "type": "boolean",
           "plain": true,
@@ -70,21 +67,16 @@
       "type": "object",
       "required": [
         "password",
-        "passwordLength",
         "petName",
         "username"
       ],
       "inputProperties": {
-        "passwordLength": {
-          "type": "integer"
-        },
         "petName": {
           "type": "boolean",
           "plain": true
         }
       },
       "requiredInputs": [
-        "passwordLength",
         "petName"
       ],
       "isComponent": true

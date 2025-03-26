@@ -87,8 +87,7 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args MoreRandomPass
 }
 
 type RandomLoginArgs struct {
-	PasswordLength pulumi.IntPtrInput `pulumi:"passwordLength"`
-	PetName        bool               `pulumi:"petName"`
+	PetName bool `pulumi:"petName"`
 }
 
 type RandomLogin struct {
