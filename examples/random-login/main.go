@@ -49,7 +49,7 @@ type MoreRandomPassword struct {
 	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
 }
 
-func NewMoreRandomPassword(ctx *pulumi.Context, name string, args MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
+func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
 	comp := &MoreRandomPassword{
 		Length: args.Length,
 	}
