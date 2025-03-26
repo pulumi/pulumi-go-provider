@@ -89,15 +89,9 @@ func TestNewDefaultProvider(t *testing.T) {
 			"respectSchemaVersion":           true,
 		},
 		"python": map[string]any{
-			"requires": map[string]any{
-				"pulumi": ">=3.0.0,<4.0.0",
-			},
 			"respectSchemaVersion": true,
 		},
 		"csharp": map[string]any{
-			"packageReferences": map[string]any{
-				"Pulumi": "3.*",
-			},
 			"respectSchemaVersion": true,
 		},
 	}
