@@ -123,51 +123,64 @@ func (dp *DefaultProvider) WithModuleMap(moduleMap map[tokens.ModuleName]tokens.
 	return dp
 }
 
+// WithLanguageMap sets the language map in the provider's metadata.
+// The language map is a mapping of language names to language-specific metadata.
+// This is used to customize how the provider is exposed in different languages.
 func (dp *DefaultProvider) WithLanguageMap(languageMap map[string]any) *DefaultProvider {
 	dp.metadata.LanguageMap = languageMap
 	return dp
 }
 
+// WithDescription sets the description for the provider.
 func (dp *DefaultProvider) WithDescription(description string) *DefaultProvider {
 	dp.metadata.Description = description
 	return dp
 }
 
+// WithDisplayName sets the display name for the provider.
 func (dp *DefaultProvider) WithDisplayName(displayName string) *DefaultProvider {
 	dp.metadata.DisplayName = displayName
 	return dp
 }
 
+// WithKeywords adds the specified keywords to the provider's metadata.
+// These keywords can be used to improve discoverability of the provider.
 func (dp *DefaultProvider) WithKeywords(keywords ...string) *DefaultProvider {
 	dp.metadata.Keywords = append(dp.metadata.Keywords, keywords...)
 	return dp
 }
 
+// WithHomepage sets the homepage field in the provider metadata.
 func (dp *DefaultProvider) WithHomepage(homepage string) *DefaultProvider {
 	dp.metadata.Homepage = homepage
 	return dp
 }
 
+// WithRepository sets the repository for the provider.
 func (dp *DefaultProvider) WithRepository(repository string) *DefaultProvider {
 	dp.metadata.Repository = repository
 	return dp
 }
 
+// WithPublisher sets the publisher name for the provider.
 func (dp *DefaultProvider) WithPublisher(publisher string) *DefaultProvider {
 	dp.metadata.Publisher = publisher
 	return dp
 }
 
+// WithLogoURL sets the logo URL for the provider.
 func (dp *DefaultProvider) WithLogoURL(logoURL string) *DefaultProvider {
 	dp.metadata.LogoURL = logoURL
 	return dp
 }
 
+// WithLicense sets the license for the provider.
 func (dp *DefaultProvider) WithLicense(license string) *DefaultProvider {
 	dp.metadata.License = license
 	return dp
 }
 
+// WithPluginDownloadURL sets the URL from which to download the provider's plugin.
 func (dp *DefaultProvider) WithPluginDownloadURL(pluginDownloadURL string) *DefaultProvider {
 	dp.metadata.PluginDownloadURL = pluginDownloadURL
 	return dp
