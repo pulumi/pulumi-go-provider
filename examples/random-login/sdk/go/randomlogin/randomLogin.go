@@ -12,10 +12,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// Generate a random login.
 type RandomLogin struct {
 	pulumi.ResourceState
 
 	Password pulumi.StringOutput `pulumi:"password"`
+	// Whether to use a memorable pet name or a random string for the Username.
 	PetName  pulumi.BoolOutput   `pulumi:"petName"`
 	Username pulumi.StringOutput `pulumi:"username"`
 }
@@ -86,6 +88,7 @@ func (o RandomLoginOutput) Password() pulumi.StringOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.StringOutput { return v.Password }).(pulumi.StringOutput)
 }
 
+// Whether to use a memorable pet name or a random string for the Username.
 func (o RandomLoginOutput) PetName() pulumi.BoolOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.BoolOutput { return v.PetName }).(pulumi.BoolOutput)
 }
