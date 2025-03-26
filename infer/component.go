@@ -17,6 +17,7 @@ package infer
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -88,7 +89,17 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 		) (pulumi.ComponentResource, error) {
 			var i I
 			urn := req.URN
-			err := inputs.CopyTo(&i)
+			var err error
+
+			// The input to [inputs.CopyTo] must be a pointer to a struct.
+			if reflect.TypeFor[I]().Kind() == reflect.Pointer {
+				// If I = *T for some underlying T, then Zero[I]() == nil,
+				// here we set it to &T{}.
+				i = reflect.New(reflect.TypeFor[I]().Elem()).Interface().(I)
+				err = inputs.CopyTo(i)
+			} else {
+				err = inputs.CopyTo(&i)
+			}
 			if err != nil {
 				return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
 					urn.Name(), urn.Type(), err)
