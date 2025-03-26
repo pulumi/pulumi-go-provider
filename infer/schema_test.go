@@ -38,7 +38,7 @@ func TestResourceAnnotations(t *testing.T) {
 	require.NoError(t, err.ErrorOrNil())
 
 	require.Len(t, spec.Aliases, 1)
-	assert.Equal(t, "pkg:myMod:MyAlias", *spec.Aliases[0].Type)
+	assert.Equal(t, "pkg:myMod:MyAlias", spec.Aliases[0].Type)
 
 	require.Equal(t, "This is a test resource.", spec.Description)
 

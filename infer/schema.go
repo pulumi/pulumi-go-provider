@@ -105,7 +105,7 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	var aliases []schema.AliasSpec
 	for _, alias := range annotations.Aliases {
 		a := alias
-		aliases = append(aliases, schema.AliasSpec{Type: &a})
+		aliases = append(aliases, schema.AliasSpec{Type: a})
 	}
 
 	return schema.ResourceSpec{
