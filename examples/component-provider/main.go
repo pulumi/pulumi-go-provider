@@ -22,9 +22,10 @@ import (
 )
 
 func main() {
-	err := infer.NewDefaultProvider(nil).
+	err := infer.NewDefaultProvider().
 		WithName("go-components").
 		WithVersion("v0.0.1").
+		WithNamespace("example-namespace").
 		WithComponents(
 			infer.Component(NewMyComponent),
 			infer.Component(nested.NewNestedRandomComponent),
