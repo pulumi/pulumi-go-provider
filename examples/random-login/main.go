@@ -9,7 +9,6 @@ import (
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	randomlogin "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	pschema "github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
@@ -128,13 +127,14 @@ func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts
 	if err != nil {
 		return nil, err
 	}
-	password, err := randomlogin.NewMoreRandomPassword(ctx, name+"-password", &randomlogin.MoreRandomPasswordArgs{
+
+	password, err := NewMoreRandomPassword(ctx, name+"-password", MoreRandomPasswordArgs{
 		Length: length,
 	}, pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}
-	comp.Password = password.Password.Result()
+	comp.Password = password.Password.Result
 
 	return comp, nil
 }
