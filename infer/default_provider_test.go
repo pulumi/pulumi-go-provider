@@ -252,16 +252,19 @@ func TestWithNamespace(t *testing.T) {
 	// Test with initial namespace
 	namespace := "test-namespace"
 	dp.WithNamespace(namespace)
-	assert.Equal(t, namespace, dp.namespace)
+	assert.Equal(t, namespace, dp.metadata.Namespace)
 
 	// Test with updated namespace
 	updatedNamespace := "updated-namespace"
 	dp.WithNamespace(updatedNamespace)
-	assert.Equal(t, updatedNamespace, dp.namespace)
+	assert.Equal(t, updatedNamespace, dp.metadata.Namespace)
 
 	finalNamespace := "final-namespace"
 	dp = dp.WithNamespace(finalNamespace)
-	assert.Equal(t, finalNamespace, dp.namespace)
+	assert.Equal(t, finalNamespace, dp.metadata.Namespace)
+
+	opts := dp.Build()
+	assert.Equal(t, finalNamespace, opts.Metadata.Namespace)
 }
 
 func TestBuild(t *testing.T) {

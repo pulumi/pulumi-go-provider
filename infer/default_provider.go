@@ -23,13 +23,13 @@ import (
 )
 
 type DefaultProvider struct {
-	name, namespace, version string
-	metadata                 schema.Metadata
-	resources                []InferredResource
-	components               []InferredComponent
-	functions                []InferredFunction
-	config                   InferredConfig
-	moduleMap                map[tokens.ModuleName]tokens.ModuleName
+	name, version string
+	metadata      schema.Metadata
+	resources     []InferredResource
+	components    []InferredComponent
+	functions     []InferredFunction
+	config        InferredConfig
+	moduleMap     map[tokens.ModuleName]tokens.ModuleName
 }
 
 // NewDefaultProvider creates an inferred provider which fills as many defaults as possible.
@@ -193,7 +193,7 @@ func (dp *DefaultProvider) WithVersion(version string) *DefaultProvider {
 
 // WithNamespace sets the provider namespace.
 func (dp *DefaultProvider) WithNamespace(namespace string) *DefaultProvider {
-	dp.namespace = namespace
+	dp.metadata.Namespace = namespace
 	return dp
 }
 

@@ -169,6 +169,8 @@ type Metadata struct {
 	License string
 	// PluginDownloadURL sets the [schema.PackageSpec.PluginDownloadURL] field.
 	PluginDownloadURL string
+	// Namespace sets the [schema.PackageSpec.Namespace] field.
+	Namespace string
 }
 
 // Wrap a provider with the facilities to serve GetSchema.
@@ -287,6 +289,7 @@ func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) 
 	info := p.GetRunInfo(ctx)
 	pkg := schema.PackageSpec{
 		Name:              info.PackageName,
+		Namespace:         s.Namespace,
 		Version:           info.Version,
 		DisplayName:       s.DisplayName,
 		Description:       s.Description,
