@@ -31,7 +31,9 @@ type NestedRandomComponentArgs struct {
 	Length pulumi.IntInput `pulumi:"length"`
 }
 
-func NewNestedRandomComponent(ctx *pulumi.Context, name string, compArgs NestedRandomComponentArgs, opts ...pulumi.ResourceOption) (*NestedRandomComponent, error) {
+// NewNestedRandomComponent creates a new instance of the NestedRandomComponent resource. Here, we showcase passing the args
+// as a pointer to the struct. The `infer` package supports both pointer and non-pointer structs.
+func NewNestedRandomComponent(ctx *pulumi.Context, name string, compArgs *NestedRandomComponentArgs, opts ...pulumi.ResourceOption) (*NestedRandomComponent, error) {
 	comp := &NestedRandomComponent{}
 	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx.Context()), name, comp, opts...)
 	if err != nil {
