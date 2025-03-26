@@ -23,13 +23,13 @@ import (
 )
 
 type DefaultProvider struct {
-	name, version string
-	metadata      schema.Metadata
-	resources     []InferredResource
-	components    []InferredComponent
-	functions     []InferredFunction
-	config        InferredConfig
-	moduleMap     map[tokens.ModuleName]tokens.ModuleName
+	name, namespace, version string
+	metadata                 schema.Metadata
+	resources                []InferredResource
+	components               []InferredComponent
+	functions                []InferredFunction
+	config                   InferredConfig
+	moduleMap                map[tokens.ModuleName]tokens.ModuleName
 }
 
 // NewDefaultProvider creates an inferred provider which fills as many defaults as possible.
@@ -56,7 +56,7 @@ type DefaultProvider struct {
 //	}
 //
 //	func main() {
-//		err := infer.NewDefaultProvider(nil).
+//		err := infer.NewDefaultProvider().
 //			WithName("go-components").
 //			WithVersion("v0.0.1").
 //			WithComponents(
@@ -64,7 +64,12 @@ type DefaultProvider struct {
 //			).
 //			BuildAndRun()
 //	}
-func NewDefaultProvider(opts *Options) *DefaultProvider {
+//
+// Please note that the initial defaults provided by this function may change with future releases of
+// this framework. Currently, we are setting the following defaults:
+//
+// - LanguageMap: A map of language-specific metadata that is used to generate the SDKs for the provider.
+func NewDefaultProvider() *DefaultProvider {
 	defaultMetadata := schema.Metadata{
 		LanguageMap: map[string]any{
 			"nodejs": map[string]any{
@@ -89,37 +94,9 @@ func NewDefaultProvider(opts *Options) *DefaultProvider {
 		},
 	}
 
-	if opts == nil {
-		return &DefaultProvider{
-			metadata: defaultMetadata,
-		}
+	return &DefaultProvider{
+		metadata: defaultMetadata,
 	}
-
-	dp := &DefaultProvider{
-		metadata: schema.Metadata{
-			LanguageMap:       opts.Metadata.LanguageMap,
-			Description:       opts.Metadata.Description,
-			DisplayName:       opts.Metadata.DisplayName,
-			Keywords:          opts.Metadata.Keywords,
-			Homepage:          opts.Metadata.Homepage,
-			Repository:        opts.Metadata.Repository,
-			Publisher:         opts.Metadata.Publisher,
-			LogoURL:           opts.Metadata.LogoURL,
-			License:           opts.Metadata.License,
-			PluginDownloadURL: opts.Metadata.PluginDownloadURL,
-		},
-		resources:  opts.Resources,
-		components: opts.Components,
-		functions:  opts.Functions,
-		config:     opts.Config,
-		moduleMap:  opts.ModuleMap,
-	}
-
-	if dp.metadata.LanguageMap == nil {
-		dp.metadata.LanguageMap = defaultMetadata.LanguageMap
-	}
-
-	return dp
 }
 
 // WithResources adds the given custom resources to the provider.
@@ -214,9 +191,15 @@ func (dp *DefaultProvider) WithVersion(version string) *DefaultProvider {
 	return dp
 }
 
+// WithNamespace sets the provider namespace.
+func (dp *DefaultProvider) WithNamespace(namespace string) *DefaultProvider {
+	dp.namespace = namespace
+	return dp
+}
+
 // Build constructs the provider options based on the current state of the default provider.
-func (dp *DefaultProvider) Build() *Options {
-	return &Options{
+func (dp *DefaultProvider) Build() Options {
+	return Options{
 		Metadata:   dp.metadata,
 		Resources:  dp.resources,
 		Components: dp.components,
@@ -231,8 +214,6 @@ func (dp *DefaultProvider) validate() error {
 	switch {
 	case dp.name == "":
 		return fmt.Errorf("provider name is required")
-	case dp.version == "":
-		return fmt.Errorf("provider version is required")
 	case len(dp.components) == 0 && len(dp.resources) == 0 && len(dp.functions) == 0:
 		return fmt.Errorf("at least one resource, component, or function is required")
 	}
@@ -247,5 +228,5 @@ func (dp *DefaultProvider) BuildAndRun() error {
 	}
 
 	opts := dp.Build()
-	return provider.RunProvider(dp.name, dp.version, Provider(*opts))
+	return provider.RunProvider(dp.name, dp.version, Provider(opts))
 }

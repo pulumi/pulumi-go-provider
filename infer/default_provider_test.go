@@ -51,8 +51,9 @@ type MockResourceArgs struct{}
 
 type MockResourceState struct{}
 
-//nolint:lll
-func (m MockResource) Create(ctx context.Context, name string, args MockResourceArgs, preview bool) (string, *MockResourceState, error) {
+func (m MockResource) Create(
+	ctx context.Context, name string, args MockResourceArgs, preview bool,
+) (string, *MockResourceState, error) {
 	return "", &MockResourceState{}, nil
 }
 
@@ -75,7 +76,7 @@ func (mf MockFunction) Call(ctx context.Context, args MockFunctionArgs) (MockFun
 
 func TestNewDefaultProvider(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 	assert.NotNil(t, dp)
 
 	// Verify default metadata is set correctly
@@ -102,26 +103,11 @@ func TestNewDefaultProvider(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedLangMap, dp.metadata.LanguageMap)
-
-	// Test that creating a new default provider with options sets the options correctly.
-	dp2 := NewDefaultProvider(&Options{
-		Resources:  []InferredResource{Resource[MockResource]()},
-		Components: []InferredComponent{Component(NewMockComponentResource)},
-		Functions:  []InferredFunction{Function[MockFunction]()},
-		Metadata: schema.Metadata{
-			Description: "Test Description",
-		},
-	})
-
-	assert.Equal(t, "Test Description", dp2.metadata.Description)
-	assert.Equal(t, 1, len(dp2.resources))
-	assert.Equal(t, 1, len(dp2.components))
-	assert.Equal(t, 1, len(dp2.functions))
 }
 
 func TestWithResources(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	resource1 := Resource[MockResource]()
 	resource2 := Resource[MockResource]()
@@ -141,7 +127,7 @@ func TestWithResources(t *testing.T) {
 
 func TestWithComponents(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	component1 := Component(NewMockComponentResource)
 	component2 := Component(NewMockComponentResource)
@@ -161,7 +147,7 @@ func TestWithComponents(t *testing.T) {
 
 func TestWithFunctions(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	function1 := Function[MockFunction]()
 	function2 := Function[MockFunction]()
@@ -187,7 +173,7 @@ func TestWithFunctions(t *testing.T) {
 
 func TestWithConfig(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	config := Config[MockConfig]()
 
@@ -198,7 +184,7 @@ func TestWithConfig(t *testing.T) {
 
 func TestWithModuleMap(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	moduleMap := map[tokens.ModuleName]tokens.ModuleName{
 		"module1": "mappedModule1",
@@ -211,7 +197,7 @@ func TestWithModuleMap(t *testing.T) {
 
 func TestWithLanguageMap(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	languageMap := map[string]any{
 		"go": map[string]any{
@@ -226,7 +212,7 @@ func TestWithLanguageMap(t *testing.T) {
 
 func TestWithMetadataFields(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	description := "Test description"
 	displayName := "Test Display Name"
@@ -259,9 +245,28 @@ func TestWithMetadataFields(t *testing.T) {
 	assert.Equal(t, pluginDownloadURL, dp.metadata.PluginDownloadURL)
 }
 
+func TestWithNamespace(t *testing.T) {
+	t.Parallel()
+	dp := NewDefaultProvider()
+
+	// Test with initial namespace
+	namespace := "test-namespace"
+	dp.WithNamespace(namespace)
+	assert.Equal(t, namespace, dp.namespace)
+
+	// Test with updated namespace
+	updatedNamespace := "updated-namespace"
+	dp.WithNamespace(updatedNamespace)
+	assert.Equal(t, updatedNamespace, dp.namespace)
+
+	finalNamespace := "final-namespace"
+	dp = dp.WithNamespace(finalNamespace)
+	assert.Equal(t, finalNamespace, dp.namespace)
+}
+
 func TestBuild(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	resource := Resource[MockResource]()
 	component := Component(NewMockComponentResource)
@@ -289,21 +294,15 @@ func TestBuild(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider(nil)
+	dp := NewDefaultProvider()
 
 	// Should fail with no name
 	err := dp.validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "provider name is required")
 
-	// Set name, should fail with no version
+	// Set name, should fail with no resources, components or functions
 	dp.WithName("test-provider")
-	err = dp.validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "provider version is required")
-
-	// Set version, should fail with no resources, components or functions
-	dp.WithVersion("1.0.0")
 	err = dp.validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one resource, component, or function is required")
@@ -314,14 +313,14 @@ func TestValidate(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Reset and test with component
-	dp = NewDefaultProvider(nil)
+	dp = NewDefaultProvider()
 	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithComponents(Component(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with function
-	dp = NewDefaultProvider(nil)
+	dp = NewDefaultProvider()
 	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithFunctions(Function[MockFunction]())
 	err = dp.validate()
@@ -331,7 +330,7 @@ func TestValidate(t *testing.T) {
 //nolint:paralleltest // Running in parallel causes a data race.
 func TestBuildAndRun(t *testing.T) {
 	// 1. Create a provider without any components and ensure that it returns an error.
-	err := NewDefaultProvider(nil).BuildAndRun()
+	err := NewDefaultProvider().BuildAndRun()
 	require.Error(t, err)
 
 	// 2. Create a provider with a component and ensure that it starts successfully by starting the
@@ -339,7 +338,7 @@ func TestBuildAndRun(t *testing.T) {
 	errChan := make(chan error)
 
 	go func(errCh chan error) {
-		errCh <- NewDefaultProvider(nil).
+		errCh <- NewDefaultProvider().
 			WithComponents(Component(NewMockComponentResource)).
 			WithName("test-provider").
 			WithVersion("1.0.0").
