@@ -91,6 +91,8 @@ func TestBasicConfig(t *testing.T) {
     },
     "response": {
       "inputs": {
+        "__pulumi-go-provider-infer": true,
+        "__pulumi-go-provider-version": "0.24.1",
         "a": [
           "one",
           "two"
@@ -313,6 +315,8 @@ func TestConfigWithSecrets(t *testing.T) {
     },
     "response": {
       "inputs": {
+        "__pulumi-go-provider-infer": true,
+        "__pulumi-go-provider-version": "0.24.1",
         "a": [
           "one",
           "two"
@@ -539,6 +543,8 @@ func TestJSONEncodedConfig(t *testing.T) {
     },
     "response": {
         "inputs": {
+            "__pulumi-go-provider-infer": true,
+            "__pulumi-go-provider-version": "0.24.1",
             "a": [
                 "one",
                 "two"

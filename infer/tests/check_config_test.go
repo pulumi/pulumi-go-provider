@@ -42,7 +42,8 @@ func TestCheckConfig(t *testing.T) {
 	// By default, check simply ensures that we can decode cleanly. It removes unknown
 	// fields so that diff doesn't trigger on changes to unwatched arguments.
 	assert.Equal(t, pMap{
-		"value": pString("foo"),
+		"value":                      pString("foo"),
+		"__pulumi-go-provider-infer": resource.NewBoolProperty(true),
 	}, resp.Inputs)
 }
 
@@ -64,17 +65,22 @@ func TestCheckConfigCustom(t *testing.T) {
 		assert.Equal(t, expected, resp.Inputs)
 	}
 
-	t.Run("empty", func(t *testing.T) { t.Parallel(); test(t, nil, pMap{}) })
+	t.Run("empty", func(t *testing.T) {
+		t.Parallel()
+		test(t, nil, pMap{
+			"__pulumi-go-provider-infer": resource.NewBoolProperty(true)})
+	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
 		test(t,
 			pMap{"unknownField": pString("bar")},
-			pMap{})
+			pMap{"__pulumi-go-provider-infer": resource.NewBoolProperty(true)})
 	})
 	t.Run("number", func(t *testing.T) {
 		t.Parallel()
 		test(t,
 			pMap{"number": pNumber(42)},
-			pMap{"number": pNumber(42.5)})
+			pMap{"number": pNumber(42.5),
+				"__pulumi-go-provider-infer": resource.NewBoolProperty(true)})
 	})
 }
