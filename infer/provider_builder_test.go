@@ -96,6 +96,7 @@ func TestNewDefaultProvider(t *testing.T) {
 		},
 	}
 
+	assert.Equal(t, "0.0.0", dp.version)
 	assert.Equal(t, expectedLangMap, dp.metadata.LanguageMap)
 }
 
