@@ -88,6 +88,9 @@ func NewProviderBuilder() *ProviderBuilder {
 	}
 
 	return &ProviderBuilder{
+		// Default the component provider schema version to "0.0.0" if not provided for now,
+		// otherwise SDK codegen gets confused without a version.
+		version:  "0.0.0",
 		metadata: defaultMetadata,
 	}
 }
