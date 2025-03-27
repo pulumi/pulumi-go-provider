@@ -50,6 +50,7 @@ func TestMergeSchema(t *testing.T) {
 		Metadata: schema.Metadata{
 			DisplayName: "bar",
 			Description: "foo",
+			Namespace:   "testns",
 		},
 		Resources: []schema.Resource{
 			&givenResource{"foo:index:foo", "from s1"},
@@ -78,6 +79,7 @@ func TestMergeSchema(t *testing.T) {
     "version": "2.0.0",
     "description": "foo",
     "homepage": "buzz",
+    "namespace": "testns",
     "config": {},
     "provider": {},
     "resources": {
