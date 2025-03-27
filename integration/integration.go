@@ -297,6 +297,10 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 				Olds: olds,
 				News: check.Inputs.Copy(),
 			})
+			if !update.ExpectFailure && err != nil {
+				assert.NoError(t, err, "failed to update the resource")
+				continue
+			}
 			if update.ExpectFailure {
 				assert.Errorf(t, err, "expected failure on update %d", i)
 				continue

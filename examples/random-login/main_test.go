@@ -168,6 +168,7 @@ func TestRandomSalt(t *testing.T) {
 					"saltedLength": 5,
 				}),
 				Hook: func(inputs, output presource.PropertyMap) {
+					t.Logf("OutputsUpdate: %v", output)
 					saltedPassword := output["saltedPassword"].StringValue()
 					assert.True(t, strings.HasSuffix(saltedPassword, "bar"), "password wrong")
 					assert.Len(t, saltedPassword, 8)
