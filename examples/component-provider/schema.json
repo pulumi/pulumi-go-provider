@@ -1,14 +1,12 @@
 {
   "name": "go-components",
   "version": "0.0.1",
+  "namespace": "example-namespace",
   "meta": {
     "moduleFormat": "(.*)"
   },
   "language": {
     "csharp": {
-      "packageReferences": {
-        "Pulumi": "3.*"
-      },
       "respectSchemaVersion": true
     },
     "go": {
@@ -19,9 +17,6 @@
       "respectSchemaVersion": true
     },
     "python": {
-      "requires": {
-        "pulumi": "\u003e=3.0.0,\u003c4.0.0"
-      },
       "respectSchemaVersion": true
     }
   },
