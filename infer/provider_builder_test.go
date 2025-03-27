@@ -76,7 +76,7 @@ func (mf MockFunction) Call(ctx context.Context, args MockFunctionArgs) (MockFun
 
 func TestNewDefaultProvider(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 	assert.NotNil(t, dp)
 
 	// Verify default metadata is set correctly
@@ -101,7 +101,7 @@ func TestNewDefaultProvider(t *testing.T) {
 
 func TestWithResources(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	resource1 := Resource[MockResource]()
 	resource2 := Resource[MockResource]()
@@ -121,7 +121,7 @@ func TestWithResources(t *testing.T) {
 
 func TestWithComponents(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	component1 := Component(NewMockComponentResource)
 	component2 := Component(NewMockComponentResource)
@@ -141,7 +141,7 @@ func TestWithComponents(t *testing.T) {
 
 func TestWithFunctions(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	function1 := Function[MockFunction]()
 	function2 := Function[MockFunction]()
@@ -167,7 +167,7 @@ func TestWithFunctions(t *testing.T) {
 
 func TestWithConfig(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	config := Config[MockConfig]()
 
@@ -178,7 +178,7 @@ func TestWithConfig(t *testing.T) {
 
 func TestWithModuleMap(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	moduleMap := map[tokens.ModuleName]tokens.ModuleName{
 		"module1": "mappedModule1",
@@ -191,7 +191,7 @@ func TestWithModuleMap(t *testing.T) {
 
 func TestWithLanguageMap(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	languageMap := map[string]any{
 		"go": map[string]any{
@@ -206,7 +206,7 @@ func TestWithLanguageMap(t *testing.T) {
 
 func TestWithMetadataFields(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	description := "Test description"
 	displayName := "Test Display Name"
@@ -241,7 +241,7 @@ func TestWithMetadataFields(t *testing.T) {
 
 func TestWithNamespace(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	// Test with initial namespace
 	namespace := "test-namespace"
@@ -257,13 +257,13 @@ func TestWithNamespace(t *testing.T) {
 	dp = dp.WithNamespace(finalNamespace)
 	assert.Equal(t, finalNamespace, dp.metadata.Namespace)
 
-	opts := dp.Build()
+	opts := dp.BuildOptions()
 	assert.Equal(t, finalNamespace, opts.Metadata.Namespace)
 }
 
 func TestBuild(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	resource := Resource[MockResource]()
 	component := Component(NewMockComponentResource)
@@ -279,7 +279,7 @@ func TestBuild(t *testing.T) {
 		WithConfig(config).
 		WithModuleMap(moduleMap)
 
-	options := dp.Build()
+	options := dp.BuildOptions()
 
 	assert.Equal(t, dp.metadata, options.Metadata)
 	assert.Equal(t, dp.resources, options.Resources)
@@ -291,7 +291,7 @@ func TestBuild(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
-	dp := NewDefaultProvider()
+	dp := NewProviderBuilder()
 
 	// Should fail with no name
 	err := dp.validate()
@@ -310,14 +310,14 @@ func TestValidate(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Reset and test with component
-	dp = NewDefaultProvider()
+	dp = NewProviderBuilder()
 	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithComponents(Component(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with function
-	dp = NewDefaultProvider()
+	dp = NewProviderBuilder()
 	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithFunctions(Function[MockFunction]())
 	err = dp.validate()
@@ -327,7 +327,7 @@ func TestValidate(t *testing.T) {
 //nolint:paralleltest // Running in parallel causes a data race.
 func TestBuildAndRun(t *testing.T) {
 	// 1. Create a provider without any components and ensure that it returns an error.
-	err := NewDefaultProvider().BuildAndRun()
+	err := NewProviderBuilder().BuildAndRun()
 	require.Error(t, err)
 
 	// 2. Create a provider with a component and ensure that it starts successfully by starting the
@@ -335,7 +335,7 @@ func TestBuildAndRun(t *testing.T) {
 	errChan := make(chan error)
 
 	go func(errCh chan error) {
-		errCh <- NewDefaultProvider().
+		errCh <- NewProviderBuilder().
 			WithComponents(Component(NewMockComponentResource)).
 			WithName("test-provider").
 			WithVersion("1.0.0").

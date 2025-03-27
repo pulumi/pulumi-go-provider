@@ -22,7 +22,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
-type DefaultProvider struct {
+type ProviderBuilder struct {
 	name, version string
 	metadata      schema.Metadata
 	resources     []InferredResource
@@ -32,11 +32,10 @@ type DefaultProvider struct {
 	moduleMap     map[tokens.ModuleName]tokens.ModuleName
 }
 
-// NewDefaultProvider creates an inferred provider which fills as many defaults as possible.
+// NewProviderBuilder creates an inferred provider which fills as many defaults as possible.
 //
-// A base set of defaults are provided to create a minimal provider, but can be initially overridden by
-// passing in an [Options] struct. Further customization can be done by chaining method calls
-// on the returned [DefaultProvider] object.
+// A base set of defaults are provided to create a minimal provider configuration. Further
+// customization can be done by chaining method calls on the returned [ProviderBuilder] object.
 //
 // This is an example of how to create a simple provider with a single component resource:
 //
@@ -56,7 +55,7 @@ type DefaultProvider struct {
 //	}
 //
 //	func main() {
-//		err := infer.NewDefaultProvider().
+//		err := infer.NewProviderBuilder().
 //			WithName("go-components").
 //			WithVersion("v0.0.1").
 //			WithComponents(
@@ -69,7 +68,7 @@ type DefaultProvider struct {
 // this framework. Currently, we are setting the following defaults:
 //
 // - LanguageMap: A map of language-specific metadata that is used to generate the SDKs for the provider.
-func NewDefaultProvider() *DefaultProvider {
+func NewProviderBuilder() *ProviderBuilder {
 	defaultMetadata := schema.Metadata{
 		LanguageMap: map[string]any{
 			"nodejs": map[string]any{
@@ -88,140 +87,141 @@ func NewDefaultProvider() *DefaultProvider {
 		},
 	}
 
-	return &DefaultProvider{
+	return &ProviderBuilder{
 		metadata: defaultMetadata,
 	}
 }
 
 // WithResources adds the given custom resources to the provider.
-func (dp *DefaultProvider) WithResources(resources ...InferredResource) *DefaultProvider {
-	dp.resources = append(dp.resources, resources...)
-	return dp
+func (pb *ProviderBuilder) WithResources(resources ...InferredResource) *ProviderBuilder {
+	pb.resources = append(pb.resources, resources...)
+	return pb
 }
 
 // WithComponents adds the given components to the provider.
-func (dp *DefaultProvider) WithComponents(components ...InferredComponent) *DefaultProvider {
-	dp.components = append(dp.components, components...)
-	return dp
+func (pb *ProviderBuilder) WithComponents(components ...InferredComponent) *ProviderBuilder {
+	pb.components = append(pb.components, components...)
+	return pb
 }
 
 // WithFunctions adds the given functions to the provider.
-func (dp *DefaultProvider) WithFunctions(functions ...InferredFunction) *DefaultProvider {
-	dp.functions = append(dp.functions, functions...)
-	return dp
+func (pb *ProviderBuilder) WithFunctions(functions ...InferredFunction) *ProviderBuilder {
+	pb.functions = append(pb.functions, functions...)
+	return pb
 }
 
 // WithConfig adds the given config to the provider.
-func (dp *DefaultProvider) WithConfig(config InferredConfig) *DefaultProvider {
-	dp.config = config
-	return dp
+func (pb *ProviderBuilder) WithConfig(config InferredConfig) *ProviderBuilder {
+	pb.config = config
+	return pb
 }
 
 // WithModuleMap adds the given module map to the provider.
-func (dp *DefaultProvider) WithModuleMap(moduleMap map[tokens.ModuleName]tokens.ModuleName) *DefaultProvider {
-	dp.moduleMap = moduleMap
-	return dp
+func (pb *ProviderBuilder) WithModuleMap(moduleMap map[tokens.ModuleName]tokens.ModuleName) *ProviderBuilder {
+	pb.moduleMap = moduleMap
+	return pb
 }
 
 // WithLanguageMap sets the language map in the provider's metadata.
 // The language map is a mapping of language names to language-specific metadata.
 // This is used to customize how the provider is exposed in different languages.
-func (dp *DefaultProvider) WithLanguageMap(languageMap map[string]any) *DefaultProvider {
-	dp.metadata.LanguageMap = languageMap
-	return dp
+func (pb *ProviderBuilder) WithLanguageMap(languageMap map[string]any) *ProviderBuilder {
+	pb.metadata.LanguageMap = languageMap
+	return pb
 }
 
 // WithDescription sets the description for the provider.
-func (dp *DefaultProvider) WithDescription(description string) *DefaultProvider {
-	dp.metadata.Description = description
-	return dp
+func (pb *ProviderBuilder) WithDescription(description string) *ProviderBuilder {
+	pb.metadata.Description = description
+	return pb
 }
 
 // WithDisplayName sets the display name for the provider.
-func (dp *DefaultProvider) WithDisplayName(displayName string) *DefaultProvider {
-	dp.metadata.DisplayName = displayName
-	return dp
+func (pb *ProviderBuilder) WithDisplayName(displayName string) *ProviderBuilder {
+	pb.metadata.DisplayName = displayName
+	return pb
 }
 
 // WithKeywords adds the specified keywords to the provider's metadata.
 // These keywords can be used to improve discoverability of the provider.
-func (dp *DefaultProvider) WithKeywords(keywords ...string) *DefaultProvider {
-	dp.metadata.Keywords = append(dp.metadata.Keywords, keywords...)
-	return dp
+func (pb *ProviderBuilder) WithKeywords(keywords ...string) *ProviderBuilder {
+	pb.metadata.Keywords = append(pb.metadata.Keywords, keywords...)
+	return pb
 }
 
 // WithHomepage sets the homepage field in the provider metadata.
-func (dp *DefaultProvider) WithHomepage(homepage string) *DefaultProvider {
-	dp.metadata.Homepage = homepage
-	return dp
+func (pb *ProviderBuilder) WithHomepage(homepage string) *ProviderBuilder {
+	pb.metadata.Homepage = homepage
+	return pb
 }
 
 // WithRepository sets the repository for the provider.
-func (dp *DefaultProvider) WithRepository(repository string) *DefaultProvider {
-	dp.metadata.Repository = repository
-	return dp
+func (pb *ProviderBuilder) WithRepository(repository string) *ProviderBuilder {
+	pb.metadata.Repository = repository
+	return pb
 }
 
 // WithPublisher sets the publisher name for the provider.
-func (dp *DefaultProvider) WithPublisher(publisher string) *DefaultProvider {
-	dp.metadata.Publisher = publisher
-	return dp
+func (pb *ProviderBuilder) WithPublisher(publisher string) *ProviderBuilder {
+	pb.metadata.Publisher = publisher
+	return pb
 }
 
 // WithLogoURL sets the logo URL for the provider.
-func (dp *DefaultProvider) WithLogoURL(logoURL string) *DefaultProvider {
-	dp.metadata.LogoURL = logoURL
-	return dp
+func (pb *ProviderBuilder) WithLogoURL(logoURL string) *ProviderBuilder {
+	pb.metadata.LogoURL = logoURL
+	return pb
 }
 
 // WithLicense sets the license for the provider.
-func (dp *DefaultProvider) WithLicense(license string) *DefaultProvider {
-	dp.metadata.License = license
-	return dp
+func (pb *ProviderBuilder) WithLicense(license string) *ProviderBuilder {
+	pb.metadata.License = license
+	return pb
 }
 
 // WithPluginDownloadURL sets the URL from which to download the provider's plugin.
-func (dp *DefaultProvider) WithPluginDownloadURL(pluginDownloadURL string) *DefaultProvider {
-	dp.metadata.PluginDownloadURL = pluginDownloadURL
-	return dp
+func (pb *ProviderBuilder) WithPluginDownloadURL(pluginDownloadURL string) *ProviderBuilder {
+	pb.metadata.PluginDownloadURL = pluginDownloadURL
+	return pb
 }
 
 // WithName sets the provider name.
-func (dp *DefaultProvider) WithName(name string) *DefaultProvider {
-	dp.name = name
-	return dp
+func (pb *ProviderBuilder) WithName(name string) *ProviderBuilder {
+	pb.name = name
+	return pb
 }
 
 // WithVersion sets the provider version.
-func (dp *DefaultProvider) WithVersion(version string) *DefaultProvider {
-	dp.version = version
-	return dp
+func (pb *ProviderBuilder) WithVersion(version string) *ProviderBuilder {
+	pb.version = version
+	return pb
 }
 
 // WithNamespace sets the provider namespace.
-func (dp *DefaultProvider) WithNamespace(namespace string) *DefaultProvider {
-	dp.metadata.Namespace = namespace
-	return dp
+func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
+	pb.metadata.Namespace = namespace
+	return pb
 }
 
-// Build constructs the provider options based on the current state of the default provider.
-func (dp *DefaultProvider) Build() Options {
+// BuildOptions builds an [Options] object from the provider builder configuration. This
+// is useful when a user wants to have more control over the provider creation process.
+func (pb *ProviderBuilder) BuildOptions() Options {
 	return Options{
-		Metadata:   dp.metadata,
-		Resources:  dp.resources,
-		Components: dp.components,
-		Functions:  dp.functions,
-		Config:     dp.config,
-		ModuleMap:  dp.moduleMap,
+		Metadata:   pb.metadata,
+		Resources:  pb.resources,
+		Components: pb.components,
+		Functions:  pb.functions,
+		Config:     pb.config,
+		ModuleMap:  pb.moduleMap,
 	}
 }
 
-// validate checks if the default provider configuration is valid.
-func (dp *DefaultProvider) validate() error {
+// validate checks if the provider builder configuration is valid.
+func (pb *ProviderBuilder) validate() error {
 	switch {
-	case dp.name == "":
+	case pb.name == "":
 		return fmt.Errorf("provider name is required")
-	case len(dp.components) == 0 && len(dp.resources) == 0 && len(dp.functions) == 0:
+	case len(pb.components) == 0 && len(pb.resources) == 0 && len(pb.functions) == 0:
 		return fmt.Errorf("at least one resource, component, or function is required")
 	}
 
@@ -229,11 +229,11 @@ func (dp *DefaultProvider) validate() error {
 }
 
 // BuildAndRun builds the provider options, validates them, and runs the provider.
-func (dp *DefaultProvider) BuildAndRun() error {
-	if err := dp.validate(); err != nil {
+func (pb *ProviderBuilder) BuildAndRun() error {
+	if err := pb.validate(); err != nil {
 		return err
 	}
 
-	opts := dp.Build()
-	return provider.RunProvider(dp.name, dp.version, Provider(opts))
+	opts := pb.BuildOptions()
+	return provider.RunProvider(pb.name, pb.version, Provider(opts))
 }
