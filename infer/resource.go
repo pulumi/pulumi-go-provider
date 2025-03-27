@@ -293,7 +293,7 @@ type Annotator interface {
 	AddAlias(module tokens.ModuleName, name tokens.TypeName)
 
 	// Set a deprecation message for the resource, which officially marks it as deprecated.
-	SetResourceDeprecationMessage(message string)
+	Deprecate(message string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be
