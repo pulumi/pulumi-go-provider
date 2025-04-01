@@ -27,7 +27,7 @@ type TestResource struct {
 func (r *TestResource) Annotate(a Annotator) {
 	a.Describe(&r, "This is a test resource.")
 	a.AddAlias("myMod", "MyAlias")
-	a.SetResourceDeprecationMessage("This resource is deprecated.")
+	a.Deprecate("This resource is deprecated.")
 	a.SetToken("myMod", "TheResource")
 }
 
