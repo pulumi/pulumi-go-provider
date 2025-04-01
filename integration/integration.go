@@ -26,9 +26,14 @@ import (
 	"github.com/blang/semver"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
+	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/integration/fake"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 )
 
@@ -48,6 +53,53 @@ type Server interface {
 	Construct(p.ConstructRequest) (p.ConstructResponse, error)
 }
 
+type ServerOption interface {
+	applyServerOption(*serverOptions)
+}
+
+// serverOptions is the internal representation of the effect of
+// [ServerOption]s.
+type serverOptions struct {
+	ctx   context.Context
+	mocks pulumi.MockResourceMonitor
+}
+
+type serverOption func(*serverOptions)
+
+func (o serverOption) applyServerOption(opts *serverOptions) {
+	o(opts)
+}
+
+func WithContext(ctx context.Context) ServerOption {
+	return serverOption(func(ro *serverOptions) {
+		ro.ctx = ctx
+	})
+}
+
+func WithMocks(mocks pulumi.MockResourceMonitor) ServerOption {
+	return serverOption(func(ro *serverOptions) {
+		ro.mocks = mocks
+	})
+}
+
+func NewServerWithOptions(t testing.TB, pkg string, version semver.Version, provider p.Provider, opts ...ServerOption) Server {
+	o := &serverOptions{
+		ctx: context.Background(),
+	}
+	for _, opt := range opts {
+		opt.applyServerOption(o)
+	}
+	if o.mocks != nil {
+		host := NewHost(t, o.mocks)
+		o.ctx = context.WithValue(o.ctx, key.ProviderHost, host)
+	}
+
+	return &server{p.RunInfo{
+		PackageName: pkg,
+		Version:     version.String(),
+	}, provider.WithDefaults(), o.ctx}
+}
+
 func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
 	return NewServerWithContext(context.Background(), pkg, version, provider)
 }
@@ -65,8 +117,79 @@ type server struct {
 	context context.Context
 }
 
-func (s *server) ctx(presource.URN) context.Context {
-	return context.WithValue(s.context, key.RuntimeInfo, s.runInfo)
+type host struct {
+	t testing.TB
+
+	engine      *fake.EngineServer
+	engineAddr  string
+	engineConn  *grpc.ClientConn
+	monitor     *fake.ResourceMonitorServer
+	monitorAddr string
+}
+
+func NewHost(t testing.TB, m pulumi.MockResourceMonitor) *host {
+	h := &host{
+		t: t,
+	}
+
+	// Start a fake Pulumi engine server and connect to it.
+	// Note that the servers and connections are automatically closed when the test completes.
+	h.engine = fake.NewEngineServer(t)
+	h.engineAddr = fake.StartEngineServer(t, h.engine)
+	h.engineConn = fake.ConnectToEngine(t, h.engineAddr)
+
+	h.monitor = fake.NewResourceMonitorServer(t, m)
+	h.monitorAddr = fake.StartMonitorServer(t, h.monitor)
+
+	return h
+}
+
+// func (tc *host) NewConstructRequest() *rpc.ConstructRequest {
+// 	return &rpc.ConstructRequest{
+// 		Project:         "project",
+// 		Stack:           "stack",
+// 		MonitorEndpoint: tc.monitorAddr,
+// 	}
+// }
+
+// func (h *host) NewContext(ctx context.Context) *pulumi.Context {
+// 	runInfo := pulumi.RunInfo{
+// 		Project:     "project",
+// 		Stack:       "stack",
+// 		MonitorAddr: h.monitorAddr,
+// 		EngineAddr:  h.engineAddr,
+// 	}
+// 	pulumiCtx, err := pulumi.NewContext(ctx, runInfo)
+// 	if err != nil {
+// 		h.t.Fatalf("constructing run context: %s", err)
+// 	}
+// 	return pulumiCtx
+// }
+
+var _ = (p.ProviderHost)(&host{})
+
+// Construct implements the host interface to allow the provider to construct resources.
+func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct provider.ConstructFunc) (p.ConstructResponse, error) {
+
+	// Use the fake engine to create a pulumi context,
+	// and then call the user's construct function with the context.
+	// the function is expected to register resources, which will be
+	// handled by the mock monitor.
+
+	req.ConstructRequest.MonitorEndpoint = h.monitorAddr
+
+	r, err := comProvider.Construct(ctx, req.ConstructRequest, h.engineConn, construct)
+	if err != nil {
+		return p.ConstructResponse{}, err
+	}
+	return p.ConstructResponse{ConstructResponse: r}, nil
+}
+
+func (s *server) ctx(urn presource.URN) context.Context {
+	ctx := s.context
+	ctx = context.WithValue(ctx, key.URN, urn)
+	ctx = context.WithValue(ctx, key.RuntimeInfo, s.runInfo)
+	return ctx
 }
 
 func (s *server) GetSchema(req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
@@ -118,7 +241,7 @@ func (s *server) Delete(req p.DeleteRequest) error {
 }
 
 func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) {
-	return s.p.Construct(s.ctx(req.URN), req)
+	return s.p.Construct(s.ctx(req.Urn), req)
 }
 
 // Operation describes a step in a [LifeCycleTest].

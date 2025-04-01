@@ -18,6 +18,9 @@ import (
 	"context"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
 
 // CustomResource provides a shared high-level definition of a Pulumi custom resource.
@@ -30,10 +33,18 @@ type CustomResource interface {
 	Delete(context.Context, p.DeleteRequest) error
 }
 
+// ConstructRequest contains request details based on Pulumi Go SDK types.
+type ConstructRequest struct {
+	URN     presource.URN
+	Inputs  comProvider.ConstructInputs
+	Options pulumi.ResourceOption
+	Preview bool
+}
+
 // ComponentResource provides a shared definition of a Pulumi component resource for
 // middleware to use.
 type ComponentResource interface {
-	Construct(context.Context, p.ConstructRequest) (p.ConstructResponse, error)
+	Construct(*pulumi.Context, ConstructRequest) (pulumi.ComponentResource, error)
 }
 
 // Invoke provides a shared definition of a Pulumi function for middleware to use.

@@ -20,10 +20,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
@@ -389,6 +391,30 @@ func (w *ReadConfigCustom) Create(
 	return "read", ReadConfigCustomOutput{Config: string(bytes)}, err
 }
 
+type ReadConfigComponentArgs struct{}
+
+type ReadConfigComponent struct {
+	pulumi.ResourceState
+	ReadConfigComponentArgs
+	Config pulumi.StringOutput `pulumi:"config"`
+}
+
+func NewReadConfigComponent(ctx *pulumi.Context, name string, args ReadConfigComponentArgs, opts ...pulumi.ResourceOption) (*ReadConfigComponent, error) {
+	comp := &ReadConfigComponent{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+	c := infer.GetConfig[Config](ctx.Context())
+	bytes, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	comp.Config = pulumi.String(string(bytes)).ToStringOutput()
+
+	return comp, nil
+}
+
 var (
 	_ infer.CustomResource[CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput] = &CustomCheckNoDefaults{}
 	_ infer.CustomCheck[CustomCheckNoDefaultsArgs]                                 = &CustomCheckNoDefaults{}
@@ -429,6 +455,9 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource[*ReadConfigCustom, ReadConfigCustomArgs, ReadConfigCustomOutput](),
 			infer.Resource[*CustomCheckNoDefaults, CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput](),
 		},
+		Components: []infer.InferredComponent{
+			infer.Component(NewReadConfigComponent),
+		},
 		Functions: []infer.InferredFunction{
 			infer.Function[*GetJoin, JoinArgs, JoinResult](),
 		},
@@ -436,12 +465,22 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 	}
 }
 
-func provider() integration.Server {
+type server struct {
+	integration.Server
+}
+
+func provider() *server {
 	p := infer.Provider(providerOpts(nil))
-	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+	return &server{integration.NewServer("test", semver.MustParse("1.0.0"), p)}
 }
 
 func providerWithConfig[T any]() integration.Server {
 	p := infer.Provider(providerOpts(infer.Config[T]()))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+}
+
+func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
+	p := infer.Provider(providerOpts(infer.Config[T]()))
+	return integration.NewServerWithOptions(t, "test", semver.MustParse("1.0.0"), p,
+		integration.WithMocks(mocks))
 }

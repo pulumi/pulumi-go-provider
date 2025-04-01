@@ -38,9 +38,12 @@ func main() {
 			if t := req.URN.Type(); t != componentType {
 				return p.ConstructResponse{}, fmt.Errorf("unknown component type %q", t)
 			}
-			return req.Construct(ctx, func(
-				ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
-			) (pulumi.ComponentResource, error) {
+
+			host := p.GetProviderHost(ctx)
+
+			return host.Construct(ctx, req, func(
+				ctx *pulumi.Context, typ, name string, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
+			) (*comProvider.ConstructResult, error) {
 				r := new(testComponent)
 				err := inputs.CopyTo(r)
 				if err != nil {
@@ -62,8 +65,11 @@ func main() {
 				err = ctx.RegisterResourceOutputs(r, pulumi.ToMap(map[string]any{
 					"myOutput": "my-output",
 				}))
+				if err != nil {
+					return nil, err
+				}
 
-				return r, err
+				return comProvider.NewConstructResult(r)
 			})
 		},
 		Call: func(_ context.Context, req p.CallRequest) (p.CallResponse, error) {

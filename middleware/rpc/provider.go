@@ -269,6 +269,21 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			})
 			return err
 		},
+		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+				return p.ConstructResponse{}, nil
+			}
+
+			rpcReq := req.ConstructRequest
+			resp, err := server.Construct(ctx, rpcReq)
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+
+			return p.ConstructResponse{
+				ConstructResponse: resp,
+			}, nil
+		},
 	}
 }
 

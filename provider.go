@@ -544,6 +544,10 @@ func GetSchema(ctx context.Context, name, version string, provider Provider) (sc
 	return spec, err
 }
 
+type ProviderHost interface {
+	Construct(context.Context, ConstructRequest, comProvider.ConstructFunc) (ConstructResponse, error)
+}
+
 func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 	return func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 		return &provider{
@@ -564,6 +568,12 @@ type provider struct {
 	client  Provider
 }
 
+type providerHost struct {
+	host *pprovider.HostClient
+}
+
+var _ ProviderHost = (*providerHost)(nil)
+
 type RunInfo struct {
 	PackageName string
 	Version     string
@@ -576,6 +586,7 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 		ctx = context.WithValue(ctx, key.Logger, &hostSink{
 			host: p.host,
 		})
+		ctx = context.WithValue(ctx, key.ProviderHost, &providerHost{p.host})
 	}
 	ctx = context.WithValue(ctx, key.URN, urn)
 	return context.WithValue(ctx, key.RuntimeInfo, RunInfo{
@@ -1053,16 +1064,14 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 }
 
 type ConstructRequest struct {
-	URN       presource.URN
-	Preview   bool
-	Construct func(context.Context, ConstructFunc) (ConstructResponse, error)
+	Urn     presource.URN // the Pulumi URN for this resource.
+	Preview bool
+	// TODO replace embedded struct with actual fields
+	// *rpc.ConstructRequest
+	*rpc.ConstructRequest
 }
 
-type ConstructFunc = func(
-	*pulumi.Context, comProvider.ConstructInputs, pulumi.ResourceOption,
-) (pulumi.ComponentResource, error)
-
-type ConstructResponse struct{ inner *rpc.ConstructResponse }
+type ConstructResponse struct{ *rpc.ConstructResponse }
 
 func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 	// This returns the URN of the parent, we just need the type.
@@ -1079,28 +1088,20 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 		req.GetName(),
 	)
 	ctx = p.ctx(ctx, urn)
-	f := func(ctx context.Context, construct ConstructFunc) (ConstructResponse, error) {
-		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
-			func(
-				ctx *pulumi.Context, _, _ string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,
-			) (*comProvider.ConstructResult, error) {
-				r, err := construct(ctx, inputs, options)
-				if err != nil {
-					return nil, err
-				}
-				return comProvider.NewConstructResult(r)
-			})
-		if err != nil {
-			return ConstructResponse{}, err
-		}
-		return ConstructResponse{r}, nil
-	}
 	result, err := p.client.Construct(ctx, ConstructRequest{
-		URN:       urn,
-		Preview:   req.GetDryRun(),
-		Construct: f,
+		Urn:              urn,
+		Preview:          req.GetDryRun(),
+		ConstructRequest: req,
 	})
-	return result.inner, err
+	return result.ConstructResponse, err
+}
+
+func (h *providerHost) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc) (ConstructResponse, error) {
+	r, err := comProvider.Construct(ctx, req.ConstructRequest, h.host.EngineConn(), construct)
+	if err != nil {
+		return ConstructResponse{}, err
+	}
+	return ConstructResponse{ConstructResponse: r}, nil
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
@@ -1241,4 +1242,11 @@ func GetTypeToken[Ctx interface{ Value(any) any }](ctx Ctx) string {
 		return urn.Type().String()
 	}
 	return ""
+}
+
+func GetProviderHost(ctx context.Context) ProviderHost {
+	if v := ctx.Value(key.ProviderHost); v != nil {
+		return v.(ProviderHost)
+	}
+	return nil
 }
