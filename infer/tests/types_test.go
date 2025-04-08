@@ -33,10 +33,13 @@ import (
 type HasAssets struct{}
 
 func (*HasAssets) Create(
-	_ context.Context, _ string, inputs HasAssetsInputs, _ bool,
-) (string, HasAssetsOutputs, error) {
-	state := HasAssetsOutputs{HasAssetsInputs: inputs}
-	return "id", state, nil
+	_ context.Context, req infer.CreateRequest[HasAssetsInputs],
+) (infer.CreateResponse[HasAssetsOutputs], error) {
+	state := HasAssetsOutputs{HasAssetsInputs: req.Inputs}
+	return infer.CreateResponse[HasAssetsOutputs]{
+		ID:     "id",
+		Output: state,
+	}, nil
 }
 
 // RandomType serves as a control that types that are not assets do make it into the schema.

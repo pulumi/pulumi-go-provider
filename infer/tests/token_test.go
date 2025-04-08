@@ -34,8 +34,8 @@ type CustomToken struct{}
 func (c *CustomToken) Annotate(a infer.Annotator) { a.SetToken("overwritten", "Tk") }
 
 func (*CustomToken) Create(
-	context.Context, string, TokenArgs, bool,
-) (string, TokenResult, error) {
+	context.Context, infer.CreateRequest[TokenArgs],
+) (infer.CreateResponse[TokenResult], error) {
 	panic("unimplemented")
 }
 

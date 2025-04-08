@@ -25,7 +25,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 
-	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 )
@@ -46,9 +45,13 @@ type IncrementArgs struct {
 
 type IncrementOutput struct{ IncrementArgs }
 
-func (*Increment) Create(_ context.Context, _ string, inputs IncrementArgs, _ bool) (string, IncrementOutput, error) {
-	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: inputs.Number + 1}}
-	return fmt.Sprintf("id-%d", inputs.Number), output, nil
+func (*Increment) Create(_ context.Context,
+	req infer.CreateRequest[IncrementArgs]) (infer.CreateResponse[IncrementOutput], error) {
+	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: req.Inputs.Number + 1}}
+	return infer.CreateResponse[IncrementOutput]{
+		ID:     fmt.Sprintf("id-%d", req.Inputs.Number),
+		Output: output,
+	}, nil
 }
 
 type Echo struct{}
@@ -65,30 +68,45 @@ type EchoOutputs struct {
 	MapOut    map[string]string `pulumi:"strMapOut,optional"`
 }
 
-func (*Echo) Create(ctx context.Context, name string, inputs EchoInputs, preview bool) (string, EchoOutputs, error) {
-	id := name + "-id"
-	state := EchoOutputs{EchoInputs: inputs}
-	if preview {
-		return id, state, nil
+func (*Echo) Create(ctx context.Context,
+	req infer.CreateRequest[EchoInputs]) (infer.CreateResponse[EchoOutputs], error) {
+	id := req.Name + "-id"
+	state := EchoOutputs{EchoInputs: req.Inputs}
+
+	if req.Preview {
+		return infer.CreateResponse[EchoOutputs]{
+			ID:     id,
+			Output: state,
+		}, nil
 	}
-	state.Name = name
-	state.StringOut = inputs.String
-	state.IntOut = inputs.Int
-	state.MapOut = inputs.Map
-	return id, state, nil
+
+	state.Name = req.Name
+	state.StringOut = req.Inputs.String
+	state.IntOut = req.Inputs.Int
+	state.MapOut = req.Inputs.Map
+
+	return infer.CreateResponse[EchoOutputs]{
+		ID:     id,
+		Output: state,
+	}, nil
 }
 
-func (*Echo) Update(_ context.Context, _ string, olds EchoOutputs, news EchoInputs, preview bool) (EchoOutputs, error) {
-	if preview {
-		return olds, nil
+func (*Echo) Update(ctx context.Context,
+	req infer.UpdateRequest[EchoInputs, EchoOutputs]) (infer.UpdateResponse[EchoOutputs], error) {
+	if req.Preview {
+		return infer.UpdateResponse[EchoOutputs]{
+			Output: req.Olds,
+		}, nil
 	}
 
-	return EchoOutputs{
-		EchoInputs: news,
-		Name:       olds.Name,
-		StringOut:  news.String,
-		IntOut:     news.Int,
-		MapOut:     news.Map,
+	return infer.UpdateResponse[EchoOutputs]{
+		Output: EchoOutputs{
+			EchoInputs: req.News,
+			Name:       req.Olds.Name,
+			StringOut:  req.News.String,
+			IntOut:     req.News.Int,
+			MapOut:     req.News.Map,
+		},
 	}, nil
 }
 
@@ -105,24 +123,36 @@ type WiredOutputs struct {
 	StringPlus   string `pulumi:"stringPlus"`
 }
 
-func (*Wired) Create(ctx context.Context, name string, inputs WiredInputs, preview bool) (string, WiredOutputs, error) {
-	id := name + "-id"
-	state := WiredOutputs{Name: "(" + name + ")"}
-	if preview {
-		return id, state, nil
+func (*Wired) Create(ctx context.Context,
+	req infer.CreateRequest[WiredInputs]) (infer.CreateResponse[WiredOutputs], error) {
+	id := req.Name + "-id"
+	state := WiredOutputs{Name: "(" + req.Name + ")"}
+
+	if req.Preview {
+		return infer.CreateResponse[WiredOutputs]{
+			ID:     id,
+			Output: state,
+		}, nil
 	}
-	state.StringPlus = inputs.String + "+"
-	state.StringAndInt = fmt.Sprintf("%s-%d", inputs.String, inputs.Int)
-	return id, state, nil
+
+	state.StringPlus = req.Inputs.String + "+"
+	state.StringAndInt = fmt.Sprintf("%s-%d", req.Inputs.String, req.Inputs.Int)
+
+	return infer.CreateResponse[WiredOutputs]{
+		ID:     id,
+		Output: state,
+	}, nil
 }
 
 func (*Wired) Update(
-	ctx context.Context, id string, olds WiredOutputs, news WiredInputs, preview bool,
-) (WiredOutputs, error) {
-	return WiredOutputs{
-		Name:         id,
-		StringAndInt: fmt.Sprintf("%s-%d", news.String, news.Int),
-		StringPlus:   news.String + "++",
+	ctx context.Context, req infer.UpdateRequest[WiredInputs, WiredOutputs],
+) (infer.UpdateResponse[WiredOutputs], error) {
+	return infer.UpdateResponse[WiredOutputs]{
+		Output: WiredOutputs{
+			Name:         req.ID,
+			StringAndInt: fmt.Sprintf("%s-%d", req.News.String, req.News.Int),
+			StringPlus:   req.News.String + "++",
+		},
 	}, nil
 }
 
@@ -153,25 +183,42 @@ type WiredPlusOutputs struct {
 }
 
 func (*WiredPlus) Create(
-	ctx context.Context, name string, inputs WiredInputs, preview bool,
-) (string, WiredPlusOutputs, error) {
+	ctx context.Context, req infer.CreateRequest[WiredInputs],
+) (infer.CreateResponse[WiredPlusOutputs], error) {
 	r := new(Wired)
-	id, out, err := r.Create(ctx, name, inputs, preview)
-	return id, WiredPlusOutputs{
-		WiredInputs:  inputs,
-		WiredOutputs: out,
-	}, err
+	resp, err := r.Create(ctx, req)
+	if err != nil {
+		return infer.CreateResponse[WiredPlusOutputs]{}, err
+	}
+	return infer.CreateResponse[WiredPlusOutputs]{
+		ID: resp.ID,
+		Output: WiredPlusOutputs{
+			WiredInputs:  req.Inputs,
+			WiredOutputs: resp.Output,
+		},
+	}, nil
 }
 
 func (*WiredPlus) Update(
-	ctx context.Context, id string, olds WiredPlusOutputs, news WiredInputs, preview bool,
-) (WiredPlusOutputs, error) {
+	ctx context.Context, req infer.UpdateRequest[WiredInputs, WiredPlusOutputs],
+) (infer.UpdateResponse[WiredPlusOutputs], error) {
 	r := new(Wired)
-	out, err := r.Update(ctx, id, olds.WiredOutputs, news, preview)
-	return WiredPlusOutputs{
-		WiredInputs:  news,
-		WiredOutputs: out,
-	}, err
+	updateReq := infer.UpdateRequest[WiredInputs, WiredOutputs]{
+		ID:      req.ID,
+		Olds:    req.Olds.WiredOutputs,
+		News:    req.News,
+		Preview: req.Preview,
+	}
+	resp, err := r.Update(ctx, updateReq)
+	if err != nil {
+		return infer.UpdateResponse[WiredPlusOutputs]{}, err
+	}
+	return infer.UpdateResponse[WiredPlusOutputs]{
+		Output: WiredPlusOutputs{
+			WiredInputs:  req.News,
+			WiredOutputs: resp.Output,
+		},
+	}, nil
 }
 
 func (*WiredPlus) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *WiredPlusOutputs) {
@@ -263,9 +310,12 @@ func (w *NestedDefaults) Annotate(a infer.Annotator) {
 }
 
 func (w *WithDefaults) Create(
-	ctx context.Context, name string, inputs WithDefaultsArgs, preview bool,
-) (string, WithDefaultsOutput, error) {
-	return "validated", WithDefaultsOutput{inputs}, nil
+	ctx context.Context, req infer.CreateRequest[WithDefaultsArgs],
+) (infer.CreateResponse[WithDefaultsOutput], error) {
+	return infer.CreateResponse[WithDefaultsOutput]{
+		ID:     "validated",
+		Output: WithDefaultsOutput{WithDefaultsArgs: req.Inputs},
+	}, nil
 }
 
 // ReadEnv has fields with default values filled by environmental variables.
@@ -286,9 +336,12 @@ func (w *ReadEnvArgs) Annotate(a infer.Annotator) {
 }
 
 func (w *ReadEnv) Create(
-	ctx context.Context, name string, inputs ReadEnvArgs, preview bool,
-) (string, ReadEnvOutput, error) {
-	return "well-read", ReadEnvOutput{inputs}, nil
+	ctx context.Context, req infer.CreateRequest[ReadEnvArgs],
+) (infer.CreateResponse[ReadEnvOutput], error) {
+	return infer.CreateResponse[ReadEnvOutput]{
+		ID:     "well-read",
+		Output: ReadEnvOutput{req.Inputs},
+	}, nil
 }
 
 type Recursive struct{}
@@ -299,9 +352,12 @@ type RecursiveArgs struct {
 type RecursiveOutput struct{ RecursiveArgs }
 
 func (w *Recursive) Create(
-	ctx context.Context, name string, inputs RecursiveArgs, preview bool,
-) (string, RecursiveOutput, error) {
-	return "did-not-overflow-stack", RecursiveOutput{inputs}, nil
+	ctx context.Context, req infer.CreateRequest[RecursiveArgs],
+) (infer.CreateResponse[RecursiveOutput], error) {
+	return infer.CreateResponse[RecursiveOutput]{
+		ID:     "did-not-overflow-stack",
+		Output: RecursiveOutput{req.Inputs},
+	}, nil
 }
 
 func (w *RecursiveArgs) Annotate(a infer.Annotator) {
@@ -319,11 +375,14 @@ type ReadConfigOutput struct {
 }
 
 func (w *ReadConfig) Create(
-	ctx context.Context, name string, _ ReadConfigArgs, _ bool,
-) (string, ReadConfigOutput, error) {
+	ctx context.Context, req infer.CreateRequest[ReadConfigArgs],
+) (infer.CreateResponse[ReadConfigOutput], error) {
 	c := infer.GetConfig[Config](ctx)
 	bytes, err := json.Marshal(c)
-	return "read", ReadConfigOutput{Config: string(bytes)}, err
+	return infer.CreateResponse[ReadConfigOutput]{
+		ID:     "read",
+		Output: ReadConfigOutput{Config: string(bytes)},
+	}, err
 }
 
 type GetJoin struct{}
@@ -364,15 +423,15 @@ func (c *ConfigCustom) Configure(ctx context.Context) error {
 var _ = (infer.CustomCheck[*ConfigCustom])((*ConfigCustom)(nil))
 
 func (*ConfigCustom) Check(ctx context.Context,
-	name string, oldInputs resource.PropertyMap, newInputs resource.PropertyMap,
-) (*ConfigCustom, []p.CheckFailure, error) {
+	req infer.CheckRequest,
+) (infer.CheckResponse[*ConfigCustom], error) {
 	var c ConfigCustom
-	if v, ok := newInputs["number"]; ok {
+	if v, ok := req.NewInputs["number"]; ok {
 		number := v.NumberValue() + 0.5
 		c.Number = &number
 	}
 
-	return &c, nil, nil
+	return infer.CheckResponse[*ConfigCustom]{Inputs: &c}, nil
 }
 
 type ReadConfigCustom struct{}
@@ -382,11 +441,14 @@ type ReadConfigCustomOutput struct {
 }
 
 func (w *ReadConfigCustom) Create(
-	ctx context.Context, name string, _ ReadConfigCustomArgs, _ bool,
-) (string, ReadConfigCustomOutput, error) {
+	ctx context.Context, req infer.CreateRequest[ReadConfigCustomArgs],
+) (infer.CreateResponse[ReadConfigCustomOutput], error) {
 	c := infer.GetConfig[ConfigCustom](ctx)
 	bytes, err := json.Marshal(c)
-	return "read", ReadConfigCustomOutput{Config: string(bytes)}, err
+	return infer.CreateResponse[ReadConfigCustomOutput]{
+		ID:     "read",
+		Output: ReadConfigCustomOutput{Config: string(bytes)},
+	}, err
 }
 
 var (
@@ -403,15 +465,21 @@ type (
 )
 
 func (w *CustomCheckNoDefaults) Check(_ context.Context,
-	_ string, _ resource.PropertyMap, m resource.PropertyMap,
-) (CustomCheckNoDefaultsArgs, []p.CheckFailure, error) {
-	return CustomCheckNoDefaultsArgs{Input: m["input"].StringValue()}, nil, nil
+	req infer.CheckRequest,
+) (infer.CheckResponse[CustomCheckNoDefaultsArgs], error) {
+	input := req.NewInputs["input"].StringValue()
+	return infer.CheckResponse[CustomCheckNoDefaultsArgs]{
+		Inputs: CustomCheckNoDefaultsArgs{Input: input},
+	}, nil
 }
 
 func (w *CustomCheckNoDefaults) Create(
-	ctx context.Context, name string, inputs CustomCheckNoDefaultsArgs, preview bool,
-) (string, CustomCheckNoDefaultsOutput, error) {
-	return "id", CustomCheckNoDefaultsOutput{inputs}, nil
+	ctx context.Context, req infer.CreateRequest[CustomCheckNoDefaultsArgs],
+) (infer.CreateResponse[CustomCheckNoDefaultsOutput], error) {
+	return infer.CreateResponse[CustomCheckNoDefaultsOutput]{
+		ID:     "id",
+		Output: CustomCheckNoDefaultsOutput{req.Inputs},
+	}, nil
 }
 
 func providerOpts(config infer.InferredConfig) infer.Options {
