@@ -49,48 +49,56 @@ type State struct {
 	Out string `pulumi:"out"`
 }
 
-func (*Partial) Create(ctx context.Context, name string, input Args, preview bool) (string, State, error) {
-	if preview {
-		return "", State{}, nil
+func (*Partial) Create(ctx context.Context, req infer.CreateRequest[Args]) (infer.CreateResponse[State], error) {
+	if req.Preview {
+		return infer.CreateResponse[State]{}, nil
 	}
-	contract.Assertf(input.S == "for-create", `expected input.S to be "for-create"`)
-	return "id", State{
-			Args: Args{S: "+for-create"},
-			Out:  "partial-create",
+	contract.Assertf(req.Inputs.S == "for-create", `expected input.S to be "for-create"`)
+	return infer.CreateResponse[State]{
+			ID: "id",
+			Output: State{
+				Args: Args{S: "+for-create"},
+				Out:  "partial-create",
+			},
 		}, infer.ResourceInitFailedError{
 			Reasons: []string{"create: failed to fully init"},
 		}
 }
 
-func (*Partial) Update(ctx context.Context, id string, olds State, news Args, preview bool) (State, error) {
-	if preview {
-		return State{}, nil
+func (*Partial) Update(ctx context.Context, req infer.UpdateRequest[Args, State]) (infer.UpdateResponse[State], error) {
+	if req.Preview {
+		return infer.UpdateResponse[State]{}, nil
 	}
-	contract.Assertf(news.S == "for-update", `expected news.S to be "for-update"`)
-	contract.Assertf(olds.S == "+for-create", `expected olds.Out to be "partial-create"`)
-	contract.Assertf(olds.Out == "partial-init", `expected olds.Out to be "partial-create"`)
+	contract.Assertf(req.News.S == "for-update", `expected news.S to be "for-update"`)
+	contract.Assertf(req.Olds.S == "+for-create", `expected olds.Out to be "partial-create"`)
+	contract.Assertf(req.Olds.Out == "partial-init", `expected olds.Out to be "partial-create"`)
 
-	return State{
-			Args: Args{
-				S: "from-update",
+	return infer.UpdateResponse[State]{
+			Output: State{
+				Args: Args{
+					S: "from-update",
+				},
+				Out: "partial-update",
 			},
-			Out: "partial-update",
 		}, infer.ResourceInitFailedError{
 			Reasons: []string{"update: failed to continue init"},
 		}
 }
 
-func (*Partial) Read(ctx context.Context, id string, inputs Args, state State) (
-	canonicalID string, normalizedInputs Args, normalizedState State, err error) {
-	contract.Assertf(inputs.S == "for-read", `expected inputs.S to be "for-read"`)
-	contract.Assertf(state.S == "from-update", `expected olds.Out to be "partial-create"`)
-	contract.Assertf(state.Out == "state-for-read", `expected state.Out to be "state-for-read"`)
+func (*Partial) Read(ctx context.Context, req infer.ReadRequest[Args, State]) (resp infer.ReadResponse[Args, State], err error) {
+	contract.Assertf(req.Inputs.S == "for-read", `expected inputs.S to be "for-read"`)
+	contract.Assertf(req.State.S == "from-update", `expected olds.Out to be "partial-create"`)
+	contract.Assertf(req.State.Out == "state-for-read", `expected state.Out to be "state-for-read"`)
 
-	return "from-read-id", Args{
-			S: "from-read-input",
-		}, State{
-			Args: Args{"s-state-from-read"},
-			Out:  "out-state-from-read",
+	return infer.ReadResponse[Args, State]{
+			ID: "from-read-id",
+			Inputs: Args{
+				S: "from-read-input",
+			},
+			State: State{
+				Args: Args{"s-state-from-read"},
+				Out:  "out-state-from-read",
+			},
 		}, infer.ResourceInitFailedError{
 			Reasons: []string{"read: failed to finish read"},
 		}

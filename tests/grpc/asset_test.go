@@ -79,6 +79,7 @@ type AssetInputs struct {
 
 type AssetState struct{}
 
-func (*A) Create(ctx context.Context, name string, input AssetInputs, preview bool) (id string, output AssetState, err error) {
+func (*A) Create(ctx context.Context,
+	_ infer.CreateRequest[AssetInputs]) (_ infer.CreateResponse[AssetState], err error) {
 	panic("THE CURRENT TEST ONLY TESTS 'CHECK'")
 }

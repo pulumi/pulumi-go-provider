@@ -72,8 +72,12 @@ type GetState struct {
 	Config string `pulumi:"config"`
 }
 
-func (*Get) Create(ctx context.Context, name string, input GetArgs, preview bool) (string, GetState, error) {
+func (*Get) Create(ctx context.Context,
+	req infer.CreateRequest[GetArgs]) (infer.CreateResponse[GetState], error) {
 	config := infer.GetConfig[Config](ctx)
 	bytes, err := json.Marshal(&config)
-	return name, GetState{Config: string(bytes)}, err
+	return infer.CreateResponse[GetState]{
+		ID:     req.Name,
+		Output: GetState{Config: string(bytes)},
+	}, err
 }
