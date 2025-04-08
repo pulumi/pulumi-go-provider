@@ -52,9 +52,9 @@ type MockResourceArgs struct{}
 type MockResourceState struct{}
 
 func (m MockResource) Create(
-	ctx context.Context, name string, args MockResourceArgs, preview bool,
-) (string, *MockResourceState, error) {
-	return "", &MockResourceState{}, nil
+	ctx context.Context, req CreateRequest[MockResourceArgs],
+) (CreateResponse[MockResourceState], error) {
+	return CreateResponse[MockResourceState]{}, nil
 }
 
 type MockConfig struct{}
