@@ -90,5 +90,5 @@ func TestMergeSchema(t *testing.T) {
             "description": "from s2"
         }
     }
-}`, string(bytes.Bytes()))
+}`, bytes.String())
 }
