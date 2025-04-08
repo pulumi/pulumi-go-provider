@@ -37,26 +37,35 @@ type (
 	UserState struct{ UserArgs }
 )
 
-func (*User) Create(ctx context.Context, name string, input UserArgs, preview bool) (string, UserState, error) {
-	return name, UserState{input}, nil
+func (*User) Create(ctx context.Context, req infer.CreateRequest[UserArgs]) (infer.CreateResponse[UserState], error) {
+	return infer.CreateResponse[UserState]{
+		ID:     req.Name,
+		Output: UserState{UserArgs: req.Inputs},
+	}, nil
 }
 
 var _ infer.CustomCheck[UserArgs] = ((*User)(nil))
 
 func (*User) Check(
-	ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap,
-) (UserArgs, []p.CheckFailure, error) {
+	ctx context.Context, req infer.CheckRequest,
+) (infer.CheckResponse[UserArgs], error) {
 	// Apply default arguments
-	args, failures, err := infer.DefaultCheck[UserArgs](ctx, newInputs)
+	args, failures, err := infer.DefaultCheck[UserArgs](ctx, req.NewInputs)
 	if err != nil {
-		return args, failures, err
+		return infer.CheckResponse[UserArgs]{
+			Inputs:   args,
+			Failures: failures,
+		}, err
 	}
 
 	// Apply autonaming
 	//
 	// If args.Name is unset, we set it to a value based off of the resource name.
-	args.Name, err = autoname(args.Name, name, "name", oldInputs)
-	return args, failures, err
+	args.Name, err = autoname(args.Name, req.Name, "name", req.OldInputs)
+	return infer.CheckResponse[UserArgs]{
+		Inputs:   args,
+		Failures: failures,
+	}, err
 }
 
 // autoname makes the field it is called on auto-named.

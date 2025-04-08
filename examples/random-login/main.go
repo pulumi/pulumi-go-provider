@@ -152,50 +152,55 @@ func makeSalt(length int) string {
 	return string(b)
 }
 
-func (*RandomSalt) Create(ctx context.Context, name string, input RandomSaltArgs, preview bool) (string, RandomSaltState, error) {
+func (*RandomSalt) Create(ctx context.Context, req infer.CreateRequest[RandomSaltArgs]) (infer.CreateResponse[RandomSaltState], error) {
 	l := 4
-	if input.SaltLength != nil {
-		l = *input.SaltLength
+	if req.Inputs.SaltLength != nil {
+		l = *req.Inputs.SaltLength
 	}
 	salt := makeSalt(l)
 
 	fmt.Printf("Running the create")
 
-	return name, RandomSaltState{
-		Salt:           salt,
-		SaltedPassword: fmt.Sprintf("%s%s", salt, input.Password),
-		Password:       input.Password,
-		SaltLength:     input.SaltLength,
+	return infer.CreateResponse[RandomSaltState]{
+		ID: req.Name,
+		Output: RandomSaltState{
+			Salt:           salt,
+			SaltedPassword: fmt.Sprintf("%s%s", salt, req.Inputs.Password),
+			Password:       req.Inputs.Password,
+			SaltLength:     req.Inputs.SaltLength,
+		},
 	}, nil
 }
 
 var _ = (infer.CustomUpdate[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil))
 
-func (r *RandomSalt) Update(ctx context.Context, id string, olds RandomSaltState, news RandomSaltArgs, preview bool) (RandomSaltState, error) {
+func (r *RandomSalt) Update(ctx context.Context, req infer.UpdateRequest[RandomSaltArgs, RandomSaltState]) (infer.UpdateResponse[RandomSaltState], error) {
 	var redoSalt bool
-	if olds.SaltLength != nil && news.SaltLength != nil {
-		redoSalt = *olds.SaltLength != *news.SaltLength
-	} else if olds.SaltLength != nil || news.SaltLength != nil {
+	if req.Olds.SaltLength != nil && req.News.SaltLength != nil {
+		redoSalt = *req.Olds.SaltLength != *req.News.SaltLength
+	} else if req.Olds.SaltLength != nil || req.News.SaltLength != nil {
 		redoSalt = true
 	}
 
-	salt := olds.Salt
+	salt := req.Olds.Salt
 	if redoSalt {
-		if preview {
-			return RandomSaltState{}, nil
+		if req.Preview {
+			return infer.UpdateResponse[RandomSaltState]{}, nil
 		}
 		l := 4
-		if news.SaltLength != nil {
-			l = *news.SaltLength
+		if req.News.SaltLength != nil {
+			l = *req.News.SaltLength
 		}
 		salt = makeSalt(l)
 	}
 
-	return RandomSaltState{
-		Salt:           salt,
-		SaltedPassword: fmt.Sprintf("%s%s", salt, news.Password),
-		Password:       news.Password,
-		SaltLength:     news.SaltLength,
+	return infer.UpdateResponse[RandomSaltState]{
+		Output: RandomSaltState{
+			Salt:           salt,
+			SaltedPassword: fmt.Sprintf("%s%s", salt, req.News.Password),
+			Password:       req.News.Password,
+			SaltLength:     req.News.SaltLength,
+		},
 	}, nil
 }
 
