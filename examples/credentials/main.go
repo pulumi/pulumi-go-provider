@@ -22,7 +22,7 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*User, UserArgs, UserState]()},
+		Resources: []infer.InferredResource{infer.Resource[*User]()},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"credentials": "index",
 		},

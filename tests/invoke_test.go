@@ -53,7 +53,7 @@ func TestInferInvokeSecrets(t *testing.T) {
 
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Functions: []infer.InferredFunction{
-			infer.Function[inv, invInput, invOutput](),
+			infer.Function[inv](),
 		},
 	})).Invoke(p.InvokeRequest{
 		Token: "test:index:inv",
