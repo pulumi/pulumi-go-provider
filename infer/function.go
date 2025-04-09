@@ -29,11 +29,25 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+// FunctionRequest wraps the input type for a function call
+type FunctionRequest[I any] struct {
+	// Input contains the function input arguments.
+	Input I
+}
+
+// FunctionResponse wraps the output type for a function call
+type FunctionResponse[O any] struct {
+	// Output contains the function result.
+	Output O
+}
+
 // Fn is a function (also called fnvoke) inferred from code. `I` is the function input,
 // and `O` is the function output. Both must be structs.
 type Fn[I any, O any] interface {
-	// A function is a mapping from `I` to `O`.
-	Call(ctx context.Context, input I) (output O, err error)
+	// Fn is a function (also called an "invoke" or "Provider Function") inferred from code. `I` is the function input,
+	// and `O` is the function output. Both must be structs.
+	// See: https://www.pulumi.com/docs/iac/concepts/resources/functions/#provider-functions
+	Call(ctx context.Context, req FunctionRequest[I]) (resp FunctionResponse[O], err error)
 }
 
 // InferredFunction is a function inferred from code. See [Function] for creating a
@@ -145,11 +159,11 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 	if v := reflect.ValueOf(f); v.Kind() == reflect.Pointer && v.IsNil() {
 		f = reflect.New(v.Type().Elem()).Interface().(F)
 	}
-	o, err := f.Call(ctx, i)
+	o, err := f.Call(ctx, FunctionRequest[I]{Input: i})
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
-	m, err := encoder.Encode(o)
+	m, err := encoder.Encode(o.Output)
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
