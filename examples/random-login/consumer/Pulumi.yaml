@@ -11,8 +11,6 @@ resources:
     type: random-login:RandomLogin
     properties:
       petName: true
-      passwordLength:
-        fn::secret: 8
   salter:
     type: random-login:RandomSalt
     properties:

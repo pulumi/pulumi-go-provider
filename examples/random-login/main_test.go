@@ -16,6 +16,11 @@ import (
 const schema = `{
   "name": "random-login",
   "version": "0.1.0",
+  "language": {
+    "go": {
+      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
+    }
+  },
   "config": {
     "variables": {
       "itsasecret": {
@@ -65,9 +70,6 @@ const schema = `{
         "password": {
           "type": "string"
         },
-        "passwordLength": {
-          "type": "integer"
-        },
         "petName": {
           "type": "boolean",
           "plain": true,
@@ -78,22 +80,17 @@ const schema = `{
         }
       },
       "required": [
-        "passwordLength",
         "petName",
         "username",
         "password"
       ],
       "inputProperties": {
-        "passwordLength": {
-          "type": "integer"
-        },
         "petName": {
           "type": "boolean",
           "plain": true
         }
       },
       "requiredInputs": [
-        "passwordLength",
         "petName"
       ],
       "isComponent": true

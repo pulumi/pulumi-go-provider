@@ -28,7 +28,7 @@ To run the `echo` example, you would run `make examples/echo/test`.
 - [file](./file/main.go) uses [`infer`][infer] to define a resource that manages a file. It shows a custom
   `Check`, `Diff` and `Update` implementation.
 - [random-login](./random-login/main.go) shows using [`infer`][infer] to define both component and custom
-  resources.
+  resources. It also shows using resources as arguments and how to nest components using a generated SDK.
 - [str](./str/main.go) shows using [`infer`][infer] to define functions on strings.
 
 [infer]: ../infer/README.md
