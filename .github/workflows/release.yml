@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*.*.*
+      - "!v*.*.*-**"
+
+jobs:
+  ensure-version:
+    runs-on: ubuntu-latest
+    name: Ensure .version file is up to date
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Ensure version
+        run: |
+          if [ ! -f ".version" ]; then
+            echo "No .version file found"
+            exit 1
+          fi
+          if [ "v$(cat .version)" != ${{ github.ref_name }} ]; then
+            echo "Version in "".version" file does not match tag pushed."
+            exit 1
+          fi
+  lint:
+    uses: ./.github/workflows/stage-lint.yml
+  test:
+    uses: ./.github/workflows/stage-test.yml
+    with:
+      live-test: true
+    secrets:
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_CI_ROLE_ARN: ${{ secrets.AWS_CI_ROLE_ARN }}
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  publish:
+    needs: [ensure-version, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Create GH Release
+      uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2
+      with:
+            generate_release_notes: true
+      env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
