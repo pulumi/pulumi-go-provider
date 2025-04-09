@@ -23,10 +23,11 @@ import (
 
 func NewAnnotator(resource any) Annotator {
 	return Annotator{
-		Descriptions: map[string]string{},
-		Defaults:     map[string]any{},
-		DefaultEnvs:  map[string][]string{},
-		matcher:      NewFieldMatcher(resource),
+		Descriptions:       map[string]string{},
+		Defaults:           map[string]any{},
+		DefaultEnvs:        map[string][]string{},
+		DeprecationMessage: map[string]string{},
+		matcher:            NewFieldMatcher(resource),
 	}
 }
 
@@ -37,7 +38,7 @@ type Annotator struct {
 	DefaultEnvs        map[string][]string
 	Token              string
 	Aliases            []string
-	DeprecationMessage string
+	DeprecationMessage map[string]string
 
 	matcher FieldMatcher
 }
@@ -97,8 +98,32 @@ func (a *Annotator) AddAlias(module tokens.ModuleName, token tokens.TypeName) {
 	a.Aliases = append(a.Aliases, formatToken(module, token))
 }
 
-func (a *Annotator) Deprecate(message string) {
-	a.DeprecationMessage = message
+func (a *Annotator) Deprecate(i any, message string) {
+	field, ok, err := a.matcher.GetField(i)
+	if err != nil {
+		panic(fmt.Sprintf("Could not parse field tags: %s", err.Error()))
+	}
+	if !ok {
+		// We want the syntax for passing a pointer to a field and a pointer to the whole
+		// struct to be the same:
+		//
+		// a.Deprecate(&v, "...")
+		// a.Deprecate(&v.Field, "..")
+		//
+		// But the struct is already a pointer, so we check if we have the type **V, and
+		// if so dereference once.
+
+		typ := reflect.TypeOf(i)
+		if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Pointer {
+			i = reflect.ValueOf(i).Elem().Interface()
+		}
+		if a.matcher.value.Addr().Interface() == i {
+			a.DeprecationMessage[""] = message
+			return
+		}
+		panic("Could not annotate field: could not find field")
+	}
+	a.DeprecationMessage[field.Name] = message
 }
 
 // formatToken formats a (module, token) pair into a valid token string.

@@ -292,8 +292,8 @@ type Annotator interface {
 	// `mypkg:mymodule:MyResource`, in the same way `SetToken` does.
 	AddAlias(module tokens.ModuleName, name tokens.TypeName)
 
-	// Set a deprecation message for the resource, which officially marks it as deprecated.
-	Deprecate(message string)
+	// Set a deprecation message for a struct field, which officially marks it as deprecated.
+	Deprecate(i any, message string)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be

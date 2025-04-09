@@ -22,13 +22,18 @@ import (
 )
 
 type TestResource struct {
+	P1 string `pulumi:"p1,optional"`
 }
 
 func (r *TestResource) Annotate(a Annotator) {
 	a.Describe(&r, "This is a test resource.")
 	a.AddAlias("myMod", "MyAlias")
-	a.Deprecate("This resource is deprecated.")
+	a.Deprecate(&r, "This resource is deprecated.")
 	a.SetToken("myMod", "TheResource")
+
+	a.Describe(&r.P1, "This is a test property.")
+	a.SetDefault(&r.P1, defaultValue)
+	a.Deprecate(&r.P1, "This field is deprecated.")
 }
 
 func TestResourceAnnotations(t *testing.T) {
@@ -43,4 +48,10 @@ func TestResourceAnnotations(t *testing.T) {
 	require.Equal(t, "This is a test resource.", spec.Description)
 
 	require.Equal(t, "This resource is deprecated.", spec.DeprecationMessage)
+
+	p1, p1Exists := spec.Properties["p1"]
+	require.True(t, p1Exists)
+	assert.Equal(t, "This is a test property.", p1.Description)
+	assert.Equal(t, defaultValue, p1.Default)
+	assert.Equal(t, "This field is deprecated.", p1.DeprecationMessage)
 }
