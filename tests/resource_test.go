@@ -49,7 +49,7 @@ func TestInferCheckSecrets(t *testing.T) {
 
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
-			infer.Resource[res, resInput, resOutput](),
+			infer.Resource[res](),
 		},
 	})).Check(p.CheckRequest{
 		Urn: resource.CreateURN("name", "test:index:res", "", "proj", "stack"),

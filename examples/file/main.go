@@ -21,7 +21,7 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*File, FileArgs, FileState]()},
+		Resources: []infer.InferredResource{infer.Resource[*File]()},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"file": "index",
 		},

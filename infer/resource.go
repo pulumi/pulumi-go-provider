@@ -1365,7 +1365,7 @@ func hydrateFromState[R, I, O any](
 ) (ende.Encoder, O, error) {
 	var r R
 	if r, ok := ((interface{})(r)).(CustomStateMigrations[O]); ok {
-		enc, newState, didMigrate, err := migrateState[O](ctx, r, state)
+		enc, newState, didMigrate, err := migrateState(ctx, r, state)
 		if err != nil || didMigrate {
 			return enc, newState, err
 		}

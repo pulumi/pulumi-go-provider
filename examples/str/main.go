@@ -24,10 +24,10 @@ func main() {
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
 		Functions: []infer.InferredFunction{
-			infer.Function[*Replace, ReplaceArgs, Ret](),
-			infer.Function[*Print, In, Empty](),
-			infer.Function[*GiveMeAString, Empty, Ret](),
-			infer.Function[*regex.Replace, regex.ReplaceArgs, regex.Ret](),
+			infer.Function[*Replace](),
+			infer.Function[*Print](),
+			infer.Function[*GiveMeAString](),
+			infer.Function[*regex.Replace](),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"str": "index",

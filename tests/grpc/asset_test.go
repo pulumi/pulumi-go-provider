@@ -65,7 +65,7 @@ func TestCheckAsset(t *testing.T) {
 func assetProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 	s, err := p.RawServer("asset", "v0.1.0",
 		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{infer.Resource[*A, AssetInputs, AssetState]()},
+			Resources: []infer.InferredResource{infer.Resource[*A]()},
 		}))(nil)
 	require.NoError(t, err)
 	return s
