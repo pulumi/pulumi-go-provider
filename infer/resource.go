@@ -74,19 +74,25 @@ import (
 //	}
 //
 //	func (*MyResource) Create(
-//		ctx context.Context, name string, inputs MyResourceInputs, preview bool,
-//	) (string, MyResourceOutputs, error) {
-//		id := input.MyString + ".id"
-//		if preview {
-//			return id, MyResourceOutputs{MyResourceInputs: inputs}, nil
+//		ctx context.Context, req infer.CreateRequest[MyResourceInputs],
+//	) (infer.CreateResponse[MyResourceOutputs], error) {
+//		id := req.Inputs.MyString + ".id"
+//		if req.Preview {
+//			return infer.CreateResponse[MyResourceOutputs]{
+//				ID: id,
+//				Output: MyResourceOutputs{MyResourceInputs: inputs},
+//			}, nil
 //		}
 //
-//		result := input.MyString
-//		if inputs.OptionalInt != nil {
-//			result = fmt.Sprintf("%s.%d", result, *inputs.OptionalInt)
+//		result := req.Inputs.MyString
+//		if req.Inputs.OptionalInt != nil {
+//			result = fmt.Sprintf("%s.%d", result, *req.Inputs.OptionalInt)
 //		}
 //
-//		return id, MyResourceOutputs{inputs, result}, nil
+//		return infer.CreateResponse[MyResourceOutputs]{
+//					ID: id,
+//					Output: MyResourceOutputs{inputs, result},
+//				}, nil
 //	}
 type CustomResource[I, O any] interface {
 	// All custom resources must be able to be created.

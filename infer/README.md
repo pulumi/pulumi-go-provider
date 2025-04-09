@@ -162,35 +162,38 @@ func (f *FileState) Annotate(a infer.Annotator) {
 The only mandatory method for a `CustomResource` is `Create`.
 
 ```go
-func (*File) Create(ctx context.Context, name string, input FileArgs, preview bool) (
- id string, output FileState, err error) {
-	if !input.Force {
-		_, err := os.Stat(input.Path)
+func (*File) Create(ctx context.Context, req infer.CreateRequest[FileArgs]) (
+ infer.CreateResponse[FileState], err error) {
+	if !req.Inputs.Force {
+		_, err := os.Stat(req.Inputs.Path)
 		if !os.IsNotExist(err) {
-			return "", FileState{}, fmt.Errorf("file already exists; pass force=true to override")
+			return infer.CreateResponse[FileState]{}, fmt.Errorf("file already exists; pass force=true to override")
 		}
 	}
 
 	if preview { // Don't do the actual creating if in preview
-		return input.Path, FileState{}, nil
+		return infer.CreateResponse[FileState]{ID: req.Inputs.Path}, nil
 	}
 
-	f, err := os.Create(input.Path)
+	f, err := os.Create(req.Inputs.Path)
 	if err != nil {
-		return "", FileState{}, err
+		return infer.CreateResponse[FileState]{}, err
 	}
 	defer f.Close()
-	n, err := f.WriteString(input.Content)
+	n, err := f.WriteString(req.Inputs.Content)
 	if err != nil {
-		return "", FileState{}, err
+		return infer.CreateResponse[FileState]{}, err
 	}
-	if n != len(input.Content) {
-		return "", FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
+	if n != len(req.Inputs.Content) {
+		return infer.CreateResponse[FileState]{}, fmt.Errorf("only wrote %d/%d bytes", n, len(input.Content))
 	}
-	return input.Path, FileState{
-		Path:    input.Path,
-		Force:   input.Force,
-		Content: input.Content,
+	return infer.CreateResponse[FileState]{
+		ID: req.Inputs.Path,
+		Output: FileState{
+			Path:    input.Path,
+			Force:   input.Force,
+			Content: input.Content,
+		},
 	}, nil
 }
 ```
@@ -199,13 +202,13 @@ We would like the file to be deleted when the custom resource is deleted. We can
 that by implementing the `Delete` method:
 
 ```go
-func (*File) Delete(ctx context.Context, id string, props FileState) error {
-	err := os.Remove(props.Path)
+func (*File) Delete(ctx context.Context, req infer.DeleteRequest[FileState]) (infer.DeleteResponse, error) {
+	err := os.Remove(req.State.Path)
 	if os.IsNotExist(err) {
-		p.GetLogger(ctx).Warningf("file %q already deleted", props.Path)
+		p.GetLogger(ctx).Warningf("file %q already deleted", req.State.Path)
 		err = nil
 	}
-	return err
+	return infer.DeleteResponse{}, err
 }
 ```
 
@@ -225,12 +228,17 @@ Instead, we automatically fill the `FileArgs.Path` field from name if it isn't p
 in our check implementation.
 
 ```go
-func (*File) Check(ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap) (
- FileArgs, []p.CheckFailure, error) {
-	if _, ok := newInputs["path"]; !ok {
-		newInputs["path"] = resource.NewStringProperty(name)
+func (*File) Check(ctx context.Context, req infer.CheckRequest) (
+ infer.CheckResponse[FileArgs], error) {
+	if _, ok := req.NewInputs["path"]; !ok {
+		req.NewInputs["path"] = resource.NewStringProperty(req.Name)
 	}
-	return infer.DefaultCheck[FileArgs](ctx, newInputs)
+	args, f, err := infer.DefaultCheck[FileArgs](ctx, req.NewInputs)
+
+	return infer.CheckResponse[FileArgs]{
+		Inputs:   args,
+		Failures: f,
+	}, err
 }
 ```
 
@@ -242,26 +250,28 @@ We want to allow our users to change the content of the file they are managing. 
 allow updates, we need to implement the `Update` method:
 
 ```go
-func (*File) Update(ctx context.Context, id string, olds FileState, news FileArgs, preview bool) (FileState, error) {
-	if !preview && olds.Content != news.Content {
-		f, err := os.Create(olds.Path)
+func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileState]) (infer.UpdateResponse[FileState], error) {
+	if !req.Preview && req.Olds.Content != req.News.Content {
+		f, err := os.Create(req.Olds.Path)
 		if err != nil {
-			return FileState{}, err
+			return infer.UpdateResponse[FileState]{}, err
 		}
 		defer f.Close()
-		n, err := f.WriteString(news.Content)
+		n, err := f.WriteString(req.News.Content)
 		if err != nil {
-			return FileState{}, err
+			return infer.UpdateResponse[FileState]{}, err
 		}
-		if n != len(news.Content) {
-			return FileState{}, fmt.Errorf("only wrote %d/%d bytes", n, len(news.Content))
+		if n != len(req.News.Content) {
+			return infer.UpdateResponse[FileState]{}, fmt.Errorf("only wrote %d/%d bytes", n, len(req.News.Content))
 		}
 	}
 
-	return FileState{
-		Path:    news.Path,
-		Force:   news.Force,
-		Content: news.Content,
+	return infer.UpdateResponse[FileState]{
+		Output: FileState{
+			Path:    req.News.Path,
+			Force:   req.News.Force,
+			Content: req.News.Content,
+		},
 	}, nil
 
 }
@@ -274,18 +284,18 @@ be handled by updates, but that changes to `FileArgs.Path` require a replace, we
 to override how diff works:
 
 ```go
-func (*File) Diff(ctx context.Context, id string, olds FileState, news FileArgs) (p.DiffResponse, error) {
+func (*File) Diff(ctx context.Context, req infer.DiffRequest[FileArgs, FileState]) (infer.DiffResponse, error) {
 	diff := map[string]p.PropertyDiff{}
-	if news.Content != olds.Content {
+	if req.News.Content != req.Olds.Content {
 		diff["content"] = p.PropertyDiff{Kind: p.Update}
 	}
-	if news.Force != olds.Force {
+	if req.News.Force != req.Olds.Force {
 		diff["force"] = p.PropertyDiff{Kind: p.Update}
 	}
-	if news.Path != olds.Path {
+	if req.News.Path != req.Olds.Path {
 		diff["path"] = p.PropertyDiff{Kind: p.UpdateReplace}
 	}
-	return p.DiffResponse{
+	return infer.DiffResponse{
 		DeleteBeforeReplace: true,
 		HasChanges:          len(diff) > 0,
 		DetailedDiff:        diff,
@@ -302,23 +312,26 @@ Last but not least, we want to be able to read state from the file system as-is.
 Unsurprisingly, we do this by implementing yet another method:
 
 ```go
-func (*File) Read(ctx context.Context, id string, inputs FileArgs, state FileState) (
- string, FileArgs, FileState, error) {
-	path := id
-	byteContent, err := ioutil.ReadFile(path)
+func (*File) Read(ctx context.Context, req infer.ReadRequest[FileArgs, FileState]) (infer.ReadResponse[FileArgs, FileState], error) {
+	path := req.ID
+	byteContent, err := os.ReadFile(path)
 	if err != nil {
-		return "", FileArgs{}, FileState{}, err
+		return infer.ReadResponse[FileArgs, FileState]{}, err
 	}
 	content := string(byteContent)
-	return path, FileArgs{
+	return infer.ReadResponse[FileArgs, FileState]{
+		ID: path,
+		Inputs: FileArgs{
 			Path:    path,
-			Force:   inputs.Force && state.Force,
+			Force:   req.Inputs.Force && req.State.Force,
 			Content: content,
-		}, FileState{
+		},
+		State: FileState{
 			Path:    path,
-			Force:   inputs.Force && state.Force,
+			Force:   req.Inputs.Force && req.State.Force,
 			Content: content,
-		}, nil
+		},
+	}, nil
 }
 ```
 
