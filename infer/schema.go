@@ -90,13 +90,13 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	var errs multierror.Error
 	annotations := getAnnotated(reflect.TypeOf(r))
 
-	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent)
+	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent, outputType)
 	if err != nil {
 		var o O
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent)
+	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent, inputType)
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
@@ -123,13 +123,23 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 }
 
 func serializeTypeAsPropertyType(
-	t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType,
+	t reflect.Type, indicatePlain bool, extType *introspect.ExplicitType, propType propertyType,
 ) (schema.TypeSpec, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+	// Provider authors should not be using resource.Asset directly, but rather types.AssetOrArchive.
+	// We will returrn an error if resource.Asset or resource.Archive is used directly for an input.
+	// pulumi/pulumi-go-provider#243
+	if propType == inputType && t == reflect.TypeOf(resource.Asset{}) {
+		return schema.TypeSpec{}, fmt.Errorf("resource.Asset is not a valid input type, please use types.AssetOrArchive instead")
+	}
+	if propType == inputType && t == reflect.TypeOf(resource.Archive{}) {
+		return schema.TypeSpec{}, fmt.Errorf("resource.Archive is not a valid input type, please use types.AssetOrArchive instead")
+	}
+
 	if t == reflect.TypeOf(resource.Asset{}) {
-		// Provider authors should not be using resource.Asset directly, but rather types.AssetOrArchive. #243
+		// We allow this for output types, but not inputs.
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Asset",
 		}, nil
@@ -176,7 +186,7 @@ func serializeTypeAsPropertyType(
 		if t.Key().Kind() != reflect.String {
 			return schema.TypeSpec{}, fmt.Errorf("map keys must be strings, found %s", t.Key().String())
 		}
-		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain, extType)
+		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain, extType, propType)
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
@@ -185,7 +195,7 @@ func serializeTypeAsPropertyType(
 			AdditionalProperties: &el,
 		}, nil
 	case reflect.Array, reflect.Slice:
-		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain, extType)
+		el, err := serializeTypeAsPropertyType(t.Elem(), indicatePlain, extType, propType)
 		if err != nil {
 			return schema.TypeSpec{}, err
 		}
@@ -258,7 +268,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromType(typ reflect.Type, indicatePlain bool) (
+func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propertyType) (
 	props map[string]schema.PropertySpec, required []string, err error) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -278,7 +288,7 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 		if tags.Internal {
 			continue
 		}
-		serialized, err := serializeTypeAsPropertyType(fieldType, indicatePlain, tags.ExplicitRef)
+		serialized, err := serializeTypeAsPropertyType(fieldType, indicatePlain, tags.ExplicitRef, propType)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid type '%s' on '%s.%s': %w", fieldType, typ, field.Name, err)
 		}
