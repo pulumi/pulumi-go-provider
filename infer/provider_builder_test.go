@@ -70,8 +70,10 @@ type MockFunction struct{}
 type MockFunctionArgs struct{}
 type MockFunctionResult struct{}
 
-func (mf MockFunction) Call(ctx context.Context, args MockFunctionArgs) (MockFunctionResult, error) {
-	return MockFunctionResult{}, nil
+func (mf MockFunction) Call(
+	ctx context.Context,
+	req FunctionRequest[MockFunctionArgs]) (FunctionResponse[MockFunctionResult], error) {
+	return FunctionResponse[MockFunctionResult]{}, nil
 }
 
 func TestNewDefaultProvider(t *testing.T) {
