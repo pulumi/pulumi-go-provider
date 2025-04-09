@@ -9,7 +9,7 @@ import (
 
 type Replace struct{}
 
-func (Replace) Call(_ context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[Ret], error) {
+func (Replace) Invoke(_ context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[Ret], error) {
 	r, err := regexp.Compile(req.Input.Pattern)
 	if err != nil {
 		return infer.FunctionResponse[Ret]{}, err

@@ -399,7 +399,7 @@ type JoinResult struct {
 	Result string `pulumi:"result"`
 }
 
-func (*GetJoin) Call(
+func (*GetJoin) Invoke(
 	ctx context.Context,
 	req infer.FunctionRequest[JoinArgs]) (infer.FunctionResponse[JoinResult], error) {
 	return infer.FunctionResponse[JoinResult]{

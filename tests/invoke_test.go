@@ -38,7 +38,7 @@ type invOutput struct {
 	Out string `pulumi:"out" provider:"secret"`
 }
 
-func (inv) Call(ctx context.Context, req infer.FunctionRequest[invInput]) (infer.FunctionResponse[invOutput], error) {
+func (inv) Invoke(ctx context.Context, req infer.FunctionRequest[invInput]) (infer.FunctionResponse[invOutput], error) {
 	return infer.FunctionResponse[invOutput]{
 		Output: invOutput{
 			Out: req.Input.Field + "-secret",
