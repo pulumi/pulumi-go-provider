@@ -16,7 +16,6 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/blang/semver"
@@ -26,7 +25,6 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/integration"
-	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 )
 
@@ -71,13 +69,7 @@ func TestOmittingAssetTypes(t *testing.T) {
 	p := infer.Provider(providerOpts)
 	server := integration.NewServer("test", semver.MustParse("1.0.0"), p)
 
-	schemaResp, err := server.GetSchema(pgp.GetSchemaRequest{Version: 1})
-	require.NoError(t, err)
-
-	var spec pschema.PackageSpec
-	require.NoError(t, json.Unmarshal([]byte(schemaResp.Schema), &spec))
-
-	require.Len(t, spec.Types, 1)
-	require.Contains(t, spec.Types, "test:tests:RandomType")
-	// That's all - does not contain any asset types.
+	_, err := server.GetSchema(pgp.GetSchemaRequest{Version: 1})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "is not a valid input type, please use types.AssetOrArchive instead")
 }
