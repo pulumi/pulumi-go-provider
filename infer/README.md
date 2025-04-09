@@ -160,9 +160,14 @@ func (f *FileState) Annotate(a infer.Annotator) {
 }
 ```
 
-To deprecate a resource or field, annotate it with `Deprecate`.
+To deprecate a resource or field, annotate it with `Deprecate`:
 
-The only mandatory method for a `CustomResource` is `Create`.
+```go
+func (f *FileState) Annotate(a infer.Annotator) {
+	a.Deprecate(&f.OldField, "You should prefer to use NewField instead.")
+```
+
+The only mandatory method for a `CustomResource` is `Create`:
 
 ```go
 func (*File) Create(ctx context.Context, name string, input FileArgs, preview bool) (

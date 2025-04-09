@@ -23,22 +23,22 @@ import (
 
 func NewAnnotator(resource any) Annotator {
 	return Annotator{
-		Descriptions:       map[string]string{},
-		Defaults:           map[string]any{},
-		DefaultEnvs:        map[string][]string{},
-		DeprecationMessage: map[string]string{},
-		matcher:            NewFieldMatcher(resource),
+		Descriptions:        map[string]string{},
+		Defaults:            map[string]any{},
+		DefaultEnvs:         map[string][]string{},
+		DeprecationMessages: map[string]string{},
+		matcher:             NewFieldMatcher(resource),
 	}
 }
 
 // Annotator implements the Annotator interface as defined in resource/resource.go.
 type Annotator struct {
-	Descriptions       map[string]string
-	Defaults           map[string]any
-	DefaultEnvs        map[string][]string
-	Token              string
-	Aliases            []string
-	DeprecationMessage map[string]string
+	Descriptions        map[string]string
+	Defaults            map[string]any
+	DefaultEnvs         map[string][]string
+	Token               string
+	Aliases             []string
+	DeprecationMessages map[string]string
 
 	matcher FieldMatcher
 }
@@ -118,12 +118,12 @@ func (a *Annotator) Deprecate(i any, message string) {
 			i = reflect.ValueOf(i).Elem().Interface()
 		}
 		if a.matcher.value.Addr().Interface() == i {
-			a.DeprecationMessage[""] = message
+			a.DeprecationMessages[""] = message
 			return
 		}
 		panic("Could not annotate field: could not find field")
 	}
-	a.DeprecationMessage[field.Name] = message
+	a.DeprecationMessages[field.Name] = message
 }
 
 // formatToken formats a (module, token) pair into a valid token string.

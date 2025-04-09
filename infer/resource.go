@@ -293,6 +293,18 @@ type Annotator interface {
 	AddAlias(module tokens.ModuleName, name tokens.TypeName)
 
 	// Set a deprecation message for a struct field, which officially marks it as deprecated.
+	//
+	// For example:
+	//
+	//	func (*s Struct) Annotated(a Annotator) {
+	//		a.Deprecate(&s.Field, "field is deprecated")
+	//	}
+	//
+	// To deprecate a resource, object or function, call Deprecate on the struct itself:
+	//
+	//	func (*s Struct) Annotated(a Annotator) {
+	//		a.Deprecate(&s, "Struct is deprecated")
+	//	}
 	Deprecate(i any, message string)
 }
 
