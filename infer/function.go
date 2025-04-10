@@ -47,7 +47,7 @@ type Fn[I any, O any] interface {
 	// Fn is a function (also called an "invoke" or "Provider Function") inferred from code. `I` is the function input,
 	// and `O` is the function output. Both must be structs.
 	// See: https://www.pulumi.com/docs/iac/concepts/resources/functions/#provider-functions
-	Call(ctx context.Context, req FunctionRequest[I]) (resp FunctionResponse[O], err error)
+	Invoke(ctx context.Context, req FunctionRequest[I]) (resp FunctionResponse[O], err error)
 }
 
 // InferredFunction is a function inferred from code. See [Function] for creating a
@@ -159,7 +159,7 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 	if v := reflect.ValueOf(f); v.Kind() == reflect.Pointer && v.IsNil() {
 		f = reflect.New(v.Type().Elem()).Interface().(F)
 	}
-	o, err := f.Call(ctx, FunctionRequest[I]{Input: i})
+	o, err := f.Invoke(ctx, FunctionRequest[I]{Input: i})
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}

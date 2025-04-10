@@ -118,7 +118,7 @@ func (*User) Diff(ctx context.Context, req infer.DiffRequest[UserArgs, UserState
 
 type Sign struct{}
 
-func (Sign) Call(ctx context.Context, req infer.FunctionRequest[SignArgs]) (infer.FunctionResponse[SignRes], error) {
+func (Sign) Invoke(ctx context.Context, req infer.FunctionRequest[SignArgs]) (infer.FunctionResponse[SignRes], error) {
 	config := infer.GetConfig[Config](ctx)
 	return infer.FunctionResponse[SignRes]{
 		Output: SignRes{

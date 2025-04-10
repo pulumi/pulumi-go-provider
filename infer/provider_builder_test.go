@@ -70,7 +70,7 @@ type MockFunction struct{}
 type MockFunctionArgs struct{}
 type MockFunctionResult struct{}
 
-func (mf MockFunction) Call(
+func (mf MockFunction) Invoke(
 	ctx context.Context,
 	req FunctionRequest[MockFunctionArgs]) (FunctionResponse[MockFunctionResult], error) {
 	return FunctionResponse[MockFunctionResult]{}, nil
