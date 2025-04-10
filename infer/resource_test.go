@@ -493,9 +493,9 @@ func (c *checkResource) Annotate(a Annotator) {
 
 type checkResourceOutput struct{}
 
-func (c checkResource) Create(context.Context, string, checkResource, bool,
-) (id string, output checkResourceOutput, err error) {
-	return "", checkResourceOutput{}, nil
+func (c checkResource) Create(context.Context, CreateRequest[checkResource],
+) (resp CreateResponse[checkResourceOutput], err error) {
+	return resp, nil
 }
 
 func TestCheck(t *testing.T) {

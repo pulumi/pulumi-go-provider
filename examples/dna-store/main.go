@@ -67,11 +67,11 @@ type DNAStoreArgs struct {
 
 type DNAStore struct{}
 
-func (*DNAStore) Create(ctx context.Context, name string, input DNAStoreArgs, preview bool) (id string, output DNAStoreArgs, err error) {
-	path := filepath.Join(input.Storage, name)
+func (*DNAStore) Create(ctx context.Context, req infer.CreateRequest[DNAStoreArgs]) (resp infer.CreateResponse[DNAStoreArgs], err error) {
+	path := filepath.Join(req.Inputs.Storage, req.Name)
 	p.GetLogger(ctx).Warningf("path=%q", path)
-	retErr := func(msg string, args ...any) (string, DNAStoreArgs, error) {
-		return "", DNAStoreArgs{}, fmt.Errorf(msg, args...)
+	retErr := func(msg string, args ...any) (infer.CreateResponse[DNAStoreArgs], error) {
+		return infer.CreateResponse[DNAStoreArgs]{}, fmt.Errorf(msg, args...)
 	}
 	if _, err := os.Stat(path); err == nil {
 		return retErr("file '%s' already exists", path)
@@ -79,13 +79,16 @@ func (*DNAStore) Create(ctx context.Context, name string, input DNAStoreArgs, pr
 		return retErr("error reading file: '%s'", path)
 	}
 
-	if preview {
-		input.Data = []Molecule{}
-		return path, input, nil
+	if req.Preview {
+		req.Inputs.Data = []Molecule{}
+		return infer.CreateResponse[DNAStoreArgs]{
+			ID:     path,
+			Output: req.Inputs,
+		}, nil
 	}
 
-	bytes := make([]byte, len(input.Data))
-	for i, b := range input.Data {
+	bytes := make([]byte, len(req.Inputs.Data))
+	for i, b := range req.Inputs.Data {
 		switch b {
 		case A:
 			bytes[i] = 'A'
@@ -104,44 +107,47 @@ func (*DNAStore) Create(ctx context.Context, name string, input DNAStoreArgs, pr
 		return retErr("failed to write file '%s': %w", path, err)
 	}
 
-	metadata, err := json.Marshal(input.Metadata)
+	metadata, err := json.Marshal(req.Inputs.Metadata)
 	if err != nil {
 		return retErr("failed to marshal metadata: %s", err)
 	}
 
-	return path, input, os.WriteFile(path+".metadata", metadata, 0644)
+	return infer.CreateResponse[DNAStoreArgs]{
+		ID:     path,
+		Output: req.Inputs,
+	}, os.WriteFile(path+".metadata", metadata, 0644)
 
 }
 
-func (*DNAStore) Delete(ctx context.Context, id string, _ DNAStoreArgs) error {
-	err := os.Remove(id)
+func (*DNAStore) Delete(ctx context.Context, req infer.DeleteRequest[DNAStoreArgs]) (infer.DeleteResponse, error) {
+	err := os.Remove(req.ID)
 	if err != nil && os.IsNotExist(err) {
-		return err
+		return infer.DeleteResponse{}, err
 	}
-	err = os.Remove(id + ".metadata")
+	err = os.Remove(req.ID + ".metadata")
 	if err != nil && os.IsNotExist(err) {
-		return err
+		return infer.DeleteResponse{}, err
 	}
-	return nil
+	return infer.DeleteResponse{}, nil
 }
 
-func (*DNAStore) Read(ctx context.Context, id string, inputs DNAStoreArgs, state DNAStoreArgs) (
-	canonicalID string, normalizedInputs DNAStoreArgs, normalizedState DNAStoreArgs, err error) {
-	path := id
-	retErr := func(msg string, a ...any) (string, DNAStoreArgs, DNAStoreArgs, error) {
-		return "", DNAStoreArgs{}, DNAStoreArgs{}, fmt.Errorf(msg, a...)
+func (*DNAStore) Read(ctx context.Context, req infer.ReadRequest[DNAStoreArgs, DNAStoreArgs]) (
+	resp infer.ReadResponse[DNAStoreArgs, DNAStoreArgs], err error) {
+	path := req.ID
+	retErr := func(msg string, a ...any) (infer.ReadResponse[DNAStoreArgs, DNAStoreArgs], error) {
+		return infer.ReadResponse[DNAStoreArgs, DNAStoreArgs]{}, fmt.Errorf(msg, a...)
 	}
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return retErr("DNAStore does not exist with local ID = '%s'", id)
+			return retErr("DNAStore does not exist with local ID = '%s'", req.ID)
 		}
-		return retErr("could not read DNAStore(%s): %w", id, err)
+		return retErr("could not read DNAStore(%s): %w", req.ID, err)
 	}
 	defer file.Close()
 	bytes, err := io.ReadAll(file)
 	if err != nil {
-		return retErr("could not read DNAStore(%s): %w", id, err)
+		return retErr("could not read DNAStore(%s): %w", req.ID, err)
 	}
 	molecules := make([]Molecule, len(bytes))
 	for i, b := range bytes {
@@ -155,7 +161,7 @@ func (*DNAStore) Read(ctx context.Context, id string, inputs DNAStoreArgs, state
 		case 'G':
 			molecules[i] = G
 		default:
-			return retErr("invalid DNAStore(%s): found non-dna character: %c", id, b)
+			return retErr("invalid DNAStore(%s): found non-dna character: %c", req.ID, b)
 		}
 	}
 
@@ -164,25 +170,29 @@ func (*DNAStore) Read(ctx context.Context, id string, inputs DNAStoreArgs, state
 	if os.IsNotExist(err) {
 		// pass
 	} else if err != nil {
-		return retErr("failed to read metadata of DNAStore(%s): %w", id, err)
+		return retErr("failed to read metadata of DNAStore(%s): %w", req.ID, err)
 	} else {
 		defer file.Close()
 		data, err := io.ReadAll(file)
 		if err != nil {
-			return retErr("failed to read metadata of DNAStore(%s): %w", id, err)
+			return retErr("failed to read metadata of DNAStore(%s): %w", req.ID, err)
 		}
 		err = json.Unmarshal(data, &metadata)
 		if err != nil {
-			return retErr("invalid metadata for DNAStore(%s): %w", id, err)
+			return retErr("invalid metadata for DNAStore(%s): %w", req.ID, err)
 		}
 	}
 
-	state = DNAStoreArgs{
+	state := DNAStoreArgs{
 		Data:     molecules,
-		Storage:  filepath.Dir(id),
+		Storage:  filepath.Dir(req.ID),
 		Metadata: metadata,
 	}
-	return path, state, state, nil
+	return infer.ReadResponse[DNAStoreArgs, DNAStoreArgs]{
+		ID:     path,
+		Inputs: state,
+		State:  state,
+	}, nil
 }
 
 // Annotate the nested fields for the DNAStoreArgs receiver

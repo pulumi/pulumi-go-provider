@@ -159,29 +159,29 @@ type config struct {
 var _ infer.CustomCheck[*config] = &config{}
 
 func (c *config) Check(
-	ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap,
-) (*config, []p.CheckFailure, error) {
-	if newInputs.ContainsSecrets() {
-		return c, nil, fmt.Errorf("found secrets")
+	ctx context.Context, req infer.CheckRequest,
+) (infer.CheckResponse[*config], error) {
+	if req.NewInputs.ContainsSecrets() {
+		return infer.CheckResponse[*config]{Inputs: c}, fmt.Errorf("found secrets")
 	}
 
-	if v, ok := newInputs["applyDefaults"]; ok && v.IsBool() && v.BoolValue() {
-		d, f, err := infer.DefaultCheck[config](ctx, newInputs)
+	if v, ok := req.NewInputs["applyDefaults"]; ok && v.IsBool() && v.BoolValue() {
+		d, f, err := infer.DefaultCheck[config](ctx, req.NewInputs)
 		*c = d
-		return &d, f, err
+		return infer.CheckResponse[*config]{Inputs: &d, Failures: f}, err
 	}
 
 	// No defaults, so apply manually
-	if v := newInputs["field"]; v.IsString() {
+	if v := req.NewInputs["field"]; v.IsString() {
 		c.Field = v.StringValue()
 	}
-	if v := newInputs["not"]; v.IsString() {
+	if v := req.NewInputs["not"]; v.IsString() {
 		c.NotSecret = v.StringValue()
 	}
-	if v := newInputs["apply-defaults"]; v.IsBool() {
+	if v := req.NewInputs["apply-defaults"]; v.IsBool() {
 		c.ApplyDefaults = v.BoolValue()
 	}
-	return c, nil, nil
+	return infer.CheckResponse[*config]{Inputs: c}, nil
 }
 
 func TestInferCustomCheckConfig(t *testing.T) {

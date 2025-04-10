@@ -83,17 +83,20 @@ func assertState(s HasAssetsArgs, includesAssets bool) {
 	}
 }
 
-func (*HasAssets) Create(ctx context.Context, name string, input HasAssetsArgs, preview bool) (id string, output HasAssetsArgs, err error) {
-	if preview {
-		return "", HasAssetsArgs{}, nil
+func (*HasAssets) Create(ctx context.Context, req infer.CreateRequest[HasAssetsArgs]) (resp infer.CreateResponse[HasAssetsArgs], err error) {
+	if req.Preview {
+		return resp, nil
 	}
 
-	output = input
+	output := req.Inputs
 	assertState(output, true)
-	return name, output, nil
+	return infer.CreateResponse[HasAssetsArgs]{
+		ID:     req.Name,
+		Output: output,
+	}, nil
 }
 
-func (*HasAssets) Delete(ctx context.Context, id string, state HasAssetsArgs) error {
-	assertState(state, false)
-	return nil
+func (*HasAssets) Delete(ctx context.Context, req infer.DeleteRequest[HasAssetsArgs]) (infer.DeleteResponse, error) {
+	assertState(req.State, false)
+	return infer.DeleteResponse{}, nil
 }

@@ -91,20 +91,22 @@ type UserState struct {
 	Password string `pulumi:"password"`
 }
 
-func (*User) Create(ctx context.Context, name string, input UserArgs, preview bool) (string, UserState, error) {
+func (*User) Create(ctx context.Context, req infer.CreateRequest[UserArgs]) (infer.CreateResponse[UserState], error) {
 	config := infer.GetConfig[Config](ctx)
-	return name, UserState{
-		Name:     config.User,
-		Password: config.hashedPassword,
-	}, nil
+	return infer.CreateResponse[UserState]{
+		ID: req.Name,
+		Output: UserState{
+			Name:     config.User,
+			Password: config.hashedPassword,
+		}}, nil
 }
 
 var _ = (infer.CustomDiff[UserArgs, UserState])((*User)(nil))
 
-func (*User) Diff(ctx context.Context, id string, olds UserState, news UserArgs) (p.DiffResponse, error) {
+func (*User) Diff(ctx context.Context, req infer.DiffRequest[UserArgs, UserState]) (infer.DiffResponse, error) {
 	config := infer.GetConfig[Config](ctx)
-	if config.User != olds.Name {
-		return p.DiffResponse{
+	if config.User != req.Olds.Name {
+		return infer.DiffResponse{
 			HasChanges: true,
 			DetailedDiff: map[string]p.PropertyDiff{
 				"name": {Kind: p.UpdateReplace},

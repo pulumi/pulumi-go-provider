@@ -36,7 +36,7 @@ type resInput struct {
 
 type resOutput struct{ resInput }
 
-func (c res) Create(context.Context, string, resInput, bool) (string, resOutput, error) {
+func (c res) Create(context.Context, infer.CreateRequest[resInput]) (infer.CreateResponse[resOutput], error) {
 	panic("unimplemented")
 }
 

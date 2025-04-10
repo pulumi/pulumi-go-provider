@@ -247,29 +247,31 @@ func TestMigrateRead(t *testing.T) {
 	})
 }
 
-func (*MigrateR) Create(context.Context, string, MigrateStateInput, bool) (string, MigrateStateV2, error) {
+func (*MigrateR) Create(_ context.Context,
+	req infer.CreateRequest[MigrateStateInput]) (infer.CreateResponse[MigrateStateV2], error) {
 	panic("CANNOT CREATE; ONLY MIGRATE")
 }
 
 // Just return the old state so it is visible to tests.
 func (*MigrateR) Update(
-	_ context.Context, _ string, s MigrateStateV2, _ MigrateStateInput, _ bool,
-) (MigrateStateV2, error) {
-	return s, nil
+	_ context.Context, req infer.UpdateRequest[MigrateStateInput, MigrateStateV2],
+) (infer.UpdateResponse[MigrateStateV2], error) {
+	return infer.UpdateResponse[MigrateStateV2]{Output: req.Olds}, nil
 }
 
 func (*MigrateR) Read(
-	_ context.Context, id string, input MigrateStateInput, output MigrateStateV2,
-) (string, MigrateStateInput, MigrateStateV2, error) {
-	return id, input, output, nil
+	_ context.Context, req infer.ReadRequest[MigrateStateInput, MigrateStateV2],
+) (infer.ReadResponse[MigrateStateInput, MigrateStateV2], error) {
+	return infer.ReadResponse[MigrateStateInput, MigrateStateV2](req), nil
 }
 
-func (*MigrateR) Delete(_ context.Context, _ string, s MigrateStateV2) error {
-	return viaError[MigrateStateV2]{s}
+func (*MigrateR) Delete(_ context.Context, req infer.DeleteRequest[MigrateStateV2]) (infer.DeleteResponse, error) {
+	return infer.DeleteResponse{}, viaError[MigrateStateV2]{req.State}
 }
 
-func (*MigrateR) Diff(_ context.Context, _ string, s MigrateStateV2, _ MigrateStateInput) (p.DiffResponse, error) {
-	return p.DiffResponse{}, viaError[MigrateStateV2]{s}
+func (*MigrateR) Diff(_ context.Context,
+	req infer.DiffRequest[MigrateStateInput, MigrateStateV2]) (infer.DiffResponse, error) {
+	return infer.DiffResponse{}, viaError[MigrateStateV2]{req.Olds}
 }
 
 type viaError[T any] struct{ t T }

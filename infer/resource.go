@@ -74,27 +74,69 @@ import (
 //	}
 //
 //	func (*MyResource) Create(
-//		ctx context.Context, name string, inputs MyResourceInputs, preview bool,
-//	) (string, MyResourceOutputs, error) {
-//		id := input.MyString + ".id"
-//		if preview {
-//			return id, MyResourceOutputs{MyResourceInputs: inputs}, nil
+//		ctx context.Context, req infer.CreateRequest[MyResourceInputs],
+//	) (infer.CreateResponse[MyResourceOutputs], error) {
+//		id := req.Inputs.MyString + ".id"
+//		if req.Preview {
+//			return infer.CreateResponse[MyResourceOutputs]{
+//				ID: id,
+//				Output: MyResourceOutputs{MyResourceInputs: inputs},
+//			}, nil
 //		}
 //
-//		result := input.MyString
-//		if inputs.OptionalInt != nil {
-//			result = fmt.Sprintf("%s.%d", result, *inputs.OptionalInt)
+//		result := req.Inputs.MyString
+//		if req.Inputs.OptionalInt != nil {
+//			result = fmt.Sprintf("%s.%d", result, *req.Inputs.OptionalInt)
 //		}
 //
-//		return id, MyResourceOutputs{inputs, result}, nil
+//		return infer.CreateResponse[MyResourceOutputs]{
+//					ID: id,
+//					Output: MyResourceOutputs{inputs, result},
+//				}, nil
 //	}
 type CustomResource[I, O any] interface {
 	// All custom resources must be able to be created.
 	CustomCreate[I, O]
 }
 
+// CreateRequest contains all the parameters for a Create operation
+type CreateRequest[I any] struct {
+	// The resource name.
+	Name string
+	// The resource inputs.
+	Inputs I
+	// Whether this is a preview operation.
+	Preview bool
+}
+
+// CreateResponse contains all the results from a Create operation
+type CreateResponse[O any] struct {
+	// The provider assigned unique ID of the created resource.
+	ID string
+	// The output state of the resource to checkpoint.
+	Output O
+}
+
 type CustomCreate[I, O any] interface {
-	Create(ctx context.Context, name string, inputs I, preview bool) (id string, output O, err error)
+	Create(ctx context.Context, req CreateRequest[I]) (CreateResponse[O], error)
+}
+
+// CheckRequest contains all the parameters for a Check operation.
+type CheckRequest struct {
+	// The resource name.
+	Name string
+	// The old resource inputs.
+	OldInputs resource.PropertyMap
+	// The new resource inputs.
+	NewInputs resource.PropertyMap
+}
+
+// CheckResponse contains all the results from a Check operation
+type CheckResponse[I any] struct {
+	// The validated inputs.
+	Inputs I
+	// Any validation failures encountered.
+	Failures []p.CheckFailure
 }
 
 // CustomCheck describes a resource that understands how to check its inputs.
@@ -109,12 +151,24 @@ type CustomCreate[I, O any] interface {
 // Example:
 // TODO - Maybe a resource that has a regex. We could reject invalid regex before the up
 // actually happens.
+// CheckRequest contains all the parameters for a Check operation
 type CustomCheck[I any] interface {
-	// Maybe oldInputs can be of type I
-	Check(
-		ctx context.Context, name string, oldInputs, newInputs resource.PropertyMap,
-	) (I, []p.CheckFailure, error)
+	// Check validates the inputs for a resource.
+	Check(ctx context.Context, req CheckRequest) (CheckResponse[I], error)
 }
+
+// DiffRequest contains all the parameters for a Diff operation
+type DiffRequest[I, O any] struct {
+	// The resource ID.
+	ID string
+	// The old resource state.
+	Olds O
+	// The new resource inputs.
+	News I
+}
+
+// DiffResponse contains all the results from a Diff operation.
+type DiffResponse = p.DiffResponse
 
 // CustomDiff describes a resource that understands how to diff itself given a new set of
 // inputs.
@@ -125,8 +179,25 @@ type CustomCheck[I any] interface {
 // Example:
 // TODO - Indicate replacements for certain changes but not others.
 type CustomDiff[I, O any] interface {
-	// Maybe oldInputs can be of type I
-	Diff(ctx context.Context, id string, olds O, news I) (p.DiffResponse, error)
+	Diff(ctx context.Context, req DiffRequest[I, O]) (DiffResponse, error)
+}
+
+// UpdateRequest contains all the parameters for an Update operation
+type UpdateRequest[I, O any] struct {
+	// The resource ID.
+	ID string
+	// The old resource state.
+	Olds O
+	// The new resource inputs.
+	News I
+	// Whether this is a preview operation.
+	Preview bool
+}
+
+// UpdateResponse contains all the results from an Update operation
+type UpdateResponse[O any] struct {
+	// The output state of the resource to checkpoint.
+	Output O
 }
 
 // CustomUpdate descibes a resource that can adapt to new inputs with a delete and
@@ -142,7 +213,27 @@ type CustomDiff[I, O any] interface {
 //
 //	TODO
 type CustomUpdate[I, O any] interface {
-	Update(ctx context.Context, id string, olds O, news I, preview bool) (O, error)
+	Update(ctx context.Context, req UpdateRequest[I, O]) (UpdateResponse[O], error)
+}
+
+// ReadRequest contains all the parameters for a Read operation
+type ReadRequest[I, O any] struct {
+	// The resource ID.
+	ID string
+	// The resource inputs.
+	Inputs I
+	// The current resource state.
+	State O
+}
+
+// ReadResponse contains all the results from a Read operation
+type ReadResponse[I, O any] struct {
+	// The canonical ID of the resource.
+	ID string
+	// The normalized inputs.
+	Inputs I
+	// The normalized state.
+	State O
 }
 
 // CustomRead describes resource that can recover its state from the provider.
@@ -154,10 +245,24 @@ type CustomUpdate[I, O any] interface {
 // Example:
 // TODO - Probably something to do with the file system.
 type CustomRead[I, O any] interface {
-	// Read accepts a resource id, and a best guess of the input and output state. It returns
-	// a normalized version of each, assuming it can be recovered.
-	Read(ctx context.Context, id string, inputs I, state O) (
-		canonicalID string, normalizedInputs I, normalizedState O, err error)
+	// Read accepts a resource's current state and returns a normalized version.
+	// It can be used to sync the Pulumi state with the actual resource state.
+
+	Read(ctx context.Context, req ReadRequest[I, O]) (ReadResponse[I, O], error)
+}
+
+// DeleteRequest contains all the parameters for a Delete operation
+type DeleteRequest[O any] struct {
+	// The resource ID.
+	ID string
+	// The current resource state.
+	State O
+}
+
+// DeleteResponse contains all the results from a Delete operation
+type DeleteResponse struct {
+	// Currently empty, but may be extended in the future to return additional
+	// information.
 }
 
 // CustomDelete describes a resource that knows how to delete itself.
@@ -165,7 +270,7 @@ type CustomRead[I, O any] interface {
 // If a resource does not implement Delete, no code will be run on resource deletion.
 type CustomDelete[O any] interface {
 	// Delete is called before a resource is removed from pulumi state.
-	Delete(ctx context.Context, id string, props O) error
+	Delete(ctx context.Context, req DeleteRequest[O]) (DeleteResponse, error)
 }
 
 // StateMigrationFunc represents a stateless mapping from an old state shape to a new
@@ -935,8 +1040,12 @@ func callCustomCheck[T any](
 ) (*ende.Encoder, T, []p.CheckFailure, error) {
 	defaultCheckEncoder := new(defaultCheckEncoderValue)
 	ctx = context.WithValue(ctx, defaultCheckEncoderKey{}, defaultCheckEncoder)
-	i, failures, err := r.Check(ctx, name, olds, news)
-	return defaultCheckEncoder.enc, i, failures, err
+	resp, err := r.Check(ctx, CheckRequest{
+		Name:      name,
+		OldInputs: olds,
+		NewInputs: news,
+	})
+	return defaultCheckEncoder.enc, resp.Inputs, resp.Failures, err
 }
 
 // DefaultCheck verifies that inputs can deserialize cleanly into I. This is the default
@@ -1039,11 +1148,15 @@ func diff[R, I, O any](
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		diff, err := r.Diff(ctx, req.ID, olds, news)
+		resp, err := r.Diff(ctx, DiffRequest[I, O]{
+			ID:   req.ID,
+			Olds: olds,
+			News: news,
+		})
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		return diff, nil
+		return resp, nil
 	}
 
 	inputProps, err := introspect.FindProperties(typeFor[I]())
@@ -1106,7 +1219,11 @@ func (rc *derivedResourceController[R, I, O]) Create(
 		return p.CreateResponse{}, fmt.Errorf("invalid inputs: %w", err)
 	}
 
-	id, o, err := (*r).Create(ctx, req.Urn.Name(), input, req.Preview)
+	inferResp, err := (*r).Create(ctx, CreateRequest[I]{
+		Name:    req.Urn.Name(),
+		Inputs:  input,
+		Preview: req.Preview,
+	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(createErr error) {
 			// If there was an error, it indicates a problem with serializing
@@ -1131,23 +1248,23 @@ func (rc *derivedResourceController[R, I, O]) Create(
 		return p.CreateResponse{}, err
 	}
 
-	if id == "" && !req.Preview {
+	if inferResp.ID == "" && !req.Preview {
 		return p.CreateResponse{}, ProviderErrorf("'%s' was created without an id", req.Urn)
 	}
 
-	m, err := encoder.AllowUnknown(req.Preview).Encode(o)
+	m, err := encoder.AllowUnknown(req.Preview).Encode(inferResp.Output)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
 
-	setDeps, err := getDependencies(r, &input, &o, true /* isCreate */, req.Preview)
+	setDeps, err := getDependencies(r, &input, &inferResp.Output, true /* isCreate */, req.Preview)
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
 	setDeps(nil, req.Properties, m)
 
 	return p.CreateResponse{
-		ID:         id,
+		ID:         inferResp.ID,
 		Properties: m,
 	}, err
 }
@@ -1201,7 +1318,11 @@ func (rc *derivedResourceController[R, I, O]) Read(
 			Inputs:     req.Inputs,
 		}, nil
 	}
-	id, inputs, state, err := read.Read(ctx, req.ID, inputs, state)
+	inferResp, err := read.Read(ctx, ReadRequest[I, O]{
+		ID:     req.ID,
+		Inputs: inputs,
+		State:  state,
+	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(readErr error) {
 			// If there was an error, it indicates a problem with serializing
@@ -1226,17 +1347,17 @@ func (rc *derivedResourceController[R, I, O]) Read(
 		return p.ReadResponse{}, err
 	}
 
-	i, err := inputEncoder.Encode(inputs)
+	i, err := inputEncoder.Encode(inferResp.Inputs)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
-	s, err := stateEncoder.Encode(state)
+	s, err := stateEncoder.Encode(inferResp.State)
 	if err != nil {
 		return p.ReadResponse{}, err
 	}
 
 	return p.ReadResponse{
-		ID:         id,
+		ID:         inferResp.ID,
 		Properties: s,
 		Inputs:     i,
 	}, nil
@@ -1263,7 +1384,12 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	o, err := update.Update(ctx, req.ID, olds, news, req.Preview)
+	inferResp, err := update.Update(ctx, UpdateRequest[I, O]{
+		ID:      req.ID,
+		Olds:    olds,
+		News:    news,
+		Preview: req.Preview,
+	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(updateErr error) {
 			// If there was an error, it indicates a problem with serializing
@@ -1289,11 +1415,11 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	m, err := encoder.AllowUnknown(req.Preview).Encode(o)
+	m, err := encoder.AllowUnknown(req.Preview).Encode(inferResp.Output)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	setDeps, err := getDependencies(r, &news, &o, false /* isCreate */, req.Preview)
+	setDeps, err := getDependencies(r, &news, &inferResp.Output, false /* isCreate */, req.Preview)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -1312,7 +1438,11 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.
 		if err != nil {
 			return err
 		}
-		return del.Delete(ctx, req.ID, olds)
+		_, err = del.Delete(ctx, DeleteRequest[O]{
+			ID:    req.ID,
+			State: olds,
+		})
+		return err
 	}
 	return nil
 }
