@@ -57,15 +57,18 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 		for k, v := range src.DefaultEnvs {
 			(*dst).DefaultEnvs[k] = v
 		}
+		for k, v := range src.DeprecationMessages {
+			(*dst).DeprecationMessages[k] = v
+		}
 		dst.Token = src.Token
 		dst.Aliases = append(dst.Aliases, src.Aliases...)
-		dst.DeprecationMessage = src.DeprecationMessage
 	}
 
 	ret := introspect.Annotator{
-		Descriptions: map[string]string{},
-		Defaults:     map[string]any{},
-		DefaultEnvs:  map[string][]string{},
+		Descriptions:        map[string]string{},
+		Defaults:            map[string]any{},
+		DefaultEnvs:         map[string][]string{},
+		DeprecationMessages: map[string]string{},
 	}
 	if t.Elem().Kind() == reflect.Struct {
 		for _, f := range reflect.VisibleFields(t.Elem()) {
@@ -118,7 +121,7 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 		RequiredInputs:     requiredInputs,
 		IsComponent:        isComponent,
 		Aliases:            aliases,
-		DeprecationMessage: annotations.DeprecationMessage,
+		DeprecationMessage: annotations.DeprecationMessages[""],
 	}, errs
 }
 
@@ -286,11 +289,12 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool) (
 			required = append(required, tags.Name)
 		}
 		spec := &schema.PropertySpec{
-			TypeSpec:         serialized,
-			Secret:           tags.Secret,
-			ReplaceOnChanges: tags.ReplaceOnChanges,
-			Description:      annotations.Descriptions[tags.Name],
-			Default:          annotations.Defaults[tags.Name],
+			TypeSpec:           serialized,
+			Secret:             tags.Secret,
+			ReplaceOnChanges:   tags.ReplaceOnChanges,
+			Description:        annotations.Descriptions[tags.Name],
+			Default:            annotations.Defaults[tags.Name],
+			DeprecationMessage: annotations.DeprecationMessages[tags.Name],
 		}
 		if envs := annotations.DefaultEnvs[tags.Name]; len(envs) > 0 {
 			spec.DefaultInfo = &schema.DefaultSpec{

@@ -40,7 +40,7 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.Describe(&m.Fizz, "Fizz is not MyStruct.Foo.")
 	a.SetDefault(&m.Foo, "Fizz")
 	a.SetToken("myMod", "MyToken")
-	a.SetResourceDeprecationMessage("This resource is deprecated.")
+	a.Deprecate(&m, "This resource is deprecated.")
 	a.AddAlias("myMod", "MyAlias")
 }
 
@@ -114,7 +114,7 @@ func TestAnnotate(t *testing.T) {
 	assert.Equal(t, "Fizz is not MyStruct.Foo.", a.Descriptions["fizz"])
 	assert.Equal(t, "This is MyStruct, but also your struct.", a.Descriptions[""])
 	assert.Equal(t, "pkg:myMod:MyToken", a.Token)
-	assert.Equal(t, "This resource is deprecated.", a.DeprecationMessage)
+	assert.Equal(t, "This resource is deprecated.", a.DeprecationMessages[""])
 	assert.Equal(t, []string{"pkg:myMod:MyAlias"}, a.Aliases)
 }
 
