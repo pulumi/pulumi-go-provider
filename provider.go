@@ -751,7 +751,6 @@ func (p *provider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Inv
 	}, nil
 }
 
-// StreamInvoke method has been removed in Pulumi SDK v3.162.0
 
 func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
 
