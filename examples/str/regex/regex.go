@@ -9,13 +9,15 @@ import (
 
 type Replace struct{}
 
-func (Replace) Call(_ context.Context, args ReplaceArgs) (Ret, error) {
-	r, err := regexp.Compile(args.Pattern)
+func (Replace) Call(_ context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[Ret], error) {
+	r, err := regexp.Compile(req.Input.Pattern)
 	if err != nil {
-		return Ret{}, err
+		return infer.FunctionResponse[Ret]{}, err
 	}
-	result := r.ReplaceAllLiteralString(args.S, args.New)
-	return Ret{result}, nil
+	result := r.ReplaceAllLiteralString(req.Input.S, req.Input.New)
+	return infer.FunctionResponse[Ret]{
+		Output: Ret{result},
+	}, nil
 }
 
 func (r *Replace) Annotate(a infer.Annotator) {

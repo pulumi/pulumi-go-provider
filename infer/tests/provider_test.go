@@ -399,8 +399,12 @@ type JoinResult struct {
 	Result string `pulumi:"result"`
 }
 
-func (*GetJoin) Call(ctx context.Context, args JoinArgs) (JoinResult, error) {
-	return JoinResult{strings.Join(args.Elems, *args.Sep)}, nil
+func (*GetJoin) Call(
+	ctx context.Context,
+	req infer.FunctionRequest[JoinArgs]) (infer.FunctionResponse[JoinResult], error) {
+	return infer.FunctionResponse[JoinResult]{
+		Output: JoinResult{strings.Join(req.Input.Elems, *req.Input.Sep)},
+	}, nil
 }
 
 type ConfigCustom struct {

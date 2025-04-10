@@ -118,10 +118,12 @@ func (*User) Diff(ctx context.Context, req infer.DiffRequest[UserArgs, UserState
 
 type Sign struct{}
 
-func (Sign) Call(ctx context.Context, args SignArgs) (SignRes, error) {
+func (Sign) Call(ctx context.Context, req infer.FunctionRequest[SignArgs]) (infer.FunctionResponse[SignRes], error) {
 	config := infer.GetConfig[Config](ctx)
-	return SignRes{
-		Out: fmt.Sprintf("%s by %s", args.Message, config.User),
+	return infer.FunctionResponse[SignRes]{
+		Output: SignRes{
+			Out: fmt.Sprintf("%s by %s", req.Input.Message, config.User),
+		},
 	}, nil
 }
 
