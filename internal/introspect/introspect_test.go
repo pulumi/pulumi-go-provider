@@ -29,10 +29,11 @@ import (
 )
 
 type MyStruct struct {
-	Foo     string `pulumi:"foo,optional" provider:"secret,output"`
-	Bar     int    `provider:"secret"`
-	Fizz    *int   `pulumi:"fizz"`
-	ExtType string `pulumi:"typ" provider:"type=example@1.2.3:m1:m2"`
+	Foo         string `pulumi:"foo,optional" provider:"secret,output"`
+	Bar         int    `provider:"secret"`
+	Fizz        *int   `pulumi:"fizz"`
+	ExtType     string `pulumi:"typ" provider:"type=example@1.2.3:m1:m2"`
+	WrongSecret string `pulumi:"wrongSecret,secret"`
 }
 
 func (m *MyStruct) Annotate(a infer.Annotator) {
@@ -82,6 +83,10 @@ func TestParseTag(t *testing.T) {
 					Name:    "m2",
 				},
 			},
+		},
+		{
+			Field: "WrongSecret",
+			Error: "`marking a field as secret in the `pulumi` tag namespace is not allowed, use `provider` instead",
 		},
 	}
 

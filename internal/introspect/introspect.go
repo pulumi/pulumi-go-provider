@@ -166,6 +166,15 @@ func ParseTag(field reflect.StructField) (FieldTag, error) {
 		}
 	}
 
+	// Determine if the provider author had accidentally marked the field as secret
+	// in the `pulumi` namespace. We need to error out if this is the case, as it will
+	// lead to a Pulumi program runtime panic.
+	// pulumi/pulumi-go-provider#192
+	if pulumi["secret"] {
+		return FieldTag{},
+			fmt.Errorf("`marking a field as secret in the `pulumi` tag namespace is not allowed, use `provider` instead")
+	}
+
 	return FieldTag{
 		Name:             name,
 		Optional:         pulumi["optional"],
