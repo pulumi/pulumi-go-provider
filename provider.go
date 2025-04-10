@@ -751,7 +751,6 @@ func (p *provider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Inv
 	}, nil
 }
 
-
 func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
 
 	configPropertyMap := make(presource.PropertyMap, len(req.GetConfig()))
