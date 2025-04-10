@@ -755,10 +755,6 @@ func (p *provider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Inv
 	}, nil
 }
 
-func (p *provider) StreamInvoke(*rpc.InvokeRequest, rpc.ResourceProvider_StreamInvokeServer) error {
-	return status.Error(codes.Unimplemented, "StreamInvoke is not yet implemented")
-}
-
 func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
 
 	configPropertyMap := make(presource.PropertyMap, len(req.GetConfig()))
