@@ -20,7 +20,12 @@ jobs:
             exit 1
           fi
           if [ "v$(cat .version)" != ${{ github.ref_name }} ]; then
-            echo "Version in "".version" file does not match tag pushed."
+            echo 'The release has failed.'
+            echo
+            echo The version in ".version" file "(v$(cat .version))" does 
+            echo not match tag pushed (${{ github.ref_name }}). The releaser
+            echo needs to manually delete the release and any associated git
+            echo tag, update the .version file and try again.
             exit 1
           fi
   lint:
@@ -31,13 +36,6 @@ jobs:
       live-test: true
     secrets:
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_CI_ROLE_ARN: ${{ secrets.AWS_CI_ROLE_ARN }}
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   publish:
     needs: [ensure-version, lint, test]
