@@ -131,7 +131,8 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
 	assert.Equal(t, resource.PropertyMap{
-		"field": resource.MakeSecret(resource.NewProperty("value")),
+		"__pulumi-go-provider-infer": resource.NewBoolProperty(true),
+		"field":                      resource.MakeSecret(resource.NewProperty("value")),
 		"nested": resource.NewProperty(resource.PropertyMap{
 			"int":        resource.MakeSecret(resource.NewProperty(1.0)),
 			"not-nested": resource.NewProperty("not-secret"),
@@ -208,9 +209,10 @@ func TestInferCustomCheckConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, resp.Failures)
 			assert.Equal(t, resource.PropertyMap{
-				"field":         resource.MakeSecret(resource.NewProperty("value")),
-				"not":           resource.NewProperty("not-secret"),
-				"applyDefaults": resource.NewProperty(applyDefaults),
+				"__pulumi-go-provider-infer": resource.NewBoolProperty(true),
+				"field":                      resource.MakeSecret(resource.NewProperty("value")),
+				"not":                        resource.NewProperty("not-secret"),
+				"applyDefaults":              resource.NewProperty(applyDefaults),
 			}, resp.Inputs)
 		})
 	}

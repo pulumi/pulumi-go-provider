@@ -15,6 +15,10 @@
 package grpc
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	replay "github.com/pulumi/providertest/replay"
@@ -24,6 +28,25 @@ import (
 	config "github.com/pulumi/pulumi-go-provider/tests/grpc/config/provider"
 )
 
+// injectFrameworkVersion replaces the {{VERSION}} placeholder in the log with the
+// version of the provider obtained from the repository's root .version file.
+func injectFrameworkVersion(logTemplate string) string {
+	// Get the absolute path to the .version file.
+	path, err := filepath.Abs("../../.version")
+	if err != nil {
+		panic(fmt.Errorf("unable to get absolute path: %w", err))
+	}
+
+	// Read the contents of the .version file.
+	version, err := os.ReadFile(path)
+	if err != nil {
+		panic(fmt.Errorf("unable to read .version file: %w", err))
+	}
+
+	// Replace the placeholder "{{VERSION}}" with the actual version.
+	return strings.ReplaceAll(logTemplate, "{{VERSION}}", string(version))
+}
+
 // These inputs were created by running `pulumi up` with PULUMI_DEBUG_GRPC=logs.json in
 // ./config/consumer.
 
@@ -32,7 +55,7 @@ import (
 // These test values were derived from a Pulumi YAML program, which does not JSON encode
 // it's values.
 func TestBasicConfig(t *testing.T) {
-	sequence := `[
+	sequence := injectFrameworkVersion(`[
   {
     "method": "/pulumirpc.ResourceProvider/CheckConfig",
     "request": {
@@ -91,6 +114,8 @@ func TestBasicConfig(t *testing.T) {
     },
     "response": {
       "inputs": {
+        "__pulumi-go-provider-infer": true,
+        "__pulumi-go-provider-version": "{{VERSION}}",
         "a": [
           "one",
           "two"
@@ -249,12 +274,12 @@ func TestBasicConfig(t *testing.T) {
       "name": "config"
     }
   }
-]`
+]`)
 	replayConfig(t, sequence)
 }
 
 func TestConfigWithSecrets(t *testing.T) {
-	sequence := `[
+	sequence := injectFrameworkVersion(`[
   {
     "method": "/pulumirpc.ResourceProvider/CheckConfig",
     "request": {
@@ -313,6 +338,8 @@ func TestConfigWithSecrets(t *testing.T) {
     },
     "response": {
       "inputs": {
+        "__pulumi-go-provider-infer": true,
+        "__pulumi-go-provider-version": "{{VERSION}}",
         "a": [
           "one",
           "two"
@@ -471,7 +498,7 @@ func TestConfigWithSecrets(t *testing.T) {
       "name": "config"
     }
   }
-]`
+]`)
 	replayConfig(t, sequence)
 }
 
@@ -519,7 +546,7 @@ func TestConfigWithSecrets(t *testing.T) {
 //
 // Write the program and run `consumer/run.sh` to generate gRPC logs.
 func TestJSONEncodedConfig(t *testing.T) {
-	replayConfig(t, `[{
+	replayConfig(t, injectFrameworkVersion(`[{
     "method": "/pulumirpc.ResourceProvider/CheckConfig",
     "request": {
         "urn": "urn:pulumi:test::test::pulumi:providers:config::ts",
@@ -539,6 +566,8 @@ func TestJSONEncodedConfig(t *testing.T) {
     },
     "response": {
         "inputs": {
+            "__pulumi-go-provider-infer": true,
+            "__pulumi-go-provider-version": "{{VERSION}}",
             "a": [
                 "one",
                 "two"
@@ -571,7 +600,7 @@ func TestJSONEncodedConfig(t *testing.T) {
         "mode": "client",
         "name": "config"
     }
-}]`)
+}]`))
 }
 
 func replayConfig(t *testing.T, jsonLog string) {
