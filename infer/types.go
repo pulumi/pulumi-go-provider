@@ -29,6 +29,14 @@ import (
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+// A propertyType is used to determine if a property is an input or output property.
+type propertyType int
+
+const (
+	inputType propertyType = iota
+	outputType
+)
+
 // EnumKind is the set of allowed underlying values for [Enum].
 type EnumKind interface {
 	~string | ~float64 | ~bool | ~int
