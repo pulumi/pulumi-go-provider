@@ -52,7 +52,9 @@ func main() {
 					return nil, err
 				}
 
-				_, err = random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{}, pulumi.Parent(r))
+				_, err = random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{
+					Prefix: r.MyInput,
+				}, pulumi.Parent(r))
 				if err != nil {
 					return nil, err
 				}
