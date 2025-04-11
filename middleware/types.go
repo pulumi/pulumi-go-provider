@@ -18,7 +18,6 @@ import (
 	"context"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
@@ -35,10 +34,9 @@ type CustomResource interface {
 
 // ConstructRequest contains request details based on Pulumi Go SDK types.
 type ConstructRequest struct {
-	URN     presource.URN
+	p.ConstructRequest
 	Inputs  comProvider.ConstructInputs
 	Options pulumi.ResourceOption
-	Preview bool
 }
 
 // ComponentResource provides a shared definition of a Pulumi component resource for

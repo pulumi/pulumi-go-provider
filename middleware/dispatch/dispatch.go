@@ -142,10 +142,9 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 				) (*comProvider.ConstructResult, error) {
 
 					r, err := res.Construct(ctx, t.ConstructRequest{
-						URN:     req.Urn,
-						Inputs:  inputs,
-						Options: options,
-						Preview: req.Info.DryRun,
+						ConstructRequest: req,
+						Inputs:           inputs,
+						Options:          options,
 					})
 					if err != nil {
 						return nil, err

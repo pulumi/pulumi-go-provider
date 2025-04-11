@@ -82,7 +82,7 @@ func (rc *derivedComponentController[R, I, O]) Construct(
 ) (pulumi.ComponentResource, error) {
 
 	var i I
-	urn := req.URN
+	urn := req.Urn
 	var err error
 
 	// The input to [inputs.CopyTo] must be a pointer to a struct.
