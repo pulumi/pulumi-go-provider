@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/go-multierror"
@@ -32,6 +33,7 @@ import (
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
@@ -568,7 +570,10 @@ type provider struct {
 	client  Provider
 }
 
+var _ rpc.ResourceProviderServer = (*provider)(nil)
+
 type providerHost struct {
+	p    *provider
 	host *pprovider.HostClient
 }
 
@@ -586,7 +591,7 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 		ctx = context.WithValue(ctx, key.Logger, &hostSink{
 			host: p.host,
 		})
-		ctx = context.WithValue(ctx, key.ProviderHost, &providerHost{p.host})
+		ctx = context.WithValue(ctx, key.ProviderHost, &providerHost{p, p.host})
 	}
 	ctx = context.WithValue(ctx, key.URN, urn)
 	return context.WithValue(ctx, key.RuntimeInfo, RunInfo{
@@ -597,18 +602,21 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 
 func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
 	return plugin.UnmarshalProperties(s, plugin.MarshalOptions{
-		KeepUnknowns:  true,
-		SkipNulls:     true,
-		KeepResources: true,
-		KeepSecrets:   true,
+		KeepUnknowns:     true,
+		SkipNulls:        true,
+		KeepResources:    true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
 	})
 }
 
 func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
 	return plugin.MarshalProperties(m, plugin.MarshalOptions{
-		KeepUnknowns: true,
-		SkipNulls:    true,
-		KeepSecrets:  true,
+		KeepUnknowns:     true,
+		SkipNulls:        true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+		KeepResources:    true,
 	})
 }
 
@@ -1063,41 +1071,269 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 
 }
 
+// ConstructRequest captures enough data to be able to register nested components against the caller's resource
+// monitor.
+//
+// https://github.com/pulumi/pulumi/blob/3e7844a245832c50d8de1f1fc97896f98976ff9b/sdk/go/common/resource/plugin/provider.go#L290
 type ConstructRequest struct {
 	Urn     presource.URN // the Pulumi URN for this resource.
-	Preview bool
-	// TODO replace embedded struct with actual fields
-	// *rpc.ConstructRequest
-	*rpc.ConstructRequest
+	Info    ConstructInfo
+	Parent  presource.URN
+	Inputs  presource.PropertyMap
+	Options ConstructOptions
+}
+
+// ConstructInfo contains all of the information required to register resources as part of a call to Construct.
+type ConstructInfo struct {
+	Config           map[pconfig.Key]string // the configuration variables to apply before running.
+	ConfigSecretKeys []pconfig.Key          // the configuration keys that have secret values.
+	DryRun           bool                   // true if we are performing a dry-run (preview).
+	Parallel         int32                  // the degree of parallelism for resource operations (<=1 for serial).
+	MonitorEndpoint  string                 // the RPC address to the host resource monitor.
+}
+
+// ConstructOptions captures options for a call to Construct.
+type ConstructOptions struct {
+	// Aliases is the set of aliases for the component.
+	Aliases []presource.URN
+
+	// Dependencies is the list of resources this component depends on.
+	Dependencies []presource.URN
+
+	// Protect is true if the component is protected.
+	Protect bool
+
+	// Providers is a map from package name to provider reference.
+	Providers map[string]string
+
+	// InputDependencies is a map from property name to a list of resources that property depends on.
+	InputDependencies map[presource.PropertyKey][]presource.URN
+
+	// AdditionalSecretOutputs lists extra output properties
+	// that should be treated as secrets.
+	AdditionalSecretOutputs []presource.PropertyKey
+
+	// CustomTimeouts overrides default timeouts for resource operations.
+	CustomTimeouts *presource.CustomTimeouts
+
+	// DeletedWith specifies that if the given resource is deleted,
+	// it will also delete this resource.
+	DeletedWith presource.URN
+
+	// DeleteBeforeReplace specifies that replacements of this resource
+	// should delete the old resource before creating the new resource.
+	DeleteBeforeReplace bool
+
+	// IgnoreChanges lists properties that should be ignored
+	// when determining whether the resource should has changed.
+	IgnoreChanges []string
+
+	// ReplaceOnChanges lists properties changing which should cause
+	// the resource to be replaced.
+	ReplaceOnChanges []string
+
+	// RetainOnDelete is true if deletion of the resource should not
+	// delete the resource in the provider.
+	RetainOnDelete bool
+}
+
+type propertyToRPC func(m presource.PropertyMap) (*structpb.Struct, error)
+
+func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
+
+	// https://github.com/pulumi/pulumi/blob/3e7844a245832c50d8de1f1fc97896f98976ff9b/sdk/go/common/resource/plugin/provider_plugin.go#L1748
+
+	fromUrns := func(urns []presource.URN) []string {
+		r := make([]string, len(urns))
+		for i, urn := range urns {
+			r[i] = string(urn)
+		}
+		return r
+	}
+
+	ptr := func(b bool) *bool {
+		return &b
+	}
+
+	// Marshal the input properties.
+	minputs, err := marshal(c.Inputs)
+	if err != nil {
+		return nil
+	}
+
+	req := &rpc.ConstructRequest{
+		Project: string(c.Urn.Project()),
+		Stack:   string(c.Urn.Stack()),
+		Config: func() map[string]string {
+			m := make(map[string]string, len(c.Info.Config))
+			for k, v := range c.Info.Config {
+				m[k.String()] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []string {
+			keys := make([]string, len(c.Info.ConfigSecretKeys))
+			for i, k := range c.Info.ConfigSecretKeys {
+				keys[i] = k.String()
+			}
+			return keys
+		}(),
+		DryRun:          c.Info.DryRun,
+		Parallel:        c.Info.Parallel,
+		MonitorEndpoint: c.Info.MonitorEndpoint,
+		Type:            string(c.Urn.Type()),
+		Name:            string(c.Urn.Name()),
+		Parent:          string(c.Parent),
+		Inputs:          minputs,
+		Protect:         ptr(c.Options.Protect),
+		Providers:       c.Options.Providers,
+		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
+			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.Options.InputDependencies))
+			for k, v := range c.Options.InputDependencies {
+				m[string(k)] = &rpc.ConstructRequest_PropertyDependencies{
+					Urns: fromUrns(v),
+				}
+			}
+			return m
+		}(),
+		Aliases:      fromUrns(c.Options.Aliases),
+		Dependencies: fromUrns(c.Options.Dependencies),
+		AdditionalSecretOutputs: func() []string {
+			r := make([]string, len(c.Options.AdditionalSecretOutputs))
+			for i, k := range c.Options.AdditionalSecretOutputs {
+				r[i] = string(k)
+			}
+			return r
+		}(),
+		DeletedWith:         string(c.Options.DeletedWith),
+		DeleteBeforeReplace: ptr(c.Options.DeleteBeforeReplace),
+		IgnoreChanges:       c.Options.IgnoreChanges,
+		ReplaceOnChanges:    c.Options.ReplaceOnChanges,
+		RetainOnDelete:      ptr(c.Options.RetainOnDelete),
+		AcceptsOutputValues: true,
+	}
+
+	if ct := c.Options.CustomTimeouts; ct != nil {
+		req.CustomTimeouts = &rpc.ConstructRequest_CustomTimeouts{
+			Create: (time.Duration(ct.Create) * time.Second).String(),
+			Update: (time.Duration(ct.Update) * time.Second).String(),
+			Delete: (time.Duration(ct.Delete) * time.Second).String(),
+		}
+	}
+
+	return req
 }
 
 type ConstructResponse struct{ *rpc.ConstructResponse }
 
 func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	// This returns the URN of the parent, we just need the type.
-	parent := tokens.Type(req.GetParent())
-	if parent != "" {
-		parent = presource.URN(parent).Type()
+
+	toDurationSecs := func(s string) float64 {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return 0
+		}
+		return d.Seconds()
 	}
 
+	toUrns := func(s []string) []presource.URN {
+		r := make([]presource.URN, len(s))
+		for i, a := range s {
+			r[i] = presource.URN(a)
+		}
+		return r
+	}
+
+	parent := presource.URN(req.GetParent())
 	urn := presource.NewURN(
 		tokens.QName(req.GetStack()),
 		tokens.PackageName(req.GetProject()),
-		parent,
+		func() tokens.Type {
+			if parent == "" {
+				return ""
+			}
+			return parent.Type()
+		}(),
 		tokens.Type(req.GetType()),
 		req.GetName(),
 	)
+
+	// see: https://github.com/pulumi/pulumi/blob/3e7844a245832c50d8de1f1fc97896f98976ff9b/sdk/go/common/resource/plugin/provider_plugin.go#L1748
+
+	r := ConstructRequest{
+		Urn: urn,
+		Info: ConstructInfo{
+			Config: func() map[pconfig.Key]string {
+				m := make(map[pconfig.Key]string, len(req.GetConfig()))
+				for k, v := range req.GetConfig() {
+					m[pconfig.MustParseKey(k)] = v
+				}
+				return m
+			}(),
+			ConfigSecretKeys: func() []pconfig.Key {
+				keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
+				for i, k := range req.GetConfigSecretKeys() {
+					keys[i] = pconfig.MustParseKey(k)
+				}
+				return keys
+			}(),
+			DryRun:          req.GetDryRun(),
+			Parallel:        req.GetParallel(),
+			MonitorEndpoint: req.GetMonitorEndpoint(),
+		},
+		Parent: parent,
+		Inputs: presource.PropertyMap{},
+		Options: ConstructOptions{
+			Protect:   req.GetProtect(),
+			Providers: req.GetProviders(),
+			InputDependencies: func() map[presource.PropertyKey][]presource.URN {
+				m := make(map[presource.PropertyKey][]presource.URN, len(req.GetInputDependencies()))
+				for k, v := range req.GetInputDependencies() {
+					m[presource.PropertyKey(k)] = toUrns(v.Urns)
+				}
+				return m
+			}(),
+			Aliases:                 toUrns(req.GetAliases()),
+			Dependencies:            toUrns(req.GetDependencies()),
+			AdditionalSecretOutputs: func() []presource.PropertyKey {
+				r := make([]presource.PropertyKey, len(req.GetAdditionalSecretOutputs()))
+				for i, k := range req.GetAdditionalSecretOutputs() {
+					r[i] = presource.PropertyKey(k)
+				}
+				return r
+			}(),
+			DeletedWith:             presource.URN(req.GetDeletedWith()),
+			DeleteBeforeReplace:     req.GetDeleteBeforeReplace(),
+			IgnoreChanges:           req.GetIgnoreChanges(),
+			ReplaceOnChanges:        req.GetReplaceOnChanges(),
+			RetainOnDelete:          req.GetRetainOnDelete(),
+			CustomTimeouts: func() *presource.CustomTimeouts {
+				t := req.GetCustomTimeouts()
+				if t == nil {
+					return nil
+				}
+				return &presource.CustomTimeouts{
+					Create: toDurationSecs(t.GetCreate()),
+					Update: toDurationSecs(t.GetUpdate()),
+					Delete: toDurationSecs(t.GetDelete()),
+				}
+			}(),
+		},
+	}
+
+	inputs, err := p.getMap(req.Inputs)
+	if err != nil {
+		return nil, err
+	}
+	r.Inputs = inputs
+
 	ctx = p.ctx(ctx, urn)
-	result, err := p.client.Construct(ctx, ConstructRequest{
-		Urn:              urn,
-		Preview:          req.GetDryRun(),
-		ConstructRequest: req,
-	})
+	result, err := p.client.Construct(ctx, r)
 	return result.ConstructResponse, err
 }
 
 func (h *providerHost) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc) (ConstructResponse, error) {
-	r, err := comProvider.Construct(ctx, req.ConstructRequest, h.host.EngineConn(), construct)
+	r, err := comProvider.Construct(ctx, req.rpc(h.p.asStruct), h.host.EngineConn(), construct)
 	if err != nil {
 		return ConstructResponse{}, err
 	}

@@ -35,7 +35,7 @@ const methodType = componentType + "/myMethod"
 func main() {
 	if err := p.RunProvider("test", "0.1.0", p.Provider{
 		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			if t := req.URN.Type(); t != componentType {
+			if t := req.Urn.Type(); t != componentType {
 				return p.ConstructResponse{}, fmt.Errorf("unknown component type %q", t)
 			}
 
@@ -55,15 +55,16 @@ func main() {
 					return nil, err
 				}
 
-				_, err = random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{}, pulumi.Parent(r))
+				pet, err := random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{
+					// Prefix: r.MyInput,
+				}, pulumi.Parent(r))
 				if err != nil {
 					return nil, err
 				}
 
-				r.MyOutput = pulumi.StringPtr("my-output").ToStringPtrOutput()
-
+				r.MyOutput = pet.ID().ToStringPtrOutput()
 				err = ctx.RegisterResourceOutputs(r, pulumi.ToMap(map[string]any{
-					"myOutput": "my-output",
+					"myOutput": r.MyOutput,
 				}))
 				if err != nil {
 					return nil, err

@@ -23,41 +23,49 @@ import (
 	"github.com/pulumi/pulumi-go-provider/integration"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 )
 
 func TestConstruct(t *testing.T) {
 	t.Parallel()
 
-	t.Run("up", func(t *testing.T) {
-		t.Parallel()
-
-		prov := providerWithMocks[Config](t, &integration.MockMonitor{
-			NewResourceF: func(args pulumi.MockResourceArgs) (string, r.PropertyMap, error) {
-				assert.Equal(t, "up", args.Name)
-				// assert.Equal(t, "up", args.Inputs["name"].StringValue())
-				return "up-id", r.PropertyMap{}, nil
-			},
-		})
-
-		resp, err := prov.Construct(p.ConstructRequest{
-			Urn: urn("ReadConfigComponent", "up"),
-			ConstructRequest: &rpc.ConstructRequest{
-				Project: "test-project",
-				Stack:   "test-stack",
-			},
-
-			// Properties: resource.PropertyMap{
-			// 	"string": resource.NewStringProperty("foo"),
-			// 	"int":    resource.NewNumberProperty(4.0),
-			// },
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, "urn:pulumi:stack::project::test:index:ReadConfigComponent::up", resp.Urn)
-		// assert.Equal(t, resource.PropertyMap{
-		// 	"name":         s("(up)"),
-		// 	"stringPlus":   s("foo+"),
-		// 	"stringAndInt": s("foo-4"),
-		// }, resp.Properties)
+	prov := providerWithMocks[Config](t, &integration.MockMonitor{
+		NewResourceF: func(args pulumi.MockResourceArgs) (string, r.PropertyMap, error) {
+			assert.Equal(t, "test:index:RandomComponent", args.TypeToken)
+			assert.Equal(t, "test-component", args.Name)
+			return args.ID, r.PropertyMap{}, nil
+		},
 	})
+
+	prefix := r.NewProperty(r.Output{
+		Secret:       true,
+		Dependencies: []r.URN{urn("Other", "other")},
+		Known:        true,
+		Element:      r.NewStringProperty("foo-"),
+	})
+
+	resp, err := prov.Construct(p.ConstructRequest{
+		Urn:    childUrn("RandomComponent", "test-component", "test-parent"),
+		Parent: urn("Parent", "test-parent"),
+		Info: p.ConstructInfo{
+			Parallel: 1,
+		},
+		Inputs: r.PropertyMap{
+			"prefix": prefix,
+		},
+		Options: p.ConstructOptions{
+			InputDependencies: map[r.PropertyKey][]r.URN{
+				"prefix": {urn("Other", "more")},
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "urn:pulumi:stack::project::test:index:Parent$test:index:RandomComponent::test-component", resp.Urn)
+
+	// assert.Equal(t, "urn:pulumi:stack::project::test:index:Parent$test:index:RandomComponent::test-component", resp.StateDependencies["prefix"][0].String()) )
+	// TODO check property dependencies: result will have "other" as as dependency
+
+	assert.Equal(t, r.PropertyMap{
+		"result": r.NewStringProperty("foo-12345"),
+	}, resp.State)
 }

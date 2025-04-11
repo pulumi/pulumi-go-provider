@@ -37,6 +37,11 @@ func urn(typ, name string) resource.URN {
 		tokens.Type("test:index:"+typ), name)
 }
 
+func childUrn(typ, name, parent string) resource.URN {
+	return resource.NewURN("stack", "proj", tokens.Type("test:index:"+parent),
+		tokens.Type("test:index:"+typ), name)
+}
+
 // Increment helps us test the highly suspicious behavior of naming an input the same as
 // an output, while giving them different values. This should never be done in practice,
 // but we need to accommodate the behavior while we allow it.
@@ -415,6 +420,34 @@ func NewReadConfigComponent(ctx *pulumi.Context, name string, args ReadConfigCom
 	return comp, nil
 }
 
+type RandomComponentArgs struct {
+	Prefix pulumi.StringInput `pulumi:"prefix"`
+}
+
+type RandomComponent struct {
+	pulumi.ResourceState
+	RandomComponentArgs
+	Result pulumi.StringOutput `pulumi:"result"`
+}
+
+func NewRandomComponent(ctx *pulumi.Context, name string, args RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+	comp := &RandomComponent{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if args.Prefix == nil {
+		args.Prefix = pulumi.String("default-")
+	}
+
+	comp.Result = args.Prefix.ToStringOutput().ApplyT(func(prefix string) string {
+		return prefix + "12345"
+	}).(pulumi.StringOutput)
+
+	return comp, nil
+}
+
 var (
 	_ infer.CustomResource[CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput] = &CustomCheckNoDefaults{}
 	_ infer.CustomCheck[CustomCheckNoDefaultsArgs]                                 = &CustomCheckNoDefaults{}
@@ -456,6 +489,7 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource[*CustomCheckNoDefaults, CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput](),
 		},
 		Components: []infer.InferredComponent{
+			infer.Component(NewRandomComponent),
 			infer.Component(NewReadConfigComponent),
 		},
 		Functions: []infer.InferredFunction{

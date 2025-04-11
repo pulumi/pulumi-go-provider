@@ -145,7 +145,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 						URN:     req.Urn,
 						Inputs:  inputs,
 						Options: options,
-						Preview: req.Preview,
+						Preview: req.Info.DryRun,
 					})
 					if err != nil {
 						return nil, err

@@ -142,8 +142,11 @@ func (m *ResourceMonitorServer) RegisterResource(ctx context.Context, in *pulumi
 	}
 
 	inputs, err := plugin.UnmarshalProperties(in.GetObject(), plugin.MarshalOptions{
-		KeepSecrets:   true,
-		KeepResources: true,
+		SkipNulls:        false,
+		KeepUnknowns:     true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+		KeepResources:    true,
 	})
 	if err != nil {
 		return nil, err

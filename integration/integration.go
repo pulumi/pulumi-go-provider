@@ -25,12 +25,13 @@ import (
 
 	"github.com/blang/semver"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration/fake"
@@ -144,47 +145,6 @@ func NewHost(t testing.TB, m pulumi.MockResourceMonitor) *host {
 	return h
 }
 
-// func (tc *host) NewConstructRequest() *rpc.ConstructRequest {
-// 	return &rpc.ConstructRequest{
-// 		Project:         "project",
-// 		Stack:           "stack",
-// 		MonitorEndpoint: tc.monitorAddr,
-// 	}
-// }
-
-// func (h *host) NewContext(ctx context.Context) *pulumi.Context {
-// 	runInfo := pulumi.RunInfo{
-// 		Project:     "project",
-// 		Stack:       "stack",
-// 		MonitorAddr: h.monitorAddr,
-// 		EngineAddr:  h.engineAddr,
-// 	}
-// 	pulumiCtx, err := pulumi.NewContext(ctx, runInfo)
-// 	if err != nil {
-// 		h.t.Fatalf("constructing run context: %s", err)
-// 	}
-// 	return pulumiCtx
-// }
-
-var _ = (p.ProviderHost)(&host{})
-
-// Construct implements the host interface to allow the provider to construct resources.
-func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct provider.ConstructFunc) (p.ConstructResponse, error) {
-
-	// Use the fake engine to create a pulumi context,
-	// and then call the user's construct function with the context.
-	// the function is expected to register resources, which will be
-	// handled by the mock monitor.
-
-	req.ConstructRequest.MonitorEndpoint = h.monitorAddr
-
-	r, err := comProvider.Construct(ctx, req.ConstructRequest, h.engineConn, construct)
-	if err != nil {
-		return p.ConstructResponse{}, err
-	}
-	return p.ConstructResponse{ConstructResponse: r}, nil
-}
-
 func (s *server) ctx(urn presource.URN) context.Context {
 	ctx := s.context
 	ctx = context.WithValue(ctx, key.URN, urn)
@@ -242,6 +202,39 @@ func (s *server) Delete(req p.DeleteRequest) error {
 
 func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) {
 	return s.p.Construct(s.ctx(req.Urn), req)
+}
+
+var _ = (p.ProviderHost)(&host{})
+
+// Construct implements the host interface to allow the provider to construct resources.
+func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc) (p.ConstructResponse, error) {
+
+	// Use the fake engine to create a pulumi context,
+	// and then call the user's construct function with the context.
+	// the function is expected to register resources, which will be
+	// handled by the mock monitor.
+
+	req.Info.MonitorEndpoint = h.monitorAddr
+	if req.Info.Parallel < 1 {
+		req.Info.Parallel = 1
+	}
+
+	comReq := linkedConstructRequestToRPC(&req, h.asStruct)
+	r, err := comProvider.Construct(ctx, comReq, h.engineConn, construct)
+	if err != nil {
+		return p.ConstructResponse{}, err
+	}
+	return p.ConstructResponse{ConstructResponse: r}, nil
+}
+
+func (h *host) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
+	return plugin.MarshalProperties(m, plugin.MarshalOptions{
+		KeepUnknowns:     true,
+		SkipNulls:        true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+		KeepResources:    true,
+	})
 }
 
 // Operation describes a step in a [LifeCycleTest].
