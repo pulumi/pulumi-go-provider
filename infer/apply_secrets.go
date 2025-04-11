@@ -27,7 +27,7 @@ import (
 
 func applySecrets[I any](inputs resource.PropertyMap) resource.PropertyMap {
 	var walker secretsWalker
-	result := walker.walk(typeFor[I](), resource.NewProperty(inputs))
+	result := walker.walk(reflect.TypeFor[I](), resource.NewProperty(inputs))
 	contract.AssertNoErrorf(errors.Join(walker.errs...),
 		`secretsWalker only produces errors when the type it walks has invalid property tags
 I can't have invalid property tags because we have gotten to runtime, and it would have failed at

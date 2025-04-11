@@ -37,7 +37,7 @@ func TestApplySecrets(t *testing.T) {
 	}{
 		{
 			name: "no-secrets",
-			typ: typeFor[struct {
+			typ: reflect.TypeFor[struct {
 				F1 string            `pulumi:"f1"`
 				F2 map[string]string `pulumi:"f2"`
 				F3 map[string]nested `pulumi:"F3"`
@@ -89,7 +89,7 @@ func TestApplySecrets(t *testing.T) {
 		},
 		{
 			name: "nested-secrets",
-			typ: typeFor[struct {
+			typ: reflect.TypeFor[struct {
 				F1 struct {
 					F1 string `pulumi:"f1" provider:"secret"`
 				} `pulumi:"f1"`
@@ -148,7 +148,7 @@ func TestApplySecrets(t *testing.T) {
 		},
 		{
 			name: "already-secret",
-			typ: typeFor[struct {
+			typ: reflect.TypeFor[struct {
 				F1 string `pulumi:"f1" provider:"secret"`
 				F2 string `pulumi:"f2"`
 			}](),
@@ -163,7 +163,7 @@ func TestApplySecrets(t *testing.T) {
 		},
 		{
 			name: "computed-input",
-			typ: typeFor[struct {
+			typ: reflect.TypeFor[struct {
 				F1 string `pulumi:"f1" provider:"secret"`
 			}](),
 			input: resource.PropertyMap{
@@ -179,7 +179,7 @@ func TestApplySecrets(t *testing.T) {
 		},
 		{
 			name: "mismatched-types",
-			typ: typeFor[struct {
+			typ: reflect.TypeFor[struct {
 				F1 string `pulumi:"f1" provider:"secret"`
 				F2 []struct {
 					F1 string `pulumi:"f1" provider:"secret"`
