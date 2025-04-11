@@ -63,7 +63,7 @@ type FnToken struct{}
 
 func (c *FnToken) Annotate(a infer.Annotator) { a.SetToken("fn", "TK") }
 
-func (*FnToken) Call(
+func (*FnToken) Invoke(
 	ctx context.Context,
 	_ infer.FunctionRequest[TokenArgs]) (output infer.FunctionResponse[TokenResult], err error) {
 	panic("unimplemented")
