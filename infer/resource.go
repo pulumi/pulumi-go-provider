@@ -341,8 +341,8 @@ type MigrationResult[T any] struct {
 type stateMigrationFunc[Old, New any, F func(context.Context, Old) (MigrationResult[New], error)] struct{ f F }
 
 func (stateMigrationFunc[O, N, F]) isStateMigrationFunc()        {}
-func (stateMigrationFunc[O, N, F]) oldShape() reflect.Type       { return typeFor[O]() }
-func (stateMigrationFunc[O, N, F]) newShape() reflect.Type       { return typeFor[N]() }
+func (stateMigrationFunc[O, N, F]) oldShape() reflect.Type       { return reflect.TypeFor[O]() }
+func (stateMigrationFunc[O, N, F]) newShape() reflect.Type       { return reflect.TypeFor[N]() }
 func (m stateMigrationFunc[O, N, F]) migrateFunc() reflect.Value { return reflect.ValueOf(m.f) }
 
 type CustomStateMigrations[O any] interface {
@@ -1171,7 +1171,7 @@ func diff[R, I, O any](
 		return resp, nil
 	}
 
-	inputProps, err := introspect.FindProperties(typeFor[I]())
+	inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
 	if err != nil {
 		return p.DiffResponse{}, err
 	}
