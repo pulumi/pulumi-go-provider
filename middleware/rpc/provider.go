@@ -275,14 +275,19 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedConstructRequestToRPC(&req, runtime.propertyToRPC)
-			resp, err := server.Construct(ctx, rpcReq)
+			rpcResp, err := server.Construct(ctx, rpcReq)
 			if err != nil {
 				return p.ConstructResponse{}, err
 			}
 
-			return p.ConstructResponse{
-				ConstructResponse: resp,
-			}, nil
+			resp, err := linkedConstructResponseFromRPC(rpcResp, func(m *structpb.Struct) (resource.PropertyMap, error) {
+				return rpcToProperty(m, nil)
+			})
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+
+			return resp, nil
 		},
 	}
 }

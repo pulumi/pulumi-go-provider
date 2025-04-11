@@ -60,12 +60,13 @@ func TestConstruct(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	assert.Equal(t, "urn:pulumi:stack::project::test:index:Parent$test:index:RandomComponent::test-component", resp.Urn)
+	assert.Equal(t, r.URN("urn:pulumi:stack::project::test:index:Parent$test:index:RandomComponent::test-component"), resp.Urn)
 
 	// assert.Equal(t, "urn:pulumi:stack::project::test:index:Parent$test:index:RandomComponent::test-component", resp.StateDependencies["prefix"][0].String()) )
 	// TODO check property dependencies: result will have "other" as as dependency
 
+	// TODO why is this not an output with dependencies?
 	assert.Equal(t, r.PropertyMap{
-		"result": r.NewStringProperty("foo-12345"),
+		"result": r.MakeSecret(r.NewStringProperty("foo-12345")),
 	}, resp.State)
 }

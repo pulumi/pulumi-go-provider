@@ -220,11 +220,12 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 	}
 
 	comReq := linkedConstructRequestToRPC(&req, h.asStruct)
-	r, err := comProvider.Construct(ctx, comReq, h.engineConn, construct)
+	comResp, err := comProvider.Construct(ctx, comReq, h.engineConn, construct)
 	if err != nil {
 		return p.ConstructResponse{}, err
 	}
-	return p.ConstructResponse{ConstructResponse: r}, nil
+
+	return linkedConstructResponseFromRPC(comResp, rpcToProperty)
 }
 
 func (h *host) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
@@ -235,6 +236,17 @@ func (h *host) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
 		KeepOutputValues: true,
 		KeepResources:    true,
 	})
+}
+
+func rpcToProperty(s *structpb.Struct) (presource.PropertyMap, error) {
+	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+		SkipNulls:        false,
+		KeepUnknowns:     true,
+		KeepSecrets:      true,
+		KeepResources:    true,
+		KeepOutputValues: true,
+	})
+	return m, err
 }
 
 // Operation describes a step in a [LifeCycleTest].

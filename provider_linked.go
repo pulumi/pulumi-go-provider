@@ -27,3 +27,7 @@ import (
 func linkedConstructRequestToRPC(req *ConstructRequest, marshal propertyToRPC) *pulumirpc.ConstructRequest {
 	return req.rpc(marshal)
 }
+
+func linkedConstructResponseFromRPC(resp *pulumirpc.ConstructResponse, unmarshal propertyFromRPC) (ConstructResponse, error) {
+	return newConstructResponse(resp, unmarshal)
+}

@@ -1224,7 +1224,72 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 	return req
 }
 
-type ConstructResponse struct{ *rpc.ConstructResponse }
+type ConstructResponse struct {
+	Urn               presource.URN // the Pulumi URN for this resource.
+	State             presource.PropertyMap
+	StateDependencies map[presource.PropertyKey][]presource.URN
+}
+
+type propertyFromRPC func(m *structpb.Struct) (presource.PropertyMap, error)
+
+func newConstructResponse(req *rpc.ConstructResponse, unmarshal propertyFromRPC) (ConstructResponse, error) {
+	toUrns := func(s []string) []presource.URN {
+		l := make([]presource.URN, len(s))
+		for i, a := range s {
+			l[i] = presource.URN(a)
+		}
+		return l
+	}
+
+	// Umarshal the state properties.
+	state, err := unmarshal(req.State)
+	if err != nil {
+		return ConstructResponse{}, err
+	}
+
+	r := ConstructResponse{
+		Urn:   presource.URN(req.Urn),
+		State: state,
+		StateDependencies: func() map[presource.PropertyKey][]presource.URN {
+			m := make(map[presource.PropertyKey][]presource.URN, len(req.StateDependencies))
+			for k, v := range req.StateDependencies {
+				m[presource.PropertyKey(k)] = toUrns(v.Urns)
+			}
+			return m
+		}(),
+	}
+	return r, nil
+}
+
+func (c ConstructResponse) rpc(marshal propertyToRPC) *rpc.ConstructResponse {
+	fromUrns := func(urns []presource.URN) []string {
+		r := make([]string, len(urns))
+		for i, urn := range urns {
+			r[i] = string(urn)
+		}
+		return r
+	}
+
+	// Marshal the state properties.
+	mstate, err := marshal(c.State)
+	if err != nil {
+		return nil
+	}
+
+	return &rpc.ConstructResponse{
+		Urn:   string(c.Urn),
+		State: mstate,
+		StateDependencies: func() map[string]*rpc.ConstructResponse_PropertyDependencies {
+			m := make(map[string]*rpc.ConstructResponse_PropertyDependencies, len(c.StateDependencies))
+			for k, v := range c.StateDependencies {
+				m[string(k)] = &rpc.ConstructResponse_PropertyDependencies{
+					Urns: fromUrns(v),
+				}
+			}
+			return m
+		}(),
+	}
+}
 
 func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 
@@ -1293,8 +1358,8 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 				}
 				return m
 			}(),
-			Aliases:                 toUrns(req.GetAliases()),
-			Dependencies:            toUrns(req.GetDependencies()),
+			Aliases:      toUrns(req.GetAliases()),
+			Dependencies: toUrns(req.GetDependencies()),
 			AdditionalSecretOutputs: func() []presource.PropertyKey {
 				r := make([]presource.PropertyKey, len(req.GetAdditionalSecretOutputs()))
 				for i, k := range req.GetAdditionalSecretOutputs() {
@@ -1302,11 +1367,11 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 				}
 				return r
 			}(),
-			DeletedWith:             presource.URN(req.GetDeletedWith()),
-			DeleteBeforeReplace:     req.GetDeleteBeforeReplace(),
-			IgnoreChanges:           req.GetIgnoreChanges(),
-			ReplaceOnChanges:        req.GetReplaceOnChanges(),
-			RetainOnDelete:          req.GetRetainOnDelete(),
+			DeletedWith:         presource.URN(req.GetDeletedWith()),
+			DeleteBeforeReplace: req.GetDeleteBeforeReplace(),
+			IgnoreChanges:       req.GetIgnoreChanges(),
+			ReplaceOnChanges:    req.GetReplaceOnChanges(),
+			RetainOnDelete:      req.GetRetainOnDelete(),
 			CustomTimeouts: func() *presource.CustomTimeouts {
 				t := req.GetCustomTimeouts()
 				if t == nil {
@@ -1329,7 +1394,7 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 
 	ctx = p.ctx(ctx, urn)
 	result, err := p.client.Construct(ctx, r)
-	return result.ConstructResponse, err
+	return result.rpc(p.asStruct), err
 }
 
 func (h *providerHost) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc) (ConstructResponse, error) {
@@ -1337,7 +1402,7 @@ func (h *providerHost) Construct(ctx context.Context, req ConstructRequest, cons
 	if err != nil {
 		return ConstructResponse{}, err
 	}
-	return ConstructResponse{ConstructResponse: r}, nil
+	return newConstructResponse(r, h.p.getMap)
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
