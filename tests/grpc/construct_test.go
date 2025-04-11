@@ -145,15 +145,15 @@ func constructProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 			}, req.Options.InputDependencies)
 
 			return p.ConstructResponse{
-				// Urn: resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),
-				// State: resource.PropertyMap{
-				// 	"r1": resource.NewProperty(resource.Output{
-				// 		Element: resource.NewProperty("e1"),
-				// 		Dependencies: []resource.URN{
-				// 			"urn7", "urn8",
-				// 		},
-				// 	}),
-				// },
+				Urn: resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),
+				State: resource.PropertyMap{
+					"r1": resource.NewProperty(resource.Output{
+						Element: resource.NewProperty("e1"),
+						Dependencies: []resource.URN{
+							"urn7", "urn8",
+						},
+					}),
+				},
 			}, nil
 		},
 	})(nil)
