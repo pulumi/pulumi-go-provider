@@ -21,10 +21,12 @@ import (
 	replay "github.com/pulumi/providertest/replay"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi-go-provider/infer/types"
 )
 
 func TestCheckAsset(t *testing.T) {
@@ -82,4 +84,37 @@ type AssetState struct{}
 func (*A) Create(ctx context.Context,
 	_ infer.CreateRequest[AssetInputs]) (_ infer.CreateResponse[AssetState], err error) {
 	panic("THE CURRENT TEST ONLY TESTS 'CHECK'")
+}
+
+type B struct{}
+
+type BAssetInputs struct {
+	LocalAsset *types.AssetOrArchive `pulumi:"localAsset,optional"`
+}
+
+type BAssetState struct {
+	BAssetInputs
+	NewAsset *resource.Asset `pulumi:"newAsset,optional"`
+}
+
+func (*B) Create(ctx context.Context,
+	_ infer.CreateRequest[BAssetInputs]) (_ infer.CreateResponse[BAssetState], err error) {
+	panic("THE CURRENT TEST ONLY TESTS SCHEMA GENERATION")
+}
+
+func TestSchemaGenError(t *testing.T) {
+	// Ensure that schema generation fails when we use the raw resource.Asset or Archive types.
+	s := assetProvider(t)
+	_, err := s.GetSchema(t.Context(), &pulumirpc.GetSchemaRequest{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resource.Asset is not a valid input type, please use types.AssetOrArchive instead")
+
+	// Ensure that we don't fail if the raw resource type is an output field.
+	s, err = p.RawServer("asset", "v0.1.0",
+		infer.Provider(infer.Options{
+			Resources: []infer.InferredResource{infer.Resource[*B]()},
+		}))(nil)
+	require.NoError(t, err)
+	_, err = s.GetSchema(t.Context(), &pulumirpc.GetSchemaRequest{})
+	require.NoError(t, err)
 }
