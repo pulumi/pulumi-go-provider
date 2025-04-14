@@ -112,6 +112,7 @@ func NewServerWithContext(ctx context.Context, pkg string, version semver.Versio
 	}, provider.WithDefaults(), ctx}
 }
 
+// Server hosts a [Provider] for integration test purposes.
 type server struct {
 	runInfo p.RunInfo
 	p       p.Provider
@@ -204,7 +205,7 @@ func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) 
 	return s.p.Construct(s.ctx(req.Urn), req)
 }
 
-var _ = (p.ProviderHost)(&host{})
+var _ = (p.Host)(&host{})
 
 // Construct implements the host interface to allow the provider to construct resources.
 func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc) (p.ConstructResponse, error) {

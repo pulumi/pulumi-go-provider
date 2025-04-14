@@ -135,7 +135,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		}
 
 		construct := func(ctx context.Context, req p.ConstructRequest, res t.ComponentResource) (p.ConstructResponse, error) {
-			host := p.GetProviderHost(ctx)
+			host := p.GetHost(ctx)
 			r, err := host.Construct(ctx, req,
 				func(
 					ctx *pulumi.Context, _, _ string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,

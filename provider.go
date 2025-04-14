@@ -546,10 +546,6 @@ func GetSchema(ctx context.Context, name, version string, provider Provider) (sc
 	return spec, err
 }
 
-type ProviderHost interface {
-	Construct(context.Context, ConstructRequest, comProvider.ConstructFunc) (ConstructResponse, error)
-}
-
 func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 	return func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 		return &provider{
@@ -561,6 +557,7 @@ func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (
 	}
 }
 
+// Hosts a [Provider] and implements the [pulumirpc.ResourceProviderServer] interface of the Pulumi Go SDK.
 type provider struct {
 	rpc.UnimplementedResourceProviderServer
 
@@ -577,7 +574,7 @@ type providerHost struct {
 	host *pprovider.HostClient
 }
 
-var _ ProviderHost = (*providerHost)(nil)
+var _ Host = (*providerHost)(nil)
 
 type RunInfo struct {
 	PackageName string
@@ -1545,9 +1542,15 @@ func GetTypeToken[Ctx interface{ Value(any) any }](ctx Ctx) string {
 	return ""
 }
 
-func GetProviderHost(ctx context.Context) ProviderHost {
+type Host interface {
+	// Construct constructs a new resource using the provided [comProvider.ConstructFunc].
+	Construct(context.Context, ConstructRequest, comProvider.ConstructFunc) (ConstructResponse, error)
+}
+
+// GetHost retrieves the provider's [Host] from the context.
+func GetHost(ctx context.Context) Host {
 	if v := ctx.Value(key.ProviderHost); v != nil {
-		return v.(ProviderHost)
+		return v.(Host)
 	}
 	return nil
 }
