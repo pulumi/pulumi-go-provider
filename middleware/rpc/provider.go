@@ -38,7 +38,7 @@ import (
 // It is intended that Provider is used to wrap legacy native provider implementations
 // while they are gradually transferred over to pulumi-go-provider based implementations.
 //
-// Construct, Call and StreamInvoke are not supported and will always return
+// Call and StreamInvoke are not supported and will always return
 // unimplemented.
 func Provider(server rpc.ResourceProviderServer) p.Provider {
 	var runtime runtime // the runtime configuration of the server
@@ -268,6 +268,24 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Timeout:    req.Timeout,
 			})
 			return err
+		},
+		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+			if req.Info.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+				return p.ConstructResponse{}, nil
+			}
+
+			rpcReq := linkedConstructRequestToRPC(&req, runtime.propertyToRPC)
+			rpcResp, err := server.Construct(ctx, rpcReq)
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+
+			resp, err := linkedConstructResponseFromRPC(rpcResp)
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+
+			return resp, nil
 		},
 	}
 }

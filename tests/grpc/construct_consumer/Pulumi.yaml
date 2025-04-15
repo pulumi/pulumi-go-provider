@@ -1,0 +1,16 @@
+name: test
+runtime: yaml
+
+plugins:
+  providers:
+    - name: test
+      path: .
+
+resources:
+  c:
+    type: test:index:Component
+    properties:
+      myInput: foo
+      
+outputs:
+  myOutput: ${c.myOutput}
