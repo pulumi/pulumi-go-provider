@@ -15,16 +15,13 @@
 package infer
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
-	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -81,40 +78,36 @@ func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
 }
 
 func (rc *derivedComponentController[R, I, O]) Construct(
-	ctx context.Context, req p.ConstructRequest,
-) (p.ConstructResponse, error) {
-	return req.Construct(ctx,
-		func(
-			ctx *pulumi.Context, inputs pprovider.ConstructInputs, opts pulumi.ResourceOption,
-		) (pulumi.ComponentResource, error) {
-			var i I
-			urn := req.URN
-			var err error
+	ctx *pulumi.Context, req t.ConstructRequest,
+) (pulumi.ComponentResource, error) {
 
-			// The input to [inputs.CopyTo] must be a pointer to a struct.
-			if reflect.TypeFor[I]().Kind() == reflect.Pointer {
-				// If I = *T for some underlying T, then Zero[I]() == nil,
-				// here we set it to &T{}.
-				i = reflect.New(reflect.TypeFor[I]().Elem()).Interface().(I)
-				err = inputs.CopyTo(i)
-			} else {
-				err = inputs.CopyTo(&i)
-			}
-			if err != nil {
-				return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
-					urn.Name(), urn.Type(), err)
-			}
-			res, err := rc.construct(ctx, urn.Name(), i, opts)
-			if err != nil {
-				return nil, err
-			}
+	var i I
+	urn := req.Urn
+	var err error
 
-			// Register the outputs
-			m := introspect.StructToMap(res)
-			err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
-			if err != nil {
-				return nil, err
-			}
-			return res, err
-		})
+	// The input to [inputs.CopyTo] must be a pointer to a struct.
+	if reflect.TypeFor[I]().Kind() == reflect.Pointer {
+		// If I = *T for some underlying T, then Zero[I]() == nil,
+		// here we set it to &T{}.
+		i = reflect.New(reflect.TypeFor[I]().Elem()).Interface().(I)
+		err = req.Inputs.CopyTo(i)
+	} else {
+		err = req.Inputs.CopyTo(&i)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy inputs for %s (%s): %w",
+			urn.Name(), urn.Type(), err)
+	}
+	res, err := rc.construct(ctx, urn.Name(), i, req.Options)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register the outputs
+	m := introspect.StructToMap(res)
+	err = ctx.RegisterResourceOutputs(res, pulumi.ToMap(m))
+	if err != nil {
+		return nil, err
+	}
+	return res, err
 }
