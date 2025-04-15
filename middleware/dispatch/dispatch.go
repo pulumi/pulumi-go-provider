@@ -20,11 +20,13 @@ import (
 	"context"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
+	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
 
 // Wrap creates a new Dispatch provider around another provider. If `provider` is nil then
@@ -132,12 +134,35 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			components[fix(k)] = v
 		}
 
+		construct := func(ctx context.Context, req p.ConstructRequest, res t.ComponentResource) (p.ConstructResponse, error) {
+			host := p.GetHost(ctx)
+			r, err := host.Construct(ctx, req,
+				func(
+					ctx *pulumi.Context, _, _ string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,
+				) (*comProvider.ConstructResult, error) {
+
+					r, err := res.Construct(ctx, t.ConstructRequest{
+						ConstructRequest: req,
+						Inputs:           inputs,
+						Options:          options,
+					})
+					if err != nil {
+						return nil, err
+					}
+					return comProvider.NewConstructResult(r)
+				})
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+			return r, nil
+		}
+
 		wrapper.Construct = func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			urn := req.URN
+			urn := req.Urn
 			tk := fix(urn.Type())
 			r, ok := components[tk]
 			if ok {
-				return r.Construct(ctx, req)
+				return construct(ctx, req, r)
 			} else if provider.Construct != nil {
 				return provider.Construct(ctx, req)
 			}
