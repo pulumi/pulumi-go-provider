@@ -49,9 +49,10 @@ func TestCall(t *testing.T) {
     "request": {
         "tok": "some-token",
         "args": {
-		"k1": "s",
-		"k2": 3.14
-	},
+            "k1": "s",
+        "k2": 3.14
+        },
+        "project": "some-project",
         "stack": "some-stack",
         "acceptsOutputValues": true
     },
@@ -84,7 +85,8 @@ func callProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 				"k2": resource.NewProperty(3.14),
 			}, req.Args)
 			assert.Equal(t, tokens.ModuleMember("some-token"), req.Tok)
-			assert.Equal(t, "some-stack", req.Context.Stack())
+			assert.Equal(t, "some-project", req.Project)
+			assert.Equal(t, "some-stack", req.Stack)
 
 			return p.CallResponse{
 				Return: resource.PropertyMap{

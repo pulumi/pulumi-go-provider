@@ -42,6 +42,7 @@ func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 		Update:      delegateIO(wrapper, provider.Update),
 		Delete:      delegateI(wrapper, provider.Delete),
 		Construct:   delegateIO(wrapper, provider.Construct),
+		Call:        delegateIO(wrapper, provider.Call),
 	}
 }
 
