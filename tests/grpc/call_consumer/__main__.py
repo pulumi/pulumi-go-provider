@@ -5,4 +5,5 @@ import pulumi_test as test
 
 c = test.Component(resource_name="my-component", my_input="foo")
 
-c.my_method(arg1="bar")
+result = c.my_method(arg1="bar")
+pulumi.export("resp1", result.resp1)
