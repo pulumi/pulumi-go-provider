@@ -90,7 +90,6 @@ func main() {
 					urn := vs[0].(pulumi.URN)
 					arg1 := vs[1].(string)
 					id := vs[2].(pulumi.ID)
-
 					return arg1 + ":" + string(urn) + ":" + string(id), nil
 				}).(pulumi.StringOutput)
 

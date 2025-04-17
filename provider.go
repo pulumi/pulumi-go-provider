@@ -834,17 +834,28 @@ func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallF
 //
 // It corresponds to [rpc.CallRequest] on the wire.
 type CallRequest struct {
-	Tok              tokens.ModuleMember                       // the function token to invoke.
-	Args             presource.PropertyMap                     // the arguments for the function invocation.
-	ArgDependencies  map[presource.PropertyKey][]presource.URN // a map from argument keys to the dependencies of the argument.
-	Project          string                                    // the project name.
-	Stack            string                                    // the name of the stack being deployed into.
-	Config           map[pconfig.Key]string                    // the configuration variables to apply before running.
-	ConfigSecretKeys []pconfig.Key                             // the configuration keys that have secret values.
-	DryRun           bool                                      // true if we're only doing a dryrun (preview).
-	Parallel         int32                                     // the degree of parallelism for resource operations (<=1 for serial).
-	MonitorEndpoint  string                                    // the address for communicating back to the resource monitor.
-	Organization     string                                    // the organization of the stack being deployed into.
+	// the function token to invoke.
+	Tok tokens.ModuleMember
+	// the arguments for the function invocation.
+	Args presource.PropertyMap
+	// a map from argument keys to the dependencies of the argument.
+	ArgDependencies map[presource.PropertyKey][]presource.URN
+	// the project name.
+	Project string
+	// the name of the stack being deployed into.
+	Stack string
+	// the configuration variables to apply before running.
+	Config map[pconfig.Key]string
+	// the configuration keys that have secret values.
+	ConfigSecretKeys []pconfig.Key
+	// true if we're only doing a dryrun (preview).
+	DryRun bool
+	// the degree of parallelism for resource operations (<=1 for serial).
+	Parallel int32
+	// the address for communicating back to the resource monitor.
+	MonitorEndpoint string
+	// the organization of the stack being deployed into.
+	Organization string
 }
 
 func newCallRequest(req *rpc.CallRequest, unmarshal rpcToProperty) (CallRequest, error) {
