@@ -39,9 +39,7 @@ func main() {
 				return p.ConstructResponse{}, fmt.Errorf("unknown component type %q", t)
 			}
 
-			host := p.GetHost(ctx)
-
-			return host.Construct(ctx, req, func(
+			return p.ProgramConstruct(ctx, req, func(
 				ctx *pulumi.Context, typ, name string, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
 			) (*comProvider.ConstructResult, error) {
 				r := new(testComponent)
