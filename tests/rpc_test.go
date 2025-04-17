@@ -27,6 +27,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -652,6 +653,89 @@ func TestRPCConstruct(t *testing.T) {
 	})
 }
 
+func exampleCallArgs() (resource.PropertyMap, map[string]any) {
+	return resource.PropertyMap{
+			"k1": resource.NewProperty("s"),
+			"k2": resource.MakeComputed(resource.NewProperty("")),
+			"k3": resource.NewNullProperty(),
+		}, map[string]any{
+			"k1": "s",
+			"k2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+			"k3": nil,
+		}
+}
+
+func exampleCallArgDependencies() (map[resource.PropertyKey][]resource.URN, map[string]*rpc.CallRequest_ArgumentDependencies) {
+	return map[resource.PropertyKey][]resource.URN{
+			"k1": {"urn1", "urn2"},
+		}, map[string]*rpc.CallRequest_ArgumentDependencies{
+			"k1": {Urns: []string{"urn1", "urn2"}},
+		}
+}
+
+func exampleCallReturns() (map[string]any, resource.PropertyMap) {
+	return map[string]any{
+			"r1": "s",
+			"r2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+			"r3": nil,
+		},
+		resource.PropertyMap{
+			"r1": resource.NewProperty("s"),
+			"r2": resource.MakeComputed(resource.NewProperty("")),
+			"r3": resource.NewNullProperty(),
+		}
+}
+
+func exampleCallReturnDependencies() (map[string]*rpc.CallResponse_ReturnDependencies, map[resource.PropertyKey][]resource.URN) {
+	return map[string]*rpc.CallResponse_ReturnDependencies{
+			"r1": {Urns: []string{"urn1", "urn2"}},
+		},
+		map[resource.PropertyKey][]resource.URN{
+			"r1": {"urn1", "urn2"},
+		}
+}
+
+func TestRPCCall(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no-error", func(t *testing.T) {
+		t.Parallel()
+		args, expectedArgs := exampleCallArgs()
+		argDeps, expectedArgDeps := exampleCallArgDependencies()
+		returns, expectedReturns := exampleCallReturns()
+		returnDeps, expectedReturnDeps := exampleCallReturnDependencies()
+		wasCalled := false
+
+		resp, err := rpcServer(rpcTestServer{
+			onCall: func(_ context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
+				assert.Equal(t, "some-token", req.GetTok(), "token should be the same")
+				assert.Equal(t, expectedArgs, req.GetArgs().AsMap(), "args should be the same")
+				assert.Equal(t, expectedArgDeps, req.GetArgDependencies(), "arg dependencies should be the same")
+				assert.Equal(t, "some-project", req.GetProject(), "project should be the same")
+				assert.Equal(t, "some-stack", req.GetStack(), "stack should be the same")
+				assert.Equal(t, true, req.GetAcceptsOutputValues(), "accepts output values should be the same")
+
+				wasCalled = true
+				return &rpc.CallResponse{
+					Return:             must(structpb.NewStruct(returns)),
+					ReturnDependencies: returnDeps,
+				}, nil
+			},
+		}).Call(p.CallRequest{
+			Tok:             tokens.ModuleMember("some-token"),
+			Project:         "some-project",
+			Stack:           "some-stack",
+			Args:            args,
+			ArgDependencies: argDeps,
+		})
+
+		assert.NoError(t, err)
+		assert.True(t, wasCalled)
+		assert.Equal(t, expectedReturns, resp.Return, "return values should be the same")
+		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "return dependencies should be the same")
+	})
+}
+
 func must[T any](t T, err error) T {
 	if err != nil {
 		panic(err)
@@ -920,6 +1004,7 @@ type rpcTestServer struct {
 	onRead        func(context.Context, *rpc.ReadRequest) (*rpc.ReadResponse, error)
 	onUpdate      func(context.Context, *rpc.UpdateRequest) (*rpc.UpdateResponse, error)
 	onConstruct   func(context.Context, *rpc.ConstructRequest) (*rpc.ConstructResponse, error)
+	onCall        func(context.Context, *rpc.CallRequest) (*rpc.CallResponse, error)
 }
 
 func (r rpcTestServer) GetSchema(ctx context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
@@ -965,11 +1050,17 @@ func (r rpcTestServer) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emp
 func (r rpcTestServer) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadResponse, error) {
 	return r.onRead(ctx, req)
 }
+
 func (r rpcTestServer) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 	return r.onUpdate(ctx, req)
 }
+
 func (r rpcTestServer) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 	return r.onConstruct(ctx, req)
+}
+
+func (r rpcTestServer) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
+	return r.onCall(ctx, req)
 }
 
 func rpcServer(server rpcTestServer) integration.Server {

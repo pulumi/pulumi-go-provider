@@ -930,6 +930,7 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 			return r
 		}(),
 		Project: c.Project,
+		Stack:   c.Stack,
 		Config: func() map[string]string {
 			m := make(map[string]string, len(c.Config))
 			for k, v := range c.Config {
