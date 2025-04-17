@@ -51,6 +51,7 @@ type Server interface {
 	Update(p.UpdateRequest) (p.UpdateResponse, error)
 	Delete(p.DeleteRequest) error
 	Construct(p.ConstructRequest) (p.ConstructResponse, error)
+	Call(p.CallRequest) (p.CallResponse, error)
 }
 
 type ServerOption interface {
@@ -90,10 +91,12 @@ func NewServerWithOptions(t testing.TB, pkg string, version semver.Version, prov
 	for _, opt := range opts {
 		opt.applyServerOption(o)
 	}
-	if o.mocks != nil {
-		host := NewHost(t, o.mocks)
-		o.ctx = context.WithValue(o.ctx, key.ProviderHost, host)
+	if o.mocks == nil {
+		o.mocks = &MockMonitor{}
 	}
+
+	host := NewHost(t, o.mocks)
+	o.ctx = context.WithValue(o.ctx, key.ProviderHost, host)
 
 	return &server{p.RunInfo{
 		PackageName: pkg,
@@ -148,7 +151,9 @@ func NewHost(t testing.TB, m pulumi.MockResourceMonitor) *host {
 
 func (s *server) ctx(urn presource.URN) context.Context {
 	ctx := s.context
-	ctx = context.WithValue(ctx, key.URN, urn)
+	if urn != "" {
+		ctx = context.WithValue(ctx, key.URN, urn)
+	}
 	ctx = context.WithValue(ctx, key.RuntimeInfo, s.runInfo)
 	return ctx
 }
@@ -228,6 +233,32 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 	}
 
 	return linkedConstructResponseFromRPC(comResp)
+}
+
+func (s *server) Call(req p.CallRequest) (p.CallResponse, error) {
+	return s.p.Call(s.ctx(""), req)
+}
+
+func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.CallFunc,
+) (p.CallResponse, error) {
+
+	// Use the fake engine to create a pulumi context,
+	// and then call the user's call function with the context.
+	// the function is expected to register resources, which will be
+	// handled by the mock monitor.
+
+	req.MonitorEndpoint = h.monitorAddr
+	if req.Parallel < 1 {
+		req.Parallel = 1
+	}
+
+	comReq := linkedCallRequestToRPC(&req, internalrpc.MarshalProperties)
+	comResp, err := comProvider.Call(ctx, comReq, h.engineConn, call)
+	if err != nil {
+		return p.CallResponse{}, err
+	}
+
+	return linkedCallResponseFromRPC(comResp)
 }
 
 type MockMonitor struct {
