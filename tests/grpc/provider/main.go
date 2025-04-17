@@ -42,7 +42,7 @@ func main() {
 				ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
 			) (pulumi.ComponentResource, error) {
 				r := new(testComponent)
-				err := inputs.CopyTo(r)
+				err := inputs.CopyTo(&r.testComponentArgs)
 				if err != nil {
 					return nil, err
 				}
@@ -52,15 +52,16 @@ func main() {
 					return nil, err
 				}
 
-				_, err = random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{}, pulumi.Parent(r))
+				pet, err := random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{
+					Prefix: r.MyInput,
+				}, pulumi.Parent(r))
 				if err != nil {
 					return nil, err
 				}
 
-				r.MyOutput = pulumi.StringPtr("my-output").ToStringPtrOutput()
-
+				r.MyOutput = pet.ID().ToStringPtrOutput()
 				err = ctx.RegisterResourceOutputs(r, pulumi.ToMap(map[string]any{
-					"myOutput": "my-output",
+					"myOutput": r.MyOutput,
 				}))
 
 				return r, err
@@ -94,9 +95,13 @@ func main() {
 	}
 }
 
+type testComponentArgs struct {
+	MyInput pulumi.StringPtrOutput `pulumi:"myInput"`
+}
+
 type testComponent struct {
 	pulumi.ResourceState
-	MyInput  pulumi.StringPtrOutput `pulumi:"myInput"`
+	testComponentArgs
 	MyOutput pulumi.StringPtrOutput `pulumi:"myOutput"`
 }
 
