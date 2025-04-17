@@ -42,7 +42,7 @@ type ConstructRequest struct {
 // ComponentResource provides a shared definition of a Pulumi component resource for
 // middleware to use.
 type ComponentResource interface {
-	Construct(*pulumi.Context, ConstructRequest) (pulumi.ComponentResource, error)
+	Construct(context.Context, p.ConstructRequest) (p.ConstructResponse, error)
 }
 
 // Invoke provides a shared definition of a Pulumi function for middleware to use.
