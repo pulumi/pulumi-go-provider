@@ -645,12 +645,8 @@ func TestRPCConstruct(t *testing.T) {
 			},
 		}).Construct(p.ConstructRequest{
 			Urn:    "urn:pulumi:test::test::test:index:Component::component",
-			Info:   p.ConstructInfo{},
 			Parent: "urn:pulumi:test::test::test:index:Parent::parent",
 			Inputs: inputs,
-			Options: p.ConstructOptions{
-				AcceptsOutputValues: true,
-			},
 		})
 
 		assert.NoError(t, err)

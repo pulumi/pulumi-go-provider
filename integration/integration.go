@@ -203,9 +203,9 @@ func (s *server) Delete(req p.DeleteRequest) error {
 
 func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) {
 	// apply some defaults for convenenience
-	req.Options.AcceptsOutputValues = true
-	if req.Info.Parallel < 1 {
-		req.Info.Parallel = 1
+	req.AcceptsOutputValues = true
+	if req.Parallel < 1 {
+		req.Parallel = 1
 	}
 
 	return s.p.Construct(s.ctx(req.Urn), req)
@@ -222,7 +222,7 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 	// the function is expected to register resources, which will be
 	// handled by the mock monitor.
 
-	req.Info.MonitorEndpoint = h.monitorAddr
+	req.MonitorEndpoint = h.monitorAddr
 
 	comReq := linkedConstructRequestToRPC(&req, internalrpc.MarshalProperties)
 	comResp, err := comProvider.Construct(ctx, comReq, h.engineConn, construct)

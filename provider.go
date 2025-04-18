@@ -1075,24 +1075,33 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 // ConstructRequest captures enough data to be able to register nested components against the caller's resource
 // monitor.
 type ConstructRequest struct {
-	Urn     presource.URN // the Pulumi URN for this resource.
-	Info    ConstructInfo
-	Parent  presource.URN
-	Inputs  presource.PropertyMap
-	Options ConstructOptions
-}
+	// URN is the Pulumi URN for this resource.
+	Urn presource.URN
 
-// ConstructInfo contains all of the information required to register resources as part of a call to Construct.
-type ConstructInfo struct {
-	Config           map[pconfig.Key]string // the configuration variables to apply before running.
-	ConfigSecretKeys []pconfig.Key          // the configuration keys that have secret values.
-	DryRun           bool                   // true if we are performing a dry-run (preview).
-	Parallel         int32                  // the degree of parallelism for resource operations (<=1 for serial).
-	MonitorEndpoint  string                 // the RPC address to the host resource monitor.
-}
+	// Configuration for the specified project and stack.
+	Config map[pconfig.Key]string
 
-// ConstructOptions captures options for a call to Construct.
-type ConstructOptions struct {
+	// A set of configuration keys whose values are secrets.
+	ConfigSecretKeys []pconfig.Key
+
+	// True if and only if the request is being made as part of a preview/dry run, in which case the provider should not
+	// actually construct the component.
+	DryRun bool
+
+	// The degree of parallelism that may be used for resource operations. A value less than or equal to 1 indicates
+	// that operations should be performed serially.
+	Parallel int32
+
+	// The address of the [](pulumirpc.ResourceMonitor) that the provider should connect to in order to send [resource
+	// registrations](resource-registration) for its nested resources.
+	MonitorEndpoint string // the RPC address to the host resource monitor.
+
+	// Parent is the URN of the parent resource.
+	Parent presource.URN
+
+	// Inputs is the set of inputs for the component.
+	Inputs presource.PropertyMap
+
 	// Aliases is the set of aliases for the component.
 	Aliases []presource.URN
 
@@ -1139,6 +1148,10 @@ type ConstructOptions struct {
 	AcceptsOutputValues bool
 }
 
+// ConstructOptions captures options for a call to Construct.
+type ConstructOptions struct {
+}
+
 type rpcToProperty func(s *structpb.Struct) (presource.PropertyMap, error)
 
 func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (ConstructRequest, error) {
@@ -1176,64 +1189,60 @@ func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (Co
 
 	r := ConstructRequest{
 		Urn: urn,
-		Info: ConstructInfo{
-			Config: func() map[pconfig.Key]string {
-				m := make(map[pconfig.Key]string, len(req.GetConfig()))
-				for k, v := range req.GetConfig() {
-					m[pconfig.MustParseKey(k)] = v
-				}
-				return m
-			}(),
-			ConfigSecretKeys: func() []pconfig.Key {
-				keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
-				for i, k := range req.GetConfigSecretKeys() {
-					keys[i] = pconfig.MustParseKey(k)
-				}
-				return keys
-			}(),
-			DryRun:          req.GetDryRun(),
-			Parallel:        req.GetParallel(),
-			MonitorEndpoint: req.GetMonitorEndpoint(),
-		},
-		Parent: parent,
-		Inputs: presource.PropertyMap{},
-		Options: ConstructOptions{
-			Protect:   req.Protect,
-			Providers: req.GetProviders(),
-			InputDependencies: func() map[presource.PropertyKey][]presource.URN {
-				m := make(map[presource.PropertyKey][]presource.URN, len(req.GetInputDependencies()))
-				for k, v := range req.GetInputDependencies() {
-					m[presource.PropertyKey(k)] = toUrns(v.Urns)
-				}
-				return m
-			}(),
-			Aliases:      toUrns(req.GetAliases()),
-			Dependencies: toUrns(req.GetDependencies()),
-			AdditionalSecretOutputs: func() []presource.PropertyKey {
-				r := make([]presource.PropertyKey, len(req.GetAdditionalSecretOutputs()))
-				for i, k := range req.GetAdditionalSecretOutputs() {
-					r[i] = presource.PropertyKey(k)
-				}
-				return r
-			}(),
-			DeletedWith:         presource.URN(req.GetDeletedWith()),
-			DeleteBeforeReplace: req.DeleteBeforeReplace,
-			IgnoreChanges:       req.IgnoreChanges,
-			ReplaceOnChanges:    req.ReplaceOnChanges,
-			RetainOnDelete:      req.RetainOnDelete,
-			CustomTimeouts: func() *presource.CustomTimeouts {
-				t := req.GetCustomTimeouts()
-				if t == nil {
-					return nil
-				}
-				return &presource.CustomTimeouts{
-					Create: toDurationSecs(t.GetCreate()),
-					Update: toDurationSecs(t.GetUpdate()),
-					Delete: toDurationSecs(t.GetDelete()),
-				}
-			}(),
-			AcceptsOutputValues: req.AcceptsOutputValues,
-		},
+		Config: func() map[pconfig.Key]string {
+			m := make(map[pconfig.Key]string, len(req.GetConfig()))
+			for k, v := range req.GetConfig() {
+				m[pconfig.MustParseKey(k)] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []pconfig.Key {
+			keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
+			for i, k := range req.GetConfigSecretKeys() {
+				keys[i] = pconfig.MustParseKey(k)
+			}
+			return keys
+		}(),
+		DryRun:          req.GetDryRun(),
+		Parallel:        req.GetParallel(),
+		MonitorEndpoint: req.GetMonitorEndpoint(),
+		Parent:          parent,
+		Inputs:          presource.PropertyMap{},
+		Protect:         req.Protect,
+		Providers:       req.GetProviders(),
+		InputDependencies: func() map[presource.PropertyKey][]presource.URN {
+			m := make(map[presource.PropertyKey][]presource.URN, len(req.GetInputDependencies()))
+			for k, v := range req.GetInputDependencies() {
+				m[presource.PropertyKey(k)] = toUrns(v.Urns)
+			}
+			return m
+		}(),
+		Aliases:      toUrns(req.GetAliases()),
+		Dependencies: toUrns(req.GetDependencies()),
+		AdditionalSecretOutputs: func() []presource.PropertyKey {
+			r := make([]presource.PropertyKey, len(req.GetAdditionalSecretOutputs()))
+			for i, k := range req.GetAdditionalSecretOutputs() {
+				r[i] = presource.PropertyKey(k)
+			}
+			return r
+		}(),
+		DeletedWith:         presource.URN(req.GetDeletedWith()),
+		DeleteBeforeReplace: req.DeleteBeforeReplace,
+		IgnoreChanges:       req.IgnoreChanges,
+		ReplaceOnChanges:    req.ReplaceOnChanges,
+		RetainOnDelete:      req.RetainOnDelete,
+		CustomTimeouts: func() *presource.CustomTimeouts {
+			t := req.GetCustomTimeouts()
+			if t == nil {
+				return nil
+			}
+			return &presource.CustomTimeouts{
+				Create: toDurationSecs(t.GetCreate()),
+				Update: toDurationSecs(t.GetUpdate()),
+				Delete: toDurationSecs(t.GetDelete()),
+			}
+		}(),
+		AcceptsOutputValues: req.AcceptsOutputValues,
 	}
 
 	inputs, err := unmarshal(req.Inputs)
@@ -1269,55 +1278,55 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		Project: string(c.Urn.Project()),
 		Stack:   string(c.Urn.Stack()),
 		Config: func() map[string]string {
-			m := make(map[string]string, len(c.Info.Config))
-			for k, v := range c.Info.Config {
+			m := make(map[string]string, len(c.Config))
+			for k, v := range c.Config {
 				m[k.String()] = v
 			}
 			return m
 		}(),
 		ConfigSecretKeys: func() []string {
-			keys := make([]string, len(c.Info.ConfigSecretKeys))
-			for i, k := range c.Info.ConfigSecretKeys {
+			keys := make([]string, len(c.ConfigSecretKeys))
+			for i, k := range c.ConfigSecretKeys {
 				keys[i] = k.String()
 			}
 			return keys
 		}(),
-		DryRun:          c.Info.DryRun,
-		Parallel:        c.Info.Parallel,
-		MonitorEndpoint: c.Info.MonitorEndpoint,
+		DryRun:          c.DryRun,
+		Parallel:        c.Parallel,
+		MonitorEndpoint: c.MonitorEndpoint,
 		Type:            string(c.Urn.Type()),
 		Name:            c.Urn.Name(),
 		Parent:          string(c.Parent),
 		Inputs:          minputs,
-		Protect:         c.Options.Protect,
-		Providers:       c.Options.Providers,
+		Protect:         c.Protect,
+		Providers:       c.Providers,
 		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
-			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.Options.InputDependencies))
-			for k, v := range c.Options.InputDependencies {
+			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.InputDependencies))
+			for k, v := range c.InputDependencies {
 				m[string(k)] = &rpc.ConstructRequest_PropertyDependencies{
 					Urns: fromUrns(v),
 				}
 			}
 			return m
 		}(),
-		Aliases:      fromUrns(c.Options.Aliases),
-		Dependencies: fromUrns(c.Options.Dependencies),
+		Aliases:      fromUrns(c.Aliases),
+		Dependencies: fromUrns(c.Dependencies),
 		AdditionalSecretOutputs: func() []string {
-			r := make([]string, len(c.Options.AdditionalSecretOutputs))
-			for i, k := range c.Options.AdditionalSecretOutputs {
+			r := make([]string, len(c.AdditionalSecretOutputs))
+			for i, k := range c.AdditionalSecretOutputs {
 				r[i] = string(k)
 			}
 			return r
 		}(),
-		DeletedWith:         string(c.Options.DeletedWith),
-		DeleteBeforeReplace: c.Options.DeleteBeforeReplace,
-		IgnoreChanges:       c.Options.IgnoreChanges,
-		ReplaceOnChanges:    c.Options.ReplaceOnChanges,
-		RetainOnDelete:      c.Options.RetainOnDelete,
-		AcceptsOutputValues: c.Options.AcceptsOutputValues,
+		DeletedWith:         string(c.DeletedWith),
+		DeleteBeforeReplace: c.DeleteBeforeReplace,
+		IgnoreChanges:       c.IgnoreChanges,
+		ReplaceOnChanges:    c.ReplaceOnChanges,
+		RetainOnDelete:      c.RetainOnDelete,
+		AcceptsOutputValues: c.AcceptsOutputValues,
 	}
 
-	if ct := c.Options.CustomTimeouts; ct != nil {
+	if ct := c.CustomTimeouts; ct != nil {
 		req.CustomTimeouts = &rpc.ConstructRequest_CustomTimeouts{
 			Create: (time.Duration(ct.Create) * time.Second).String(),
 			Update: (time.Duration(ct.Update) * time.Second).String(),

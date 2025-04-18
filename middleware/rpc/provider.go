@@ -270,7 +270,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			return err
 		},
 		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			if req.Info.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.ConstructResponse{}, nil
 			}
 

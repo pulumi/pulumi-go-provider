@@ -122,27 +122,27 @@ func constructProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 			assert.Equal(t, resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"), req.Urn)
 			assert.Equal(t, resource.URN("urn:pulumi:test::test::test:index:Parent::parent"), req.Parent)
 
-			assert.Equal(t, []resource.URN{"urn2"}, req.Options.Aliases)
-			assert.Equal(t, []resource.URN{"urn3"}, req.Options.Dependencies)
-			assert.Equal(t, &_true, req.Options.Protect)
-			assert.Equal(t, map[string]string{"aws": "p1"}, req.Options.Providers)
+			assert.Equal(t, []resource.URN{"urn2"}, req.Aliases)
+			assert.Equal(t, []resource.URN{"urn3"}, req.Dependencies)
+			assert.Equal(t, &_true, req.Protect)
+			assert.Equal(t, map[string]string{"aws": "p1"}, req.Providers)
 			assert.Equal(t, map[resource.PropertyKey][]resource.URN{
 				"k1": {resource.URN("urn4"), resource.URN("urn5")},
-			}, req.Options.InputDependencies)
-			assert.Equal(t, []resource.PropertyKey{"r1"}, req.Options.AdditionalSecretOutputs)
-			assert.Equal(t, &resource.CustomTimeouts{Create: 60, Update: 120, Delete: 180}, req.Options.CustomTimeouts)
-			assert.Equal(t, resource.URN("urn6"), req.Options.DeletedWith)
-			assert.Equal(t, &_true, req.Options.DeleteBeforeReplace)
-			assert.Equal(t, []string{"k1"}, req.Options.IgnoreChanges)
-			assert.Equal(t, []string{"k2"}, req.Options.ReplaceOnChanges)
-			assert.Equal(t, true, req.Options.AcceptsOutputValues)
+			}, req.InputDependencies)
+			assert.Equal(t, []resource.PropertyKey{"r1"}, req.AdditionalSecretOutputs)
+			assert.Equal(t, &resource.CustomTimeouts{Create: 60, Update: 120, Delete: 180}, req.CustomTimeouts)
+			assert.Equal(t, resource.URN("urn6"), req.DeletedWith)
+			assert.Equal(t, &_true, req.DeleteBeforeReplace)
+			assert.Equal(t, []string{"k1"}, req.IgnoreChanges)
+			assert.Equal(t, []string{"k2"}, req.ReplaceOnChanges)
+			assert.Equal(t, true, req.AcceptsOutputValues)
 
 			assert.Equal(t, resource.PropertyMap{
 				"k1": resource.NewProperty("s"),
 			}, req.Inputs)
 			assert.Equal(t, map[resource.PropertyKey][]resource.URN{
 				"k1": {resource.URN("urn4"), resource.URN("urn5")},
-			}, req.Options.InputDependencies)
+			}, req.InputDependencies)
 
 			return p.ConstructResponse{
 				Urn: resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),
