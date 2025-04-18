@@ -1100,7 +1100,7 @@ type ConstructOptions struct {
 	Dependencies []presource.URN
 
 	// Protect is true if the component is protected.
-	Protect bool
+	Protect *bool
 
 	// Providers is a map from package name to provider reference.
 	Providers map[string]string
@@ -1121,7 +1121,7 @@ type ConstructOptions struct {
 
 	// DeleteBeforeReplace specifies that replacements of this resource
 	// should delete the old resource before creating the new resource.
-	DeleteBeforeReplace bool
+	DeleteBeforeReplace *bool
 
 	// IgnoreChanges lists properties that should be ignored
 	// when determining whether the resource should has changed.
@@ -1133,7 +1133,7 @@ type ConstructOptions struct {
 
 	// RetainOnDelete is true if deletion of the resource should not
 	// delete the resource in the provider.
-	RetainOnDelete bool
+	RetainOnDelete *bool
 }
 
 type rpcToProperty func(s *structpb.Struct) (presource.PropertyMap, error)
@@ -1195,7 +1195,7 @@ func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (Co
 		Parent: parent,
 		Inputs: presource.PropertyMap{},
 		Options: ConstructOptions{
-			Protect:   req.GetProtect(),
+			Protect:   req.Protect,
 			Providers: req.GetProviders(),
 			InputDependencies: func() map[presource.PropertyKey][]presource.URN {
 				m := make(map[presource.PropertyKey][]presource.URN, len(req.GetInputDependencies()))
@@ -1214,10 +1214,10 @@ func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (Co
 				return r
 			}(),
 			DeletedWith:         presource.URN(req.GetDeletedWith()),
-			DeleteBeforeReplace: req.GetDeleteBeforeReplace(),
-			IgnoreChanges:       req.GetIgnoreChanges(),
-			ReplaceOnChanges:    req.GetReplaceOnChanges(),
-			RetainOnDelete:      req.GetRetainOnDelete(),
+			DeleteBeforeReplace: req.DeleteBeforeReplace,
+			IgnoreChanges:       req.IgnoreChanges,
+			ReplaceOnChanges:    req.ReplaceOnChanges,
+			RetainOnDelete:      req.RetainOnDelete,
 			CustomTimeouts: func() *presource.CustomTimeouts {
 				t := req.GetCustomTimeouts()
 				if t == nil {
@@ -1255,10 +1255,6 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		return r
 	}
 
-	ptr := func(b bool) *bool {
-		return &b
-	}
-
 	// Marshal the input properties.
 	minputs, err := marshal(c.Inputs)
 	if err != nil {
@@ -1289,7 +1285,7 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		Name:            c.Urn.Name(),
 		Parent:          string(c.Parent),
 		Inputs:          minputs,
-		Protect:         ptr(c.Options.Protect),
+		Protect:         c.Options.Protect,
 		Providers:       c.Options.Providers,
 		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
 			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.Options.InputDependencies))
@@ -1310,10 +1306,10 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 			return r
 		}(),
 		DeletedWith:         string(c.Options.DeletedWith),
-		DeleteBeforeReplace: ptr(c.Options.DeleteBeforeReplace),
+		DeleteBeforeReplace: c.Options.DeleteBeforeReplace,
 		IgnoreChanges:       c.Options.IgnoreChanges,
 		ReplaceOnChanges:    c.Options.ReplaceOnChanges,
-		RetainOnDelete:      ptr(c.Options.RetainOnDelete),
+		RetainOnDelete:      c.Options.RetainOnDelete,
 		AcceptsOutputValues: true,
 	}
 
