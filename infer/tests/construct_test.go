@@ -44,18 +44,14 @@ func TestConstruct(t *testing.T) {
 	})
 
 	resp, err := prov.Construct(p.ConstructRequest{
-		Urn:    childUrn("RandomComponent", "test-component", "test-parent"),
-		Parent: urn("Parent", "test-parent"),
-		Info: p.ConstructInfo{
-			Parallel: 1,
-		},
+		Urn:      childUrn("RandomComponent", "test-component", "test-parent"),
+		Parent:   urn("Parent", "test-parent"),
+		Parallel: 1,
 		Inputs: r.PropertyMap{
 			"prefix": prefix,
 		},
-		Options: p.ConstructOptions{
-			InputDependencies: map[r.PropertyKey][]r.URN{
-				"prefix": {urn("Other", "more")},
-			},
+		InputDependencies: map[r.PropertyKey][]r.URN{
+			"prefix": {urn("Other", "more")},
 		},
 	})
 
