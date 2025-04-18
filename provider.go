@@ -1157,9 +1157,16 @@ type ProviderReference struct {
 
 func newConstructRequest(req *rpc.ConstructRequest,
 	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (ConstructRequest, error) {
-	toDurationSecs := func(s string) float64 {
+
+	var errs multierror.Error
+
+	toTimeout := func(name, s string) float64 {
+		if s == "" {
+			return 0
+		}
 		d, err := time.ParseDuration(s)
 		if err != nil {
+			errs.Errors = append(errs.Errors, fmt.Errorf("invalid %s timeout: %w", name, err))
 			return 0
 		}
 		return d.Seconds()
@@ -1194,14 +1201,24 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		Config: func() map[pconfig.Key]string {
 			m := make(map[pconfig.Key]string, len(req.GetConfig()))
 			for k, v := range req.GetConfig() {
-				m[pconfig.MustParseKey(k)] = v
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config key: %w", err))
+					continue
+				}
+				m[key] = v
 			}
 			return m
 		}(),
 		ConfigSecretKeys: func() []pconfig.Key {
 			keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
 			for i, k := range req.GetConfigSecretKeys() {
-				keys[i] = pconfig.MustParseKey(k)
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config secret key: %w", err))
+					continue
+				}
+				keys[i] = key
 			}
 			return keys
 		}(),
@@ -1216,6 +1233,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			for k, v := range req.GetProviders() {
 				urn, id, err := putil.ParseProviderReference(v)
 				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid provider reference: %w", err))
 					continue
 				}
 				m[tokens.Package(k)] = ProviderReference{
@@ -1252,9 +1270,9 @@ func newConstructRequest(req *rpc.ConstructRequest,
 				return nil
 			}
 			return &presource.CustomTimeouts{
-				Create: toDurationSecs(t.GetCreate()),
-				Update: toDurationSecs(t.GetUpdate()),
-				Delete: toDurationSecs(t.GetDelete()),
+				Create: toTimeout("create", t.GetCreate()),
+				Update: toTimeout("update", t.GetUpdate()),
+				Delete: toTimeout("delete", t.GetDelete()),
 			}
 		}(),
 		AcceptsOutputValues: req.AcceptsOutputValues,
@@ -1262,11 +1280,12 @@ func newConstructRequest(req *rpc.ConstructRequest,
 
 	inputs, err := unmarshal(req.Inputs)
 	if err != nil {
-		return ConstructRequest{}, err
+		errs.Errors = append(errs.Errors, fmt.Errorf("invalid inputs: %w", err))
+	} else {
+		r.Inputs = inputs
 	}
-	r.Inputs = inputs
 
-	return r, nil
+	return r, errs.ErrorOrNil()
 }
 
 type propertyToRPC func(m presource.PropertyMap) (*structpb.Struct, error)
