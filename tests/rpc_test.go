@@ -634,9 +634,6 @@ func TestRPCConstruct(t *testing.T) {
 				assert.Equal(t, expectedInputs, req.GetInputs().AsMap())
 				assert.Equal(t, true, req.AcceptsOutputValues)
 
-				// TODO verify that ALL the options are passed down to the provider
-				// TODO verify that inputs are passed down with full fidelity (e.g. Outputs /w deps)
-
 				wasCalled = true
 				return &rpc.ConstructResponse{
 					Urn:   "urn:pulumi:test::test::test:index:Component::component",
@@ -644,9 +641,10 @@ func TestRPCConstruct(t *testing.T) {
 				}, nil
 			},
 		}).Construct(p.ConstructRequest{
-			Urn:    "urn:pulumi:test::test::test:index:Component::component",
-			Parent: "urn:pulumi:test::test::test:index:Parent::parent",
-			Inputs: inputs,
+			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
+			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs:              inputs,
+			AcceptsOutputValues: true,
 		})
 
 		assert.NoError(t, err)

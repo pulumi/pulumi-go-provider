@@ -23,6 +23,7 @@ import (
 	"github.com/pulumi/providertest/replay"
 	"github.com/pulumi/pulumi/pkg/v3/testing/integration"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,7 +75,7 @@ func TestConstruct(t *testing.T) {
 	"additionalSecretOutputs": ["r1"],
     "protect": true,
     "providers": {
-      "aws": "p1"
+	  "test": "urn:pulumi:test::test::pulumi:providers:test::my-provider::09e6d266-58b0-4452-8395-7bbe03011fad"
     },
     "customTimeouts": {
       "create": "1m",
@@ -125,7 +126,12 @@ func constructProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 			assert.Equal(t, []resource.URN{"urn2"}, req.Aliases)
 			assert.Equal(t, []resource.URN{"urn3"}, req.Dependencies)
 			assert.Equal(t, &_true, req.Protect)
-			assert.Equal(t, map[string]string{"aws": "p1"}, req.Providers)
+			assert.Equal(t, map[tokens.Package]p.ProviderReference{
+				"test": {
+					Urn: resource.URN("urn:pulumi:test::test::pulumi:providers:test::my-provider"),
+					ID:  "09e6d266-58b0-4452-8395-7bbe03011fad",
+				},
+			}, req.Providers)
 			assert.Equal(t, map[resource.PropertyKey][]resource.URN{
 				"k1": {resource.URN("urn4"), resource.URN("urn5")},
 			}, req.InputDependencies)

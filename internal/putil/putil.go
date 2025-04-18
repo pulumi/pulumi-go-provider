@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package putil contains utility functions for working with [resource.PropertyValue]s.
+// Package putil contains utility functions for working with [resource.PropertyValue]s and related types.
 package putil
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
@@ -203,4 +206,28 @@ search:
 		Known:   known,
 		Secret:  secret,
 	})
+}
+
+// ParseReference parses the URN and ID from the string representation of a provider reference. If parsing was
+// not possible, this function returns an error.
+func ParseProviderReference(s string) (resource.URN, resource.ID, error) {
+	// If this is not a valid URN + ID, return error. Note that we don't try terribly hard to validate the URN portion
+	// of the reference.
+	lastSep := strings.LastIndex(s, resource.URNNameDelimiter)
+	if lastSep == -1 {
+		return "", "", fmt.Errorf("expected '%v' in provider reference '%v'", resource.URNNameDelimiter, s)
+	}
+	urn, id := resource.URN(s[:lastSep]), resource.ID(s[lastSep+len(resource.URNNameDelimiter):])
+	if !urn.IsValid() {
+		return "", "", fmt.Errorf("%s is not a valid URN", urn)
+	}
+	if id == "" {
+		return "", "", fmt.Errorf("%s is not a valid ID", id)
+	}
+	return urn, id, nil
+}
+
+// FormatProviderReference formats the URN and ID into a string representation of a provider reference.
+func FormatProviderReference(urn resource.URN, id resource.ID) string {
+	return fmt.Sprintf("%s%s%s", urn, resource.URNNameDelimiter, id)
 }

@@ -49,6 +49,7 @@ import (
 
 	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
@@ -1105,14 +1106,14 @@ type ConstructRequest struct {
 	// Aliases is the set of aliases for the component.
 	Aliases []presource.URN
 
-	// Dependencies is the list of resources this component depends on.
+	// Dependencies is the list of resources this component depends on, i.e. the DependsOn resource option.
 	Dependencies []presource.URN
 
 	// Protect is true if the component is protected.
 	Protect *bool
 
 	// Providers is a map from package name to provider reference.
-	Providers map[string]string
+	Providers map[tokens.Package]ProviderReference
 
 	// InputDependencies is a map from property name to a list of resources that property depends on.
 	InputDependencies map[presource.PropertyKey][]presource.URN
@@ -1148,8 +1149,10 @@ type ConstructRequest struct {
 	AcceptsOutputValues bool
 }
 
-// ConstructOptions captures options for a call to Construct.
-type ConstructOptions struct {
+// A provider reference is (URN, ID) tuple that refers to a particular provider instance.
+type ProviderReference struct {
+	Urn presource.URN
+	ID  presource.ID
 }
 
 type rpcToProperty func(s *structpb.Struct) (presource.PropertyMap, error)
@@ -1209,7 +1212,20 @@ func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (Co
 		Parent:          parent,
 		Inputs:          presource.PropertyMap{},
 		Protect:         req.Protect,
-		Providers:       req.GetProviders(),
+		Providers: func() map[tokens.Package]ProviderReference {
+			m := make(map[tokens.Package]ProviderReference, len(req.GetProviders()))
+			for k, v := range req.GetProviders() {
+				urn, id, err := putil.ParseProviderReference(v)
+				if err != nil {
+					continue
+				}
+				m[tokens.Package(k)] = ProviderReference{
+					Urn: urn,
+					ID:  id,
+				}
+			}
+			return m
+		}(),
 		InputDependencies: func() map[presource.PropertyKey][]presource.URN {
 			m := make(map[presource.PropertyKey][]presource.URN, len(req.GetInputDependencies()))
 			for k, v := range req.GetInputDependencies() {
@@ -1299,7 +1315,13 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		Parent:          string(c.Parent),
 		Inputs:          minputs,
 		Protect:         c.Protect,
-		Providers:       c.Providers,
+		Providers: func() map[string]string {
+			m := make(map[string]string, len(c.Providers))
+			for k, v := range c.Providers {
+				m[string(k)] = putil.FormatProviderReference(v.Urn, v.ID)
+			}
+			return m
+		}(),
 		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
 			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.InputDependencies))
 			for k, v := range c.InputDependencies {
