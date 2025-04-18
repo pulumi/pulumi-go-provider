@@ -438,8 +438,8 @@ func (*ConfigCustom) Check(ctx context.Context,
 	req infer.CheckRequest,
 ) (infer.CheckResponse[*ConfigCustom], error) {
 	var c ConfigCustom
-	if v, ok := req.NewInputs["number"]; ok {
-		number := v.NumberValue() + 0.5
+	if v, ok := req.NewInputs.GetOk("number"); ok {
+		number := v.AsNumber() + 0.5
 		c.Number = &number
 	}
 
@@ -533,7 +533,7 @@ type (
 func (w *CustomCheckNoDefaults) Check(_ context.Context,
 	req infer.CheckRequest,
 ) (infer.CheckResponse[CustomCheckNoDefaultsArgs], error) {
-	input := req.NewInputs["input"].StringValue()
+	input := req.NewInputs.Get("input").AsString()
 	return infer.CheckResponse[CustomCheckNoDefaultsArgs]{
 		Inputs: CustomCheckNoDefaultsArgs{Input: input},
 	}, nil

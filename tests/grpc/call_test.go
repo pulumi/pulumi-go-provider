@@ -25,6 +25,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,11 +92,11 @@ func TestCall(t *testing.T) {
 }`
 
 	call := func(_ context.Context, req p.CallRequest) (p.CallResponse, error) {
-		assert.Equal(t, resource.PropertyMap{
-			"k1": resource.NewProperty("s"),
-			"k2": resource.NewProperty(3.14),
-		}, req.Args)
-		assert.Equal(t, map[resource.PropertyKey][]resource.URN{
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"k1": property.New("s"),
+			"k2": property.New(3.14),
+		}), req.Args)
+		assert.Equal(t, map[string][]resource.URN{
 			"k1": {resource.URN("urn1"), resource.URN("urn2")},
 		}, req.ArgDependencies)
 		assert.Equal(t, tokens.ModuleMember("some-token"), req.Tok)
@@ -110,14 +111,11 @@ func TestCall(t *testing.T) {
 		assert.Equal(t, true, req.AcceptsOutputValues)
 
 		return p.CallResponse{
-			Return: resource.PropertyMap{
-				"r1": resource.NewProperty(resource.Output{
-					Element: resource.NewProperty("e1"),
-					Dependencies: []resource.URN{
-						"urn1", "urn2",
-					},
+			Return: property.NewMap(map[string]property.Value{
+				"r1": property.New(property.Computed).WithDependencies([]resource.URN{
+					"urn1", "urn2",
 				}),
-			},
+			}),
 		}, nil
 	}
 

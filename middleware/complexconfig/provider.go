@@ -31,6 +31,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 
 	p "github.com/pulumi/pulumi-go-provider"
 )
@@ -58,7 +59,7 @@ func encodeCheckConfig(check checkConfig, getSchema getSchema) checkConfig {
 		// and thus went through a previous normalizing pass of CheckConfig.
 
 		// If there are no inputs, then we can just return.
-		if len(req.News) == 0 {
+		if req.News.Len() == 0 {
 			return check(ctx, req)
 		}
 
@@ -73,23 +74,26 @@ func encodeCheckConfig(check checkConfig, getSchema getSchema) checkConfig {
 				p.InternalErrorf("unable to decode config: invalid schema: %w", err)
 		}
 
+		news := resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue()
+
 		for k, spec := range spec.Config.Variables {
-			v, ok := req.News[resource.PropertyKey(k)]
+			v, ok := news[resource.PropertyKey(k)]
 			if !ok {
 				continue
 			}
 
-			req.News[resource.PropertyKey(k)] = fixEncoding(v, spec)
+			news[resource.PropertyKey(k)] = fixEncoding(v, spec)
 		}
 
 		// Attempt to decode any inputs that don't have a matching config schema.
-		for k, v := range req.News {
+		for k, v := range news {
 			if _, ok := spec.Config.Variables[string(k)]; ok {
 				continue
 			}
-			req.News[k] = fixEncoding(v, schema.PropertySpec{})
+			news[k] = fixEncoding(v, schema.PropertySpec{})
 		}
 
+		req.News = resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap()
 		return check(ctx, req)
 	}
 }

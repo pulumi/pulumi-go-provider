@@ -38,6 +38,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/grpc/codes"
@@ -62,8 +63,8 @@ type GetSchemaResponse struct {
 
 type CheckRequest struct {
 	Urn        presource.URN
-	Olds       presource.PropertyMap
-	News       presource.PropertyMap
+	Olds       property.Map
+	News       property.Map
 	RandomSeed []byte
 }
 
@@ -73,16 +74,16 @@ type CheckFailure struct {
 }
 
 type CheckResponse struct {
-	Inputs   presource.PropertyMap
+	Inputs   property.Map
 	Failures []CheckFailure
 }
 
 type DiffRequest struct {
 	ID            string
 	Urn           presource.URN
-	Olds          presource.PropertyMap
-	News          presource.PropertyMap
-	IgnoreChanges []presource.PropertyKey
+	Olds          property.Map
+	News          property.Map
+	IgnoreChanges []string
 }
 
 type PropertyDiff struct {
@@ -206,29 +207,29 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 
 type ConfigureRequest struct {
 	Variables map[string]string
-	Args      presource.PropertyMap
+	Args      property.Map
 }
 
 type InvokeRequest struct {
-	Token tokens.Type           // the function token to invoke.
-	Args  presource.PropertyMap // the arguments for the function invocation.
+	Token tokens.Type  // the function token to invoke.
+	Args  property.Map // the arguments for the function invocation.
 }
 
 type InvokeResponse struct {
-	Return   presource.PropertyMap // the returned values, if invoke was successful.
-	Failures []CheckFailure        // the failures if any arguments didn't pass verification.
+	Return   property.Map   // the returned values, if invoke was successful.
+	Failures []CheckFailure // the failures if any arguments didn't pass verification.
 }
 
 type CreateRequest struct {
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the provider inputs to set during creation.
-	Timeout    float64               // the create request timeout represented in seconds.
-	Preview    bool                  // true if this is a preview and the provider should not actually create the resource.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the provider inputs to set during creation.
+	Timeout    float64       // the create request timeout represented in seconds.
+	Preview    bool          // true if this is a preview and the provider should not actually create the resource.
 }
 
 type CreateResponse struct {
-	ID         string                // the ID of the created resource.
-	Properties presource.PropertyMap // any properties that were computed during creation.
+	ID         string       // the ID of the created resource.
+	Properties property.Map // any properties that were computed during creation.
 
 	// non-nil to indicate that the create failed and left the resource in a partial
 	// state.
@@ -239,16 +240,16 @@ type CreateResponse struct {
 }
 
 type ReadRequest struct {
-	ID         string                // the ID of the resource to read.
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the current state (sufficiently complete to identify the resource).
-	Inputs     presource.PropertyMap // the current inputs, if any (only populated during refresh).
+	ID         string        // the ID of the resource to read.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the current state (sufficiently complete to identify the resource).
+	Inputs     property.Map  // the current inputs, if any (only populated during refresh).
 }
 
 type ReadResponse struct {
-	ID         string                // the ID of the resource read back (or empty if missing).
-	Properties presource.PropertyMap // the state of the resource read from the live environment.
-	Inputs     presource.PropertyMap // the inputs for this resource that would be returned from Check.
+	ID         string       // the ID of the resource read back (or empty if missing).
+	Properties property.Map // the state of the resource read from the live environment.
+	Inputs     property.Map // the inputs for this resource that would be returned from Check.
 
 	// non-nil to indicate that the read failed and left the resource in a partial
 	// state.
@@ -259,18 +260,18 @@ type ReadResponse struct {
 }
 
 type UpdateRequest struct {
-	ID            string                  // the ID of the resource to update.
-	Urn           presource.URN           // the Pulumi URN for this resource.
-	Olds          presource.PropertyMap   // the old values of provider inputs for the resource to update.
-	News          presource.PropertyMap   // the new values of provider inputs for the resource to update.
-	Timeout       float64                 // the update request timeout represented in seconds.
-	IgnoreChanges []presource.PropertyKey // a set of property paths that should be treated as unchanged.
-	Preview       bool                    // true if the provider should not actually create the resource.
+	ID            string        // the ID of the resource to update.
+	Urn           presource.URN // the Pulumi URN for this resource.
+	Olds          property.Map  // the old values of provider inputs for the resource to update.
+	News          property.Map  // the new values of provider inputs for the resource to update.
+	Timeout       float64       // the update request timeout represented in seconds.
+	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
+	Preview       bool          // true if the provider should not actually create the resource.
 }
 
 type UpdateResponse struct {
 	// any properties that were computed during updating.
-	Properties presource.PropertyMap
+	Properties property.Map
 	// non-nil to indicate that the update failed and left the resource in a partial
 	// state.
 	//
@@ -280,10 +281,10 @@ type UpdateResponse struct {
 }
 
 type DeleteRequest struct {
-	ID         string                // the ID of the resource to delete.
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the current properties on the resource.
-	Timeout    float64               // the delete request timeout represented in seconds.
+	ID         string        // the ID of the resource to delete.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the current properties on the resource.
+	Timeout    float64       // the delete request timeout represented in seconds.
 }
 
 // InitializationFailed indicates that a resource exists but failed to initialize, and is
@@ -597,21 +598,20 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 	})
 }
 
-// getMap converts an on-wire [structpb.Struct] to a [presource.PropertyMap] based on the negotiated protocol.
-// Note that we opt into all options in Configure.
-func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
-	return plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+func (p *provider) getMap(s *structpb.Struct) (property.Map, error) {
+	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		KeepUnknowns:     true,
 		SkipNulls:        true,
 		KeepResources:    true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,
 	})
+	return presource.FromResourcePropertyMap(m), err
 }
 
-// asStruct converts a [presource.PropertyMap] to an on-wire [structpb.Struct] based on the negotiated protocol.
-func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
-	return plugin.MarshalProperties(m, plugin.MarshalOptions{
+func (p *provider) asStruct(m property.Map) (*structpb.Struct, error) {
+	rm := presource.ToResourcePropertyMap(m)
+	return plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		KeepUnknowns:     true,
 		SkipNulls:        true,
 		KeepSecrets:      true,
@@ -686,7 +686,7 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	}
 
 	// Inject the version of pulumi-go-provider into the news map to store in state.
-	r.Inputs[frameworkStateKeyName] = presource.NewStringProperty(frameworkVersion.String())
+	r.Inputs = r.Inputs.Set(frameworkStateKeyName, property.New(frameworkVersion.String()))
 
 	inputs, err := p.asStruct(r.Inputs)
 	if err != nil {
@@ -697,14 +697,6 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 		Inputs:   inputs,
 		Failures: checkFailureList(r.Failures).rpc(),
 	}, err
-}
-
-func getIgnoreChanges(l []string) []presource.PropertyKey {
-	r := make([]presource.PropertyKey, len(l))
-	for i, p := range l {
-		r[i] = presource.PropertyKey(p)
-	}
-	return r
 }
 
 func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
@@ -722,7 +714,7 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
 		News:          news,
-		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
+		IgnoreChanges: req.GetIgnoreChanges(),
 	})
 	if err != nil {
 		return nil, err
@@ -789,16 +781,9 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 	}
 
 	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
-	for name, v := range resp.ReturnDependencies {
+	for name, v := range resp.Return.All {
 		var urns []string
-		for _, dep := range v {
-			urns = append(urns, string(dep))
-		}
-		returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-	}
-	for name, v := range resp.Return {
-		var urns []string
-		resourcex.Walk(v, func(v presource.PropertyValue, state resourcex.WalkState) {
+		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
 			if state.Entering || !v.IsOutput() {
 				return
 			}
@@ -807,9 +792,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 			}
 		})
 
-		if _, ok := returnDependencies[string(name)]; !ok {
-			returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-		}
+		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
 
 	_return, err := p.asStruct(resp.Return)
@@ -840,9 +823,9 @@ type CallRequest struct {
 	// the function token to invoke.
 	Tok tokens.ModuleMember
 	// the arguments for the function invocation.
-	Args presource.PropertyMap
+	Args property.Map
 	// a map from argument keys to the dependencies of the argument.
-	ArgDependencies map[presource.PropertyKey][]presource.URN
+	ArgDependencies map[string][]presource.URN
 	// the project name.
 	Project string
 	// the name of the stack being deployed into.
@@ -864,18 +847,18 @@ type CallRequest struct {
 }
 
 func newCallRequest(req *rpc.CallRequest,
-	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (CallRequest, error) {
+	unmarshal func(s *structpb.Struct) (property.Map, error)) (CallRequest, error) {
 
 	var errs multierror.Error
 
 	r := CallRequest{
 		Tok: tokens.ModuleMember(req.GetTok()),
-		ArgDependencies: func() map[presource.PropertyKey][]presource.URN {
-			r := make(map[presource.PropertyKey][]presource.URN, len(req.GetArgDependencies()))
+		ArgDependencies: func() map[string][]presource.URN {
+			r := make(map[string][]presource.URN, len(req.GetArgDependencies()))
 			for k, v := range req.GetArgDependencies() {
-				r[presource.PropertyKey(k)] = make([]presource.URN, len(v.GetUrns()))
+				r[k] = make([]presource.URN, len(v.GetUrns()))
 				for i, urn := range v.GetUrns() {
-					r[presource.PropertyKey(k)][i] = presource.URN(urn)
+					r[k][i] = presource.URN(urn)
 				}
 			}
 			return r
@@ -945,7 +928,7 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 		ArgDependencies: func() map[string]*rpc.CallRequest_ArgumentDependencies {
 			r := make(map[string]*rpc.CallRequest_ArgumentDependencies, len(c.ArgDependencies))
 			for k, v := range c.ArgDependencies {
-				r[string(k)] = &rpc.CallRequest_ArgumentDependencies{
+				r[k] = &rpc.CallRequest_ArgumentDependencies{
 					Urns: fromUrns(v),
 				}
 			}
@@ -982,7 +965,7 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 // It corresponds to [rpc.CallResponse] on the wire.
 type CallResponse struct {
 	// The returned values, if the call was successful.
-	Return presource.PropertyMap
+	Return property.Map
 	// A map from return keys to the dependencies of the return value.
 	ReturnDependencies map[presource.PropertyKey][]presource.URN
 	// The failures if any arguments didn't pass verification.
@@ -1069,7 +1052,7 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 		Urn:           presource.URN(req.GetUrn()),
 		Olds:          olds,
 		News:          news,
-		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
+		IgnoreChanges: req.GetIgnoreChanges(),
 	})
 	if err != nil {
 		return nil, err
@@ -1177,7 +1160,7 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		Olds:          oldsMap,
 		News:          newsMap,
 		Timeout:       req.GetTimeout(),
-		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
+		IgnoreChanges: req.GetIgnoreChanges(),
 		Preview:       req.GetPreview(),
 	})
 	if initFailed := r.PartialState; initFailed != nil {
@@ -1250,7 +1233,7 @@ type ConstructRequest struct {
 	Parent presource.URN
 
 	// Inputs is the set of inputs for the component.
-	Inputs presource.PropertyMap
+	Inputs property.Map
 
 	// Aliases is the set of aliases for the component.
 	Aliases []presource.URN
@@ -1265,11 +1248,11 @@ type ConstructRequest struct {
 	Providers map[tokens.Package]ProviderReference
 
 	// InputDependencies is a map from property name to a list of resources that property depends on.
-	InputDependencies map[presource.PropertyKey][]presource.URN
+	InputDependencies map[string][]presource.URN
 
 	// AdditionalSecretOutputs lists extra output properties
 	// that should be treated as secrets.
-	AdditionalSecretOutputs []presource.PropertyKey
+	AdditionalSecretOutputs []string
 
 	// CustomTimeouts overrides default timeouts for resource operations.
 	CustomTimeouts *presource.CustomTimeouts
@@ -1305,7 +1288,7 @@ type ProviderReference struct {
 }
 
 func newConstructRequest(req *rpc.ConstructRequest,
-	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (ConstructRequest, error) {
+	unmarshal func(s *structpb.Struct) (property.Map, error)) (ConstructRequest, error) {
 
 	var errs multierror.Error
 
@@ -1375,7 +1358,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		Parallel:        req.GetParallel(),
 		MonitorEndpoint: req.GetMonitorEndpoint(),
 		Parent:          parent,
-		Inputs:          presource.PropertyMap{},
+		Inputs:          property.Map{},
 		Protect:         req.Protect,
 		Providers: func() map[tokens.Package]ProviderReference {
 			m := make(map[tokens.Package]ProviderReference, len(req.GetProviders()))
@@ -1392,19 +1375,19 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			}
 			return m
 		}(),
-		InputDependencies: func() map[presource.PropertyKey][]presource.URN {
-			m := make(map[presource.PropertyKey][]presource.URN, len(req.GetInputDependencies()))
+		InputDependencies: func() map[string][]presource.URN {
+			m := make(map[string][]presource.URN, len(req.GetInputDependencies()))
 			for k, v := range req.GetInputDependencies() {
-				m[presource.PropertyKey(k)] = toUrns(v.Urns)
+				m[k] = toUrns(v.Urns)
 			}
 			return m
 		}(),
 		Aliases:      toUrns(req.GetAliases()),
 		Dependencies: toUrns(req.GetDependencies()),
-		AdditionalSecretOutputs: func() []presource.PropertyKey {
-			r := make([]presource.PropertyKey, len(req.GetAdditionalSecretOutputs()))
+		AdditionalSecretOutputs: func() []string {
+			r := make([]string, len(req.GetAdditionalSecretOutputs()))
 			for i, k := range req.GetAdditionalSecretOutputs() {
-				r[i] = presource.PropertyKey(k)
+				r[i] = k
 			}
 			return r
 		}(),
@@ -1437,7 +1420,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 	return r, errs.ErrorOrNil()
 }
 
-type propertyToRPC func(m presource.PropertyMap) (*structpb.Struct, error)
+type propertyToRPC func(m property.Map) (*structpb.Struct, error)
 
 func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 
@@ -1492,27 +1475,21 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
 			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.InputDependencies))
 			for k, v := range c.InputDependencies {
-				m[string(k)] = &rpc.ConstructRequest_PropertyDependencies{
+				m[k] = &rpc.ConstructRequest_PropertyDependencies{
 					Urns: fromUrns(v),
 				}
 			}
 			return m
 		}(),
-		Aliases:      fromUrns(c.Aliases),
-		Dependencies: fromUrns(c.Dependencies),
-		AdditionalSecretOutputs: func() []string {
-			r := make([]string, len(c.AdditionalSecretOutputs))
-			for i, k := range c.AdditionalSecretOutputs {
-				r[i] = string(k)
-			}
-			return r
-		}(),
-		DeletedWith:         string(c.DeletedWith),
-		DeleteBeforeReplace: c.DeleteBeforeReplace,
-		IgnoreChanges:       c.IgnoreChanges,
-		ReplaceOnChanges:    c.ReplaceOnChanges,
-		RetainOnDelete:      c.RetainOnDelete,
-		AcceptsOutputValues: c.AcceptsOutputValues,
+		Aliases:                 fromUrns(c.Aliases),
+		Dependencies:            fromUrns(c.Dependencies),
+		AdditionalSecretOutputs: c.AdditionalSecretOutputs,
+		DeletedWith:             string(c.DeletedWith),
+		DeleteBeforeReplace:     c.DeleteBeforeReplace,
+		IgnoreChanges:           c.IgnoreChanges,
+		ReplaceOnChanges:        c.ReplaceOnChanges,
+		RetainOnDelete:          c.RetainOnDelete,
+		AcceptsOutputValues:     c.AcceptsOutputValues,
 	}
 
 	if ct := c.CustomTimeouts; ct != nil {
@@ -1528,8 +1505,8 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 
 type ConstructResponse struct {
 	Urn               presource.URN // the Pulumi URN for this resource.
-	State             presource.PropertyMap
-	StateDependencies map[presource.PropertyKey][]presource.URN
+	State             property.Map
+	StateDependencies map[string][]presource.URN
 }
 
 func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error) {
@@ -1550,10 +1527,10 @@ func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error)
 	r := ConstructResponse{
 		Urn:   presource.URN(req.Urn),
 		State: state,
-		StateDependencies: func() map[presource.PropertyKey][]presource.URN {
-			m := make(map[presource.PropertyKey][]presource.URN, len(req.StateDependencies))
+		StateDependencies: func() map[string][]presource.URN {
+			m := make(map[string][]presource.URN, len(req.StateDependencies))
 			for k, v := range req.StateDependencies {
-				m[presource.PropertyKey(k)] = toUrns(v.Urns)
+				m[k] = toUrns(v.Urns)
 			}
 			return m
 		}(),
@@ -1582,7 +1559,7 @@ func (c ConstructResponse) rpc(marshal propertyToRPC) *rpc.ConstructResponse {
 		StateDependencies: func() map[string]*rpc.ConstructResponse_PropertyDependencies {
 			m := make(map[string]*rpc.ConstructResponse_PropertyDependencies, len(c.StateDependencies))
 			for k, v := range c.StateDependencies {
-				m[string(k)] = &rpc.ConstructResponse_PropertyDependencies{
+				m[k] = &rpc.ConstructResponse_PropertyDependencies{
 					Urns: fromUrns(v),
 				}
 			}

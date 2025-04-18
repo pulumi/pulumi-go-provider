@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -126,9 +127,9 @@ type CheckRequest struct {
 	// The resource name.
 	Name string
 	// The old resource inputs.
-	OldInputs resource.PropertyMap
+	OldInputs property.Map
 	// The new resource inputs.
-	NewInputs resource.PropertyMap
+	NewInputs property.Map
 }
 
 // CheckResponse contains all the results from a Check operation
@@ -1023,7 +1024,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 		return p.CheckResponse{
 			// If we failed to decode, we apply secrets pro-actively to ensure
 			// that they don't leak into previews.
-			Inputs:   applySecrets[I](req.News),
+			Inputs:   applySecrets[I](resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue()),
 			Failures: failures,
 		}, nil
 	}
@@ -1048,7 +1049,7 @@ type (
 //
 // callCustomCheck facilitates extracting the encoder created with [DefaultCheck].
 func callCustomCheck[T any](
-	ctx context.Context, r CustomCheck[T], name string, olds, news resource.PropertyMap,
+	ctx context.Context, r CustomCheck[T], name string, olds, news property.Map,
 ) (*ende.Encoder, T, []p.CheckFailure, error) {
 	defaultCheckEncoder := new(defaultCheckEncoderValue)
 	ctx = context.WithValue(ctx, defaultCheckEncoderKey{}, defaultCheckEncoder)
@@ -1064,7 +1065,7 @@ func callCustomCheck[T any](
 // validation that is performed when leaving Check unimplemented.
 //
 // It also adds defaults to inputs as necessary, as defined by [Annotator.SetDefault].
-func DefaultCheck[I any](ctx context.Context, inputs resource.PropertyMap) (I, []p.CheckFailure, error) {
+func DefaultCheck[I any](ctx context.Context, inputs property.Map) (I, []p.CheckFailure, error) {
 	enc, i, failures, err := decodeCheckingMapErrors[I](inputs)
 
 	if v, ok := ctx.Value(defaultCheckEncoderKey{}).(*defaultCheckEncoderValue); ok {
@@ -1086,7 +1087,7 @@ func defaultCheck[I any](i I) (I, error) {
 	return i, nil
 }
 
-func decodeCheckingMapErrors[I any](inputs resource.PropertyMap) (ende.Encoder, I, []p.CheckFailure, error) {
+func decodeCheckingMapErrors[I any](inputs property.Map) (ende.Encoder, I, []p.CheckFailure, error) {
 	encoder, i, err := ende.Decode[I](inputs)
 	if err != nil {
 		failures, e := checkFailureFromMapError(err)
@@ -1148,7 +1149,10 @@ func diff[R, I, O any](
 ) (p.DiffResponse, error) {
 
 	for _, ignoredChange := range req.IgnoreChanges {
-		req.News[ignoredChange] = req.Olds[ignoredChange]
+		v, ok := req.Olds.GetOk(ignoredChange)
+		if ok {
+			req.News = req.News.Set(ignoredChange, v)
+		}
 	}
 
 	if r, ok := ((interface{})(*r)).(CustomDiff[I, O]); ok {
@@ -1177,12 +1181,13 @@ func diff[R, I, O any](
 	}
 	// Olds is an Output, but news is an Input. Output should be a superset of Input,
 	// so we need to filter out fields that are in Output but not Input.
-	oldInputs := resource.PropertyMap{}
+	oldInputs := map[string]property.Value{}
 	for k := range inputProps {
-		key := resource.PropertyKey(k)
-		oldInputs[key] = req.Olds[key]
+		oldInputs[k] = req.Olds.Get(k)
 	}
-	objDiff := oldInputs.Diff(req.News)
+	objDiff := resource.ToResourcePropertyValue(property.New(oldInputs)).ObjectValue().Diff(
+		resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue(),
+	)
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff, false)
 	diff := map[string]p.PropertyDiff{}
 
@@ -1273,11 +1278,11 @@ func (rc *derivedResourceController[R, I, O]) Create(
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
-	setDeps(nil, req.Properties, m)
+	setDeps(nil, resource.ToResourcePropertyValue(property.New(req.Properties)).ObjectValue(), m)
 
 	return p.CreateResponse{
 		ID:         inferResp.ID,
-		Properties: m,
+		Properties: resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(),
 	}, err
 }
 
@@ -1370,8 +1375,8 @@ func (rc *derivedResourceController[R, I, O]) Read(
 
 	return p.ReadResponse{
 		ID:         inferResp.ID,
-		Properties: s,
-		Inputs:     i,
+		Properties: resource.FromResourcePropertyValue(resource.NewProperty(s)).AsMap(),
+		Inputs:     resource.FromResourcePropertyValue(resource.NewProperty(i)).AsMap(),
 	}, nil
 }
 
@@ -1385,7 +1390,10 @@ func (rc *derivedResourceController[R, I, O]) Update(
 			"Update is not implemented for resource %s", req.Urn)
 	}
 	for _, ignoredChange := range req.IgnoreChanges {
-		req.News[ignoredChange] = req.Olds[ignoredChange]
+		v, ok := req.Olds.GetOk(ignoredChange)
+		if ok {
+			req.News = req.News.Set(ignoredChange, v)
+		}
 	}
 
 	_, olds, err := hydrateFromState[R, I, O](ctx, req.Olds)
@@ -1435,10 +1443,14 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	setDeps(req.Olds, req.News, m)
+	setDeps(
+		resource.ToResourcePropertyValue(property.New(req.Olds)).ObjectValue(),
+		resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue(),
+		m,
+	)
 
 	return p.UpdateResponse{
-		Properties: m,
+		Properties: resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(),
 	}, nil
 }
 
@@ -1503,7 +1515,7 @@ func getDependenciesRaw(
 // hydrateFromState takes a blob from state and hydrates it for user consumption, running any relevant state
 // migrations.
 func hydrateFromState[R, I, O any](
-	ctx context.Context, state resource.PropertyMap,
+	ctx context.Context, state property.Map,
 ) (ende.Encoder, O, error) {
 	var r R
 	if r, ok := ((interface{})(r)).(CustomStateMigrations[O]); ok {
@@ -1517,7 +1529,7 @@ func hydrateFromState[R, I, O any](
 }
 
 func migrateState[O any](
-	ctx context.Context, r CustomStateMigrations[O], state resource.PropertyMap,
+	ctx context.Context, r CustomStateMigrations[O], state property.Map,
 ) (ende.Encoder, O, bool, error) {
 	var o O
 	for _, upgrader := range r.StateMigrations(ctx) {
@@ -1529,7 +1541,7 @@ func migrateState[O any](
 
 		var results []reflect.Value
 		var enc ende.Encoder
-		if oldType == reflect.TypeOf(resource.PropertyMap{}) {
+		if oldType == reflect.TypeOf(property.Map{}) {
 			results = f.Call([]reflect.Value{
 				reflect.ValueOf(ctx), reflect.ValueOf(state),
 			})

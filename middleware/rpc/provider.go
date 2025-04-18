@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -80,10 +81,6 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		DiffConfig: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			ignoreChanges := make([]string, len(req.IgnoreChanges))
-			for i, v := range req.IgnoreChanges {
-				ignoreChanges[i] = string(v)
-			}
 			olds, err := runtime.propertyToRPC(req.Olds)
 			if err != nil {
 				return p.DiffResponse{}, err
@@ -98,7 +95,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Urn:           string(req.Urn),
 				Olds:          olds,
 				News:          news,
-				IgnoreChanges: ignoreChanges,
+				IgnoreChanges: req.IgnoreChanges,
 			}))
 		},
 		Configure: func(ctx context.Context, req p.ConfigureRequest) error {
@@ -151,10 +148,6 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		Diff: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			ignoreChanges := make([]string, len(req.IgnoreChanges))
-			for i, v := range req.IgnoreChanges {
-				ignoreChanges[i] = string(v)
-			}
 			olds, err := runtime.propertyToRPC(req.Olds)
 			if err != nil {
 				return p.DiffResponse{}, err
@@ -170,7 +163,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Urn:           string(req.Urn),
 				Olds:          olds,
 				News:          news,
-				IgnoreChanges: ignoreChanges,
+				IgnoreChanges: req.IgnoreChanges,
 			}))
 		},
 		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
@@ -223,10 +216,6 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.UpdateResponse{}, nil
 			}
-			ignoreChanges := make([]string, len(req.IgnoreChanges))
-			for i, v := range req.IgnoreChanges {
-				ignoreChanges[i] = string(v)
-			}
 
 			inOlds, err := runtime.propertyToRPC(req.Olds)
 			if err != nil {
@@ -244,7 +233,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Olds:          inOlds,
 				News:          inNews,
 				Timeout:       req.Timeout,
-				IgnoreChanges: ignoreChanges,
+				IgnoreChanges: req.IgnoreChanges,
 				Preview:       req.Preview,
 			})
 
@@ -377,11 +366,12 @@ type runtime struct {
 	configuration *rpc.ConfigureResponse
 }
 
-func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error) {
+func (r runtime) propertyToRPC(m property.Map) (*structpb.Struct, error) {
 	if r.configuration == nil {
 		r.configuration = &rpc.ConfigureResponse{}
 	}
-	s, err := plugin.MarshalProperties(m, plugin.MarshalOptions{
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	s, err := plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		KeepUnknowns:     true,
 		KeepSecrets:      r.configuration.AcceptSecrets,
 		KeepResources:    r.configuration.AcceptResources,
@@ -390,9 +380,9 @@ func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error)
 	return s, err
 }
 
-func rpcToProperty(s *structpb.Struct, previousError error) (resource.PropertyMap, error) {
+func rpcToProperty(s *structpb.Struct, previousError error) (property.Map, error) {
 	if s == nil {
-		return nil, previousError
+		return property.Map{}, previousError
 	}
 	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		SkipNulls:        false,
@@ -401,5 +391,5 @@ func rpcToProperty(s *structpb.Struct, previousError error) (resource.PropertyMa
 		KeepResources:    true,
 		KeepOutputValues: true,
 	})
-	return m, errors.Join(err, previousError)
+	return resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(), errors.Join(err, previousError)
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,7 +129,9 @@ func TestRPCConfigure(t *testing.T) {
 				return &rpc.ConfigureResponse{}, nil
 			},
 		})
-		err := s.Configure(p.ConfigureRequest{Args: args})
+		err := s.Configure(p.ConfigureRequest{
+			Args: resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
+		})
 		require.NoError(t, err)
 		assert.True(t, didRun)
 	})
@@ -198,9 +201,9 @@ func TestRPCConfigure(t *testing.T) {
 
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				resp, err := s.Create(p.CreateRequest{
-					Properties: resource.PropertyMap{
-						"secret": resource.MakeSecret(resource.NewProperty("v")),
-					},
+					Properties: property.NewMap(map[string]property.Value{
+						"secret": property.New("v").WithSecret(true),
+					}),
 				})
 				require.NoError(t, err)
 				assert.Equal(t, p.CreateResponse{ID: "some-id"}, resp)
@@ -229,12 +232,14 @@ func TestRPCConfigure(t *testing.T) {
 						if acceptOutputs {
 							assert.Equal(t, resource.PropertyMap{
 								"output": resource.NewOutputProperty(resource.Output{
-									Known:  false,
 									Secret: true,
 								}),
 								"known": resource.NewOutputProperty(resource.Output{
 									Known:   true,
 									Element: resource.NewProperty("v1"),
+									Dependencies: []resource.URN{
+										"had-dep",
+									},
 								}),
 								"unknown": resource.MakeComputed(
 									resource.NewProperty(""),
@@ -258,17 +263,13 @@ func TestRPCConfigure(t *testing.T) {
 
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				resp, err := s.Create(p.CreateRequest{
-					Properties: resource.PropertyMap{
-						"output": resource.NewOutputProperty(resource.Output{
-							Known:  false,
-							Secret: true,
+					Properties: property.NewMap(map[string]property.Value{
+						"output": property.New(property.Computed).WithSecret(true),
+						"known": property.New("v1").WithDependencies([]resource.URN{
+							"had-dep",
 						}),
-						"known": resource.NewOutputProperty(resource.Output{
-							Known:   true,
-							Element: resource.NewProperty("v1"),
-						}),
-						"unknown": resource.MakeComputed(resource.NewProperty("v2")),
-					},
+						"unknown": property.New(property.Computed),
+					}),
 				})
 				require.NoError(t, err)
 				assert.Equal(t, p.CreateResponse{ID: "some-id"}, resp)
@@ -331,7 +332,7 @@ func TestRPCInvoke(t *testing.T) {
 			},
 		}).Invoke(p.InvokeRequest{
 			Token: "some-token",
-			Args:  args,
+			Args:  resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
 		})
 		assert.ErrorContains(t, err, "success")
 	})
@@ -348,7 +349,7 @@ func TestRPCInvoke(t *testing.T) {
 			},
 		}).Invoke(p.InvokeRequest{})
 		require.NoError(t, err)
-		assert.Equal(t, args, resp.Return)
+		assert.Equal(t, resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(), resp.Return)
 	})
 
 	t.Run("failures", func(t *testing.T) {
@@ -413,7 +414,7 @@ func TestRPCCreate(t *testing.T) {
 			},
 		}).Create(p.CreateRequest{
 			Urn:        "some-urn",
-			Properties: args,
+			Properties: resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
 			Timeout:    123,
 			Preview:    true,
 		})
@@ -438,7 +439,7 @@ func TestRPCCreate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, p.CreateResponse{
 			ID:         "some-id",
-			Properties: props,
+			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
 		}, resp)
 	})
 }
@@ -466,8 +467,8 @@ func TestRPCRead(t *testing.T) {
 		}).Read(p.ReadRequest{
 			ID:         "some-id",
 			Urn:        "some-urn",
-			Properties: props,
-			Inputs:     inputs,
+			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
+			Inputs:     resource.FromResourcePropertyValue(resource.NewProperty(inputs)).AsMap(),
 		})
 
 		require.NoError(t, err)
@@ -492,8 +493,8 @@ func TestRPCRead(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, p.ReadResponse{
 			ID:         "some-id",
-			Properties: props,
-			Inputs:     inputs,
+			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
+			Inputs:     resource.FromResourcePropertyValue(resource.NewProperty(inputs)).AsMap(),
 		}, resp)
 	})
 
@@ -537,10 +538,10 @@ func TestRPCUpdate(t *testing.T) {
 		}).Update(p.UpdateRequest{
 			ID:            "some-id",
 			Urn:           "some-urn",
-			Olds:          olds,
-			News:          news,
+			Olds:          resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
+			News:          resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			Timeout:       1.23,
-			IgnoreChanges: []resource.PropertyKey{"f1"},
+			IgnoreChanges: []string{"f1"},
 			Preview:       true,
 		})
 
@@ -562,7 +563,7 @@ func TestRPCUpdate(t *testing.T) {
 		}).Update(p.UpdateRequest{})
 		require.NoError(t, err)
 		assert.Equal(t, p.UpdateResponse{
-			Properties: props,
+			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
 		}, resp)
 	})
 
@@ -599,7 +600,7 @@ func TestRPCDelete(t *testing.T) {
 		}).Delete(p.DeleteRequest{
 			ID:         "my-id",
 			Urn:        "my-urn",
-			Properties: props,
+			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
 			Timeout:    7.3,
 		})
 
@@ -644,7 +645,7 @@ func TestRPCConstruct(t *testing.T) {
 		}).Construct(p.ConstructRequest{
 			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
 			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
-			Inputs:              inputs,
+			Inputs:              resource.FromResourcePropertyValue(resource.NewProperty(inputs)).AsMap(),
 			AcceptsOutputValues: true,
 		})
 
@@ -665,8 +666,8 @@ func exampleCallArgs() (resource.PropertyMap, map[string]any) {
 		}
 }
 
-func exampleCallArgDependencies() (map[resource.PropertyKey][]resource.URN, map[string]*rpc.CallRequest_ArgumentDependencies) {
-	return map[resource.PropertyKey][]resource.URN{
+func exampleCallArgDependencies() (map[string][]resource.URN, map[string]*rpc.CallRequest_ArgumentDependencies) {
+	return map[string][]resource.URN{
 			"k1": {"urn1", "urn2"},
 		}, map[string]*rpc.CallRequest_ArgumentDependencies{
 			"k1": {Urns: []string{"urn1", "urn2"}},
@@ -725,13 +726,15 @@ func TestRPCCall(t *testing.T) {
 			Tok:             tokens.ModuleMember("some-token"),
 			Project:         "some-project",
 			Stack:           "some-stack",
-			Args:            args,
+			Args:            resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
 			ArgDependencies: argDeps,
 		})
 
 		assert.NoError(t, err)
 		assert.True(t, wasCalled)
-		assert.Equal(t, expectedReturns, resp.Return, "return values should be the same")
+		assert.Equal(t,
+			resource.FromResourcePropertyMap(expectedReturns),
+			resp.Return, "return values should be the same")
 		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "return dependencies should be the same")
 	})
 }
@@ -812,19 +815,19 @@ func testRPCCheck(
 			}, nil
 		})(p.CheckRequest{
 			Urn:        "some-urn",
-			Olds:       olds,
-			News:       news,
+			Olds:       resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
+			News:       resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			RandomSeed: []byte("12345"),
 		})
 		require.NoError(t, err)
 		assert.Equal(t, p.CheckResponse{
-			Inputs: resource.PropertyMap{
-				"r1": resource.NewProperty([]resource.PropertyValue{
-					resource.NewProperty("e1"),
-					resource.NewProperty("e2"),
+			Inputs: property.NewMap(map[string]property.Value{
+				"r1": property.New([]property.Value{
+					property.New("e1"),
+					property.New("e2"),
 				}),
-				"r2": resource.NewProperty(false),
-			},
+				"r2": property.New(false),
+			}),
 		}, resp)
 	})
 	t.Run("failures", func(t *testing.T) {
@@ -892,9 +895,9 @@ func testRPCDiff(
 		})(p.DiffRequest{
 			ID:            "some-id",
 			Urn:           "my-urn",
-			Olds:          olds,
-			News:          news,
-			IgnoreChanges: []resource.PropertyKey{"field1", "field2"},
+			Olds:          resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
+			News:          resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
+			IgnoreChanges: []string{"field1", "field2"},
 		})
 
 		require.NoError(t, err)

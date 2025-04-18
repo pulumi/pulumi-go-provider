@@ -17,7 +17,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,60 +27,35 @@ import (
 func TestCheckDefaults(t *testing.T) {
 	t.Parallel()
 
-	// Helper bindings for constructing property maps
-	pInt := func(i int) resource.PropertyValue {
-		return resource.NewNumberProperty(float64(i))
-	}
-	pFloat := resource.NewNumberProperty
-	pBool := resource.NewBoolProperty
-	pString := resource.NewStringProperty
-	type pMap = resource.PropertyMap
-	type pValue = resource.PropertyValue
-
 	// The property map we get when only default values are applied.
 	//
 	// These correspond to the Annotate definitions in ./provider.go.
-	defaultNestedMap := func() pValue {
-		return pValue{V: pMap{
-			"b":    pBool(true),
-			"f":    pFloat(4),
-			"i":    pInt(8),
-			"pb":   pBool(true),
-			"pf":   pFloat(4),
-			"pi":   pInt(8),
-			"ps":   pString("two"),
-			"s":    pString("two"),
-			"pppi": pInt(64)}}
-	}
-	defaultMap := func() pMap {
-		return pMap{
-			"pi":        pInt(2),
-			"s":         pString("one"),
-			"nestedPtr": defaultNestedMap(),
-		}
-	}
+	defaultNestedMap := property.New(map[string]property.Value{
+		"b":    property.New(true),
+		"f":    property.New(4.0),
+		"i":    property.New(8.0),
+		"pb":   property.New(true),
+		"pf":   property.New(4.0),
+		"pi":   property.New(8.0),
+		"ps":   property.New("two"),
+		"s":    property.New("two"),
+		"pppi": property.New(64.0),
+	})
 
-	// A helper function for construction test inputs.
-	with := func(origin func() pValue, mutation func(pMap)) pValue {
-		v := origin().V.(pMap)
-		mutation(v)
-		return pValue{V: v}
-	}
-
-	withDefault := func(mutation func(pMap)) pMap {
-		return with(func() pValue {
-			return pValue{V: defaultMap()}
-		}, mutation).V.(pMap)
-	}
+	defaultMap := property.NewMap(map[string]property.Value{
+		"pi":        property.New(2.0),
+		"s":         property.New("one"),
+		"nestedPtr": defaultNestedMap,
+	})
 
 	// Run the test with a set of expected inputs.
-	against := func(inputs, expected pMap) func(t *testing.T) {
+	against := func(inputs, expected property.Map) func(t *testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
 
 			// This is a required input, so make sure it shows up.
-			if _, ok := inputs["nestedPtr"]; !ok {
-				inputs["nestedPtr"] = pValue{V: pMap{}}
+			if _, ok := inputs.GetOk("nestedPtr"); !ok {
+				inputs = inputs.Set("nestedPtr", property.New(property.Map{}))
 			}
 
 			prov := provider(t)
@@ -95,101 +70,75 @@ func TestCheckDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("empty", against(pMap{}, defaultMap()))  //nolint:paralleltest // against already calls t.Parallel.
-	t.Run("required-under-optional", against(pMap{ //nolint:paralleltest // against already calls t.Parallel.
-		"optWithReq": pValue{V: pMap{
-			"req": pString("user-value"),
-		}},
-	}, withDefault(func(m pMap) {
-		m["optWithReq"] = pValue{V: pMap{
-			"req": pString("user-value"),
-			"opt": pString("default-value"),
-		}}
-	})))
-	t.Run("some-values", against(pMap{ //nolint:paralleltest // against already calls t.Parallel.
-		"pi": pInt(3),
-		"nestedPtr": pValue{V: pMap{
-			"i": pInt(3),
-		}},
-	},
-		withDefault(func(m pMap) {
-			m["pi"] = pInt(3)
-			m["nestedPtr"] = with(defaultNestedMap, func(m pMap) {
-				m["i"] = pInt(3)
-			})
+	type m = map[string]property.Value
+
+	t.Run("empty", against(property.Map{}, defaultMap))         //nolint:paralleltest // against already calls t.Parallel.
+	t.Run("required-under-optional", against(property.NewMap(m{ //nolint:paralleltest // against already calls t.Parallel.
+		"optWithReq": property.New(m{
+			"req": property.New("user-value"),
 		}),
+	}), defaultMap.Set("optWithReq", property.New(m{
+		"req": property.New("user-value"),
+		"opt": property.New("default-value"),
+	}))))
+	t.Run("some-values", against(property.NewMap(m{ //nolint:paralleltest // against already calls t.Parallel.
+		"pi": property.New(3.0),
+		"nestedPtr": property.New(m{
+			"i": property.New(3.0),
+		}),
+	}),
+		defaultMap.Set("pi", property.New(3.0)).Set(
+			"nestedPtr", property.New(defaultNestedMap.AsMap().Set(
+				"i", property.New(3.0),
+			)),
+		),
 	))
-	t.Run("set-optional-value-as-zero", against(pMap{ //nolint:paralleltest // against already calls t.Parallel.
-		"pi": pInt(0), // We can set a pointer to its elements zero value.
+	t.Run("set-optional-value-as-zero", against(property.NewMap(m{ //nolint:paralleltest,lll // against already calls t.Parallel.
+		"pi": property.New(0.0), // We can set a pointer to its elements zero value.
 
 		// We cannot set a element to its zero value, since that looks identical
 		// to not setting it.
 		//"s":  pString(""),
-	},
-		withDefault(func(m pMap) {
-			m["pi"] = pInt(0)
-		}),
+	}),
+		defaultMap.Set("pi", property.New(0.0)),
 	))
 
 	for _, arrayName := range []string{"arrNested", "arrNestedPtr"} {
 		arrayName := arrayName
-		array := resource.PropertyKey(arrayName)
-		t.Run("behind-"+arrayName, against(pMap{
-			array: pValue{V: []pValue{
-				{V: pMap{"s": pString("foo")}},
-				{V: pMap{}},
-				{V: pMap{"s": pString("bar")}},
-			}},
-		},
-			withDefault(func(m pMap) {
-				m[array] = pValue{V: []pValue{
-					with(defaultNestedMap, func(m pMap) {
-						m["s"] = pString("foo")
-					}),
-					defaultNestedMap(),
-					with(defaultNestedMap, func(m pMap) {
-						m["s"] = pString("bar")
-					}),
-				}}
+		t.Run("behind-"+arrayName, against(property.NewMap(m{
+			arrayName: property.New([]property.Value{
+				property.New(m{"s": property.New("foo")}),
+				property.New(property.Map{}),
+				property.New(m{"s": property.New("bar")}),
 			}),
+		}),
+			defaultMap.Set(arrayName, property.New([]property.Value{
+				property.New(defaultNestedMap.AsMap().Set("s", property.New("foo"))),
+				defaultNestedMap,
+				property.New(defaultNestedMap.AsMap().Set("s", property.New("bar"))),
+			})),
 		))
 	}
 
 	for _, mapName := range []string{"mapNested", "mapNestedPtr"} { //nolint:paralleltest
 		mapName := mapName
-		mapK := resource.PropertyKey(mapName)
-		t.Run("behind-"+mapName, against(pMap{
-			mapK: pValue{V: pMap{
-				"one":   pValue{V: pMap{"s": pString("foo")}},
-				"two":   pValue{V: pMap{}},
-				"three": pValue{V: pMap{"s": pString("bar")}},
-			}},
-		},
-			withDefault(func(m pMap) {
-				m[mapK] = pValue{V: pMap{
-					"one": with(defaultNestedMap, func(m pMap) {
-						m["s"] = pString("foo")
-					}),
-					"two": defaultNestedMap(),
-					"three": with(defaultNestedMap, func(m pMap) {
-						m["s"] = pString("bar")
-					}),
-				}}
+		t.Run("behind-"+mapName, against(property.NewMap(m{
+			mapName: property.New(m{
+				"one":   property.New(m{"s": property.New("foo")}),
+				"two":   property.New(m{}),
+				"three": property.New(m{"s": property.New("bar")}),
 			}),
+		}),
+			defaultMap.Set(mapName, property.New(m{
+				"one":   property.New(defaultNestedMap.AsMap().Set("s", property.New("foo"))),
+				"two":   defaultNestedMap,
+				"three": property.New(defaultNestedMap.AsMap().Set("s", property.New("bar"))),
+			})),
 		))
 	}
 }
 
 func TestCheckDefaultsEnv(t *testing.T) {
-	// Helper bindings for constructing property maps
-	pInt := func(i int) resource.PropertyValue {
-		return resource.NewNumberProperty(float64(i))
-	}
-	pFloat := resource.NewNumberProperty
-	pBool := resource.NewBoolProperty
-	pString := resource.NewStringProperty
-	type pMap = resource.PropertyMap
-
 	t.Setenv("STRING", "str")
 	t.Setenv("INT", "1")
 	t.Setenv("FLOAT64", "3.14")
@@ -198,64 +147,61 @@ func TestCheckDefaultsEnv(t *testing.T) {
 	prov := provider(t)
 	resp, err := prov.Check(p.CheckRequest{
 		Urn:  urn("ReadEnv", "check-env"),
-		News: nil,
+		News: property.Map{},
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, pMap{
-		"b":   pBool(true),
-		"f64": pFloat(3.14),
-		"i":   pInt(1),
-		"s":   pString("str"),
-	}, resp.Inputs)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"b":   property.New(true),
+		"f64": property.New(3.14),
+		"i":   property.New(1.0),
+		"s":   property.New("str"),
+	}), resp.Inputs)
 }
 
 func TestCheckDefaultsRecursive(t *testing.T) {
 	t.Parallel()
-	pString := resource.NewStringProperty
-	type pMap = resource.PropertyMap
-	type pValue = resource.PropertyValue
 
 	prov := provider(t)
 
 	// If we just have a type without the recursive field nil, we don't recurse.
 	resp, err := prov.Check(p.CheckRequest{
 		Urn:  urn("Recursive", "check-env"),
-		News: nil,
+		News: property.Map{},
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, pMap{
-		"value": pString("default-value"),
-	}, resp.Inputs)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"value": property.New("default-value"),
+	}), resp.Inputs)
 
 	// If the input type has hydrated recursive values, we should hydrate all non-nil
 	// values.
 	resp, err = prov.Check(p.CheckRequest{
 		Urn: urn("Recursive", "check-env"),
-		News: pMap{
-			"other": pValue{V: pMap{
-				"other": pValue{V: pMap{
-					"value": pString("custom"),
-					"other": pValue{V: pMap{}},
-				}},
-			}},
-		},
+		News: property.NewMap(map[string]property.Value{
+			"other": property.New(map[string]property.Value{
+				"other": property.New(map[string]property.Value{
+					"value": property.New("custom"),
+					"other": property.New(map[string]property.Value{}),
+				}),
+			}),
+		}),
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, pMap{
-		"value": pString("default-value"),
-		"other": pValue{V: pMap{
-			"value": pString("default-value"),
-			"other": pValue{V: pMap{
-				"value": pString("custom"),
-				"other": pValue{V: pMap{
-					"value": pString("default-value"),
-				}},
-			}},
-		}},
-	}, resp.Inputs)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"value": property.New("default-value"),
+		"other": property.New(map[string]property.Value{
+			"value": property.New("default-value"),
+			"other": property.New(map[string]property.Value{
+				"value": property.New("custom"),
+				"other": property.New(map[string]property.Value{
+					"value": property.New("default-value"),
+				}),
+			}),
+		}),
+	}), resp.Inputs)
 }
 
 // TestCheckAlwaysAppliesSecrets checks that if a inferred provider resource has (1) a
@@ -268,13 +214,13 @@ func TestCheckAlwaysAppliesSecrets(t *testing.T) {
 	prov := provider(t)
 	resp, err := prov.Check(p.CheckRequest{
 		Urn: urn("CustomCheckNoDefaults", "check-env"),
-		News: resource.PropertyMap{
-			"input": resource.NewProperty("value"),
-		},
+		News: property.NewMap(map[string]property.Value{
+			"input": property.New("value"),
+		}),
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, resource.PropertyMap{
-		"input": resource.MakeSecret(resource.NewProperty("value")),
-	}, resp.Inputs)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"input": property.New("value").WithSecret(true),
+	}), resp.Inputs)
 }

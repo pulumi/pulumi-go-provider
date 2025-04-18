@@ -25,7 +25,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 type inv struct{}
@@ -59,13 +59,13 @@ func TestInferInvokeSecrets(t *testing.T) {
 		},
 	})).Invoke(p.InvokeRequest{
 		Token: "test:index:inv",
-		Args: map[resource.PropertyKey]resource.PropertyValue{
-			"field": resource.NewProperty("value"),
-		},
+		Args: property.NewMap(map[string]property.Value{
+			"field": property.New("value"),
+		}),
 	})
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
-	assert.Equal(t, resource.PropertyMap{
-		"out": resource.MakeSecret(resource.NewProperty("value-secret")),
-	}, resp.Return)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"out": property.New("value-secret").WithSecret(true),
+	}), resp.Return)
 }
