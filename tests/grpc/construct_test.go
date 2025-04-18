@@ -135,6 +135,7 @@ func constructProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 			assert.Equal(t, &_true, req.Options.DeleteBeforeReplace)
 			assert.Equal(t, []string{"k1"}, req.Options.IgnoreChanges)
 			assert.Equal(t, []string{"k2"}, req.Options.ReplaceOnChanges)
+			assert.Equal(t, true, req.Options.AcceptsOutputValues)
 
 			assert.Equal(t, resource.PropertyMap{
 				"k1": resource.NewProperty("s"),

@@ -1134,6 +1134,9 @@ type ConstructOptions struct {
 	// RetainOnDelete is true if deletion of the resource should not
 	// delete the resource in the provider.
 	RetainOnDelete *bool
+
+	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
+	AcceptsOutputValues bool
 }
 
 type rpcToProperty func(s *structpb.Struct) (presource.PropertyMap, error)
@@ -1229,6 +1232,7 @@ func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (Co
 					Delete: toDurationSecs(t.GetDelete()),
 				}
 			}(),
+			AcceptsOutputValues: req.AcceptsOutputValues,
 		},
 	}
 
@@ -1310,7 +1314,7 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		IgnoreChanges:       c.Options.IgnoreChanges,
 		ReplaceOnChanges:    c.Options.ReplaceOnChanges,
 		RetainOnDelete:      c.Options.RetainOnDelete,
-		AcceptsOutputValues: true,
+		AcceptsOutputValues: c.Options.AcceptsOutputValues,
 	}
 
 	if ct := c.Options.CustomTimeouts; ct != nil {
@@ -1394,6 +1398,8 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 	if err != nil {
 		return nil, err
 	}
+
+	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
 
 	ctx = p.ctx(ctx, r.Urn)
 	result, err := p.client.Construct(ctx, r)
