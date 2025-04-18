@@ -208,7 +208,7 @@ search:
 	})
 }
 
-// ParseReference parses the URN and ID from the string representation of a provider reference. If parsing was
+// ParseProviderReference parses the URN and ID from the string representation of a provider reference. If parsing was
 // not possible, this function returns an error.
 func ParseProviderReference(s string) (resource.URN, resource.ID, error) {
 	// If this is not a valid URN + ID, return error. Note that we don't try terribly hard to validate the URN portion

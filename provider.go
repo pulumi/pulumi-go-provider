@@ -1149,15 +1149,14 @@ type ConstructRequest struct {
 	AcceptsOutputValues bool
 }
 
-// A provider reference is (URN, ID) tuple that refers to a particular provider instance.
+// ProviderReference is a (URN, ID) tuple that refers to a particular provider instance.
 type ProviderReference struct {
 	Urn presource.URN
 	ID  presource.ID
 }
 
-type rpcToProperty func(s *structpb.Struct) (presource.PropertyMap, error)
-
-func newConstructRequest(req *rpc.ConstructRequest, unmarshal rpcToProperty) (ConstructRequest, error) {
+func newConstructRequest(req *rpc.ConstructRequest,
+	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (ConstructRequest, error) {
 	toDurationSecs := func(s string) float64 {
 		d, err := time.ParseDuration(s)
 		if err != nil {
