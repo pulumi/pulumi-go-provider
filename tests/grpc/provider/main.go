@@ -24,7 +24,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
@@ -77,10 +77,10 @@ func main() {
 			}
 
 			return p.CallResponse{
-				Return: resource.PropertyMap{
-					"resp1": resource.NewProperty(req.Args["arg1"].StringValue() +
-						string(req.Args["__self__"].ResourceReferenceValue().URN)),
-				},
+				Return: property.NewMap(map[string]property.Value{
+					"resp1": property.New(req.Args.Get("arg1").AsString() +
+						string(req.Args.Get("__self__").AsResourceReference().URN)),
+				}),
 			}, nil
 		},
 		GetSchema: func(ctx context.Context, _ p.GetSchemaRequest) (p.GetSchemaResponse, error) {

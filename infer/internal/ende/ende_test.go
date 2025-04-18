@@ -36,15 +36,13 @@ import (
 func testRoundTrip[T any](t *testing.T, pMap func() r.PropertyMap) {
 	t.Run("", func(t *testing.T) {
 		t.Parallel()
-		toDecode := pMap()
-		encoder, typeInfo, err := Decode[T](toDecode)
+		pMap := r.FromResourcePropertyValue(r.NewProperty(pMap())).AsMap()
+		encoder, typeInfo, err := Decode[T](pMap)
 		require.NoError(t, err)
-
-		assert.Equalf(t, pMap(), toDecode, "mutated decode map")
 
 		reEncoded, err := encoder.Encode(typeInfo)
 		require.NoError(t, err)
-		assert.Equal(t, pMap(), reEncoded)
+		assert.Equal(t, pMap, r.FromResourcePropertyValue(r.NewProperty(reEncoded)).AsMap())
 	})
 }
 

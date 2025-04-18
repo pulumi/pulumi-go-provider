@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -344,11 +345,12 @@ type runtime struct {
 	configuration *rpc.ConfigureResponse
 }
 
-func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error) {
+func (r runtime) propertyToRPC(m property.Map) (*structpb.Struct, error) {
 	if r.configuration == nil {
 		r.configuration = &rpc.ConfigureResponse{}
 	}
-	s, err := plugin.MarshalProperties(m, plugin.MarshalOptions{
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	s, err := plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		KeepUnknowns:     true,
 		KeepSecrets:      r.configuration.AcceptSecrets,
 		KeepResources:    r.configuration.AcceptResources,
@@ -357,9 +359,9 @@ func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error)
 	return s, err
 }
 
-func rpcToProperty(s *structpb.Struct, previousError error) (resource.PropertyMap, error) {
+func rpcToProperty(s *structpb.Struct, previousError error) (property.Map, error) {
 	if s == nil {
-		return nil, previousError
+		return property.Map{}, previousError
 	}
 	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		SkipNulls:        false,
@@ -368,5 +370,5 @@ func rpcToProperty(s *structpb.Struct, previousError error) (resource.PropertyMa
 		KeepResources:    true,
 		KeepOutputValues: true,
 	})
-	return m, errors.Join(err, previousError)
+	return resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(), errors.Join(err, previousError)
 }

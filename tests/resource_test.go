@@ -26,6 +26,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 type res struct{}
@@ -53,13 +54,13 @@ func TestInferCheckSecrets(t *testing.T) {
 		},
 	})).Check(p.CheckRequest{
 		Urn: resource.CreateURN("name", "test:index:res", "", "proj", "stack"),
-		News: map[resource.PropertyKey]resource.PropertyValue{
-			"field": resource.NewProperty("value"),
-		},
+		News: property.NewMap(map[string]property.Value{
+			"field": property.New("value"),
+		}),
 	})
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
-	assert.Equal(t, resource.PropertyMap{
-		"field": resource.MakeSecret(resource.NewProperty("value")),
-	}, resp.Inputs)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"field": property.New("value").WithSecret(true),
+	}), resp.Inputs)
 }

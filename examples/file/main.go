@@ -7,8 +7,8 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 func main() {
@@ -112,8 +112,8 @@ func (*File) Delete(ctx context.Context, req infer.DeleteRequest[FileState]) (in
 }
 
 func (*File) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[FileArgs], error) {
-	if _, ok := req.NewInputs["path"]; !ok {
-		req.NewInputs["path"] = resource.NewStringProperty(req.Name)
+	if _, ok := req.NewInputs.GetOk("path"); !ok {
+		req.NewInputs = req.NewInputs.Set("path", property.New(req.Name))
 	}
 	args, f, err := infer.DefaultCheck[FileArgs](ctx, req.NewInputs)
 

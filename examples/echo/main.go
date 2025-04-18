@@ -10,8 +10,8 @@ import (
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 func main() {
@@ -69,16 +69,16 @@ func main() {
 			}
 			return p.CheckResponse{
 				// Only take "value" and ignore everything else.
-				Inputs: resource.PropertyMap{
-					"value": req.News["value"],
-				},
+				Inputs: property.NewMap(map[string]property.Value{
+					"value": req.News.Get("value"),
+				}),
 			}, nil
 		},
 		Diff: func(_ context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			if req.Urn.Type() != echoType {
 				return p.DiffResponse{}, fmt.Errorf("unknown resource %q", req.Urn.Type())
 			}
-			if req.News["value"].DeepEquals(req.Olds["value"]) {
+			if req.News.Get("value").Equals(req.Olds.Get("value")) {
 				return p.DiffResponse{
 					HasChanges: false,
 				}, nil

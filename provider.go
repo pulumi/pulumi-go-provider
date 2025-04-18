@@ -36,6 +36,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
@@ -60,8 +61,8 @@ type GetSchemaResponse struct {
 
 type CheckRequest struct {
 	Urn        presource.URN
-	Olds       presource.PropertyMap
-	News       presource.PropertyMap
+	Olds       property.Map
+	News       property.Map
 	RandomSeed []byte
 }
 
@@ -71,15 +72,15 @@ type CheckFailure struct {
 }
 
 type CheckResponse struct {
-	Inputs   presource.PropertyMap
+	Inputs   property.Map
 	Failures []CheckFailure
 }
 
 type DiffRequest struct {
 	ID            string
 	Urn           presource.URN
-	Olds          presource.PropertyMap
-	News          presource.PropertyMap
+	Olds          property.Map
+	News          property.Map
 	IgnoreChanges []presource.PropertyKey
 }
 
@@ -204,29 +205,29 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 
 type ConfigureRequest struct {
 	Variables map[string]string
-	Args      presource.PropertyMap
+	Args      property.Map
 }
 
 type InvokeRequest struct {
-	Token tokens.Type           // the function token to invoke.
-	Args  presource.PropertyMap // the arguments for the function invocation.
+	Token tokens.Type  // the function token to invoke.
+	Args  property.Map // the arguments for the function invocation.
 }
 
 type InvokeResponse struct {
-	Return   presource.PropertyMap // the returned values, if invoke was successful.
-	Failures []CheckFailure        // the failures if any arguments didn't pass verification.
+	Return   property.Map   // the returned values, if invoke was successful.
+	Failures []CheckFailure // the failures if any arguments didn't pass verification.
 }
 
 type CreateRequest struct {
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the provider inputs to set during creation.
-	Timeout    float64               // the create request timeout represented in seconds.
-	Preview    bool                  // true if this is a preview and the provider should not actually create the resource.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the provider inputs to set during creation.
+	Timeout    float64       // the create request timeout represented in seconds.
+	Preview    bool          // true if this is a preview and the provider should not actually create the resource.
 }
 
 type CreateResponse struct {
-	ID         string                // the ID of the created resource.
-	Properties presource.PropertyMap // any properties that were computed during creation.
+	ID         string       // the ID of the created resource.
+	Properties property.Map // any properties that were computed during creation.
 
 	// non-nil to indicate that the create failed and left the resource in a partial
 	// state.
@@ -237,16 +238,16 @@ type CreateResponse struct {
 }
 
 type ReadRequest struct {
-	ID         string                // the ID of the resource to read.
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the current state (sufficiently complete to identify the resource).
-	Inputs     presource.PropertyMap // the current inputs, if any (only populated during refresh).
+	ID         string        // the ID of the resource to read.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the current state (sufficiently complete to identify the resource).
+	Inputs     property.Map  // the current inputs, if any (only populated during refresh).
 }
 
 type ReadResponse struct {
-	ID         string                // the ID of the resource read back (or empty if missing).
-	Properties presource.PropertyMap // the state of the resource read from the live environment.
-	Inputs     presource.PropertyMap // the inputs for this resource that would be returned from Check.
+	ID         string       // the ID of the resource read back (or empty if missing).
+	Properties property.Map // the state of the resource read from the live environment.
+	Inputs     property.Map // the inputs for this resource that would be returned from Check.
 
 	// non-nil to indicate that the read failed and left the resource in a partial
 	// state.
@@ -259,8 +260,8 @@ type ReadResponse struct {
 type UpdateRequest struct {
 	ID            string                  // the ID of the resource to update.
 	Urn           presource.URN           // the Pulumi URN for this resource.
-	Olds          presource.PropertyMap   // the old values of provider inputs for the resource to update.
-	News          presource.PropertyMap   // the new values of provider inputs for the resource to update.
+	Olds          property.Map            // the old values of provider inputs for the resource to update.
+	News          property.Map            // the new values of provider inputs for the resource to update.
 	Timeout       float64                 // the update request timeout represented in seconds.
 	IgnoreChanges []presource.PropertyKey // a set of property paths that should be treated as unchanged.
 	Preview       bool                    // true if the provider should not actually create the resource.
@@ -268,7 +269,7 @@ type UpdateRequest struct {
 
 type UpdateResponse struct {
 	// any properties that were computed during updating.
-	Properties presource.PropertyMap
+	Properties property.Map
 	// non-nil to indicate that the update failed and left the resource in a partial
 	// state.
 	//
@@ -278,10 +279,10 @@ type UpdateResponse struct {
 }
 
 type DeleteRequest struct {
-	ID         string                // the ID of the resource to delete.
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the current properties on the resource.
-	Timeout    float64               // the delete request timeout represented in seconds.
+	ID         string        // the ID of the resource to delete.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the current properties on the resource.
+	Timeout    float64       // the delete request timeout represented in seconds.
 }
 
 // InitializationFailed indicates that a resource exists but failed to initialize, and is
@@ -584,17 +585,22 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 	})
 }
 
-func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
-	return plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+func (p *provider) getMap(s *structpb.Struct) (property.Map, error) {
+	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		KeepUnknowns:  true,
 		SkipNulls:     true,
 		KeepResources: true,
 		KeepSecrets:   true,
 	})
+	if err != nil {
+		return property.Map{}, err
+	}
+	return propertyMapFromResourcePropertyMap(m), nil
 }
 
-func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
-	return plugin.MarshalProperties(m, plugin.MarshalOptions{
+func (p *provider) asStruct(m property.Map) (*structpb.Struct, error) {
+	rm := resourcePropertyMapFromPropertyMap(m)
+	return plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		KeepUnknowns: true,
 		SkipNulls:    true,
 		KeepSecrets:  true,
@@ -643,6 +649,14 @@ func (d detailedDiff) rpc() map[string]*rpc.PropertyDiff {
 	return detailedDiff
 }
 
+func propertyMapFromResourcePropertyMap(m presource.PropertyMap) property.Map {
+	return presource.FromResourcePropertyValue(presource.NewProperty(m)).AsMap()
+}
+
+func resourcePropertyMapFromPropertyMap(m property.Map) presource.PropertyMap {
+	return presource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+}
+
 func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
 	ctx = p.ctx(ctx, presource.URN(req.GetUrn()))
 	olds, err := p.getMap(req.Olds)
@@ -667,7 +681,7 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	}
 
 	// Inject the version of pulumi-go-provider into the news map to store in state.
-	r.Inputs[frameworkStateKeyName] = presource.NewStringProperty(frameworkVersion.String())
+	r.Inputs = r.Inputs.Set(frameworkStateKeyName, property.New(frameworkVersion.String()))
 
 	inputs, err := p.asStruct(r.Inputs)
 	if err != nil {
@@ -808,9 +822,9 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 	}
 
 	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
-	for name, v := range resp.Return {
+	for name, v := range resp.Return.All {
 		var urns []string
-		resourcex.Walk(v, func(v presource.PropertyValue, state resourcex.WalkState) {
+		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
 			if state.Entering || !v.IsOutput() {
 				return
 			}
@@ -819,7 +833,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 			}
 		})
 
-		returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
 
 	_return, err := p.asStruct(resp.Return)
@@ -839,7 +853,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 // It corresponds to [rpc.CallRequest] on the wire.
 type CallRequest struct {
 	Tok     tokens.ModuleMember
-	Args    presource.PropertyMap
+	Args    property.Map
 	Context *pulumi.Context
 }
 
@@ -848,7 +862,7 @@ type CallRequest struct {
 // It corresponds to [rpc.CallResponse] on the wire.
 type CallResponse struct {
 	// The returned values, if the call was successful.
-	Return presource.PropertyMap
+	Return property.Map
 	// The failures if any arguments didn't pass verification.
 	Failures []CheckFailure
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 // AssetSignature is a unique key for use for assets in the AssetOrArchive union type.
@@ -49,19 +50,22 @@ type Encoder struct{ *ende }
 //
 //	encoder, value, _ := Decode(m)
 //	m, _ = encoder.Encode(value)
-func Decode[T any](m resource.PropertyMap) (Encoder, T, mapper.MappingError) {
+func Decode[T any](m property.Map) (Encoder, T, mapper.MappingError) {
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
 	var dst T
-	enc, err := decode(m, &dst, false, false)
+	enc, err := decode(rm, &dst, false, false)
 	return enc, dst, err
 }
 
 // DecodeTolerateMissing is like Decode, but doesn't return an error for a missing value.
-func DecodeTolerateMissing[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
-	return decode(m, dst, false, true)
+func DecodeTolerateMissing[T any](m property.Map, dst T) (Encoder, mapper.MappingError) {
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	return decode(rm, dst, false, true)
 }
 
-func DecodeConfig[T any](m resource.PropertyMap, dst T) (Encoder, mapper.MappingError) {
-	return decode(m, dst, true, false)
+func DecodeConfig[T any](m property.Map, dst T) (Encoder, mapper.MappingError) {
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	return decode(rm, dst, true, false)
 }
 
 func decode(
@@ -79,8 +83,9 @@ func decode(
 	}).Decode(m.Mappable(), target.Addr().Interface())
 }
 
-func DecodeAny(m resource.PropertyMap, dst any) (Encoder, mapper.MappingError) {
-	return decode(m, dst, false, false)
+func DecodeAny(m property.Map, dst any) (Encoder, mapper.MappingError) {
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	return decode(rm, dst, false, false)
 }
 
 // An ENcoder DEcoder.
