@@ -1,4 +1,4 @@
-// Copyright 2022, Pulumi Corporation.
+// Copyright 2025, Pulumi Corporation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,9 +44,8 @@ func TestConstruct(t *testing.T) {
 	})
 
 	resp, err := prov.Construct(p.ConstructRequest{
-		Urn:      childUrn("RandomComponent", "test-component", "test-parent"),
-		Parent:   urn("Parent", "test-parent"),
-		Parallel: 1,
+		Urn:    childUrn("RandomComponent", "test-component", "test-parent"),
+		Parent: urn("Parent", "test-parent"),
 		Inputs: r.PropertyMap{
 			"prefix": prefix,
 		},

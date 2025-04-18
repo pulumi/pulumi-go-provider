@@ -574,13 +574,9 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 	}
 }
 
-type server struct {
-	integration.Server
-}
-
-func provider() *server {
+func provider() integration.Server {
 	p := infer.Provider(providerOpts(nil))
-	return &server{integration.NewServer("test", semver.MustParse("1.0.0"), p)}
+	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
 }
 
 func providerWithConfig[T any]() integration.Server {
