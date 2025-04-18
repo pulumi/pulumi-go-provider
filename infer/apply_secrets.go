@@ -20,19 +20,20 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 )
 
-func applySecrets[I any](inputs resource.PropertyMap) resource.PropertyMap {
+func applySecrets[I any](inputs resource.PropertyMap) property.Map {
 	var walker secretsWalker
 	result := walker.walk(reflect.TypeFor[I](), resource.NewProperty(inputs))
 	contract.AssertNoErrorf(errors.Join(walker.errs...),
 		`secretsWalker only produces errors when the type it walks has invalid property tags
 I can't have invalid property tags because we have gotten to runtime, and it would have failed at
 schema generation time already.`)
-	return result.ObjectValue()
+	return resource.FromResourcePropertyValue(result).AsMap()
 }
 
 // The object that controls secrets application.

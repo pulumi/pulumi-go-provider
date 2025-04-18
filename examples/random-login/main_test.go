@@ -8,7 +8,7 @@ import (
 	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	integration "github.com/pulumi/pulumi-go-provider/integration"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,25 +147,25 @@ func TestRandomSalt(t *testing.T) {
 	integration.LifeCycleTest{
 		Resource: "random-login:index:RandomSalt",
 		Create: integration.Operation{
-			Inputs: presource.NewPropertyMapFromMap(map[string]interface{}{
-				"password":     "foo",
-				"saltedLength": 3,
+			Inputs: property.NewMap(map[string]property.Value{
+				"password":     property.New("foo"),
+				"saltedLength": property.New(3.0),
 			}),
-			Hook: func(inputs, output presource.PropertyMap) {
+			Hook: func(inputs, output property.Map) {
 				t.Logf("Outputs: %v", output)
-				saltedPassword := output["saltedPassword"].StringValue()
+				saltedPassword := output.Get("saltedPassword").AsString()
 				assert.True(t, strings.HasSuffix(saltedPassword, "foo"), "password wrong")
 				assert.Len(t, saltedPassword, 6)
 			},
 		},
 		Updates: []integration.Operation{
 			{
-				Inputs: presource.NewPropertyMapFromMap(map[string]interface{}{
-					"password":     "bar",
-					"saltedLength": 5,
+				Inputs: property.NewMap(map[string]property.Value{
+					"password":     property.New("bar"),
+					"saltedLength": property.New(5.0),
 				}),
-				Hook: func(inputs, output presource.PropertyMap) {
-					saltedPassword := output["saltedPassword"].StringValue()
+				Hook: func(inputs, output property.Map) {
+					saltedPassword := output.Get("saltedPassword").AsString()
 					assert.True(t, strings.HasSuffix(saltedPassword, "bar"), "password wrong")
 					assert.Len(t, saltedPassword, 8)
 				},

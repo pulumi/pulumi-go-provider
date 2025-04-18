@@ -10,6 +10,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 func main() {
@@ -81,20 +82,16 @@ func (*User) Check(
 //
 // oldInputs are the old inputs as passed in via [infer.CustomCheck.Check].
 func autoname(
-	field *string, name string, fieldName resource.PropertyKey,
-	oldInputs resource.PropertyMap,
+	field *string, name, fieldName string,
+	oldInputs property.Map,
 ) (*string, error) {
 	if field != nil {
 		return field, nil
 	}
 
-	prev := oldInputs[fieldName]
-	if prev.IsSecret() {
-		prev = prev.SecretValue().Element
-	}
-
-	if prev.IsString() && prev.StringValue() != "" {
-		n := prev.StringValue()
+	prev := oldInputs.Get(fieldName)
+	if prev.IsString() && prev.AsString() != "" {
+		n := prev.AsString()
 		field = &n
 	} else {
 		n, err := resource.NewUniqueHex(name+"-", 6, 20)
@@ -103,5 +100,6 @@ func autoname(
 		}
 		field = &n
 	}
+
 	return field, nil
 }

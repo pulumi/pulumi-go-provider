@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +43,7 @@ func TestGlobalCancel(t *testing.T) {
 			Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
 
 				// If a request is set to wait, then it pauses until it is canceled.
-				if req.Properties["wait"].BoolValue() {
+				if req.Properties.Get("wait").AsBool() {
 					<-ctx.Done()
 
 					return p.CreateResponse{}, ctx.Err()
@@ -71,9 +71,9 @@ func TestGlobalCancel(t *testing.T) {
 		for i := 0; i < testSize/2; i++ {
 			go func() {
 				_, err := provider.Create(p.CreateRequest{
-					Properties: resource.PropertyMap{
-						"wait": resource.NewProperty(true),
-					},
+					Properties: property.NewMap(map[string]property.Value{
+						"wait": property.New(true),
+					}),
 				})
 				assert.ErrorIs(t, err, context.Canceled)
 				finished.Done()
@@ -88,9 +88,9 @@ func TestGlobalCancel(t *testing.T) {
 		shouldWait := i%2 == 0
 		go func() {
 			_, err := provider.Create(p.CreateRequest{
-				Properties: resource.PropertyMap{
-					"wait": resource.NewProperty(shouldWait),
-				},
+				Properties: property.NewMap(map[string]property.Value{
+					"wait": property.New(shouldWait),
+				}),
 			})
 			if shouldWait {
 				assert.ErrorIs(t, err, context.Canceled)

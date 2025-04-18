@@ -26,6 +26,7 @@ import (
 	"github.com/blang/semver"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -126,11 +127,11 @@ func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) 
 // TODO: Add support for diff verification.
 type Operation struct {
 	// The inputs for the operation
-	Inputs presource.PropertyMap
+	Inputs property.Map
 	// The expected output for the operation. If ExpectedOutput is nil, no check will be made.
-	ExpectedOutput presource.PropertyMap
+	ExpectedOutput *property.Map
 	// A function called on the output of this operation.
-	Hook func(inputs, output presource.PropertyMap)
+	Hook func(inputs, output property.Map)
 	// If the test should expect the operation to signal an error.
 	ExpectFailure bool
 	// If CheckFailures is non-nil, expect the check step to fail with the provided output.
@@ -158,7 +159,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		// Here we do the create and the initial setup
 		checkResponse, err := server.Check(p.CheckRequest{
 			Urn:  urn,
-			Olds: nil,
+			Olds: property.Map{},
 			News: op.Inputs,
 		})
 		assert.NoError(t, err, "resource check errored")
@@ -170,7 +171,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 
 		_, err = server.Create(p.CreateRequest{
 			Urn:        urn,
-			Properties: checkResponse.Inputs.Copy(),
+			Properties: checkResponse.Inputs,
 			Preview:    true,
 		})
 		// We allow the failure from ExpectFailure to hit at either the preview or the Create.
@@ -179,7 +180,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		}
 		createResponse, err := server.Create(p.CreateRequest{
 			Urn:        urn,
-			Properties: checkResponse.Inputs.Copy(),
+			Properties: checkResponse.Inputs,
 		})
 		if op.ExpectFailure {
 			assert.Error(t, err, "expected an error on create")
@@ -190,7 +191,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			return p.CreateResponse{}, false
 		}
 		if op.Hook != nil {
-			op.Hook(checkResponse.Inputs, createResponse.Properties.Copy())
+			op.Hook(checkResponse.Inputs, createResponse.Properties)
 		}
 		if op.ExpectedOutput != nil {
 			assert.EqualValues(t, op.ExpectedOutput, createResponse.Properties, "create outputs")
@@ -227,7 +228,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			ID:   id,
 			Urn:  urn,
 			Olds: olds,
-			News: check.Inputs.Copy(),
+			News: check.Inputs,
 		})
 		assert.NoErrorf(t, err, "diff failed on update %d", i)
 		if err != nil {
@@ -283,7 +284,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 				ID:      id,
 				Urn:     urn,
 				Olds:    olds,
-				News:    check.Inputs.Copy(),
+				News:    check.Inputs,
 				Preview: true,
 			})
 
@@ -295,7 +296,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 				ID:   id,
 				Urn:  urn,
 				Olds: olds,
-				News: check.Inputs.Copy(),
+				News: check.Inputs,
 			})
 			if !update.ExpectFailure && err != nil {
 				assert.NoError(t, err, "failed to update the resource")
@@ -306,10 +307,10 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 				continue
 			}
 			if update.Hook != nil {
-				update.Hook(check.Inputs, result.Properties.Copy())
+				update.Hook(check.Inputs, result.Properties)
 			}
 			if update.ExpectedOutput != nil {
-				assert.EqualValues(t, update.ExpectedOutput, result.Properties.Copy(), "expected output on update %d", i)
+				assert.EqualValues(t, update.ExpectedOutput, result.Properties, "expected output on update %d", i)
 			}
 			olds = result.Properties
 		}

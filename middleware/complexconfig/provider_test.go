@@ -20,12 +20,12 @@ import (
 	"testing"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	rresource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 	"github.com/pulumi/pulumi-go-provider/middleware/complexconfig"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
@@ -35,45 +35,35 @@ func TestComplexConfigEncoding(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		input    resource.PropertyMap
+		input    property.Map
 		schema   func() (schema.PackageSpec, error)
-		expected resource.PropertyMap
+		expected property.Map
 	}{
 		{
 			name: "validate-unknown-config-keys",
-			input: resource.PropertyMap{
-				"$": resource.NewProperty(resource.PropertyMap{
-					"": resource.NewProperty([]resource.PropertyValue{
-						{V: resource.Output{
-							Element: resource.PropertyValue{
-								V: interface{}(nil)},
-							Known:  false,
-							Secret: true,
-						}},
+			input: property.NewMap(map[string]property.Value{
+				"$": property.New(map[string]property.Value{
+					"": property.New([]property.Value{
+						property.New(property.Computed).WithSecret(true),
 					}),
 				}),
-			},
+			}),
 			schema: func() (schema.PackageSpec, error) {
 				return schema.PackageSpec{}, nil
 			},
-			expected: resource.PropertyMap{
-				"$": resource.NewProperty(resource.PropertyMap{
-					"": resource.NewProperty([]resource.PropertyValue{
-						{V: resource.Output{
-							Element: resource.PropertyValue{
-								V: interface{}(nil)},
-							Known:  false,
-							Secret: true,
-						}},
+			expected: property.NewMap(map[string]property.Value{
+				"$": property.New(map[string]property.Value{
+					"": property.New([]property.Value{
+						property.New(property.Computed).WithSecret(true),
 					}),
 				}),
-			},
+			}),
 		},
 		{
 			name: "numeric-looking-string-args",
-			input: resource.PropertyMap{
-				"$": resource.NewProperty("42"),
-			},
+			input: property.NewMap(map[string]property.Value{
+				"$": property.New("42"),
+			}),
 			schema: func() (schema.PackageSpec, error) {
 				var p schema.PackageSpec
 				p.Config.Variables = map[string]schema.PropertySpec{
@@ -85,9 +75,9 @@ func TestComplexConfigEncoding(t *testing.T) {
 				return p, nil
 
 			},
-			expected: resource.PropertyMap{
-				"$": resource.NewProperty("42"),
-			},
+			expected: property.NewMap(map[string]property.Value{
+				"$": property.New("42"),
+			}),
 		},
 	}
 
@@ -102,16 +92,14 @@ func TestComplexConfigEncoding(t *testing.T) {
 						return p.GetSchemaResponse{}, nil
 					}
 					b, err := json.Marshal(spec)
+
 					require.NoError(t, err)
 					return p.GetSchemaResponse{
 						Schema: string(b),
 					}, err
 				},
 				CheckConfig: func(_ context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-					if !putil.DeepEquals(
-						resource.NewProperty(req.News),
-						resource.NewProperty(tt.expected),
-					) {
+					if !property.New(req.News).Equals(property.New(tt.expected)) {
 						assert.Equal(t, tt.expected, req.News)
 					}
 
@@ -120,7 +108,7 @@ func TestComplexConfigEncoding(t *testing.T) {
 			})
 
 			_, err := provider.CheckConfig(context.Background(), p.CheckRequest{
-				News: generateJSONEncoding(t, tt.input),
+				News: generateJSONEncoding(t, resource.ToResourcePropertyValue(property.New(tt.input)).ObjectValue()),
 			})
 			require.NoError(t, err)
 		})
@@ -153,7 +141,7 @@ func TestRapidComplexConfigEncoding(t *testing.T) {
 				}, err
 			},
 			CheckConfig: func(_ context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-				assert.Equal(t, m, req.News)
+				assert.Equal(t, resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(), req.News)
 
 				return p.CheckResponse{}, nil
 			},
@@ -166,7 +154,7 @@ func TestRapidComplexConfigEncoding(t *testing.T) {
 	})
 }
 
-func generateJSONEncoding(t require.TestingT, m resource.PropertyMap) resource.PropertyMap {
+func generateJSONEncoding(t require.TestingT, m resource.PropertyMap) property.Map {
 	for k, v := range m {
 		if v.IsString() {
 			continue
@@ -184,7 +172,7 @@ func generateJSONEncoding(t require.TestingT, m resource.PropertyMap) resource.P
 		require.NoError(t, err)
 		m[k] = resource.NewProperty(string(json))
 	}
-	return m
+	return resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap()
 }
 
 // foldViaPluginMarshal removes any information from m that is not preserved on the wire.
