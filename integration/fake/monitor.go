@@ -49,7 +49,8 @@ func (m *SimpleMonitor) NewResource(args pulumi.MockResourceArgs) (string, resou
 	return m.NewResourceF(args)
 }
 
-func StartMonitorServer(ctx context.Context, monitor pulumirpc.ResourceMonitorServer) (addr string, done <-chan error, err error) {
+func StartMonitorServer(ctx context.Context, monitor pulumirpc.ResourceMonitorServer) (addr string, done <-chan error,
+	err error) {
 	cancel := make(chan bool)
 	go func() {
 		<-ctx.Done()

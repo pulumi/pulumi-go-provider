@@ -85,8 +85,8 @@ func NewServerWithContext(ctx context.Context, pkg string, version semver.Versio
 	return NewServerWithOptions(ctx, pkg, version, provider)
 }
 
-func NewServerWithOptions(ctx context.Context, pkg string, version semver.Version, provider p.Provider, opts ...ServerOption,
-) Server {
+func NewServerWithOptions(ctx context.Context, pkg string, version semver.Version, provider p.Provider,
+	opts ...ServerOption) Server {
 	o := &serverOptions{}
 	for _, opt := range opts {
 		opt.applyServerOption(o)
