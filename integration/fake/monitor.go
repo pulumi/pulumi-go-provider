@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
@@ -50,11 +49,13 @@ func (m *SimpleMonitor) NewResource(args pulumi.MockResourceArgs) (string, resou
 	return m.NewResourceF(args)
 }
 
-func StartMonitorServer(t testing.TB, monitor pulumirpc.ResourceMonitorServer) (addr string) {
+func StartMonitorServer(ctx context.Context, monitor pulumirpc.ResourceMonitorServer) (addr string, done <-chan error, err error) {
 	cancel := make(chan bool)
-	t.Cleanup(func() {
+	go func() {
+		<-ctx.Done()
 		close(cancel)
-	})
+	}()
+
 	handle, err := rpcutil.ServeWithOptions(rpcutil.ServeOptions{
 		Cancel: cancel,
 		Init: func(srv *grpc.Server) error {
@@ -64,22 +65,14 @@ func StartMonitorServer(t testing.TB, monitor pulumirpc.ResourceMonitorServer) (
 		Options: rpcutil.OpenTracingServerInterceptorOptions(nil),
 	})
 	if err != nil {
-		t.Fatalf("could not start resource monitor service: %s", err)
+		return "", nil, err
 	}
 
-	go func() {
-		err := <-handle.Done
-		if err != nil {
-			t.Errorf("resource monitor service failed: %s", err)
-		}
-	}()
-
-	return fmt.Sprintf("127.0.0.1:%v", handle.Port)
+	return fmt.Sprintf("127.0.0.1:%v", handle.Port), handle.Done, nil
 }
 
-func NewResourceMonitorServer(t testing.TB, monitor pulumi.MockResourceMonitor) *ResourceMonitorServer {
+func NewResourceMonitorServer(monitor pulumi.MockResourceMonitor) *ResourceMonitorServer {
 	return &ResourceMonitorServer{
-		t:             t,
 		project:       "project",
 		stack:         "stack",
 		mocks:         monitor,
@@ -96,7 +89,6 @@ type Registration struct {
 
 type ResourceMonitorServer struct {
 	pulumirpc.UnimplementedResourceMonitorServer
-	t       testing.TB
 	project string
 	stack   string
 	mocks   pulumi.MockResourceMonitor

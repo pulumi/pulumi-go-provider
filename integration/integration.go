@@ -21,6 +21,8 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/blang/semver"
@@ -60,7 +62,6 @@ type ServerOption interface {
 // serverOptions is the internal representation of the effect of
 // [ServerOption]s.
 type serverOptions struct {
-	ctx   context.Context
 	mocks pulumi.MockResourceMonitor
 }
 
@@ -70,35 +71,10 @@ func (o serverOption) applyServerOption(opts *serverOptions) {
 	o(opts)
 }
 
-func WithContext(ctx context.Context) ServerOption {
-	return serverOption(func(ro *serverOptions) {
-		ro.ctx = ctx
-	})
-}
-
 func WithMocks(mocks pulumi.MockResourceMonitor) ServerOption {
 	return serverOption(func(ro *serverOptions) {
 		ro.mocks = mocks
 	})
-}
-
-func NewServerWithOptions(t testing.TB, pkg string, version semver.Version, provider p.Provider, opts ...ServerOption,
-) Server {
-	o := &serverOptions{
-		ctx: context.Background(),
-	}
-	for _, opt := range opts {
-		opt.applyServerOption(o)
-	}
-	if o.mocks != nil {
-		host := NewHost(t, o.mocks)
-		o.ctx = context.WithValue(o.ctx, key.ProviderHost, host)
-	}
-
-	return &server{p.RunInfo{
-		PackageName: pkg,
-		Version:     version.String(),
-	}, provider.WithDefaults(), o.ctx}
 }
 
 func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
@@ -106,21 +82,37 @@ func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
 }
 
 func NewServerWithContext(ctx context.Context, pkg string, version semver.Version, provider p.Provider) Server {
+	return NewServerWithOptions(ctx, pkg, version, provider)
+}
+
+func NewServerWithOptions(ctx context.Context, pkg string, version semver.Version, provider p.Provider, opts ...ServerOption,
+) Server {
+	o := &serverOptions{}
+	for _, opt := range opts {
+		opt.applyServerOption(o)
+	}
+	if o.mocks == nil {
+		o.mocks = &MockMonitor{}
+	}
+
+	host := newHost(ctx, o.mocks)
+
 	return &server{p.RunInfo{
 		PackageName: pkg,
 		Version:     version.String(),
-	}, provider.WithDefaults(), ctx}
+	}, host, provider.WithDefaults(), ctx}
 }
 
 // Server hosts a [Provider] for integration test purposes.
 type server struct {
 	runInfo p.RunInfo
+	host    *host
 	p       p.Provider
 	context context.Context
 }
 
 type host struct {
-	t testing.TB
+	lazyInit func()
 
 	engine      *fake.EngineServer
 	engineAddr  string
@@ -129,20 +121,38 @@ type host struct {
 	monitorAddr string
 }
 
-func NewHost(t testing.TB, m pulumi.MockResourceMonitor) *host {
+func newHost(ctx context.Context, m pulumi.MockResourceMonitor) *host {
 	h := &host{
-		t: t,
+		engine:  fake.NewEngineServer(),
+		monitor: fake.NewResourceMonitorServer(m),
 	}
+	h.lazyInit = sync.OnceFunc(func() {
+		// Start the fake Pulumi engine server and connect to it.
+		// Note that the servers and connections are automatically closed when the context is cancelled.
+		engineCtx, engineCancel := context.WithCancel(ctx)
+		engineAddr, engineDone, err := fake.StartEngineServer(engineCtx, h.engine)
+		if err != nil {
+			panic(fmt.Errorf("could not start engine server: %w", err))
+		}
+		h.engineAddr = engineAddr
+		h.engineConn = fake.NewEngineConn(h.engineAddr)
 
-	// Start a fake Pulumi engine server and connect to it.
-	// Note that the servers and connections are automatically closed when the test completes.
-	h.engine = fake.NewEngineServer(t)
-	h.engineAddr = fake.StartEngineServer(t, h.engine)
-	h.engineConn = fake.ConnectToEngine(t, h.engineAddr)
+		monitorCtx, monitorCancel := context.WithCancel(ctx)
+		monitorAddr, monitorDone, err := fake.StartMonitorServer(monitorCtx, h.monitor)
+		if err != nil {
+			panic(fmt.Errorf("could not start monitor server: %w", err))
+		}
+		h.monitorAddr = monitorAddr
 
-	h.monitor = fake.NewResourceMonitorServer(t, m)
-	h.monitorAddr = fake.StartMonitorServer(t, h.monitor)
-
+		go func() {
+			<-ctx.Done()
+			monitorCancel()
+			<-monitorDone
+			_ = h.engineConn.Close()
+			engineCancel()
+			<-engineDone
+		}()
+	})
 	return h
 }
 
@@ -150,6 +160,7 @@ func (s *server) ctx(urn presource.URN) context.Context {
 	ctx := s.context
 	ctx = context.WithValue(ctx, key.URN, urn)
 	ctx = context.WithValue(ctx, key.RuntimeInfo, s.runInfo)
+	ctx = context.WithValue(ctx, key.ProviderHost, s.host)
 	return ctx
 }
 
@@ -216,6 +227,7 @@ var _ = (p.Host)(&host{})
 // Construct implements the host interface to allow the provider to construct resources.
 func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc,
 ) (p.ConstructResponse, error) {
+	h.lazyInit()
 
 	// Use the fake engine to create a pulumi context,
 	// and then call the user's construct function with the context.

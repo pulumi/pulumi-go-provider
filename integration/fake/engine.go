@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"testing"
 
 	pbempty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil"
@@ -29,15 +28,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func NewEngineServer(t testing.TB) *EngineServer {
-	return &EngineServer{t: t}
+func NewEngineServer() *EngineServer {
+	return &EngineServer{}
 }
 
-func StartEngineServer(t testing.TB, engine pulumirpc.EngineServer) (addr string) {
+func StartEngineServer(ctx context.Context, engine pulumirpc.EngineServer) (addr string, done <-chan error, err error) {
 	cancel := make(chan bool)
-	t.Cleanup(func() {
+	go func() {
+		<-ctx.Done()
 		close(cancel)
-	})
+	}()
 	handle, err := rpcutil.ServeWithOptions(rpcutil.ServeOptions{
 		Cancel: cancel,
 		Init: func(srv *grpc.Server) error {
@@ -47,20 +47,20 @@ func StartEngineServer(t testing.TB, engine pulumirpc.EngineServer) (addr string
 		Options: rpcutil.OpenTracingServerInterceptorOptions(nil),
 	})
 	if err != nil {
-		t.Fatalf("could not start host engine service: %s", err)
+		return "", nil, err
 	}
 
 	go func() {
 		err := <-handle.Done
 		if err != nil {
-			t.Errorf("host engine service failed: %s", err)
+			panic(fmt.Errorf("engine server failed: %w", err))
 		}
 	}()
 
-	return fmt.Sprintf("127.0.0.1:%v", handle.Port)
+	return fmt.Sprintf("127.0.0.1:%v", handle.Port), handle.Done, nil
 }
 
-func ConnectToEngine(t testing.TB, addr string) *grpc.ClientConn {
+func NewEngineConn(addr string) *grpc.ClientConn {
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -69,18 +69,13 @@ func ConnectToEngine(t testing.TB, addr string) *grpc.ClientConn {
 		rpcutil.GrpcChannelOptions(),
 	)
 	if err != nil {
-		t.Fatalf("could not connect to host engine service: %s", err)
+		panic(fmt.Errorf("could not create engine client: %w", err))
 	}
-	t.Cleanup(func() {
-		_ = conn.Close()
-	})
-
 	return conn
 }
 
 type EngineServer struct {
 	pulumirpc.UnimplementedEngineServer
-	t testing.TB
 
 	mu           sync.Mutex
 	rootResource string
@@ -99,7 +94,6 @@ var _ pulumirpc.EngineServer = &EngineServer{}
 
 // Log logs a global message in the engine, including errors and warnings.
 func (m *EngineServer) Log(ctx context.Context, in *pulumirpc.LogRequest) (*pbempty.Empty, error) {
-	m.t.Logf("%s: %s", in.GetSeverity(), in.GetMessage())
 	m.mu.Lock()
 	m.logs = append(m.logs, in)
 	m.mu.Unlock()

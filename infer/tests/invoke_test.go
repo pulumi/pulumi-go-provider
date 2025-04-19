@@ -32,7 +32,7 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("missing-arg", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
 			Args:  pMap{},
@@ -43,7 +43,7 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("all-args", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
 			Args: pMap{
@@ -64,7 +64,7 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("default-args", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
 			Args: pMap{
@@ -83,7 +83,7 @@ func TestInvoke(t *testing.T) {
 	})
 	t.Run("zero-args", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
 			Args: pMap{
