@@ -52,11 +52,15 @@ func TestCall(t *testing.T) {
 		"k1": "s",
 		"k2": 3.14
 	},
-        "stack": "some-stack"
+        "stack": "some-stack",
+        "acceptsOutputValues": true
     },
     "response": {
 	"return": {
-	  "r1": "04da6b54-80e4-46f7-96ec-b56ff0331ba9"
+	  "r1":{
+		"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
+		"dependencies": ["urn1","urn2"]
+	}
 	},
 	"returnDependencies": {
 	  "r1": {

@@ -29,7 +29,7 @@ func TestCheckConfig(t *testing.T) {
 	pString := resource.NewStringProperty
 	type pMap = resource.PropertyMap
 
-	prov := providerWithConfig[Config]()
+	prov := providerWithConfig[Config](t)
 	resp, err := prov.CheckConfig(p.CheckRequest{
 		News: pMap{
 			"value":        pString("foo"),
@@ -55,7 +55,7 @@ func TestCheckConfigCustom(t *testing.T) {
 	type pMap = resource.PropertyMap
 
 	test := func(t *testing.T, inputs, expected pMap) {
-		prov := providerWithConfig[*ConfigCustom]()
+		prov := providerWithConfig[*ConfigCustom](t)
 		resp, err := prov.CheckConfig(p.CheckRequest{
 			Urn:  urn("provider", "provider"),
 			News: inputs,

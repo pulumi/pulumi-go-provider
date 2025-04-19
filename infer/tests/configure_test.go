@@ -29,7 +29,7 @@ func TestConfigure(t *testing.T) {
 	pString := resource.NewStringProperty
 	type pMap = resource.PropertyMap
 
-	prov := providerWithConfig[Config]()
+	prov := providerWithConfig[Config](t)
 	err := prov.Configure(p.ConfigureRequest{
 		Args: pMap{
 			"value":        pString("foo"),
@@ -57,7 +57,7 @@ func TestConfigureCustom(t *testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
 
-			prov := providerWithConfig[*ConfigCustom]()
+			prov := providerWithConfig[*ConfigCustom](t)
 			err := prov.Configure(p.ConfigureRequest{
 				Args: inputs,
 			})

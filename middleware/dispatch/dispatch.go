@@ -133,7 +133,7 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		}
 
 		wrapper.Construct = func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			urn := req.URN
+			urn := req.Urn
 			tk := fix(urn.Type())
 			r, ok := components[tk]
 			if ok {

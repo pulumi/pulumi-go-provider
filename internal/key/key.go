@@ -19,9 +19,10 @@
 package key
 
 type (
-	runtimeInfoType struct{}
-	logType         struct{}
-	urnType         struct{}
+	runtimeInfoType  struct{}
+	logType          struct{}
+	urnType          struct{}
+	providerHostType struct{}
 )
 
 var (
@@ -31,6 +32,8 @@ var (
 	Logger = logType{}
 	// URN is used to retrieve an URN from ctx.
 	URN = urnType{}
+	// ProviderHost is used to retrieve a [provider.ProviderHost] from ctx.
+	ProviderHost = providerHostType{}
 )
 
 // ForceNoDetailedDiff acts as a side-channel in

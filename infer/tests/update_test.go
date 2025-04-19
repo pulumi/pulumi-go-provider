@@ -39,7 +39,7 @@ func TestUpdateManualDeps(t *testing.T) {
 			t.Parallel()
 			t.Run("preview", func(t *testing.T) {
 				t.Parallel()
-				prov := provider()
+				prov := provider(t)
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:   "some-id",
 					Urn:  urn(resource, "test"),
@@ -53,7 +53,7 @@ func TestUpdateManualDeps(t *testing.T) {
 			})
 			t.Run("update", func(t *testing.T) {
 				t.Parallel()
-				prov := provider()
+				prov := provider(t)
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:   "some-id",
 					Urn:  urn(resource, "test"),
@@ -131,7 +131,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		expectedPreview, expectedUp resource.PropertyMap) {
 		t.Run("preview", func(t *testing.T) {
 			t.Parallel()
-			prov := provider()
+			prov := provider(t)
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
 				Urn: urn("Echo", "preview"),
@@ -156,7 +156,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 		})
 		t.Run("update", func(t *testing.T) {
 			t.Parallel()
-			prov := provider()
+			prov := provider(t)
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
 				Urn: urn("Echo", "update"),

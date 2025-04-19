@@ -1,0 +1,20 @@
+name: test
+runtime: yaml
+
+plugins:
+  providers:
+    - name: test
+      path: .
+
+resources:
+  p:
+    type: pulumi:providers:test
+  c:
+    type: test:index:Component
+    properties:
+      myInput: foo
+    options:
+      provider: ${p}
+      
+outputs:
+  myOutput: ${c.myOutput}

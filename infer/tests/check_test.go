@@ -83,7 +83,7 @@ func TestCheckDefaults(t *testing.T) {
 				inputs["nestedPtr"] = pValue{V: pMap{}}
 			}
 
-			prov := provider()
+			prov := provider(t)
 			resp, err := prov.Check(p.CheckRequest{
 				Urn:  urn("WithDefaults", "check-defaults"),
 				News: inputs,
@@ -195,7 +195,7 @@ func TestCheckDefaultsEnv(t *testing.T) {
 	t.Setenv("FLOAT64", "3.14")
 	t.Setenv("BOOL", "T")
 
-	prov := provider()
+	prov := provider(t)
 	resp, err := prov.Check(p.CheckRequest{
 		Urn:  urn("ReadEnv", "check-env"),
 		News: nil,
@@ -216,7 +216,7 @@ func TestCheckDefaultsRecursive(t *testing.T) {
 	type pMap = resource.PropertyMap
 	type pValue = resource.PropertyValue
 
-	prov := provider()
+	prov := provider(t)
 
 	// If we just have a type without the recursive field nil, we don't recurse.
 	resp, err := prov.Check(p.CheckRequest{
@@ -265,7 +265,7 @@ func TestCheckDefaultsRecursive(t *testing.T) {
 func TestCheckAlwaysAppliesSecrets(t *testing.T) {
 	t.Parallel()
 
-	prov := provider()
+	prov := provider(t)
 	resp, err := prov.Check(p.CheckRequest{
 		Urn: urn("CustomCheckNoDefaults", "check-env"),
 		News: resource.PropertyMap{
