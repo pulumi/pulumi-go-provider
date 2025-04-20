@@ -858,7 +858,8 @@ type CallRequest struct {
 	Organization string
 }
 
-func newCallRequest(req *rpc.CallRequest, unmarshal rpcToProperty) (CallRequest, error) {
+func newCallRequest(req *rpc.CallRequest,
+	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (CallRequest, error) {
 	args, err := unmarshal(req.GetArgs())
 	if err != nil {
 		return CallRequest{}, fmt.Errorf("unable to convert args into a property map: %w", err)
