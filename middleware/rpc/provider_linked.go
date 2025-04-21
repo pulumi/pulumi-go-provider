@@ -30,3 +30,9 @@ func linkedConstructRequestToRPC(req *p.ConstructRequest, marshal propertyToRPC)
 
 //go:linkname linkedConstructResponseFromRPC github.com/pulumi/pulumi-go-provider.linkedConstructResponseFromRPC
 func linkedConstructResponseFromRPC(resp *rpc.ConstructResponse) (p.ConstructResponse, error)
+
+//go:linkname linkedCallRequestToRPC github.com/pulumi/pulumi-go-provider.linkedCallRequestToRPC
+func linkedCallRequestToRPC(req *p.CallRequest, marshal propertyToRPC) *rpc.CallRequest
+
+//go:linkname linkedCallResponseFromRPC github.com/pulumi/pulumi-go-provider.linkedCallResponseFromRPC
+func linkedCallResponseFromRPC(resp *rpc.CallResponse) (p.CallResponse, error)

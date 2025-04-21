@@ -53,6 +53,7 @@ type Server interface {
 	Update(p.UpdateRequest) (p.UpdateResponse, error)
 	Delete(p.DeleteRequest) error
 	Construct(p.ConstructRequest) (p.ConstructResponse, error)
+	Call(p.CallRequest) (p.CallResponse, error)
 }
 
 type ServerOption interface {
@@ -158,7 +159,9 @@ func newHost(ctx context.Context, m pulumi.MockResourceMonitor) *host {
 
 func (s *server) ctx(urn presource.URN) context.Context {
 	ctx := s.context
-	ctx = context.WithValue(ctx, key.URN, urn)
+	if urn != "" {
+		ctx = context.WithValue(ctx, key.URN, urn)
+	}
 	ctx = context.WithValue(ctx, key.RuntimeInfo, s.runInfo)
 	ctx = context.WithValue(ctx, key.ProviderHost, s.host)
 	return ctx
@@ -227,13 +230,13 @@ var _ = (p.Host)(&host{})
 // Construct implements the host interface to allow the provider to construct resources.
 func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc,
 ) (p.ConstructResponse, error) {
-	h.lazyInit()
 
 	// Use the fake engine to create a pulumi context,
 	// and then call the user's construct function with the context.
 	// the function is expected to register resources, which will be
 	// handled by the mock monitor.
 
+	h.lazyInit()
 	req.MonitorEndpoint = h.monitorAddr
 
 	comReq := linkedConstructRequestToRPC(&req, internalrpc.MarshalProperties)
@@ -243,6 +246,35 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 	}
 
 	return linkedConstructResponseFromRPC(comResp)
+}
+
+func (s *server) Call(req p.CallRequest) (p.CallResponse, error) {
+	// apply some defaults for convenience
+	req.AcceptsOutputValues = true
+	if req.Parallel < 1 {
+		req.Parallel = 1
+	}
+	return s.p.Call(s.ctx(""), req)
+}
+
+func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.CallFunc,
+) (p.CallResponse, error) {
+
+	// Use the fake engine to create a pulumi context,
+	// and then call the user's call function with the context.
+	// the function is expected to register resources, which will be
+	// handled by the mock monitor.
+
+	h.lazyInit()
+	req.MonitorEndpoint = h.monitorAddr
+
+	comReq := linkedCallRequestToRPC(&req, internalrpc.MarshalProperties)
+	comResp, err := comProvider.Call(ctx, comReq, h.engineConn, call)
+	if err != nil {
+		return p.CallResponse{}, err
+	}
+
+	return linkedCallResponseFromRPC(comResp)
 }
 
 type MockMonitor struct {

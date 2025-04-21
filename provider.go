@@ -38,10 +38,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -777,58 +775,27 @@ func (p *provider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Inv
 }
 
 func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
-
-	configPropertyMap := make(presource.PropertyMap, len(req.GetConfig()))
-	for k, v := range req.GetConfig() {
-		configPropertyMap[presource.PropertyKey(k)] = presource.NewProperty(v)
-	}
-	pulumiContext, err := pulumi.NewContext(ctx, pulumi.RunInfo{
-		Project:           req.GetProject(),
-		Stack:             req.GetStack(),
-		Config:            req.GetConfig(),
-		ConfigSecretKeys:  req.GetConfigSecretKeys(),
-		ConfigPropertyMap: configPropertyMap,
-		Parallel:          req.GetParallel(),
-		DryRun:            req.GetDryRun(),
-		MonitorAddr:       req.GetMonitorEndpoint(),
-		Organization:      req.GetOrganization(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build pulumi.Context: %w", err)
-	}
-
-	args, err := p.getMap(req.GetArgs())
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert args into a property map: %w", err)
-	}
-
-	resp, err := p.client.Call(ctx, CallRequest{
-		Tok:     tokens.ModuleMember(req.GetTok()),
-		Args:    args,
-		Context: pulumiContext,
-	})
+	ctx = p.ctx(ctx, "")
+	r, err := newCallRequest(req, p.getMap)
 	if err != nil {
 		return nil, err
 	}
 
-	// [comProvider.Call] acts as a synchronization point, ensuring that all actions
-	// within p.client.Call are witnessed before Call returns.
-	//
-	// Eventually, [comProvider.Call] results in a call to [pulumi.Context.wait],
-	// which is what forces the synchronization.
-	var engineConn *grpc.ClientConn
-	if p.host != nil {
-		engineConn = p.host.EngineConn()
-	}
-	_, err = comProvider.Call(ctx, req, engineConn,
-		func(ctx *pulumi.Context, tok string, args comProvider.CallArgs) (*comProvider.CallResult, error) {
-			return &comProvider.CallResult{}, nil
-		})
+	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
+
+	resp, err := p.client.Call(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
 	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
+	for name, v := range resp.ReturnDependencies {
+		var urns []string
+		for _, dep := range v {
+			urns = append(urns, string(dep))
+		}
+		returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+	}
 	for name, v := range resp.Return {
 		var urns []string
 		resourcex.Walk(v, func(v presource.PropertyValue, state resourcex.WalkState) {
@@ -840,7 +807,9 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 			}
 		})
 
-		returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+		if _, ok := returnDependencies[string(name)]; !ok {
+			returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+		}
 	}
 
 	_return, err := p.asStruct(resp.Return)
@@ -855,13 +824,157 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 	}, nil
 }
 
+func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallFunc,
+) (CallResponse, error) {
+	r, err := comProvider.Call(ctx, req.rpc(internalrpc.MarshalProperties), h.host.EngineConn(), call)
+	if err != nil {
+		return CallResponse{}, err
+	}
+	return newCallResponse(r)
+}
+
 // CallRequest represents a requested resource method invocation.
 //
 // It corresponds to [rpc.CallRequest] on the wire.
 type CallRequest struct {
-	Tok     tokens.ModuleMember
-	Args    presource.PropertyMap
-	Context *pulumi.Context
+	// the function token to invoke.
+	Tok tokens.ModuleMember
+	// the arguments for the function invocation.
+	Args presource.PropertyMap
+	// a map from argument keys to the dependencies of the argument.
+	ArgDependencies map[presource.PropertyKey][]presource.URN
+	// the project name.
+	Project string
+	// the name of the stack being deployed into.
+	Stack string
+	// the configuration variables to apply before running.
+	Config map[pconfig.Key]string
+	// the configuration keys that have secret values.
+	ConfigSecretKeys []pconfig.Key
+	// true if we're only doing a dryrun (preview).
+	DryRun bool
+	// the degree of parallelism for resource operations (<=1 for serial).
+	Parallel int32
+	// the address for communicating back to the resource monitor.
+	MonitorEndpoint string
+	// the organization of the stack being deployed into.
+	Organization string
+	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
+	AcceptsOutputValues bool
+}
+
+func newCallRequest(req *rpc.CallRequest,
+	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (CallRequest, error) {
+
+	var errs multierror.Error
+
+	r := CallRequest{
+		Tok: tokens.ModuleMember(req.GetTok()),
+		ArgDependencies: func() map[presource.PropertyKey][]presource.URN {
+			r := make(map[presource.PropertyKey][]presource.URN, len(req.GetArgDependencies()))
+			for k, v := range req.GetArgDependencies() {
+				r[presource.PropertyKey(k)] = make([]presource.URN, len(v.GetUrns()))
+				for i, urn := range v.GetUrns() {
+					r[presource.PropertyKey(k)][i] = presource.URN(urn)
+				}
+			}
+			return r
+		}(),
+		Project: req.GetProject(),
+		Stack:   req.GetStack(),
+		Config: func() map[pconfig.Key]string {
+			m := make(map[pconfig.Key]string, len(req.GetConfig()))
+			for k, v := range req.GetConfig() {
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config key: %w", err))
+					continue
+				}
+				m[key] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []pconfig.Key {
+			keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
+			for i, k := range req.GetConfigSecretKeys() {
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config secret key: %w", err))
+					continue
+				}
+				keys[i] = key
+			}
+			return keys
+		}(),
+		DryRun:              req.GetDryRun(),
+		Parallel:            req.GetParallel(),
+		MonitorEndpoint:     req.GetMonitorEndpoint(),
+		Organization:        req.GetOrganization(),
+		AcceptsOutputValues: req.GetAcceptsOutputValues(),
+	}
+
+	args, err := unmarshal(req.GetArgs())
+	if err != nil {
+		errs.Errors = append(errs.Errors, fmt.Errorf("invalid args: %w", err))
+	} else {
+		r.Args = args
+	}
+
+	return r, errs.ErrorOrNil()
+}
+
+func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
+
+	fromUrns := func(urns []presource.URN) []string {
+		r := make([]string, len(urns))
+		for i, urn := range urns {
+			r[i] = string(urn)
+		}
+		return r
+	}
+
+	// Marshal the args.
+	args, err := marshal(c.Args)
+	if err != nil {
+		return nil
+	}
+
+	req := &rpc.CallRequest{
+		Tok:  c.Tok.String(),
+		Args: args,
+		ArgDependencies: func() map[string]*rpc.CallRequest_ArgumentDependencies {
+			r := make(map[string]*rpc.CallRequest_ArgumentDependencies, len(c.ArgDependencies))
+			for k, v := range c.ArgDependencies {
+				r[string(k)] = &rpc.CallRequest_ArgumentDependencies{
+					Urns: fromUrns(v),
+				}
+			}
+			return r
+		}(),
+		Project: c.Project,
+		Stack:   c.Stack,
+		Config: func() map[string]string {
+			m := make(map[string]string, len(c.Config))
+			for k, v := range c.Config {
+				m[k.String()] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []string {
+			keys := make([]string, len(c.ConfigSecretKeys))
+			for i, k := range c.ConfigSecretKeys {
+				keys[i] = k.String()
+			}
+			return keys
+		}(),
+		DryRun:              c.DryRun,
+		Parallel:            c.Parallel,
+		MonitorEndpoint:     c.MonitorEndpoint,
+		Organization:        c.Organization,
+		AcceptsOutputValues: c.AcceptsOutputValues,
+	}
+
+	return req
 }
 
 // CallResponse represents a completed resource method invocation.
@@ -870,8 +983,44 @@ type CallRequest struct {
 type CallResponse struct {
 	// The returned values, if the call was successful.
 	Return presource.PropertyMap
+	// A map from return keys to the dependencies of the return value.
+	ReturnDependencies map[presource.PropertyKey][]presource.URN
 	// The failures if any arguments didn't pass verification.
 	Failures []CheckFailure
+}
+
+func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
+
+	// Umarshal the return properties.
+	ret, err := internalrpc.UnmarshalProperties(req.Return)
+	if err != nil {
+		return CallResponse{}, err
+	}
+
+	r := CallResponse{
+		Return: ret,
+		Failures: func() []CheckFailure {
+			failures := make([]CheckFailure, len(req.Failures))
+			for i, f := range req.Failures {
+				failures[i] = CheckFailure{
+					Property: f.Property,
+					Reason:   f.Reason,
+				}
+			}
+			return failures
+		}(),
+		ReturnDependencies: func() map[presource.PropertyKey][]presource.URN {
+			r := make(map[presource.PropertyKey][]presource.URN, len(req.ReturnDependencies))
+			for k, v := range req.ReturnDependencies {
+				r[presource.PropertyKey(k)] = make([]presource.URN, len(v.Urns))
+				for i, urn := range v.Urns {
+					r[presource.PropertyKey(k)][i] = presource.URN(urn)
+				}
+			}
+			return r
+		}(),
+	}
+	return r, nil
 }
 
 func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
@@ -1608,6 +1757,9 @@ func GetTypeToken[Ctx interface{ Value(any) any }](ctx Ctx) string {
 type Host interface {
 	// Construct constructs a new resource using the provided [comProvider.ConstructFunc].
 	Construct(context.Context, ConstructRequest, comProvider.ConstructFunc) (ConstructResponse, error)
+
+	// Call calls a method using the provided [comProvider.CallFunc].
+	Call(context.Context, CallRequest, comProvider.CallFunc) (CallResponse, error)
 }
 
 // GetHost retrieves the provider's [Host] from the context.

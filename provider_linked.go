@@ -32,3 +32,13 @@ func linkedConstructRequestToRPC(req *ConstructRequest, marshal propertyToRPC) *
 func linkedConstructResponseFromRPC(resp *pulumirpc.ConstructResponse) (ConstructResponse, error) {
 	return newConstructResponse(resp)
 }
+
+//nolint:unused
+func linkedCallRequestToRPC(req *CallRequest, marshal propertyToRPC) *pulumirpc.CallRequest {
+	return req.rpc(marshal)
+}
+
+//nolint:unused
+func linkedCallResponseFromRPC(resp *pulumirpc.CallResponse) (CallResponse, error) {
+	return newCallResponse(resp)
+}

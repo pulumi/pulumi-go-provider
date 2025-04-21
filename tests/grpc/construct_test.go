@@ -23,6 +23,7 @@ import (
 	"github.com/pulumi/providertest/replay"
 	"github.com/pulumi/pulumi/pkg/v3/testing/integration"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
@@ -114,7 +115,11 @@ func TestConstruct(t *testing.T) {
 		_true := true
 		assert.Equal(t, resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"), req.Urn)
 		assert.Equal(t, resource.URN("urn:pulumi:test::test::test:index:Parent::parent"), req.Parent)
-
+		assert.Equal(t, map[config.Key]string{
+			config.MustParseKey("test:c1"): "s",
+			config.MustParseKey("test:c2"): "3.14",
+		}, req.Config)
+		assert.Equal(t, []config.Key{config.MustParseKey("test:c1")}, req.ConfigSecretKeys)
 		assert.Equal(t, []resource.URN{"urn2"}, req.Aliases)
 		assert.Equal(t, []resource.URN{"urn3"}, req.Dependencies)
 		assert.Equal(t, &_true, req.Protect)
