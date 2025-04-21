@@ -20,17 +20,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 )
 
 func urn(typ, name string) resource.URN {
 	return resource.NewURN("stack", "proj", "",
+		tokens.Type("test:index:"+typ), name)
+}
+
+func childUrn(typ, name, parent string) resource.URN {
+	return resource.NewURN("stack", "proj", tokens.Type("test:index:"+parent),
 		tokens.Type("test:index:"+typ), name)
 }
 
@@ -455,6 +463,60 @@ func (w *ReadConfigCustom) Create(
 	}, err
 }
 
+type ReadConfigComponentArgs struct{}
+
+type ReadConfigComponent struct {
+	pulumi.ResourceState
+	ReadConfigComponentArgs
+	Config pulumi.StringOutput `pulumi:"config"`
+}
+
+func NewReadConfigComponent(ctx *pulumi.Context, name string, args ReadConfigComponentArgs,
+	opts ...pulumi.ResourceOption) (*ReadConfigComponent, error) {
+	comp := &ReadConfigComponent{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+	c := infer.GetConfig[Config](ctx.Context())
+	bytes, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	comp.Config = pulumi.String(string(bytes)).ToStringOutput()
+
+	return comp, nil
+}
+
+type RandomComponentArgs struct {
+	Prefix pulumi.StringInput `pulumi:"prefix"`
+}
+
+type RandomComponent struct {
+	pulumi.ResourceState
+	RandomComponentArgs
+	Result pulumi.StringOutput `pulumi:"result"`
+}
+
+func NewRandomComponent(ctx *pulumi.Context, name string, args RandomComponentArgs,
+	opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+	comp := &RandomComponent{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if args.Prefix == nil {
+		args.Prefix = pulumi.String("default-")
+	}
+
+	comp.Result = args.Prefix.ToStringOutput().ApplyT(func(prefix string) string {
+		return prefix + "12345"
+	}).(pulumi.StringOutput)
+
+	return comp, nil
+}
+
 var (
 	_ infer.CustomResource[CustomCheckNoDefaultsArgs, CustomCheckNoDefaultsOutput] = &CustomCheckNoDefaults{}
 	_ infer.CustomCheck[CustomCheckNoDefaultsArgs]                                 = &CustomCheckNoDefaults{}
@@ -501,6 +563,10 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource[*ReadConfigCustom](),
 			infer.Resource[*CustomCheckNoDefaults](),
 		},
+		Components: []infer.InferredComponent{
+			infer.Component(NewRandomComponent),
+			infer.Component(NewReadConfigComponent),
+		},
 		Functions: []infer.InferredFunction{
 			infer.Function[*GetJoin](),
 		},
@@ -508,12 +574,18 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 	}
 }
 
-func provider() integration.Server {
+func provider(t testing.TB) integration.Server {
 	p := infer.Provider(providerOpts(nil))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
 }
 
-func providerWithConfig[T any]() integration.Server {
+func providerWithConfig[T any](t testing.TB) integration.Server {
 	p := infer.Provider(providerOpts(infer.Config[T]()))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+}
+
+func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
+	p := infer.Provider(providerOpts(infer.Config[T]()))
+	return integration.NewServerWithOptions(t.Context(), "test", semver.MustParse("1.0.0"), p,
+		integration.WithMocks(mocks))
 }

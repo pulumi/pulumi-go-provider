@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,10 +29,23 @@ import (
 	"github.com/pulumi/pulumi-go-provider/integration"
 )
 
-type Foo struct{ pulumi.ComponentResource }
+type Foo struct {
+	pulumi.ResourceState
+	Bar pulumi.StringOutput `pulumi:"bar"`
+}
 
-func NewFoo(ctx *pulumi.Context, name string, inputs FooArgs, opts ...pulumi.ResourceOption) (*Foo, error) {
-	return nil, nil
+func NewFoo(ctx *pulumi.Context, name string, args FooArgs, opts ...pulumi.ResourceOption) (*Foo, error) {
+	comp := &Foo{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	comp.Bar = pulumi.ToOutput(args.Foo).ApplyT(func(foo string) string {
+		return foo + "bar"
+	}).(pulumi.StringOutput)
+
+	return comp, nil
 }
 
 type FooArgs struct {
@@ -44,17 +58,36 @@ type Bundle struct {
 	V2 int    `pulumi:"v2"`
 }
 
-func provider() integration.Server {
-	return integration.NewServer("foo", semver.Version{Major: 1},
+func provider(t *testing.T) integration.Server {
+	return integration.NewServerWithContext(t.Context(), "foo", semver.Version{Major: 1},
 		infer.Provider(infer.Options{
 			Components: []infer.InferredComponent{infer.Component(NewFoo)},
 		}),
 	)
 }
 
+func TestConstruct(t *testing.T) {
+	t.Parallel()
+
+	resp, err := provider(t).Construct(p.ConstructRequest{
+		Urn: resource.CreateURN("name", "foo:tests:Foo", "", "proj", "stack"),
+		Inputs: map[resource.PropertyKey]resource.PropertyValue{
+			"foo": resource.NewProperty("foo"),
+			"bundle": resource.NewObjectProperty(resource.PropertyMap{
+				"v1": resource.NewProperty("3.14"),
+				"v2": resource.NewProperty(3.14),
+			}),
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, resource.PropertyMap{
+		"bar": resource.NewProperty("foobar"),
+	}, resp.State)
+}
+
 func TestComponentSchema(t *testing.T) {
 	t.Parallel()
-	schema, err := provider().GetSchema(p.GetSchemaRequest{})
+	schema, err := provider(t).GetSchema(p.GetSchemaRequest{})
 	require.NoError(t, err)
 	blob := json.RawMessage{}
 	err = json.Unmarshal([]byte(schema.Schema), &blob)
@@ -88,6 +121,14 @@ const componentSchema = `{
     "provider": {},
     "resources": {
         "foo:tests:Foo": {
+            "properties": {
+                "bar": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "bar"
+            ],
             "inputProperties": {
                 "bundle": {
                     "$ref": "#/types/foo:tests:Bundle"

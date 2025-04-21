@@ -14,6 +14,11 @@
 
 package tests
 
+// This file contains tests for the middleware that projects a [rpc.ResourceProviderServer] into a [p.Provider].
+//
+// It is intended that Provider is used to wrap legacy native provider implementations
+// while they are gradually transferred over to pulumi-go-provider based implementations.
+
 import (
 	"context"
 	"fmt"
@@ -613,13 +618,38 @@ func TestRPCDelete(t *testing.T) {
 	})
 }
 
-// TestRPCConstruct shows that Construct returns unimplemented in all cases.
-//
-// TODO[pulumi/pulumi-go-provider#219] to support construct calls.
 func TestRPCConstruct(t *testing.T) {
-	_, err := rpcServer(rpcTestServer{}).
-		Construct(p.ConstructRequest{})
-	assert.ErrorContains(t, err, "rpc error: code = Unimplemented desc = Construct is not implemented")
+	t.Parallel()
+
+	t.Run("no-error", func(t *testing.T) {
+		t.Parallel()
+		inputs, expectedInputs := exampleNews()
+		wasCalled := false
+
+		_, err := rpcServer(rpcTestServer{
+			onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+				assert.Equal(t, "test:index:Component", req.GetType())
+				assert.Equal(t, "component", req.GetName())
+				assert.Equal(t, "urn:pulumi:test::test::test:index:Parent::parent", req.GetParent())
+				assert.Equal(t, expectedInputs, req.GetInputs().AsMap())
+				assert.Equal(t, true, req.AcceptsOutputValues)
+
+				wasCalled = true
+				return &rpc.ConstructResponse{
+					Urn:   "urn:pulumi:test::test::test:index:Component::component",
+					State: must(structpb.NewStruct(expectedInputs)),
+				}, nil
+			},
+		}).Construct(p.ConstructRequest{
+			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
+			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs:              inputs,
+			AcceptsOutputValues: true,
+		})
+
+		assert.NoError(t, err)
+		assert.True(t, wasCalled)
+	})
 }
 
 func must[T any](t T, err error) T {
@@ -889,6 +919,7 @@ type rpcTestServer struct {
 	onDelete      func(context.Context, *rpc.DeleteRequest) (*emptypb.Empty, error)
 	onRead        func(context.Context, *rpc.ReadRequest) (*rpc.ReadResponse, error)
 	onUpdate      func(context.Context, *rpc.UpdateRequest) (*rpc.UpdateResponse, error)
+	onConstruct   func(context.Context, *rpc.ConstructRequest) (*rpc.ConstructResponse, error)
 }
 
 func (r rpcTestServer) GetSchema(ctx context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
@@ -936,6 +967,9 @@ func (r rpcTestServer) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.Rea
 }
 func (r rpcTestServer) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 	return r.onUpdate(ctx, req)
+}
+func (r rpcTestServer) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+	return r.onConstruct(ctx, req)
 }
 
 func rpcServer(server rpcTestServer) integration.Server {

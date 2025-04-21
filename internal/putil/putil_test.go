@@ -101,3 +101,46 @@ func TestRapidDeepEqual(t *testing.T) {
 func normalize(p r.PropertyValue) r.PropertyValue {
 	return r.ToResourcePropertyValue(r.FromResourcePropertyValue(p))
 }
+
+func TestParseProviderReference(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+
+		type testCase struct {
+			ref string
+			urn r.URN
+			id  r.ID
+		}
+		testCases := []testCase{
+			{
+				ref: "urn:pulumi:test::test::pulumi:providers:test::my-provider::09e6d266-58b0-4452-8395-7bbe03011fad",
+				urn: r.URN("urn:pulumi:test::test::pulumi:providers:test::my-provider"),
+				id:  r.ID("09e6d266-58b0-4452-8395-7bbe03011fad"),
+			},
+		}
+
+		for _, tc := range testCases {
+			urn, id, err := putil.ParseProviderReference(tc.ref)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.urn, urn)
+			assert.Equal(t, tc.id, id)
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []string{
+			"p1",
+			"not::a:valid:urn::id",
+			"urn:pulumi:test::test::pulumi:providers:test::my-provider",
+		}
+
+		for _, tc := range testCases {
+			_, _, err := putil.ParseProviderReference(tc)
+			assert.Error(t, err, "expected an invalid reference: %s", tc)
+		}
+	})
+}
