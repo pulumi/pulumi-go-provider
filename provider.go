@@ -780,6 +780,9 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 	if err != nil {
 		return nil, err
 	}
+
+	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
+
 	resp, err := p.client.Call(ctx, r)
 	if err != nil {
 		return nil, err
