@@ -230,13 +230,13 @@ var _ = (p.Host)(&host{})
 // Construct implements the host interface to allow the provider to construct resources.
 func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc,
 ) (p.ConstructResponse, error) {
-	h.lazyInit()
 
 	// Use the fake engine to create a pulumi context,
 	// and then call the user's construct function with the context.
 	// the function is expected to register resources, which will be
 	// handled by the mock monitor.
 
+	h.lazyInit()
 	req.MonitorEndpoint = h.monitorAddr
 
 	comReq := linkedConstructRequestToRPC(&req, internalrpc.MarshalProperties)
@@ -249,6 +249,11 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 }
 
 func (s *server) Call(req p.CallRequest) (p.CallResponse, error) {
+	// apply some defaults for convenience
+	req.AcceptsOutputValues = true
+	if req.Parallel < 1 {
+		req.Parallel = 1
+	}
 	return s.p.Call(s.ctx(""), req)
 }
 
@@ -260,10 +265,8 @@ func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.Cal
 	// the function is expected to register resources, which will be
 	// handled by the mock monitor.
 
+	h.lazyInit()
 	req.MonitorEndpoint = h.monitorAddr
-	if req.Parallel < 1 {
-		req.Parallel = 1
-	}
 
 	comReq := linkedCallRequestToRPC(&req, internalrpc.MarshalProperties)
 	comResp, err := comProvider.Call(ctx, comReq, h.engineConn, call)

@@ -856,18 +856,17 @@ type CallRequest struct {
 	MonitorEndpoint string
 	// the organization of the stack being deployed into.
 	Organization string
+	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
+	AcceptsOutputValues bool
 }
 
 func newCallRequest(req *rpc.CallRequest,
 	unmarshal func(s *structpb.Struct) (presource.PropertyMap, error)) (CallRequest, error) {
-	args, err := unmarshal(req.GetArgs())
-	if err != nil {
-		return CallRequest{}, fmt.Errorf("unable to convert args into a property map: %w", err)
-	}
+
+	var errs multierror.Error
 
 	r := CallRequest{
-		Tok:  tokens.ModuleMember(req.GetTok()),
-		Args: args,
+		Tok: tokens.ModuleMember(req.GetTok()),
 		ArgDependencies: func() map[presource.PropertyKey][]presource.URN {
 			r := make(map[presource.PropertyKey][]presource.URN, len(req.GetArgDependencies()))
 			for k, v := range req.GetArgDependencies() {
@@ -883,23 +882,42 @@ func newCallRequest(req *rpc.CallRequest,
 		Config: func() map[pconfig.Key]string {
 			m := make(map[pconfig.Key]string, len(req.GetConfig()))
 			for k, v := range req.GetConfig() {
-				m[pconfig.MustParseKey(k)] = v
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config key: %w", err))
+					continue
+				}
+				m[key] = v
 			}
 			return m
 		}(),
 		ConfigSecretKeys: func() []pconfig.Key {
 			keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
 			for i, k := range req.GetConfigSecretKeys() {
-				keys[i] = pconfig.MustParseKey(k)
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config secret key: %w", err))
+					continue
+				}
+				keys[i] = key
 			}
 			return keys
 		}(),
-		DryRun:          req.GetDryRun(),
-		Parallel:        req.GetParallel(),
-		MonitorEndpoint: req.GetMonitorEndpoint(),
-		Organization:    req.GetOrganization(),
+		DryRun:              req.GetDryRun(),
+		Parallel:            req.GetParallel(),
+		MonitorEndpoint:     req.GetMonitorEndpoint(),
+		Organization:        req.GetOrganization(),
+		AcceptsOutputValues: req.GetAcceptsOutputValues(),
 	}
-	return r, nil
+
+	args, err := unmarshal(req.GetArgs())
+	if err != nil {
+		errs.Errors = append(errs.Errors, fmt.Errorf("invalid args: %w", err))
+	} else {
+		r.Args = args
+	}
+
+	return r, errs.ErrorOrNil()
 }
 
 func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
@@ -950,7 +968,7 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 		Parallel:            c.Parallel,
 		MonitorEndpoint:     c.MonitorEndpoint,
 		Organization:        c.Organization,
-		AcceptsOutputValues: true,
+		AcceptsOutputValues: c.AcceptsOutputValues,
 	}
 
 	return req
