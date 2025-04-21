@@ -73,8 +73,8 @@ func main() {
 				return p.CallResponse{}, fmt.Errorf("unknown token %q", req.Tok)
 			}
 
-			host := p.GetHost(ctx)
-			return host.Call(ctx, req, func(ctx *pulumi.Context, tok string, args comProvider.CallArgs) (*comProvider.CallResult, error) {
+			return p.ProgramCall(ctx, req, func(ctx *pulumi.Context, tok string, args comProvider.CallArgs,
+			) (*comProvider.CallResult, error) {
 				pet, err := random.NewRandomPet(ctx, "call-pet", &random.RandomPetArgs{})
 				if err != nil {
 					return nil, err

@@ -34,3 +34,15 @@ func ProgramConstruct(ctx context.Context, req ConstructRequest, constructF comP
 	}
 	return host.Construct(ctx, req, constructF)
 }
+
+// ProgramCall is a convenience function for a Provider to implement [Provider.Call] using the Pulumi Go SDK.
+//
+// Call this method from within your [Provider.Call] method to transition into a Go SDK program context.
+func ProgramCall(ctx context.Context, req CallRequest, callF comProvider.CallFunc,
+) (CallResponse, error) {
+	host := GetHost(ctx)
+	if host == nil {
+		return CallResponse{}, ErrNoHost
+	}
+	return host.Call(ctx, req, callF)
+}
