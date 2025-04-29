@@ -10,8 +10,8 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
 	github.com/pulumi/pulumi-random/sdk/v4 v4.8.0
-	github.com/pulumi/pulumi/pkg/v3 v3.162.0
-	github.com/pulumi/pulumi/sdk/v3 v3.162.0
+	github.com/pulumi/pulumi/pkg/v3 v3.165.0
+	github.com/pulumi/pulumi/sdk/v3 v3.165.0
 	github.com/stretchr/testify v1.10.0
 )
 
