@@ -5,8 +5,8 @@ go 1.24
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/pulumi/pulumi/pkg/v3 v3.162.0
-	github.com/pulumi/pulumi/sdk/v3 v3.162.0
+	github.com/pulumi/pulumi/pkg/v3 v3.165.0
+	github.com/pulumi/pulumi/sdk/v3 v3.165.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
