@@ -781,6 +781,13 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 	}
 
 	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
+	for name, v := range resp.ReturnDependencies {
+		var urns []string
+		for _, dep := range v {
+			urns = append(urns, string(dep))
+		}
+		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+	}
 	for name, v := range resp.Return.All {
 		var urns []string
 		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
@@ -791,7 +798,6 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 				urns = append(urns, string(dep))
 			}
 		})
-
 		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
 
@@ -967,7 +973,7 @@ type CallResponse struct {
 	// The returned values, if the call was successful.
 	Return property.Map
 	// A map from return keys to the dependencies of the return value.
-	ReturnDependencies map[presource.PropertyKey][]presource.URN
+	ReturnDependencies map[string][]presource.URN
 	// The failures if any arguments didn't pass verification.
 	Failures []CheckFailure
 }
@@ -992,12 +998,12 @@ func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
 			}
 			return failures
 		}(),
-		ReturnDependencies: func() map[presource.PropertyKey][]presource.URN {
-			r := make(map[presource.PropertyKey][]presource.URN, len(req.ReturnDependencies))
+		ReturnDependencies: func() map[string][]presource.URN {
+			r := make(map[string][]presource.URN, len(req.ReturnDependencies))
 			for k, v := range req.ReturnDependencies {
-				r[presource.PropertyKey(k)] = make([]presource.URN, len(v.Urns))
+				r[k] = make([]presource.URN, len(v.Urns))
 				for i, urn := range v.Urns {
-					r[presource.PropertyKey(k)][i] = presource.URN(urn)
+					r[k][i] = presource.URN(urn)
 				}
 			}
 			return r

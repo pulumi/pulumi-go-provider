@@ -687,11 +687,11 @@ func exampleCallReturns() (map[string]any, resource.PropertyMap) {
 		}
 }
 
-func exampleCallReturnDependencies() (map[string]*rpc.CallResponse_ReturnDependencies, map[resource.PropertyKey][]resource.URN) {
+func exampleCallReturnDependencies() (map[string]*rpc.CallResponse_ReturnDependencies, map[string][]resource.URN) {
 	return map[string]*rpc.CallResponse_ReturnDependencies{
 			"r1": {Urns: []string{"urn1", "urn2"}},
 		},
-		map[resource.PropertyKey][]resource.URN{
+		map[string][]resource.URN{
 			"r1": {"urn1", "urn2"},
 		}
 }
