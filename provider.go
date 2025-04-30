@@ -785,14 +785,6 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 		}
 		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
-	for name, v := range resp.Return.All {
-		deps := v.Dependencies()
-		urns := make([]string, 0, len(deps))
-		for _, u := range v.Dependencies() {
-			urns = append(urns, string(u))
-		}
-		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-	}
 
 	_return, err := p.asStruct(resp.Return)
 	if err != nil {
