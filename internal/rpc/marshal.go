@@ -16,27 +16,30 @@
 package rpc
 
 import (
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // UnmarshalProperties unmarshals a structpb.Struct into a PropertyMap.
 // This implementation is guaranteed to be lossless.
-func UnmarshalProperties(s *structpb.Struct) (presource.PropertyMap, error) {
-	return plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+func UnmarshalProperties(s *structpb.Struct) (property.Map, error) {
+	rm, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepResources:    true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,
 	})
+	return resource.FromResourcePropertyValue(resource.NewProperty(rm)).AsMap(), err
 }
 
 // MarshalProperties marshals a PropertyMap into a structpb.Struct.
 // This implementation is guaranteed to be lossless.
-func MarshalProperties(m presource.PropertyMap) (*structpb.Struct, error) {
-	return plugin.MarshalProperties(m, plugin.MarshalOptions{
+func MarshalProperties(m property.Map) (*structpb.Struct, error) {
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	return plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepSecrets:      true,

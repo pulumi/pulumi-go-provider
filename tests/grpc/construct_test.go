@@ -25,6 +25,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,10 +130,10 @@ func TestConstruct(t *testing.T) {
 				ID:  "09e6d266-58b0-4452-8395-7bbe03011fad",
 			},
 		}, req.Providers)
-		assert.Equal(t, map[resource.PropertyKey][]resource.URN{
+		assert.Equal(t, map[string][]resource.URN{
 			"k1": {resource.URN("urn4"), resource.URN("urn5")},
 		}, req.InputDependencies)
-		assert.Equal(t, []resource.PropertyKey{"r1"}, req.AdditionalSecretOutputs)
+		assert.Equal(t, []string{"r1"}, req.AdditionalSecretOutputs)
 		assert.Equal(t, &resource.CustomTimeouts{Create: 60, Update: 120, Delete: 180}, req.CustomTimeouts)
 		assert.Equal(t, resource.URN("urn6"), req.DeletedWith)
 		assert.Equal(t, &_true, req.DeleteBeforeReplace)
@@ -140,25 +141,21 @@ func TestConstruct(t *testing.T) {
 		assert.Equal(t, []string{"k2"}, req.ReplaceOnChanges)
 		assert.Equal(t, true, req.AcceptsOutputValues)
 
-		assert.Equal(t, resource.PropertyMap{
-			"k1": resource.NewProperty("s"),
-		}, req.Inputs)
-		assert.Equal(t, map[resource.PropertyKey][]resource.URN{
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"k1": property.New("s"),
+		}), req.Inputs)
+		assert.Equal(t, map[string][]resource.URN{
 			"k1": {resource.URN("urn4"), resource.URN("urn5")},
 		}, req.InputDependencies)
 
 		return p.ConstructResponse{
 			Urn: resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),
-			State: resource.PropertyMap{
-				"r1": resource.NewProperty(resource.Output{
-					// Element: resource.NewProperty("e1"),
-					// Known:   true,
-					Dependencies: []resource.URN{
-						"urn7", "urn8",
-					},
+			State: property.NewMap(map[string]property.Value{
+				"r1": property.New(property.Computed).WithDependencies([]resource.URN{
+					"urn7", "urn8",
 				}),
-			},
-			StateDependencies: map[resource.PropertyKey][]resource.URN{
+			}),
+			StateDependencies: map[string][]resource.URN{
 				"r1": {resource.URN("urn7"), resource.URN("urn8")},
 			},
 		}, nil

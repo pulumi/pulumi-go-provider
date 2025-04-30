@@ -7,7 +7,7 @@ import (
 	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
 	integration "github.com/pulumi/pulumi-go-provider/integration"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -140,25 +140,25 @@ func TestInvokes(t *testing.T) {
 
 	r, err := server.Invoke(p.InvokeRequest{
 		Token: "str:index:replace",
-		Args: presource.NewPropertyMapFromMap(map[string]interface{}{
-			"s":   "foo!bar",
-			"old": "!",
-			"new": "-",
+		Args: property.NewMap(map[string]property.Value{
+			"s":   property.New("foo!bar"),
+			"old": property.New("!"),
+			"new": property.New("-"),
 		}),
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, r.Failures)
-	assert.Equal(t, "foo-bar", r.Return["out"].StringValue())
+	assert.Equal(t, "foo-bar", r.Return.Get("out").AsString())
 
 	r, err = server.Invoke(p.InvokeRequest{
 		Token: "str:regex:replace",
-		Args: presource.NewPropertyMapFromMap(map[string]interface{}{
-			"s":       "fizz, buzz, zzz...",
-			"pattern": "z+",
-			"new":     "Z",
+		Args: property.NewMap(map[string]property.Value{
+			"s":       property.New("fizz, buzz, zzz..."),
+			"pattern": property.New("z+"),
+			"new":     property.New("Z"),
 		}),
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, r.Failures)
-	assert.Equal(t, "fiZ, buZ, Z...", r.Return["out"].StringValue())
+	assert.Equal(t, "fiZ, buZ, Z...", r.Return.Get("out").AsString())
 }

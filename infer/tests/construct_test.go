@@ -22,6 +22,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -36,20 +37,15 @@ func TestConstruct(t *testing.T) {
 		},
 	})
 
-	prefix := r.NewProperty(r.Output{
-		Secret:       true,
-		Dependencies: []r.URN{urn("Other", "other")},
-		Known:        true,
-		Element:      r.NewStringProperty("foo-"),
-	})
+	prefix := property.New("foo-").WithSecret(true).WithDependencies([]r.URN{urn("Other", "other")})
 
 	resp, err := prov.Construct(p.ConstructRequest{
 		Urn:    childUrn("RandomComponent", "test-component", "test-parent"),
 		Parent: urn("Parent", "test-parent"),
-		Inputs: r.PropertyMap{
+		Inputs: property.NewMap(map[string]property.Value{
 			"prefix": prefix,
-		},
-		InputDependencies: map[r.PropertyKey][]r.URN{
+		}),
+		InputDependencies: map[string][]r.URN{
 			"prefix": {urn("Other", "more")},
 		},
 	})
@@ -58,7 +54,7 @@ func TestConstruct(t *testing.T) {
 	assert.Equal(t, r.URN("urn:pulumi:stack::project::test:index:Parent$test:index:RandomComponent::test-component"),
 		resp.Urn)
 
-	assert.Equal(t, r.PropertyMap{
-		"result": r.MakeSecret(r.NewStringProperty("foo-12345")),
-	}, resp.State)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"result": property.New("foo-12345").WithSecret(true),
+	}), resp.State)
 }

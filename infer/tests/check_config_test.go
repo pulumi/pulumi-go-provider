@@ -17,7 +17,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,35 +26,29 @@ import (
 
 func TestCheckConfig(t *testing.T) {
 	t.Parallel()
-	pString := resource.NewStringProperty
-	type pMap = resource.PropertyMap
 
 	prov := providerWithConfig[Config](t)
 	resp, err := prov.CheckConfig(p.CheckRequest{
-		News: pMap{
-			"value":        pString("foo"),
-			"unknownField": pString("bar"),
-		},
+		News: property.NewMap(map[string]property.Value{
+			"value":        property.New("foo"),
+			"unknownField": property.New("bar"),
+		}),
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Failures, 0)
 
 	// By default, check simply ensures that we can decode cleanly. It removes unknown
 	// fields so that diff doesn't trigger on changes to unwatched arguments.
-	assert.Equal(t, pMap{
-		"value":                      pString("foo"),
-		"__pulumi-go-provider-infer": resource.NewBoolProperty(true),
-	}, resp.Inputs)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"value":                      property.New("foo"),
+		"__pulumi-go-provider-infer": property.New(true),
+	}), resp.Inputs)
 }
 
 func TestCheckConfigCustom(t *testing.T) {
 	t.Parallel()
 
-	pString := resource.NewStringProperty
-	pNumber := resource.NewNumberProperty
-	type pMap = resource.PropertyMap
-
-	test := func(t *testing.T, inputs, expected pMap) {
+	test := func(t *testing.T, inputs, expected property.Map) {
 		prov := providerWithConfig[*ConfigCustom](t)
 		resp, err := prov.CheckConfig(p.CheckRequest{
 			Urn:  urn("provider", "provider"),
@@ -67,20 +61,21 @@ func TestCheckConfigCustom(t *testing.T) {
 
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
-		test(t, nil, pMap{
-			"__pulumi-go-provider-infer": resource.NewBoolProperty(true)})
+		test(t, property.Map{}, property.NewMap(map[string]property.Value{
+			"__pulumi-go-provider-infer": property.New(true)}))
 	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
 		test(t,
-			pMap{"unknownField": pString("bar")},
-			pMap{"__pulumi-go-provider-infer": resource.NewBoolProperty(true)})
+			property.NewMap(map[string]property.Value{"unknownField": property.New("bar")}),
+			property.NewMap(map[string]property.Value{"__pulumi-go-provider-infer": property.New(true)}))
 	})
 	t.Run("number", func(t *testing.T) {
 		t.Parallel()
 		test(t,
-			pMap{"number": pNumber(42)},
-			pMap{"number": pNumber(42.5),
-				"__pulumi-go-provider-infer": resource.NewBoolProperty(true)})
+			property.NewMap(map[string]property.Value{"number": property.New(42.0)}),
+			property.NewMap(map[string]property.Value{
+				"number":                     property.New(42.5),
+				"__pulumi-go-provider-infer": property.New(true)}))
 	})
 }

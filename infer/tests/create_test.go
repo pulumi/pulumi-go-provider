@@ -17,11 +17,10 @@ package tests
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/internal/putil"
 )
 
 func TestCreate(t *testing.T) {
@@ -32,31 +31,30 @@ func TestCreate(t *testing.T) {
 		prov := provider(t)
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Echo", "preview"),
-			Properties: resource.NewPropertyMapFromMap(map[string]interface{}{
-				"string": "my string",
-				"int":    7,
-				"strMap": map[string]string{
-					"fizz": "buzz",
-					"foo":  "bar",
-				},
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New("my string"),
+				"int":    property.New(7.0),
+				"strMap": property.New(map[string]property.Value{
+					"fizz": property.New("buzz"),
+					"foo":  property.New("bar"),
+				}),
 			}),
 			Preview: true,
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "preview-id", resp.ID)
-		c := resource.MakeComputed
-		assert.Equal(t, resource.PropertyMap{
-			"string": resource.NewStringProperty("my string"),
-			"int":    resource.NewNumberProperty(7.0),
-			"strMap": resource.NewObjectProperty(resource.PropertyMap{
-				"fizz": resource.NewStringProperty("buzz"),
-				"foo":  resource.NewStringProperty("bar"),
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"string": property.New("my string"),
+			"int":    property.New(7.0),
+			"strMap": property.New(map[string]property.Value{
+				"fizz": property.New("buzz"),
+				"foo":  property.New("bar"),
 			}),
-			"nameOut":   c(resource.NewStringProperty("")),
-			"stringOut": c(resource.NewStringProperty("")),
-			"intOut":    c(resource.NewNumberProperty(0)),
-		}, resp.Properties)
+			"nameOut":   property.New(property.Computed),
+			"stringOut": property.New(property.Computed),
+			"intOut":    property.New(property.Computed),
+		}), resp.Properties)
 	})
 
 	t.Run("unwired-up", func(t *testing.T) {
@@ -65,159 +63,149 @@ func TestCreate(t *testing.T) {
 		prov := provider(t)
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Echo", "create"),
-			Properties: resource.NewPropertyMapFromMap(map[string]interface{}{
-				"string": "my string",
-				"int":    7,
-				"strMap": map[string]string{
-					"fizz": "buzz",
-					"foo":  "bar",
-				},
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New("my string"),
+				"int":    property.New(7.0),
+				"strMap": property.New(map[string]property.Value{
+					"fizz": property.New("buzz"),
+					"foo":  property.New("bar"),
+				}),
 			}),
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "create-id", resp.ID)
-		assert.Equal(t, resource.PropertyMap{
-			"string": resource.NewStringProperty("my string"),
-			"int":    resource.NewNumberProperty(7.0),
-			"strMap": resource.NewObjectProperty(resource.PropertyMap{
-				"fizz": resource.NewStringProperty("buzz"),
-				"foo":  resource.NewStringProperty("bar"),
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"string": property.New("my string"),
+			"int":    property.New(7.0),
+			"strMap": property.New(map[string]property.Value{
+				"fizz": property.New("buzz"),
+				"foo":  property.New("bar"),
 			}),
-			"nameOut":   resource.NewStringProperty("create"),
-			"stringOut": resource.NewStringProperty("my string"),
-			"intOut":    resource.NewNumberProperty(7.0),
-			"strMapOut": resource.NewObjectProperty(resource.PropertyMap{
-				"fizz": resource.NewStringProperty("buzz"),
-				"foo":  resource.NewStringProperty("bar"),
+			"nameOut":   property.New("create"),
+			"stringOut": property.New("my string"),
+			"intOut":    property.New(7.0),
+			"strMapOut": property.New(map[string]property.Value{
+				"fizz": property.New("buzz"),
+				"foo":  property.New("bar"),
 			}),
-		}, resp.Properties)
+		}), resp.Properties)
 	})
 
 	t.Run("unwired-secrets", func(t *testing.T) {
 		t.Parallel()
 
 		prov := provider(t)
-		sec := resource.MakeSecret
-		str := resource.NewStringProperty
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Echo", "create"),
-			Properties: resource.PropertyMap{
-				"string": sec(str("my string")),
-				"int":    resource.NewNumberProperty(7.0),
-				"strMap": resource.NewObjectProperty(resource.PropertyMap{
-					"fizz": sec(str("buzz")),
-					"foo":  str("bar"),
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New("my string").WithSecret(true),
+				"int":    property.New(7.0),
+				"strMap": property.New(map[string]property.Value{
+					"fizz": property.New("buzz").WithSecret(true),
+					"foo":  property.New("bar"),
 				}),
-			},
+			}),
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "create-id", resp.ID)
-		assert.Equal(t, resource.PropertyMap{
-			"string": sec(str("my string")),
-			"int":    resource.NewNumberProperty(7.0),
-			"strMap": resource.NewObjectProperty(resource.PropertyMap{
-				"fizz": sec(str("buzz")),
-				"foo":  str("bar"),
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"string": property.New("my string").WithSecret(true),
+			"int":    property.New(7.0),
+			"strMap": property.New(map[string]property.Value{
+				"fizz": property.New("buzz").WithSecret(true),
+				"foo":  property.New("bar"),
 			}),
-			"nameOut":   str("create"),
-			"stringOut": str("my string"),
-			"intOut":    resource.NewNumberProperty(7.0),
-			"strMapOut": resource.NewObjectProperty(resource.PropertyMap{
-				"fizz": str("buzz"),
-				"foo":  str("bar"),
+			"nameOut":   property.New("create"),
+			"stringOut": property.New("my string"),
+			"intOut":    property.New(7.0),
+			"strMapOut": property.New(map[string]property.Value{
+				"fizz": property.New("buzz"),
+				"foo":  property.New("bar"),
 			}),
-		}, resp.Properties)
+		}), resp.Properties)
 	})
 
 	t.Run("unwired-secrets-mutated-input", func(t *testing.T) {
 		t.Parallel()
 
 		prov := provider(t)
-		sec := resource.MakeSecret
-		num := resource.NewNumberProperty
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Increment", "create"),
-			Properties: resource.PropertyMap{
-				"int":   num(3.0),
-				"other": sec(num(0.0)),
-			},
+			Properties: property.NewMap(map[string]property.Value{
+				"int":   property.New(3.0),
+				"other": property.New(0.0).WithSecret(true),
+			}),
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "id-3", resp.ID)
-		assert.Equal(t, resource.PropertyMap{
-			"int":   num(4.0),
-			"other": sec(num(0.0)),
-		}, resp.Properties)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"int":   property.New(4.0),
+			"other": property.New(0.0).WithSecret(true),
+		}), resp.Properties)
 	})
 
 	t.Run("wired-secrets", func(t *testing.T) {
 		t.Parallel()
 
 		prov := provider(t)
-		c := resource.MakeComputed
-		s := resource.NewStringProperty
-		sec := putil.MakeSecret
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Wired", "preview"),
-			Properties: resource.PropertyMap{
-				"string": c(resource.NewStringProperty("foo")),
-				"int":    sec(c(resource.NewNumberProperty(4.0))),
-			},
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New(property.Computed),
+				"int":    property.New(property.Computed).WithSecret(true),
+			}),
 			Preview: true,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "preview-id", resp.ID)
-		assert.Equal(t, resource.PropertyMap{
-			"name":         s("(preview)"),
-			"stringPlus":   c(s("")),
-			"stringAndInt": sec(c(s(""))),
-		}, resp.Properties)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"name":         property.New("(preview)"),
+			"stringPlus":   property.New(property.Computed),
+			"stringAndInt": property.New(property.Computed).WithSecret(true).WithDependencies(nil),
+		}), resp.Properties)
 	})
 
 	t.Run("wired-preview", func(t *testing.T) {
 		t.Parallel()
 
 		prov := provider(t)
-		c := resource.MakeComputed
-		s := resource.NewStringProperty
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Wired", "preview"),
-			Properties: resource.PropertyMap{
-				"string": c(resource.NewStringProperty("foo")),
-				"int":    c(resource.NewNumberProperty(4.0)),
-			},
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New(property.Computed),
+				"int":    property.New(property.Computed),
+			}),
 			Preview: true,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "preview-id", resp.ID)
-		assert.Equal(t, resource.PropertyMap{
-			"name":         s("(preview)"),
-			"stringPlus":   c(s("")),
-			"stringAndInt": c(s("")),
-		}, resp.Properties)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"name":         property.New("(preview)"),
+			"stringPlus":   property.New(property.Computed),
+			"stringAndInt": property.New(property.Computed),
+		}), resp.Properties)
 	})
 
 	t.Run("wired-up", func(t *testing.T) {
 		t.Parallel()
 
 		prov := provider(t)
-		s := resource.NewStringProperty
 		resp, err := prov.Create(p.CreateRequest{
 			Urn: urn("Wired", "up"),
-			Properties: resource.PropertyMap{
-				"string": resource.NewStringProperty("foo"),
-				"int":    resource.NewNumberProperty(4.0),
-			},
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New("foo"),
+				"int":    property.New(4.0),
+			}),
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "up-id", resp.ID)
-		assert.Equal(t, resource.PropertyMap{
-			"name":         s("(up)"),
-			"stringPlus":   s("foo+"),
-			"stringAndInt": s("foo-4"),
-		}, resp.Properties)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"name":         property.New("(up)"),
+			"stringPlus":   property.New("foo+"),
+			"stringAndInt": property.New("foo-4"),
+		}), resp.Properties)
 	})
 }

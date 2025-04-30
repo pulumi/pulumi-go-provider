@@ -20,6 +20,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,18 +72,18 @@ func TestConstruct(t *testing.T) {
 
 	resp, err := provider(t).Construct(p.ConstructRequest{
 		Urn: resource.CreateURN("name", "foo:tests:Foo", "", "proj", "stack"),
-		Inputs: map[resource.PropertyKey]resource.PropertyValue{
-			"foo": resource.NewProperty("foo"),
-			"bundle": resource.NewObjectProperty(resource.PropertyMap{
-				"v1": resource.NewProperty("3.14"),
-				"v2": resource.NewProperty(3.14),
+		Inputs: property.NewMap(map[string]property.Value{
+			"foo": property.New("foo"),
+			"bundle": property.New(map[string]property.Value{
+				"v1": property.New("3.14"),
+				"v2": property.New(3.14),
 			}),
-		},
+		}),
 	})
 	require.NoError(t, err)
-	assert.Equal(t, resource.PropertyMap{
-		"bar": resource.NewProperty("foobar"),
-	}, resp.State)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"bar": property.New("foobar"),
+	}), resp.State)
 }
 
 func TestComponentSchema(t *testing.T) {
