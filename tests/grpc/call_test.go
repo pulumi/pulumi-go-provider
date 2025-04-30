@@ -76,10 +76,11 @@ func TestCall(t *testing.T) {
           "r1":{
               "4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
               "dependencies": ["urn1","urn2"]
-          }
+          },
+          "r2": "s"
        },
        "returnDependencies": {
-           "r1": {
+           "r2": {
               "urns": ["urn1", "urn2"]
            }
         }
@@ -115,7 +116,11 @@ func TestCall(t *testing.T) {
 				"r1": property.New(property.Computed).WithDependencies([]resource.URN{
 					"urn1", "urn2",
 				}),
+				"r2": property.New("s"),
 			}),
+			ReturnDependencies: map[string][]resource.URN{
+				"r2": {resource.URN("urn1"), resource.URN("urn2")},
+			},
 		}, nil
 	}
 
