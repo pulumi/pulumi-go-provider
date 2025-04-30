@@ -69,9 +69,9 @@ func (*Partial) Update(ctx context.Context, req infer.UpdateRequest[Args, State]
 	if req.Preview {
 		return infer.UpdateResponse[State]{}, nil
 	}
-	contract.Assertf(req.News.S == "for-update", `expected news.S to be "for-update"`)
-	contract.Assertf(req.Olds.S == "+for-create", `expected olds.Out to be "partial-create"`)
-	contract.Assertf(req.Olds.Out == "partial-init", `expected olds.Out to be "partial-create"`)
+	contract.Assertf(req.Inputs.S == "for-update", `expected news.S to be "for-update"`)
+	contract.Assertf(req.State.S == "+for-create", `expected olds.Out to be "partial-create"`)
+	contract.Assertf(req.State.Out == "partial-init", `expected olds.Out to be "partial-create"`)
 
 	return infer.UpdateResponse[State]{
 			Output: State{

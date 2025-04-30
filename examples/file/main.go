@@ -124,26 +124,26 @@ func (*File) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResp
 }
 
 func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileState]) (infer.UpdateResponse[FileState], error) {
-	if !req.Preview && req.Olds.Content != req.News.Content {
-		f, err := os.Create(req.Olds.Path)
+	if !req.Preview && req.State.Content != req.Inputs.Content {
+		f, err := os.Create(req.State.Path)
 		if err != nil {
 			return infer.UpdateResponse[FileState]{}, err
 		}
 		defer f.Close()
-		n, err := f.WriteString(req.News.Content)
+		n, err := f.WriteString(req.Inputs.Content)
 		if err != nil {
 			return infer.UpdateResponse[FileState]{}, err
 		}
-		if n != len(req.News.Content) {
-			return infer.UpdateResponse[FileState]{}, fmt.Errorf("only wrote %d/%d bytes", n, len(req.News.Content))
+		if n != len(req.Inputs.Content) {
+			return infer.UpdateResponse[FileState]{}, fmt.Errorf("only wrote %d/%d bytes", n, len(req.Inputs.Content))
 		}
 	}
 
 	return infer.UpdateResponse[FileState]{
 		Output: FileState{
-			Path:    req.News.Path,
-			Force:   req.News.Force,
-			Content: req.News.Content,
+			Path:    req.Inputs.Path,
+			Force:   req.Inputs.Force,
+			Content: req.Inputs.Content,
 		},
 	}, nil
 
@@ -151,13 +151,13 @@ func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileS
 
 func (*File) Diff(ctx context.Context, req infer.DiffRequest[FileArgs, FileState]) (infer.DiffResponse, error) {
 	diff := map[string]p.PropertyDiff{}
-	if req.News.Content != req.Olds.Content {
+	if req.Inputs.Content != req.Inputs.Content {
 		diff["content"] = p.PropertyDiff{Kind: p.Update}
 	}
-	if req.News.Force != req.Olds.Force {
+	if req.Inputs.Force != req.State.Force {
 		diff["force"] = p.PropertyDiff{Kind: p.Update}
 	}
-	if req.News.Path != req.Olds.Path {
+	if req.Inputs.Path != req.State.Path {
 		diff["path"] = p.PropertyDiff{Kind: p.UpdateReplace}
 	}
 	return infer.DiffResponse{

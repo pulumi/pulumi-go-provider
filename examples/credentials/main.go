@@ -105,7 +105,7 @@ var _ = (infer.CustomDiff[UserArgs, UserState])((*User)(nil))
 
 func (*User) Diff(ctx context.Context, req infer.DiffRequest[UserArgs, UserState]) (infer.DiffResponse, error) {
 	config := infer.GetConfig[Config](ctx)
-	if config.User != req.Olds.Name {
+	if config.User != req.State.Name {
 		return infer.DiffResponse{
 			HasChanges: true,
 			DetailedDiff: map[string]p.PropertyDiff{

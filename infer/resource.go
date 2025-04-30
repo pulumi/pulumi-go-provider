@@ -163,9 +163,9 @@ type DiffRequest[I, O any] struct {
 	// The resource ID.
 	ID string
 	// The old resource state.
-	Olds O
+	State O
 	// The new resource inputs.
-	News I
+	Inputs I
 }
 
 // DiffResponse contains all the results from a Diff operation.
@@ -188,9 +188,9 @@ type UpdateRequest[I, O any] struct {
 	// The resource ID.
 	ID string
 	// The old resource state.
-	Olds O
+	State O
 	// The new resource inputs.
-	News I
+	Inputs I
 	// Whether this is a preview operation.
 	Preview bool
 }
@@ -641,7 +641,6 @@ func markField(
 	}
 
 	return markSecret(field, key, prop, inputs)
-
 }
 
 func (g *fieldGenerator) InputField(a any) InputField {
@@ -943,7 +942,8 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct{}
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
 func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
-	pschema.ResourceSpec, error) {
+	pschema.ResourceSpec, error,
+) {
 	if err := registerTypes[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
@@ -1147,7 +1147,6 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.Di
 func diff[R, I, O any](
 	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
 ) (p.DiffResponse, error) {
-
 	for _, ignoredChange := range req.IgnoreChanges {
 		v, ok := req.Olds.GetOk(ignoredChange)
 		if ok {
@@ -1165,9 +1164,9 @@ func diff[R, I, O any](
 			return p.DiffResponse{}, err
 		}
 		resp, err := r.Diff(ctx, DiffRequest[I, O]{
-			ID:   req.ID,
-			Olds: olds,
-			News: news,
+			ID:     req.ID,
+			State:  olds,
+			Inputs: news,
 		})
 		if err != nil {
 			return p.DiffResponse{}, err
@@ -1406,8 +1405,8 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	}
 	inferResp, err := update.Update(ctx, UpdateRequest[I, O]{
 		ID:      req.ID,
-		Olds:    olds,
-		News:    news,
+		State:   olds,
+		Inputs:  news,
 		Preview: req.Preview,
 	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
