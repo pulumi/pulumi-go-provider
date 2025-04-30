@@ -90,7 +90,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		t = reflect.New(v.Type().Elem()).Interface().(T)
 	}
 
-	encoder, decodeError := ende.DecodeConfig(req.News, &t)
+	encoder, decodeError := ende.DecodeConfig(req.Inputs, &t)
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that.
 		//
@@ -99,7 +99,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		if req.Urn != "" {
 			name = req.Urn.Name()
 		}
-		defCheckEnc, i, failures, err := callCustomCheck(ctx, t, name, req.Olds, req.News)
+		defCheckEnc, i, failures, err := callCustomCheck(ctx, t, name, req.State, req.Inputs)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}

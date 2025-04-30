@@ -39,8 +39,8 @@ func TestUpdateManualDeps(t *testing.T) {
 				resp, err := prov.Update(p.UpdateRequest{
 					ID:      "some-id",
 					Urn:     urn(resource, "test"),
-					Olds:    olds,
-					News:    newsPreview,
+					State:   olds,
+					Inputs:  newsPreview,
 					Preview: true,
 				})
 				assert.NoError(t, err)
@@ -52,9 +52,9 @@ func TestUpdateManualDeps(t *testing.T) {
 				t.Parallel()
 				prov := provider(t)
 				resp, err := prov.Update(p.UpdateRequest{
-					ID:   "some-id",
-					Urn:  urn(resource, "test"),
-					Olds: olds, News: newsUpdate,
+					ID:    "some-id",
+					Urn:   urn(resource, "test"),
+					State: olds, Inputs: newsUpdate,
 				})
 				assert.NoError(t, err)
 				assert.Equal(t, p.UpdateResponse{
@@ -124,21 +124,22 @@ func TestUpdateDefaultDeps(t *testing.T) {
 	t.Parallel()
 
 	test := func(t *testing.T, newString property.Value,
-		expectedPreview, expectedUp property.Map) {
+		expectedPreview, expectedUp property.Map,
+	) {
 		t.Run("preview", func(t *testing.T) {
 			t.Parallel()
 			prov := provider(t)
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
 				Urn: urn("Echo", "preview"),
-				Olds: property.NewMap(map[string]property.Value{
+				State: property.NewMap(map[string]property.Value{
 					"string":    property.New("old-string"),
 					"int":       property.New(1.0),
 					"intOut":    property.New(1.0),
 					"nameOut":   property.New("old-name"),
 					"stringOut": property.New("old-string"),
 				}),
-				News: property.NewMap(map[string]property.Value{
+				Inputs: property.NewMap(map[string]property.Value{
 					// Became computed
 					"string": newString,
 					"int":    property.New(1.0),
@@ -162,14 +163,14 @@ func TestUpdateDefaultDeps(t *testing.T) {
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
 				Urn: urn("Echo", "update"),
-				Olds: property.NewMap(map[string]property.Value{
+				State: property.NewMap(map[string]property.Value{
 					"string":    property.New("old-string"),
 					"int":       property.New(1.0),
 					"intOut":    property.New(1.0),
 					"nameOut":   property.New("old-name"),
 					"stringOut": property.New("old-string"),
 				}),
-				News: property.NewMap(map[string]property.Value{
+				Inputs: property.NewMap(map[string]property.Value{
 					"string": newString,
 					"int":    property.New(1.0),
 				}),

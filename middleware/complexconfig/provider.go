@@ -51,7 +51,7 @@ type (
 func encodeCheckConfig(check checkConfig, getSchema getSchema) checkConfig {
 	if check == nil {
 		check = func(_ context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			return p.CheckResponse{Inputs: req.News}, nil
+			return p.CheckResponse{Inputs: req.Inputs}, nil
 		}
 	}
 	return func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
@@ -59,7 +59,7 @@ func encodeCheckConfig(check checkConfig, getSchema getSchema) checkConfig {
 		// and thus went through a previous normalizing pass of CheckConfig.
 
 		// If there are no inputs, then we can just return.
-		if req.News.Len() == 0 {
+		if req.Inputs.Len() == 0 {
 			return check(ctx, req)
 		}
 
@@ -74,7 +74,7 @@ func encodeCheckConfig(check checkConfig, getSchema getSchema) checkConfig {
 				p.InternalErrorf("unable to decode config: invalid schema: %w", err)
 		}
 
-		news := resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue()
+		news := resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue()
 
 		for k, spec := range spec.Config.Variables {
 			v, ok := news[resource.PropertyKey(k)]
@@ -93,7 +93,7 @@ func encodeCheckConfig(check checkConfig, getSchema getSchema) checkConfig {
 			news[k] = fixEncoding(v, schema.PropertySpec{})
 		}
 
-		req.News = resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap()
+		req.Inputs = resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap()
 		return check(ctx, req)
 	}
 }

@@ -60,8 +60,8 @@ func TestCheckDefaults(t *testing.T) {
 
 			prov := provider(t)
 			resp, err := prov.Check(p.CheckRequest{
-				Urn:  urn("WithDefaults", "check-defaults"),
-				News: inputs,
+				Urn:    urn("WithDefaults", "check-defaults"),
+				Inputs: inputs,
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Failures, 0)
@@ -146,8 +146,8 @@ func TestCheckDefaultsEnv(t *testing.T) {
 
 	prov := provider(t)
 	resp, err := prov.Check(p.CheckRequest{
-		Urn:  urn("ReadEnv", "check-env"),
-		News: property.Map{},
+		Urn:    urn("ReadEnv", "check-env"),
+		Inputs: property.Map{},
 	})
 	require.NoError(t, err)
 
@@ -166,8 +166,8 @@ func TestCheckDefaultsRecursive(t *testing.T) {
 
 	// If we just have a type without the recursive field nil, we don't recurse.
 	resp, err := prov.Check(p.CheckRequest{
-		Urn:  urn("Recursive", "check-env"),
-		News: property.Map{},
+		Urn:    urn("Recursive", "check-env"),
+		Inputs: property.Map{},
 	})
 	require.NoError(t, err)
 
@@ -179,7 +179,7 @@ func TestCheckDefaultsRecursive(t *testing.T) {
 	// values.
 	resp, err = prov.Check(p.CheckRequest{
 		Urn: urn("Recursive", "check-env"),
-		News: property.NewMap(map[string]property.Value{
+		Inputs: property.NewMap(map[string]property.Value{
 			"other": property.New(map[string]property.Value{
 				"other": property.New(map[string]property.Value{
 					"value": property.New("custom"),
@@ -214,7 +214,7 @@ func TestCheckAlwaysAppliesSecrets(t *testing.T) {
 	prov := provider(t)
 	resp, err := prov.Check(p.CheckRequest{
 		Urn: urn("CustomCheckNoDefaults", "check-env"),
-		News: property.NewMap(map[string]property.Value{
+		Inputs: property.NewMap(map[string]property.Value{
 			"input": property.New("value"),
 		}),
 	})

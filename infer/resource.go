@@ -989,7 +989,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 		//
 		// We do not apply defaults if the user has implemented Check
 		// themselves. Defaults are applied by [DefaultCheck].
-		encoder, i, failures, err := callCustomCheck(ctx, r, req.Urn.Name(), req.Olds, req.News)
+		encoder, i, failures, err := callCustomCheck(ctx, r, req.Urn.Name(), req.State, req.Inputs)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -1005,7 +1005,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 		// and `I`, so we are not guaranteed that `decodeCheckingMapErrors` won't
 		// produce errors.
 		if encoder == nil {
-			backupEncoder, _, _, _ := decodeCheckingMapErrors[I](req.News)
+			backupEncoder, _, _, _ := decodeCheckingMapErrors[I](req.Inputs)
 			encoder = &backupEncoder
 		}
 
@@ -1016,7 +1016,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 		}, err
 	}
 
-	encoder, i, failures, err := decodeCheckingMapErrors[I](req.News)
+	encoder, i, failures, err := decodeCheckingMapErrors[I](req.Inputs)
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
@@ -1024,7 +1024,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 		return p.CheckResponse{
 			// If we failed to decode, we apply secrets pro-actively to ensure
 			// that they don't leak into previews.
-			Inputs:   applySecrets[I](resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue()),
+			Inputs:   applySecrets[I](resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue()),
 			Failures: failures,
 		}, nil
 	}
@@ -1148,18 +1148,18 @@ func diff[R, I, O any](
 	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
 ) (p.DiffResponse, error) {
 	for _, ignoredChange := range req.IgnoreChanges {
-		v, ok := req.Olds.GetOk(ignoredChange)
+		v, ok := req.State.GetOk(ignoredChange)
 		if ok {
-			req.News = req.News.Set(ignoredChange, v)
+			req.Inputs = req.Inputs.Set(ignoredChange, v)
 		}
 	}
 
 	if r, ok := ((interface{})(*r)).(CustomDiff[I, O]); ok {
-		_, olds, err := hydrateFromState[R, I, O](ctx, req.Olds) // TODO
+		_, olds, err := hydrateFromState[R, I, O](ctx, req.State) // TODO
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
-		_, news, err := ende.Decode[I](req.News)
+		_, news, err := ende.Decode[I](req.Inputs)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -1182,10 +1182,10 @@ func diff[R, I, O any](
 	// so we need to filter out fields that are in Output but not Input.
 	oldInputs := map[string]property.Value{}
 	for k := range inputProps {
-		oldInputs[k] = req.Olds.Get(k)
+		oldInputs[k] = req.State.Get(k)
 	}
 	objDiff := resource.ToResourcePropertyValue(property.New(oldInputs)).ObjectValue().Diff(
-		resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue(),
+		resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue(),
 	)
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff, false)
 	diff := map[string]p.PropertyDiff{}
@@ -1389,17 +1389,17 @@ func (rc *derivedResourceController[R, I, O]) Update(
 			"Update is not implemented for resource %s", req.Urn)
 	}
 	for _, ignoredChange := range req.IgnoreChanges {
-		v, ok := req.Olds.GetOk(ignoredChange)
+		v, ok := req.State.GetOk(ignoredChange)
 		if ok {
-			req.News = req.News.Set(ignoredChange, v)
+			req.Inputs = req.Inputs.Set(ignoredChange, v)
 		}
 	}
 
-	_, olds, err := hydrateFromState[R, I, O](ctx, req.Olds)
+	_, olds, err := hydrateFromState[R, I, O](ctx, req.State)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	encoder, news, err := ende.Decode[I](req.News)
+	encoder, news, err := ende.Decode[I](req.Inputs)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -1443,8 +1443,8 @@ func (rc *derivedResourceController[R, I, O]) Update(
 		return p.UpdateResponse{}, err
 	}
 	setDeps(
-		resource.ToResourcePropertyValue(property.New(req.Olds)).ObjectValue(),
-		resource.ToResourcePropertyValue(property.New(req.News)).ObjectValue(),
+		resource.ToResourcePropertyValue(property.New(req.State)).ObjectValue(),
+		resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue(),
 		m,
 	)
 

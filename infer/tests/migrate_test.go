@@ -183,9 +183,9 @@ func TestMigrateUpdate(t *testing.T) {
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		resp, err := migrationServer().Update(p.UpdateRequest{
-			ID:   "some-id",
-			Urn:  urn("MigrateR", "update"),
-			Olds: state,
+			ID:    "some-id",
+			Urn:   urn("MigrateR", "update"),
+			State: state,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, v2State, resp.Properties)
@@ -197,9 +197,9 @@ func TestMigrateDiff(t *testing.T) {
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		_, err := migrationServer().Diff(p.DiffRequest{
-			ID:   "some-id",
-			Urn:  urn("MigrateR", "diff"),
-			Olds: state,
+			ID:    "some-id",
+			Urn:   urn("MigrateR", "diff"),
+			State: state,
 		})
 		var via viaError[MigrateStateV2]
 		require.ErrorAs(t, err, &via)

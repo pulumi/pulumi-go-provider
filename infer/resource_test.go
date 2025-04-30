@@ -213,7 +213,6 @@ func TestFieldGenerator(t *testing.T) {
 			tt.assert(t, *fm)
 		})
 	}
-
 }
 
 type Context struct {
@@ -292,10 +291,10 @@ func TestDiff(t *testing.T) {
 
 	for _, test := range tests {
 		diffRequest := p.DiffRequest{
-			ID:   "foo",
-			Urn:  r.CreateURN("foo", "a:b:c", "", "proj", "stack"),
-			Olds: test.olds,
-			News: test.news,
+			ID:     "foo",
+			Urn:    r.CreateURN("foo", "a:b:c", "", "proj", "stack"),
+			State:  test.olds,
+			Inputs: test.news,
 		}
 		resp, err := diff[struct{}, I, any](
 			Context{context.Background()},
@@ -519,9 +518,9 @@ func TestCheck(t *testing.T) {
 			t.Parallel()
 			res := Resource[checkResource]()
 			checkResp, err := res.Check(context.Background(), p.CheckRequest{
-				Urn:  "a:b:c",
-				Olds: property.Map{},
-				News: tc.input,
+				Urn:    "a:b:c",
+				State:  property.Map{},
+				Inputs: tc.input,
 			})
 			require.NoError(t, err)
 			assert.Empty(t, checkResp.Failures)

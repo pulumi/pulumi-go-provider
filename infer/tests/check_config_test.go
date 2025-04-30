@@ -29,7 +29,7 @@ func TestCheckConfig(t *testing.T) {
 
 	prov := providerWithConfig[Config](t)
 	resp, err := prov.CheckConfig(p.CheckRequest{
-		News: property.NewMap(map[string]property.Value{
+		Inputs: property.NewMap(map[string]property.Value{
 			"value":        property.New("foo"),
 			"unknownField": property.New("bar"),
 		}),
@@ -51,8 +51,8 @@ func TestCheckConfigCustom(t *testing.T) {
 	test := func(t *testing.T, inputs, expected property.Map) {
 		prov := providerWithConfig[*ConfigCustom](t)
 		resp, err := prov.CheckConfig(p.CheckRequest{
-			Urn:  urn("provider", "provider"),
-			News: inputs,
+			Urn:    urn("provider", "provider"),
+			Inputs: inputs,
 		})
 		require.NoError(t, err)
 
@@ -62,7 +62,8 @@ func TestCheckConfigCustom(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
 		test(t, property.Map{}, property.NewMap(map[string]property.Value{
-			"__pulumi-go-provider-infer": property.New(true)}))
+			"__pulumi-go-provider-infer": property.New(true),
+		}))
 	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
@@ -76,6 +77,7 @@ func TestCheckConfigCustom(t *testing.T) {
 			property.NewMap(map[string]property.Value{"number": property.New(42.0)}),
 			property.NewMap(map[string]property.Value{
 				"number":                     property.New(42.5),
-				"__pulumi-go-provider-infer": property.New(true)}))
+				"__pulumi-go-provider-infer": property.New(true),
+			}))
 	})
 }
