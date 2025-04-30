@@ -538,8 +538,8 @@ func TestRPCUpdate(t *testing.T) {
 		}).Update(p.UpdateRequest{
 			ID:            "some-id",
 			Urn:           "some-urn",
-			Olds:          resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
-			News:          resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
+			State:         resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
+			Inputs:        resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			Timeout:       1.23,
 			IgnoreChanges: []string{"f1"},
 			Preview:       true,
@@ -815,8 +815,8 @@ func testRPCCheck(
 			}, nil
 		})(p.CheckRequest{
 			Urn:        "some-urn",
-			Olds:       resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
-			News:       resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
+			State:      resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
+			Inputs:     resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			RandomSeed: []byte("12345"),
 		})
 		require.NoError(t, err)
@@ -895,8 +895,8 @@ func testRPCDiff(
 		})(p.DiffRequest{
 			ID:            "some-id",
 			Urn:           "my-urn",
-			Olds:          resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
-			News:          resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
+			State:         resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
+			Inputs:        resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			IgnoreChanges: []string{"field1", "field2"},
 		})
 

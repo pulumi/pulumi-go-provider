@@ -54,7 +54,7 @@ func TestInferCheckSecrets(t *testing.T) {
 		},
 	})).Check(p.CheckRequest{
 		Urn: resource.CreateURN("name", "test:index:res", "", "proj", "stack"),
-		News: property.NewMap(map[string]property.Value{
+		Inputs: property.NewMap(map[string]property.Value{
 			"field": property.New("value"),
 		}),
 	})

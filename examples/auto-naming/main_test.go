@@ -20,13 +20,13 @@ func TestAutoName(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		olds     property.Map
-		news     property.Map
+		state    property.Map
+		inputs   property.Map
 		validate func(*testing.T, property.Map)
 	}{
 		{
-			name: "create new auto-named resource",
-			news: property.Map{},
+			name:   "create new auto-named resource",
+			inputs: property.Map{},
 			validate: func(t *testing.T, result property.Map) {
 				name, ok := result.GetOk("name")
 				require.True(t, ok, "could not find name in %q", result)
@@ -37,7 +37,7 @@ func TestAutoName(t *testing.T) {
 		},
 		{
 			name: "create new manually named resource",
-			news: property.NewMap(map[string]property.Value{
+			inputs: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name"),
 			}),
 			validate: func(t *testing.T, result property.Map) {
@@ -47,9 +47,9 @@ func TestAutoName(t *testing.T) {
 			},
 		},
 		{
-			name: "update an auto-named resource (same name)",
-			news: property.Map{},
-			olds: property.NewMap(map[string]property.Value{
+			name:   "update an auto-named resource (same name)",
+			inputs: property.Map{},
+			state: property.NewMap(map[string]property.Value{
 				"name": property.New("name-123456"),
 			}),
 			validate: func(t *testing.T, result property.Map) {
@@ -60,10 +60,10 @@ func TestAutoName(t *testing.T) {
 		},
 		{
 			name: "update an auto-named resource (new name)",
-			news: property.NewMap(map[string]property.Value{
+			inputs: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name"),
 			}),
-			olds: property.NewMap(map[string]property.Value{
+			state: property.NewMap(map[string]property.Value{
 				"name": property.New("name-123456"),
 			}),
 			validate: func(t *testing.T, result property.Map) {
@@ -74,10 +74,10 @@ func TestAutoName(t *testing.T) {
 		},
 		{
 			name: "update a manually named resource (same name)",
-			news: property.NewMap(map[string]property.Value{
+			inputs: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name"),
 			}),
-			olds: property.NewMap(map[string]property.Value{
+			state: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name"),
 			}),
 			validate: func(t *testing.T, result property.Map) {
@@ -88,10 +88,10 @@ func TestAutoName(t *testing.T) {
 		},
 		{
 			name: "update a manually named resource (different name)",
-			news: property.NewMap(map[string]property.Value{
+			inputs: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name1"),
 			}),
-			olds: property.NewMap(map[string]property.Value{
+			state: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name2"),
 			}),
 			validate: func(t *testing.T, result property.Map) {
@@ -101,9 +101,9 @@ func TestAutoName(t *testing.T) {
 			},
 		},
 		{
-			name: "convert from a named to an auto-named resource",
-			news: property.Map{},
-			olds: property.NewMap(map[string]property.Value{
+			name:   "convert from a named to an auto-named resource",
+			inputs: property.Map{},
+			state: property.NewMap(map[string]property.Value{
 				"name": property.New("custom-name"),
 			}),
 			validate: func(t *testing.T, result property.Map) {
@@ -124,9 +124,9 @@ func TestAutoName(t *testing.T) {
 			t.Parallel()
 			t.Helper()
 			resp, err := s.Check(p.CheckRequest{
-				Urn:  resource.NewURN("dev", "test", "", "autoname:index:User", "name"),
-				News: tt.news,
-				Olds: tt.olds,
+				Urn:    resource.NewURN("dev", "test", "", "autoname:index:User", "name"),
+				Inputs: tt.inputs,
+				State:  tt.state,
 			})
 			require.NoError(t, err)
 			require.Empty(t, resp.Failures)
