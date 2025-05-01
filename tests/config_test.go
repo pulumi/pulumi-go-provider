@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 type testConfig struct {
@@ -57,7 +58,7 @@ func TestInferConfigWrap(t *testing.T) {
 		"test", semver.MustParse("1.2.3"),
 		infer.Wrap(p.Provider{
 			Configure: func(ctx context.Context, req p.ConfigureRequest) error {
-				assert.Equal(t, "foo", req.Args["field"].StringValue())
+				assert.Equal(t, "foo", req.Args.Get("field").AsString())
 				baseConfigureWasCalled = true
 				return nil
 			},
@@ -74,7 +75,9 @@ func TestInferConfigWrap(t *testing.T) {
 	)
 
 	err := s.Configure(p.ConfigureRequest{
-		Args: resource.PropertyMap{"field": resource.NewProperty("foo")},
+		Args: property.NewMap(map[string]property.Value{
+			"field": property.New("foo"),
+		}),
 	})
 	require.NoError(t, err)
 
@@ -109,45 +112,46 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Config: infer.Config[config](),
 	})).CheckConfig(p.CheckRequest{
-		News: resource.PropertyMap{
-			"field": resource.NewProperty("value"),
-			"nested": resource.NewProperty(resource.PropertyMap{
-				"int":        resource.NewProperty(1.0),
-				"not-nested": resource.NewProperty("not-secret"),
+		Inputs: property.NewMap(map[string]property.Value{
+			"field": property.New("value"),
+			"nested": property.New(map[string]property.Value{
+				"int":        property.New(1.0),
+				"not-nested": property.New("not-secret"),
 			}),
-			"arrayNested": resource.NewProperty([]resource.PropertyValue{
-				resource.NewProperty(resource.PropertyMap{
-					"field": resource.NewProperty("123"),
+			"arrayNested": property.New([]property.Value{
+				property.New(map[string]property.Value{
+					"field": property.New("123"),
 				}),
 			}),
-			"mapNested": resource.NewProperty(resource.PropertyMap{
-				"key": resource.NewProperty(resource.PropertyMap{
-					"field": resource.NewProperty("123"),
+			"mapNested": property.New(map[string]property.Value{
+				"key": property.New(map[string]property.Value{
+					"field": property.New("123"),
 				}),
 			}),
-			"not": resource.NewProperty("not-secret"),
-		},
+			"not": property.New("not-secret"),
+		}),
 	})
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
-	assert.Equal(t, resource.PropertyMap{
-		"field": resource.MakeSecret(resource.NewProperty("value")),
-		"nested": resource.NewProperty(resource.PropertyMap{
-			"int":        resource.MakeSecret(resource.NewProperty(1.0)),
-			"not-nested": resource.NewProperty("not-secret"),
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"__pulumi-go-provider-infer": property.New(true),
+		"field":                      property.New("value").WithSecret(true),
+		"nested": property.New(map[string]property.Value{
+			"int":        property.New(1.0).WithSecret(true),
+			"not-nested": property.New("not-secret"),
 		}),
-		"arrayNested": resource.NewProperty([]resource.PropertyValue{
-			resource.NewProperty(resource.PropertyMap{
-				"field": resource.MakeSecret(resource.NewProperty("123")),
+		"arrayNested": property.New([]property.Value{
+			property.New(map[string]property.Value{
+				"field": property.New("123").WithSecret(true),
 			}),
 		}),
-		"mapNested": resource.NewProperty(resource.PropertyMap{
-			"key": resource.NewProperty(resource.PropertyMap{
-				"field": resource.MakeSecret(resource.NewProperty("123")),
+		"mapNested": property.New(map[string]property.Value{
+			"key": property.New(map[string]property.Value{
+				"field": property.New("123").WithSecret(true),
 			}),
 		}),
-		"not": resource.NewProperty("not-secret"),
-	}, resp.Inputs)
+		"not": property.New("not-secret"),
+	}), resp.Inputs)
 }
 
 type config struct {
@@ -161,25 +165,25 @@ var _ infer.CustomCheck[*config] = &config{}
 func (c *config) Check(
 	ctx context.Context, req infer.CheckRequest,
 ) (infer.CheckResponse[*config], error) {
-	if req.NewInputs.ContainsSecrets() {
+	if property.New(req.NewInputs).HasSecrets() {
 		return infer.CheckResponse[*config]{Inputs: c}, fmt.Errorf("found secrets")
 	}
 
-	if v, ok := req.NewInputs["applyDefaults"]; ok && v.IsBool() && v.BoolValue() {
+	if v, ok := req.NewInputs.GetOk("applyDefaults"); ok && v.IsBool() && v.AsBool() {
 		d, f, err := infer.DefaultCheck[config](ctx, req.NewInputs)
 		*c = d
 		return infer.CheckResponse[*config]{Inputs: &d, Failures: f}, err
 	}
 
 	// No defaults, so apply manually
-	if v := req.NewInputs["field"]; v.IsString() {
-		c.Field = v.StringValue()
+	if v := req.NewInputs.Get("field"); v.IsString() {
+		c.Field = v.AsString()
 	}
-	if v := req.NewInputs["not"]; v.IsString() {
-		c.NotSecret = v.StringValue()
+	if v := req.NewInputs.Get("not"); v.IsString() {
+		c.NotSecret = v.AsString()
 	}
-	if v := req.NewInputs["apply-defaults"]; v.IsBool() {
-		c.ApplyDefaults = v.BoolValue()
+	if v := req.NewInputs.Get("apply-defaults"); v.IsBool() {
+		c.ApplyDefaults = v.AsBool()
 	}
 	return infer.CheckResponse[*config]{Inputs: c}, nil
 }
@@ -199,19 +203,20 @@ func TestInferCustomCheckConfig(t *testing.T) {
 			t.Parallel()
 			resp, err := s.CheckConfig(p.CheckRequest{
 				Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
-				News: resource.PropertyMap{
-					"field":         resource.NewProperty("value"),
-					"not":           resource.NewProperty("not-secret"),
-					"applyDefaults": resource.NewProperty(applyDefaults),
-				},
+				Inputs: property.NewMap(map[string]property.Value{
+					"field":         property.New("value"),
+					"not":           property.New("not-secret"),
+					"applyDefaults": property.New(applyDefaults),
+				}),
 			})
 			require.NoError(t, err)
 			require.Empty(t, resp.Failures)
-			assert.Equal(t, resource.PropertyMap{
-				"field":         resource.MakeSecret(resource.NewProperty("value")),
-				"not":           resource.NewProperty("not-secret"),
-				"applyDefaults": resource.NewProperty(applyDefaults),
-			}, resp.Inputs)
+			assert.Equal(t, property.NewMap(map[string]property.Value{
+				"__pulumi-go-provider-infer": property.New(true),
+				"field":                      property.New("value").WithSecret(true),
+				"not":                        property.New("not-secret"),
+				"applyDefaults":              property.New(applyDefaults),
+			}), resp.Inputs)
 		})
 	}
 }

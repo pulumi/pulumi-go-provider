@@ -37,8 +37,8 @@ func TestRapidDeepEqual(t *testing.T) {
 	t.Run("distinct-values", rapid.MakeCheck(func(t *rapid.T) { //nolint:paralleltest
 		// keyFn is how [rapid] determines that values are distinct.
 		//
-		// We do this by calling [fmt.Stringer.String] on the normalized form of v.
-		keyFn := func(v r.PropertyValue) string { return normalize(v).String() }
+		// We do this by calling [fmt.Stringer.String] on the folded form of v.
+		keyFn := func(v r.PropertyValue) string { return foldOutputValue(v).String() }
 		values := rapid.SliceOfNDistinct(
 			rresource.PropertyValue(5), 2, 2, keyFn,
 		).Draw(t, "distinct")
@@ -98,6 +98,76 @@ func TestRapidDeepEqual(t *testing.T) {
 	})
 }
 
-func normalize(p r.PropertyValue) r.PropertyValue {
-	return r.ToResourcePropertyValue(r.FromResourcePropertyValue(p))
+func foldOutputValue(v r.PropertyValue) r.PropertyValue {
+	known := true
+	secret := false
+search:
+	for {
+		switch {
+		case v.IsSecret():
+			secret = true
+			v = v.SecretValue().Element
+		case v.IsComputed():
+			known = false
+			v = v.Input().Element
+		case v.IsOutput():
+			o := v.OutputValue()
+			known = o.Known && known
+			secret = o.Secret || secret
+			v = o.Element
+		default:
+			break search
+		}
+	}
+	if known && !secret {
+		return v
+	}
+	return r.NewOutputProperty(r.Output{
+		Element: v,
+		Known:   known,
+		Secret:  secret,
+	})
+}
+
+func TestParseProviderReference(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+
+		type testCase struct {
+			ref string
+			urn r.URN
+			id  r.ID
+		}
+		testCases := []testCase{
+			{
+				ref: "urn:pulumi:test::test::pulumi:providers:test::my-provider::09e6d266-58b0-4452-8395-7bbe03011fad",
+				urn: r.URN("urn:pulumi:test::test::pulumi:providers:test::my-provider"),
+				id:  r.ID("09e6d266-58b0-4452-8395-7bbe03011fad"),
+			},
+		}
+
+		for _, tc := range testCases {
+			urn, id, err := putil.ParseProviderReference(tc.ref)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.urn, urn)
+			assert.Equal(t, tc.id, id)
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []string{
+			"p1",
+			"not::a:valid:urn::id",
+			"urn:pulumi:test::test::pulumi:providers:test::my-provider",
+		}
+
+		for _, tc := range testCases {
+			_, _, err := putil.ParseProviderReference(tc)
+			assert.Error(t, err, "expected an invalid reference: %s", tc)
+		}
+	})
 }

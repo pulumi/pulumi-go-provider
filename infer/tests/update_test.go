@@ -17,33 +17,30 @@ package tests
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
+//nolint:lll
 func TestUpdateManualDeps(t *testing.T) {
 	t.Parallel()
 
-	type m = resource.PropertyMap
-	c := resource.MakeComputed
-	s := resource.NewStringProperty
-	n := resource.NewNumberProperty
-
 	test := func(
 		testName, resource string,
-		olds, newsPreview, newsUpdate, expectedPreview, expectedUp m,
+		olds, newsPreview, newsUpdate, expectedPreview, expectedUp property.Map,
 	) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			t.Run("preview", func(t *testing.T) {
 				t.Parallel()
-				prov := provider()
+				prov := provider(t)
 				resp, err := prov.Update(p.UpdateRequest{
-					ID:   "some-id",
-					Urn:  urn(resource, "test"),
-					Olds: olds, News: newsPreview,
+					ID:      "some-id",
+					Urn:     urn(resource, "test"),
+					State:   olds,
+					Inputs:  newsPreview,
 					Preview: true,
 				})
 				assert.NoError(t, err)
@@ -53,11 +50,11 @@ func TestUpdateManualDeps(t *testing.T) {
 			})
 			t.Run("update", func(t *testing.T) {
 				t.Parallel()
-				prov := provider()
+				prov := provider(t)
 				resp, err := prov.Update(p.UpdateRequest{
-					ID:   "some-id",
-					Urn:  urn(resource, "test"),
-					Olds: olds, News: newsUpdate,
+					ID:    "some-id",
+					Urn:   urn(resource, "test"),
+					State: olds, Inputs: newsUpdate,
 				})
 				assert.NoError(t, err)
 				assert.Equal(t, p.UpdateResponse{
@@ -67,86 +64,86 @@ func TestUpdateManualDeps(t *testing.T) {
 		})
 	}
 
+	type m = map[string]property.Value
+
 	test("unchanged", "Wired",
-		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},  // Old Input
-		m{"string": s("str"), "int": n(5)},                                            // New Preview
-		m{"string": s("str"), "int": n(5)},                                            // New Update
-		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str++")}, // Preview inputs
-		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str++")}) // Full inputs
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str+")}),  // Old Input
+		property.NewMap(m{"string": property.New("str"), "int": property.New(5.0)}),                                                     // New Preview
+		property.NewMap(m{"string": property.New("str"), "int": property.New(5.0)}),                                                     // New Update
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str++")}), // Preview inputs
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str++")})) // Full inputs
 
 	test("int-computed", "Wired",
-		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},     // Old Input
-		m{"string": s("str"), "int": c(n(5))},                                            // New Input
-		m{"string": s("str"), "int": n(10)},                                              // New Update
-		m{"name": s("some-id"), "stringAndInt": c(s("str-5")), "stringPlus": s("str++")}, // Preview inputs
-		m{"name": s("some-id"), "stringAndInt": s("str-10"), "stringPlus": s("str++")})   // Full inputs
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str+")}),            // Old Input
+		property.NewMap(m{"string": property.New("str"), "int": property.New(property.Computed)}),                                                 // New Input
+		property.NewMap(m{"string": property.New("str"), "int": property.New(10.0)}),                                                              // New Update
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New(property.Computed), "stringPlus": property.New("str++")}), // Preview inputs
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("str-10"), "stringPlus": property.New("str++")}))          // Full inputs
 
 	test("string-computed", "Wired",
-		m{"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+")},        // Old Input
-		m{"string": c(s("str")), "int": n(5)},                                               // New Input
-		m{"string": s("foo"), "int": n(5)},                                                  // New Update
-		m{"name": s("some-id"), "stringAndInt": c(s("str-5")), "stringPlus": c(s("str++"))}, // Preview inputs
-		m{"name": s("some-id"), "stringAndInt": s("foo-5"), "stringPlus": s("foo++")})       // Full inputs
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str+")}),                      // Old Input
+		property.NewMap(m{"string": property.New(property.Computed), "int": property.New(5.0)}),                                                             // New Input
+		property.NewMap(m{"string": property.New("foo"), "int": property.New(5.0)}),                                                                         // New Update
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New(property.Computed), "stringPlus": property.New(property.Computed)}), // Preview inputs
+		property.NewMap(m{"name": property.New("some-id"), "stringAndInt": property.New("foo-5"), "stringPlus": property.New("foo++")}))                     // Full inputs
 
 	test("int-changed", "WiredPlus",
-		m{ // Old Input
-			"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+"),
-			"string": s("str"), "int": n(5),
-		},
-		m{"string": s("str"), "int": n(10)}, // New Input
-		m{"string": s("str"), "int": n(10)}, // New Update
-		m{ // Preview inputs: int changed -> stringAndInt is now computed
-			"name": s("some-id"), "stringAndInt": c(s("str-10")), "stringPlus": s("str++"),
-			"string": s("str"), "int": n(10),
-		},
-		m{ // Full inputs
-			"name": s("some-id"), "stringAndInt": s("str-10"), "stringPlus": s("str++"),
-			"string": s("str"), "int": n(10),
-		})
+		property.NewMap(m{ // Old Input
+			"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str+"),
+			"string": property.New("str"), "int": property.New(5.0),
+		}),
+		property.NewMap(m{"string": property.New("str"), "int": property.New(10.0)}), // New Input
+		property.NewMap(m{"string": property.New("str"), "int": property.New(10.0)}), // New Update
+		property.NewMap(m{ // Preview inputs: int changed -> stringAndInt is now computed
+			"name": property.New("some-id"), "stringAndInt": property.New(property.Computed), "stringPlus": property.New("str++"),
+			"string": property.New("str"), "int": property.New(10.0),
+		}),
+		property.NewMap(m{ // Full inputs
+			"name": property.New("some-id"), "stringAndInt": property.New("str-10"), "stringPlus": property.New("str++"),
+			"string": property.New("str"), "int": property.New(10.0),
+		}))
 
 	test("string-changed", "WiredPlus",
-		m{ // Old Input
-			"name": s("some-id"), "stringAndInt": s("str-5"), "stringPlus": s("str+"),
-			"string": s("old-str"), "int": n(5),
-		},
-		m{"string": s("new-str"), "int": n(5)}, // New Input
-		m{"string": s("new-str"), "int": n(5)}, // New Update
-		m{ // Preview inputs
-			"name": s("some-id"), "stringAndInt": c(s("new-str-5")), "stringPlus": c(s("new-str++")),
-			"string": s("new-str"), "int": n(5),
-		},
-		m{ // Full inputs
-			"name": s("some-id"), "stringAndInt": s("new-str-5"), "stringPlus": s("new-str++"),
-			"string": s("new-str"), "int": n(5),
-		})
+		property.NewMap(m{ // Old Input
+			"name": property.New("some-id"), "stringAndInt": property.New("str-5"), "stringPlus": property.New("str+"),
+			"string": property.New("old-str"), "int": property.New(5.0),
+		}),
+		property.NewMap(m{"string": property.New("new-str"), "int": property.New(5.0)}), // New Input
+		property.NewMap(m{"string": property.New("new-str"), "int": property.New(5.0)}), // New Update
+		property.NewMap(m{ // Preview inputs
+			"name": property.New("some-id"), "stringAndInt": property.New(property.Computed), "stringPlus": property.New(property.Computed),
+			"string": property.New("new-str"), "int": property.New(5.0),
+		}),
+		property.NewMap(m{ // Full inputs
+			"name": property.New("some-id"), "stringAndInt": property.New("new-str-5"), "stringPlus": property.New("new-str++"),
+			"string": property.New("new-str"), "int": property.New(5.0),
+		}))
 }
 
 func TestUpdateDefaultDeps(t *testing.T) {
 	t.Parallel()
-	c := resource.MakeComputed
-	s := resource.NewStringProperty
-	n := resource.NewNumberProperty
 
-	test := func(t *testing.T, newString resource.PropertyValue,
-		expectedPreview, expectedUp resource.PropertyMap) {
+	test := func(t *testing.T, newString property.Value,
+		expectedPreview, expectedUp property.Map,
+	) {
 		t.Run("preview", func(t *testing.T) {
 			t.Parallel()
-			prov := provider()
+			prov := provider(t)
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
 				Urn: urn("Echo", "preview"),
-				Olds: resource.PropertyMap{
-					"string":    s("old-string"),
-					"int":       n(1),
-					"intOut":    n(1),
-					"nameOut":   s("old-name"),
-					"stringOut": s("old-string"),
-				},
-				News: resource.PropertyMap{
+				State: property.NewMap(map[string]property.Value{
+					"string":    property.New("old-string"),
+					"int":       property.New(1.0),
+					"intOut":    property.New(1.0),
+					"nameOut":   property.New("old-name"),
+					"stringOut": property.New("old-string"),
+				}),
+				Inputs: property.NewMap(map[string]property.Value{
 					// Became computed
 					"string": newString,
-					"int":    n(1),
-				},
+					"int":    property.New(1.0),
+				}),
 				Preview: true,
 			})
 			assert.NoError(t, err)
@@ -154,24 +151,29 @@ func TestUpdateDefaultDeps(t *testing.T) {
 				Properties: expectedPreview,
 			}, resp)
 		})
+		if newString.IsComputed() {
+			// We can't run the update with newString if it's computed, since
+			// providers should never receive computed values on a non-preview
+			// update.
+			return
+		}
 		t.Run("update", func(t *testing.T) {
 			t.Parallel()
-			prov := provider()
+			prov := provider(t)
 			resp, err := prov.Update(p.UpdateRequest{
 				ID:  "some-id",
 				Urn: urn("Echo", "update"),
-				Olds: resource.PropertyMap{
-					"string":    s("old-string"),
-					"int":       n(1),
-					"intOut":    n(1),
-					"nameOut":   s("old-name"),
-					"stringOut": s("old-string"),
-				},
-				News: resource.PropertyMap{
-					// Became computed
+				State: property.NewMap(map[string]property.Value{
+					"string":    property.New("old-string"),
+					"int":       property.New(1.0),
+					"intOut":    property.New(1.0),
+					"nameOut":   property.New("old-name"),
+					"stringOut": property.New("old-string"),
+				}),
+				Inputs: property.NewMap(map[string]property.Value{
 					"string": newString,
-					"int":    n(1),
-				},
+					"int":    property.New(1.0),
+				}),
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, p.UpdateResponse{
@@ -181,59 +183,59 @@ func TestUpdateDefaultDeps(t *testing.T) {
 	}
 	t.Run("computed", func(t *testing.T) {
 		t.Parallel()
-		test(t, c(s("old-string")),
-			resource.PropertyMap{
-				"string":    c(s("old-string")),
-				"int":       n(1),
-				"stringOut": c(s("old-string")),
-				"intOut":    c(n(1)),
-				"nameOut":   c(s("old-name")),
-			},
-			resource.PropertyMap{
-				"string":    s("old-string"),
-				"int":       n(1),
-				"stringOut": s("old-string"),
-				"intOut":    n(1),
-				"nameOut":   s("old-name"),
-			},
+		test(t, property.New(property.Computed),
+			property.NewMap(map[string]property.Value{
+				"string":    property.New(property.Computed),
+				"int":       property.New(1.0),
+				"stringOut": property.New(property.Computed),
+				"intOut":    property.New(property.Computed),
+				"nameOut":   property.New(property.Computed),
+			}),
+			property.NewMap(map[string]property.Value{
+				"string":    property.New("old-string"),
+				"int":       property.New(1.0),
+				"stringOut": property.New("old-string"),
+				"intOut":    property.New(1.0),
+				"nameOut":   property.New("old-name"),
+			}),
 		)
 	})
 	t.Run("changed", func(t *testing.T) {
 		t.Parallel()
-		test(t, s("new-string"),
-			resource.PropertyMap{
-				"string":    c(s("old-string")),
-				"int":       n(1),
-				"stringOut": c(s("old-string")),
-				"intOut":    c(n(1)),
-				"nameOut":   c(s("old-name")),
-			},
-			resource.PropertyMap{
-				"string":    s("new-string"),
-				"int":       n(1),
-				"stringOut": s("new-string"),
-				"intOut":    n(1),
-				"nameOut":   s("old-name"),
-			},
+		test(t, property.New("new-string"),
+			property.NewMap(map[string]property.Value{
+				"string":    property.New(property.Computed),
+				"int":       property.New(1.0),
+				"stringOut": property.New(property.Computed),
+				"intOut":    property.New(property.Computed),
+				"nameOut":   property.New(property.Computed),
+			}),
+			property.NewMap(map[string]property.Value{
+				"string":    property.New("new-string"),
+				"int":       property.New(1.0),
+				"stringOut": property.New("new-string"),
+				"intOut":    property.New(1.0),
+				"nameOut":   property.New("old-name"),
+			}),
 		)
 	})
 	t.Run("unchanged", func(t *testing.T) {
 		t.Parallel()
-		test(t, s("old-string"),
-			resource.PropertyMap{
-				"string":    s("old-string"),
-				"int":       n(1),
-				"stringOut": s("old-string"),
-				"intOut":    n(1),
-				"nameOut":   s("old-name"),
-			},
-			resource.PropertyMap{
-				"string":    s("old-string"),
-				"int":       n(1),
-				"stringOut": s("old-string"),
-				"intOut":    n(1),
-				"nameOut":   s("old-name"),
-			},
+		test(t, property.New("old-string"),
+			property.NewMap(map[string]property.Value{
+				"string":    property.New("old-string"),
+				"int":       property.New(1.0),
+				"stringOut": property.New("old-string"),
+				"intOut":    property.New(1.0),
+				"nameOut":   property.New("old-name"),
+			}),
+			property.NewMap(map[string]property.Value{
+				"string":    property.New("old-string"),
+				"int":       property.New(1.0),
+				"stringOut": property.New("old-string"),
+				"intOut":    property.New(1.0),
+				"nameOut":   property.New("old-name"),
+			}),
 		)
 	})
 }

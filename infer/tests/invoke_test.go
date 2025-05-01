@@ -17,7 +17,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,16 +26,13 @@ import (
 
 func TestInvoke(t *testing.T) {
 	t.Parallel()
-	pString := resource.NewStringProperty
-	type pMap = resource.PropertyMap
-	type pValue = resource.PropertyValue
 
 	t.Run("missing-arg", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
-			Args:  pMap{},
+			Args:  property.Map{},
 		})
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(resp.Failures)) // Missing required field `elems`
@@ -43,63 +40,63 @@ func TestInvoke(t *testing.T) {
 
 	t.Run("all-args", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
-			Args: pMap{
-				"elems": pValue{V: []pValue{
-					pString("foo"),
-					pString("bar"),
-				}},
-				"sep": pString("-"),
-			},
+			Args: property.NewMap(map[string]property.Value{
+				"elems": property.New([]property.Value{
+					property.New("foo"),
+					property.New("bar"),
+				}),
+				"sep": property.New("-"),
+			}),
 		})
 		require.NoError(t, err)
 		assert.Empty(t, resp.Failures)
 
-		assert.Equal(t, pMap{
-			"result": pString("foo-bar"),
-		}, resp.Return)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"result": property.New("foo-bar"),
+		}), resp.Return)
 	})
 
 	t.Run("default-args", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
-			Args: pMap{
-				"elems": pValue{V: []pValue{
-					pString("foo"),
-					pString("bar"),
-				}},
-			},
+			Args: property.NewMap(map[string]property.Value{
+				"elems": property.New([]property.Value{
+					property.New("foo"),
+					property.New("bar"),
+				}),
+			}),
 		})
 		require.NoError(t, err)
 		assert.Empty(t, resp.Failures)
 
-		assert.Equal(t, pMap{
-			"result": pString("foo,bar"), // default value is ","
-		}, resp.Return)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"result": property.New("foo,bar"), // default value is ","
+		}), resp.Return)
 	})
 	t.Run("zero-args", func(t *testing.T) {
 		t.Parallel()
-		prov := provider()
+		prov := provider(t)
 		resp, err := prov.Invoke(p.InvokeRequest{
 			Token: "test:index:getJoin",
-			Args: pMap{
-				"elems": pValue{V: []pValue{
-					pString("foo"),
-					pString("bar"),
-				}},
-				"sep": pString(""),
-			},
+			Args: property.NewMap(map[string]property.Value{
+				"elems": property.New([]property.Value{
+					property.New("foo"),
+					property.New("bar"),
+				}),
+				"sep": property.New(""),
+			}),
 		})
 		require.NoError(t, err)
 		assert.Empty(t, resp.Failures)
 
-		assert.Equal(t, pMap{
-			"result": pString("foobar"), // The default doesn't apply here
-		}, resp.Return)
+		assert.Equal(t, property.NewMap(map[string]property.Value{
+			"result": property.New("foobar"), // The default doesn't apply here
+		}), resp.Return)
 	})
 
 }

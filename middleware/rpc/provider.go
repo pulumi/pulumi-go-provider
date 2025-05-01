@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -37,9 +38,6 @@ import (
 //
 // It is intended that Provider is used to wrap legacy native provider implementations
 // while they are gradually transferred over to pulumi-go-provider based implementations.
-//
-// Construct, Call and StreamInvoke are not supported and will always return
-// unimplemented.
 func Provider(server rpc.ResourceProviderServer) p.Provider {
 	var runtime runtime // the runtime configuration of the server
 	return p.Provider{
@@ -65,12 +63,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			return err
 		},
 		CheckConfig: func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
 
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
@@ -83,15 +81,11 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		DiffConfig: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			ignoreChanges := make([]string, len(req.IgnoreChanges))
-			for i, v := range req.IgnoreChanges {
-				ignoreChanges[i] = string(v)
-			}
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
@@ -101,7 +95,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Urn:           string(req.Urn),
 				Olds:          olds,
 				News:          news,
-				IgnoreChanges: ignoreChanges,
+				IgnoreChanges: req.IgnoreChanges,
 			}))
 		},
 		Configure: func(ctx context.Context, req p.ConfigureRequest) error {
@@ -119,7 +113,6 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			return err
 		},
 		Invoke: func(ctx context.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-
 			args, err := runtime.propertyToRPC(req.Args)
 			if err != nil {
 				return p.InvokeResponse{}, err
@@ -136,12 +129,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}, err
 		},
 		Check: func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
 
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
@@ -154,16 +147,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		Diff: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			ignoreChanges := make([]string, len(req.IgnoreChanges))
-			for i, v := range req.IgnoreChanges {
-				ignoreChanges[i] = string(v)
-			}
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
 
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
@@ -173,7 +162,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Urn:           string(req.Urn),
 				Olds:          olds,
 				News:          news,
-				IgnoreChanges: ignoreChanges,
+				IgnoreChanges: req.IgnoreChanges,
 			}))
 		},
 		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
@@ -226,17 +215,13 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.UpdateResponse{}, nil
 			}
-			ignoreChanges := make([]string, len(req.IgnoreChanges))
-			for i, v := range req.IgnoreChanges {
-				ignoreChanges[i] = string(v)
-			}
 
-			inOlds, err := runtime.propertyToRPC(req.Olds)
+			inOlds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.UpdateResponse{}, err
 			}
 
-			inNews, err := runtime.propertyToRPC(req.News)
+			inNews, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.UpdateResponse{}, err
 			}
@@ -247,7 +232,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Olds:          inOlds,
 				News:          inNews,
 				Timeout:       req.Timeout,
-				IgnoreChanges: ignoreChanges,
+				IgnoreChanges: req.IgnoreChanges,
 				Preview:       req.Preview,
 			})
 
@@ -268,6 +253,42 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Timeout:    req.Timeout,
 			})
 			return err
+		},
+		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
+			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+				return p.ConstructResponse{}, nil
+			}
+
+			rpcReq := linkedConstructRequestToRPC(&req, runtime.propertyToRPC)
+			rpcResp, err := server.Construct(ctx, rpcReq)
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+
+			resp, err := linkedConstructResponseFromRPC(rpcResp)
+			if err != nil {
+				return p.ConstructResponse{}, err
+			}
+
+			return resp, nil
+		},
+		Call: func(ctx context.Context, req p.CallRequest) (p.CallResponse, error) {
+			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+				return p.CallResponse{}, nil
+			}
+
+			rpcReq := linkedCallRequestToRPC(&req, runtime.propertyToRPC)
+			rpcResp, err := server.Call(ctx, rpcReq)
+			if err != nil {
+				return p.CallResponse{}, err
+			}
+
+			resp, err := linkedCallResponseFromRPC(rpcResp)
+			if err != nil {
+				return p.CallResponse{}, err
+			}
+
+			return resp, nil
 		},
 	}
 }
@@ -344,11 +365,12 @@ type runtime struct {
 	configuration *rpc.ConfigureResponse
 }
 
-func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error) {
+func (r runtime) propertyToRPC(m property.Map) (*structpb.Struct, error) {
 	if r.configuration == nil {
 		r.configuration = &rpc.ConfigureResponse{}
 	}
-	s, err := plugin.MarshalProperties(m, plugin.MarshalOptions{
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	s, err := plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		KeepUnknowns:     true,
 		KeepSecrets:      r.configuration.AcceptSecrets,
 		KeepResources:    r.configuration.AcceptResources,
@@ -357,9 +379,9 @@ func (r runtime) propertyToRPC(m resource.PropertyMap) (*structpb.Struct, error)
 	return s, err
 }
 
-func rpcToProperty(s *structpb.Struct, previousError error) (resource.PropertyMap, error) {
+func rpcToProperty(s *structpb.Struct, previousError error) (property.Map, error) {
 	if s == nil {
-		return nil, previousError
+		return property.Map{}, previousError
 	}
 	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		SkipNulls:        false,
@@ -368,5 +390,5 @@ func rpcToProperty(s *structpb.Struct, previousError error) (resource.PropertyMa
 		KeepResources:    true,
 		KeepOutputValues: true,
 	})
-	return m, errors.Join(err, previousError)
+	return resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(), errors.Join(err, previousError)
 }

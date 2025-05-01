@@ -20,11 +20,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 )
@@ -34,19 +37,27 @@ func urn(typ, name string) resource.URN {
 		tokens.Type("test:index:"+typ), name)
 }
 
+func childUrn(typ, name, parent string) resource.URN {
+	return resource.NewURN("stack", "proj", tokens.Type("test:index:"+parent),
+		tokens.Type("test:index:"+typ), name)
+}
+
 // Increment helps us test the highly suspicious behavior of naming an input the same as
 // an output, while giving them different values. This should never be done in practice,
 // but we need to accommodate the behavior while we allow it.
-type Increment struct{}
-type IncrementArgs struct {
-	Number int `pulumi:"int"`
-	Other  int `pulumi:"other,optional"`
-}
+type (
+	Increment     struct{}
+	IncrementArgs struct {
+		Number int `pulumi:"int"`
+		Other  int `pulumi:"other,optional"`
+	}
+)
 
 type IncrementOutput struct{ IncrementArgs }
 
 func (*Increment) Create(_ context.Context,
-	req infer.CreateRequest[IncrementArgs]) (infer.CreateResponse[IncrementOutput], error) {
+	req infer.CreateRequest[IncrementArgs],
+) (infer.CreateResponse[IncrementOutput], error) {
 	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: req.Inputs.Number + 1}}
 	return infer.CreateResponse[IncrementOutput]{
 		ID:     fmt.Sprintf("id-%d", req.Inputs.Number),
@@ -54,12 +65,15 @@ func (*Increment) Create(_ context.Context,
 	}, nil
 }
 
-type Echo struct{}
-type EchoInputs struct {
-	String string            `pulumi:"string"`
-	Int    int               `pulumi:"int"`
-	Map    map[string]string `pulumi:"strMap,optional"`
-}
+type (
+	Echo       struct{}
+	EchoInputs struct {
+		String string            `pulumi:"string"`
+		Int    int               `pulumi:"int"`
+		Map    map[string]string `pulumi:"strMap,optional"`
+	}
+)
+
 type EchoOutputs struct {
 	EchoInputs
 	Name      string            `pulumi:"nameOut"`
@@ -69,7 +83,8 @@ type EchoOutputs struct {
 }
 
 func (*Echo) Create(ctx context.Context,
-	req infer.CreateRequest[EchoInputs]) (infer.CreateResponse[EchoOutputs], error) {
+	req infer.CreateRequest[EchoInputs],
+) (infer.CreateResponse[EchoOutputs], error) {
 	id := req.Name + "-id"
 	state := EchoOutputs{EchoInputs: req.Inputs}
 
@@ -92,31 +107,35 @@ func (*Echo) Create(ctx context.Context,
 }
 
 func (*Echo) Update(ctx context.Context,
-	req infer.UpdateRequest[EchoInputs, EchoOutputs]) (infer.UpdateResponse[EchoOutputs], error) {
+	req infer.UpdateRequest[EchoInputs, EchoOutputs],
+) (infer.UpdateResponse[EchoOutputs], error) {
 	if req.Preview {
 		return infer.UpdateResponse[EchoOutputs]{
-			Output: req.Olds,
+			Output: req.State,
 		}, nil
 	}
 
 	return infer.UpdateResponse[EchoOutputs]{
 		Output: EchoOutputs{
-			EchoInputs: req.News,
-			Name:       req.Olds.Name,
-			StringOut:  req.News.String,
-			IntOut:     req.News.Int,
-			MapOut:     req.News.Map,
+			EchoInputs: req.Inputs,
+			Name:       req.State.Name,
+			StringOut:  req.Inputs.String,
+			IntOut:     req.Inputs.Int,
+			MapOut:     req.Inputs.Map,
 		},
 	}, nil
 }
 
 var _ = (infer.ExplicitDependencies[WiredInputs, WiredOutputs])((*Wired)(nil))
 
-type Wired struct{}
-type WiredInputs struct {
-	String string `pulumi:"string"`
-	Int    int    `pulumi:"int"`
-}
+type (
+	Wired       struct{}
+	WiredInputs struct {
+		String string `pulumi:"string"`
+		Int    int    `pulumi:"int"`
+	}
+)
+
 type WiredOutputs struct {
 	Name         string `pulumi:"name"`
 	StringAndInt string `pulumi:"stringAndInt"`
@@ -124,7 +143,8 @@ type WiredOutputs struct {
 }
 
 func (*Wired) Create(ctx context.Context,
-	req infer.CreateRequest[WiredInputs]) (infer.CreateResponse[WiredOutputs], error) {
+	req infer.CreateRequest[WiredInputs],
+) (infer.CreateResponse[WiredOutputs], error) {
 	id := req.Name + "-id"
 	state := WiredOutputs{Name: "(" + req.Name + ")"}
 
@@ -150,8 +170,8 @@ func (*Wired) Update(
 	return infer.UpdateResponse[WiredOutputs]{
 		Output: WiredOutputs{
 			Name:         req.ID,
-			StringAndInt: fmt.Sprintf("%s-%d", req.News.String, req.News.Int),
-			StringPlus:   req.News.String + "++",
+			StringAndInt: fmt.Sprintf("%s-%d", req.Inputs.String, req.Inputs.Int),
+			StringPlus:   req.Inputs.String + "++",
 		},
 	}, nil
 }
@@ -168,7 +188,6 @@ func (*Wired) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *WiredOu
 	stringOut.DependsOn(stringIn) // Passthrough value with a mutation
 	stringAndInt.DependsOn(stringIn)
 	stringAndInt.DependsOn(intIn)
-
 }
 
 var _ = (infer.ExplicitDependencies[WiredInputs, WiredOutputs])((*Wired)(nil))
@@ -176,11 +195,13 @@ var _ = (infer.ExplicitDependencies[WiredInputs, WiredOutputs])((*Wired)(nil))
 // WiredPlus plus is like wired, but has its inputs embedded with its outputs.
 //
 // This allows it to remember old inputs when calculating which fields have changed.
-type WiredPlus struct{}
-type WiredPlusOutputs struct {
-	WiredInputs
-	WiredOutputs
-}
+type (
+	WiredPlus        struct{}
+	WiredPlusOutputs struct {
+		WiredInputs
+		WiredOutputs
+	}
+)
 
 func (*WiredPlus) Create(
 	ctx context.Context, req infer.CreateRequest[WiredInputs],
@@ -205,8 +226,8 @@ func (*WiredPlus) Update(
 	r := new(Wired)
 	updateReq := infer.UpdateRequest[WiredInputs, WiredOutputs]{
 		ID:      req.ID,
-		Olds:    req.Olds.WiredOutputs,
-		News:    req.News,
+		State:   req.State.WiredOutputs,
+		Inputs:  req.Inputs,
 		Preview: req.Preview,
 	}
 	resp, err := r.Update(ctx, updateReq)
@@ -215,7 +236,7 @@ func (*WiredPlus) Update(
 	}
 	return infer.UpdateResponse[WiredPlusOutputs]{
 		Output: WiredPlusOutputs{
-			WiredInputs:  req.News,
+			WiredInputs:  req.Inputs,
 			WiredOutputs: resp.Output,
 		},
 	}, nil
@@ -231,8 +252,10 @@ func (*WiredPlus) WireDependencies(f infer.FieldSelector, a *WiredInputs, s *Wir
 
 // TODO[pulumi-go-provider#98] Remove the ,optional.
 
-type WithDefaults struct{}
-type WithDefaultsOutput struct{ WithDefaultsArgs }
+type (
+	WithDefaults       struct{}
+	WithDefaultsOutput struct{ WithDefaultsArgs }
+)
 
 var (
 	_ infer.Annotated = (*WithDefaultsArgs)(nil)
@@ -319,13 +342,15 @@ func (w *WithDefaults) Create(
 }
 
 // ReadEnv has fields with default values filled by environmental variables.
-type ReadEnv struct{}
-type ReadEnvArgs struct {
-	String  string  `pulumi:"s,optional"`
-	Int     int     `pulumi:"i,optional"`
-	Float64 float64 `pulumi:"f64,optional"`
-	Bool    bool    `pulumi:"b,optional"`
-}
+type (
+	ReadEnv     struct{}
+	ReadEnvArgs struct {
+		String  string  `pulumi:"s,optional"`
+		Int     int     `pulumi:"i,optional"`
+		Float64 float64 `pulumi:"f64,optional"`
+		Bool    bool    `pulumi:"b,optional"`
+	}
+)
 type ReadEnvOutput struct{ ReadEnvArgs }
 
 func (w *ReadEnvArgs) Annotate(a infer.Annotator) {
@@ -344,11 +369,13 @@ func (w *ReadEnv) Create(
 	}, nil
 }
 
-type Recursive struct{}
-type RecursiveArgs struct {
-	Value string         `pulumi:"value,optional"`
-	Other *RecursiveArgs `pulumi:"other,optional"`
-}
+type (
+	Recursive     struct{}
+	RecursiveArgs struct {
+		Value string         `pulumi:"value,optional"`
+		Other *RecursiveArgs `pulumi:"other,optional"`
+	}
+)
 type RecursiveOutput struct{ RecursiveArgs }
 
 func (w *Recursive) Create(
@@ -368,11 +395,13 @@ type Config struct {
 	Value *string `pulumi:"value,optional"`
 }
 
-type ReadConfig struct{}
-type ReadConfigArgs struct{}
-type ReadConfigOutput struct {
-	Config string `pulumi:"config"`
-}
+type (
+	ReadConfig       struct{}
+	ReadConfigArgs   struct{}
+	ReadConfigOutput struct {
+		Config string `pulumi:"config"`
+	}
+)
 
 func (w *ReadConfig) Create(
 	ctx context.Context, req infer.CreateRequest[ReadConfigArgs],
@@ -385,11 +414,13 @@ func (w *ReadConfig) Create(
 	}, err
 }
 
-type GetJoin struct{}
-type JoinArgs struct {
-	Elems []string `pulumi:"elems"`
-	Sep   *string  `pulumi:"sep,optional"`
-}
+type (
+	GetJoin  struct{}
+	JoinArgs struct {
+		Elems []string `pulumi:"elems"`
+		Sep   *string  `pulumi:"sep,optional"`
+	}
+)
 
 func (j *JoinArgs) Annotate(a infer.Annotator) {
 	a.SetDefault(&j.Sep, ",")
@@ -399,9 +430,10 @@ type JoinResult struct {
 	Result string `pulumi:"result"`
 }
 
-func (*GetJoin) Call(
+func (*GetJoin) Invoke(
 	ctx context.Context,
-	req infer.FunctionRequest[JoinArgs]) (infer.FunctionResponse[JoinResult], error) {
+	req infer.FunctionRequest[JoinArgs],
+) (infer.FunctionResponse[JoinResult], error) {
 	return infer.FunctionResponse[JoinResult]{
 		Output: JoinResult{strings.Join(req.Input.Elems, *req.Input.Sep)},
 	}, nil
@@ -430,19 +462,21 @@ func (*ConfigCustom) Check(ctx context.Context,
 	req infer.CheckRequest,
 ) (infer.CheckResponse[*ConfigCustom], error) {
 	var c ConfigCustom
-	if v, ok := req.NewInputs["number"]; ok {
-		number := v.NumberValue() + 0.5
+	if v, ok := req.NewInputs.GetOk("number"); ok {
+		number := v.AsNumber() + 0.5
 		c.Number = &number
 	}
 
 	return infer.CheckResponse[*ConfigCustom]{Inputs: &c}, nil
 }
 
-type ReadConfigCustom struct{}
-type ReadConfigCustomArgs struct{}
-type ReadConfigCustomOutput struct {
-	Config string `pulumi:"config"`
-}
+type (
+	ReadConfigCustom       struct{}
+	ReadConfigCustomArgs   struct{}
+	ReadConfigCustomOutput struct {
+		Config string `pulumi:"config"`
+	}
+)
 
 func (w *ReadConfigCustom) Create(
 	ctx context.Context, req infer.CreateRequest[ReadConfigCustomArgs],
@@ -453,6 +487,62 @@ func (w *ReadConfigCustom) Create(
 		ID:     "read",
 		Output: ReadConfigCustomOutput{Config: string(bytes)},
 	}, err
+}
+
+type ReadConfigComponentArgs struct{}
+
+type ReadConfigComponent struct {
+	pulumi.ResourceState
+	ReadConfigComponentArgs
+	Config pulumi.StringOutput `pulumi:"config"`
+}
+
+func NewReadConfigComponent(ctx *pulumi.Context, name string, args ReadConfigComponentArgs,
+	opts ...pulumi.ResourceOption,
+) (*ReadConfigComponent, error) {
+	comp := &ReadConfigComponent{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+	c := infer.GetConfig[Config](ctx.Context())
+	bytes, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	comp.Config = pulumi.String(string(bytes)).ToStringOutput()
+
+	return comp, nil
+}
+
+type RandomComponentArgs struct {
+	Prefix pulumi.StringInput `pulumi:"prefix"`
+}
+
+type RandomComponent struct {
+	pulumi.ResourceState
+	RandomComponentArgs
+	Result pulumi.StringOutput `pulumi:"result"`
+}
+
+func NewRandomComponent(ctx *pulumi.Context, name string, args RandomComponentArgs,
+	opts ...pulumi.ResourceOption,
+) (*RandomComponent, error) {
+	comp := &RandomComponent{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if args.Prefix == nil {
+		args.Prefix = pulumi.String("default-")
+	}
+
+	comp.Result = args.Prefix.ToStringOutput().ApplyT(func(prefix string) string {
+		return prefix + "12345"
+	}).(pulumi.StringOutput)
+
+	return comp, nil
 }
 
 var (
@@ -471,7 +561,7 @@ type (
 func (w *CustomCheckNoDefaults) Check(_ context.Context,
 	req infer.CheckRequest,
 ) (infer.CheckResponse[CustomCheckNoDefaultsArgs], error) {
-	input := req.NewInputs["input"].StringValue()
+	input := req.NewInputs.Get("input").AsString()
 	return infer.CheckResponse[CustomCheckNoDefaultsArgs]{
 		Inputs: CustomCheckNoDefaultsArgs{Input: input},
 	}, nil
@@ -501,6 +591,10 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource[*ReadConfigCustom](),
 			infer.Resource[*CustomCheckNoDefaults](),
 		},
+		Components: []infer.InferredComponent{
+			infer.Component(NewRandomComponent),
+			infer.Component(NewReadConfigComponent),
+		},
 		Functions: []infer.InferredFunction{
 			infer.Function[*GetJoin](),
 		},
@@ -508,12 +602,18 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 	}
 }
 
-func provider() integration.Server {
+func provider(t testing.TB) integration.Server {
 	p := infer.Provider(providerOpts(nil))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
 }
 
-func providerWithConfig[T any]() integration.Server {
+func providerWithConfig[T any](t testing.TB) integration.Server {
 	p := infer.Provider(providerOpts(infer.Config[T]()))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+}
+
+func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
+	p := infer.Provider(providerOpts(infer.Config[T]()))
+	return integration.NewServerWithOptions(t.Context(), "test", semver.MustParse("1.0.0"), p,
+		integration.WithMocks(mocks))
 }

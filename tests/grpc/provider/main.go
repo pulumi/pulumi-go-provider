@@ -24,7 +24,6 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
@@ -35,14 +34,15 @@ const methodType = componentType + "/myMethod"
 func main() {
 	if err := p.RunProvider("test", "0.1.0", p.Provider{
 		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
-			if t := req.URN.Type(); t != componentType {
+			if t := req.Urn.Type(); t != componentType {
 				return p.ConstructResponse{}, fmt.Errorf("unknown component type %q", t)
 			}
-			return req.Construct(ctx, func(
-				ctx *pulumi.Context, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
-			) (pulumi.ComponentResource, error) {
+
+			return p.ProgramConstruct(ctx, req, func(
+				ctx *pulumi.Context, typ, name string, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
+			) (*comProvider.ConstructResult, error) {
 				r := new(testComponent)
-				err := inputs.CopyTo(r)
+				err := inputs.CopyTo(&r.testComponentArgs)
 				if err != nil {
 					return nil, err
 				}
@@ -52,36 +52,55 @@ func main() {
 					return nil, err
 				}
 
-				_, err = random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{}, pulumi.Parent(r))
+				pet, err := random.NewRandomPet(ctx, "pet", &random.RandomPetArgs{
+					Prefix: r.MyInput,
+				}, pulumi.Parent(r))
 				if err != nil {
 					return nil, err
 				}
 
-				r.MyOutput = pulumi.StringPtr("my-output").ToStringPtrOutput()
-
+				r.MyOutput = pet.ID().ToStringPtrOutput()
 				err = ctx.RegisterResourceOutputs(r, pulumi.ToMap(map[string]any{
-					"myOutput": "my-output",
+					"myOutput": r.MyOutput,
 				}))
+				if err != nil {
+					return nil, err
+				}
 
-				return r, err
+				return comProvider.NewConstructResult(r)
 			})
 		},
-		Call: func(_ context.Context, req p.CallRequest) (p.CallResponse, error) {
+		Call: func(ctx context.Context, req p.CallRequest) (p.CallResponse, error) {
 			if req.Tok != methodType {
 				return p.CallResponse{}, fmt.Errorf("unknown token %q", req.Tok)
 			}
 
-			_, err := random.NewRandomPet(req.Context, "call-pet", &random.RandomPetArgs{})
-			if err != nil {
-				return p.CallResponse{}, err
-			}
+			return p.ProgramCall(ctx, req, func(ctx *pulumi.Context, tok string, args comProvider.CallArgs,
+			) (*comProvider.CallResult, error) {
+				pet, err := random.NewRandomPet(ctx, "call-pet", &random.RandomPetArgs{})
+				if err != nil {
+					return nil, err
+				}
 
-			return p.CallResponse{
-				Return: resource.PropertyMap{
-					"resp1": resource.NewProperty(req.Args["arg1"].StringValue() +
-						string(req.Args["__self__"].ResourceReferenceValue().URN)),
-				},
-			}, nil
+				callArgs := testCallArgs{}
+				self, err := args.CopyTo(&callArgs)
+				if err != nil {
+					return nil, err
+				}
+
+				resp1 := pulumi.All(self.URN(), callArgs.Arg1, pet.ID()).ApplyT(func(vs []any) (string, error) {
+					urn := vs[0].(pulumi.URN)
+					arg1 := vs[1].(string)
+					id := vs[2].(pulumi.ID)
+					return arg1 + ":" + string(urn) + ":" + string(id), nil
+				}).(pulumi.StringOutput)
+
+				result := testCallResult{
+					Resp1: resp1,
+				}
+
+				return comProvider.NewCallResult(&result)
+			})
 		},
 		GetSchema: func(ctx context.Context, _ p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			return p.GetSchemaResponse{
@@ -94,10 +113,22 @@ func main() {
 	}
 }
 
+type testComponentArgs struct {
+	MyInput pulumi.StringPtrOutput `pulumi:"myInput"`
+}
+
 type testComponent struct {
 	pulumi.ResourceState
-	MyInput  pulumi.StringPtrOutput `pulumi:"myInput"`
+	testComponentArgs
 	MyOutput pulumi.StringPtrOutput `pulumi:"myOutput"`
+}
+
+type testCallArgs struct {
+	Arg1 pulumi.StringInput `pulumi:"arg1"`
+}
+
+type testCallResult struct {
+	Resp1 pulumi.StringOutput `pulumi:"resp1"`
 }
 
 var testSchema = marshalSchema(schema.PackageSpec{

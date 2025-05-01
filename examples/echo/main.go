@@ -10,8 +10,8 @@ import (
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 		},
 		CheckConfig: func(_ context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 			// Assume inputs are valid
-			return p.CheckResponse{Inputs: req.News}, nil
+			return p.CheckResponse{Inputs: req.Inputs}, nil
 		},
 		Configure: func(context.Context, p.ConfigureRequest) error {
 			return nil
@@ -69,16 +69,16 @@ func main() {
 			}
 			return p.CheckResponse{
 				// Only take "value" and ignore everything else.
-				Inputs: resource.PropertyMap{
-					"value": req.News["value"],
-				},
+				Inputs: property.NewMap(map[string]property.Value{
+					"value": req.Inputs.Get("value"),
+				}),
 			}, nil
 		},
 		Diff: func(_ context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 			if req.Urn.Type() != echoType {
 				return p.DiffResponse{}, fmt.Errorf("unknown resource %q", req.Urn.Type())
 			}
-			if req.News["value"].DeepEquals(req.Olds["value"]) {
+			if req.Inputs.Get("value").Equals(req.State.Get("value")) {
 				return p.DiffResponse{
 					HasChanges: false,
 				}, nil
@@ -121,7 +121,7 @@ func main() {
 				return p.UpdateResponse{}, fmt.Errorf("unknown resource %q", req.Urn.Type())
 			}
 			// The provider assumes that all fields are valid, and just updates
-			return p.UpdateResponse{Properties: req.News}, nil
+			return p.UpdateResponse{Properties: req.Inputs}, nil
 		},
 		Delete: func(_ context.Context, req p.DeleteRequest) error {
 			if req.Urn.Type() != echoType {

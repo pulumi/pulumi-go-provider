@@ -21,15 +21,23 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/blang/semver"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/integration/fake"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
+	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 )
 
 type Server interface {
@@ -46,6 +54,29 @@ type Server interface {
 	Update(p.UpdateRequest) (p.UpdateResponse, error)
 	Delete(p.DeleteRequest) error
 	Construct(p.ConstructRequest) (p.ConstructResponse, error)
+	Call(p.CallRequest) (p.CallResponse, error)
+}
+
+type ServerOption interface {
+	applyServerOption(*serverOptions)
+}
+
+// serverOptions is the internal representation of the effect of
+// [ServerOption]s.
+type serverOptions struct {
+	mocks pulumi.MockResourceMonitor
+}
+
+type serverOption func(*serverOptions)
+
+func (o serverOption) applyServerOption(opts *serverOptions) {
+	o(opts)
+}
+
+func WithMocks(mocks pulumi.MockResourceMonitor) ServerOption {
+	return serverOption(func(ro *serverOptions) {
+		ro.mocks = mocks
+	})
 }
 
 func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
@@ -53,20 +84,89 @@ func NewServer(pkg string, version semver.Version, provider p.Provider) Server {
 }
 
 func NewServerWithContext(ctx context.Context, pkg string, version semver.Version, provider p.Provider) Server {
+	return NewServerWithOptions(ctx, pkg, version, provider)
+}
+
+func NewServerWithOptions(ctx context.Context, pkg string, version semver.Version, provider p.Provider,
+	opts ...ServerOption,
+) Server {
+	o := &serverOptions{}
+	for _, opt := range opts {
+		opt.applyServerOption(o)
+	}
+	if o.mocks == nil {
+		o.mocks = &MockMonitor{}
+	}
+
+	host := newHost(ctx, o.mocks)
+
 	return &server{p.RunInfo{
 		PackageName: pkg,
 		Version:     version.String(),
-	}, provider.WithDefaults(), ctx}
+	}, host, provider.WithDefaults(), ctx}
 }
 
+// Server hosts a [Provider] for integration test purposes.
 type server struct {
 	runInfo p.RunInfo
+	host    *host
 	p       p.Provider
 	context context.Context
 }
 
-func (s *server) ctx(presource.URN) context.Context {
-	return context.WithValue(s.context, key.RuntimeInfo, s.runInfo)
+type host struct {
+	lazyInit func()
+
+	engine      *fake.EngineServer
+	engineAddr  string
+	engineConn  *grpc.ClientConn
+	monitor     *fake.ResourceMonitorServer
+	monitorAddr string
+}
+
+func newHost(ctx context.Context, m pulumi.MockResourceMonitor) *host {
+	h := &host{
+		engine:  fake.NewEngineServer(),
+		monitor: fake.NewResourceMonitorServer(m),
+	}
+	h.lazyInit = sync.OnceFunc(func() {
+		// Start the fake Pulumi engine server and connect to it.
+		// Note that the servers and connections are automatically closed when the context is cancelled.
+		engineCtx, engineCancel := context.WithCancel(ctx)
+		engineAddr, engineDone, err := fake.StartEngineServer(engineCtx, h.engine)
+		if err != nil {
+			panic(fmt.Errorf("could not start engine server: %w", err))
+		}
+		h.engineAddr = engineAddr
+		h.engineConn = fake.NewEngineConn(h.engineAddr)
+
+		monitorCtx, monitorCancel := context.WithCancel(ctx)
+		monitorAddr, monitorDone, err := fake.StartMonitorServer(monitorCtx, h.monitor)
+		if err != nil {
+			panic(fmt.Errorf("could not start monitor server: %w", err))
+		}
+		h.monitorAddr = monitorAddr
+
+		go func() {
+			<-ctx.Done()
+			monitorCancel()
+			<-monitorDone
+			_ = h.engineConn.Close()
+			engineCancel()
+			<-engineDone
+		}()
+	})
+	return h
+}
+
+func (s *server) ctx(urn presource.URN) context.Context {
+	ctx := s.context
+	if urn != "" {
+		ctx = context.WithValue(ctx, key.URN, urn)
+	}
+	ctx = context.WithValue(ctx, key.RuntimeInfo, s.runInfo)
+	ctx = context.WithValue(ctx, key.ProviderHost, s.host)
+	return ctx
 }
 
 func (s *server) GetSchema(req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
@@ -118,7 +218,82 @@ func (s *server) Delete(req p.DeleteRequest) error {
 }
 
 func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) {
-	return s.p.Construct(s.ctx(req.URN), req)
+	// apply some defaults for convenenience
+	req.AcceptsOutputValues = true
+	if req.Parallel < 1 {
+		req.Parallel = 1
+	}
+
+	return s.p.Construct(s.ctx(req.Urn), req)
+}
+
+var _ = (p.Host)(&host{})
+
+// Construct implements the host interface to allow the provider to construct resources.
+func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc,
+) (p.ConstructResponse, error) {
+	// Use the fake engine to create a pulumi context,
+	// and then call the user's construct function with the context.
+	// the function is expected to register resources, which will be
+	// handled by the mock monitor.
+
+	h.lazyInit()
+	req.MonitorEndpoint = h.monitorAddr
+
+	comReq := linkedConstructRequestToRPC(&req, internalrpc.MarshalProperties)
+	comResp, err := comProvider.Construct(ctx, comReq, h.engineConn, construct)
+	if err != nil {
+		return p.ConstructResponse{}, err
+	}
+
+	return linkedConstructResponseFromRPC(comResp)
+}
+
+func (s *server) Call(req p.CallRequest) (p.CallResponse, error) {
+	// apply some defaults for convenience
+	req.AcceptsOutputValues = true
+	if req.Parallel < 1 {
+		req.Parallel = 1
+	}
+	return s.p.Call(s.ctx(""), req)
+}
+
+func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.CallFunc,
+) (p.CallResponse, error) {
+	// Use the fake engine to create a pulumi context,
+	// and then call the user's call function with the context.
+	// the function is expected to register resources, which will be
+	// handled by the mock monitor.
+
+	h.lazyInit()
+	req.MonitorEndpoint = h.monitorAddr
+
+	comReq := linkedCallRequestToRPC(&req, internalrpc.MarshalProperties)
+	comResp, err := comProvider.Call(ctx, comReq, h.engineConn, call)
+	if err != nil {
+		return p.CallResponse{}, err
+	}
+
+	return linkedCallResponseFromRPC(comResp)
+}
+
+type MockMonitor struct {
+	CallF        func(args pulumi.MockCallArgs) (presource.PropertyMap, error)
+	NewResourceF func(args pulumi.MockResourceArgs) (string, presource.PropertyMap, error)
+}
+
+func (m *MockMonitor) Call(args pulumi.MockCallArgs) (presource.PropertyMap, error) {
+	if m.CallF == nil {
+		return presource.PropertyMap{}, nil
+	}
+	return m.CallF(args)
+}
+
+func (m *MockMonitor) NewResource(args pulumi.MockResourceArgs) (string, presource.PropertyMap, error) {
+	if m.NewResourceF == nil {
+		return args.Name, args.Inputs, nil
+	}
+	return m.NewResourceF(args)
 }
 
 // Operation describes a step in a [LifeCycleTest].
@@ -126,11 +301,11 @@ func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) 
 // TODO: Add support for diff verification.
 type Operation struct {
 	// The inputs for the operation
-	Inputs presource.PropertyMap
+	Inputs property.Map
 	// The expected output for the operation. If ExpectedOutput is nil, no check will be made.
-	ExpectedOutput presource.PropertyMap
+	ExpectedOutput *property.Map
 	// A function called on the output of this operation.
-	Hook func(inputs, output presource.PropertyMap)
+	Hook func(inputs, output property.Map)
 	// If the test should expect the operation to signal an error.
 	ExpectFailure bool
 	// If CheckFailures is non-nil, expect the check step to fail with the provided output.
@@ -157,9 +332,9 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 	runCreate := func(op Operation) (p.CreateResponse, bool) {
 		// Here we do the create and the initial setup
 		checkResponse, err := server.Check(p.CheckRequest{
-			Urn:  urn,
-			Olds: nil,
-			News: op.Inputs,
+			Urn:    urn,
+			State:  property.Map{},
+			Inputs: op.Inputs,
 		})
 		assert.NoError(t, err, "resource check errored")
 		if len(op.CheckFailures) > 0 || len(checkResponse.Failures) > 0 {
@@ -170,7 +345,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 
 		_, err = server.Create(p.CreateRequest{
 			Urn:        urn,
-			Properties: checkResponse.Inputs.Copy(),
+			Properties: checkResponse.Inputs,
 			Preview:    true,
 		})
 		// We allow the failure from ExpectFailure to hit at either the preview or the Create.
@@ -179,7 +354,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		}
 		createResponse, err := server.Create(p.CreateRequest{
 			Urn:        urn,
-			Properties: checkResponse.Inputs.Copy(),
+			Properties: checkResponse.Inputs,
 		})
 		if op.ExpectFailure {
 			assert.Error(t, err, "expected an error on create")
@@ -190,7 +365,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			return p.CreateResponse{}, false
 		}
 		if op.Hook != nil {
-			op.Hook(checkResponse.Inputs, createResponse.Properties.Copy())
+			op.Hook(checkResponse.Inputs, createResponse.Properties)
 		}
 		if op.ExpectedOutput != nil {
 			assert.EqualValues(t, op.ExpectedOutput, createResponse.Properties, "create outputs")
@@ -208,9 +383,9 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 	for i, update := range l.Updates {
 		// Perform the check
 		check, err := server.Check(p.CheckRequest{
-			Urn:  urn,
-			Olds: olds,
-			News: update.Inputs,
+			Urn:    urn,
+			State:  olds,
+			Inputs: update.Inputs,
 		})
 
 		assert.NoErrorf(t, err, "check returned an error on update %d", i)
@@ -224,10 +399,10 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		}
 
 		diff, err := server.Diff(p.DiffRequest{
-			ID:   id,
-			Urn:  urn,
-			Olds: olds,
-			News: check.Inputs.Copy(),
+			ID:     id,
+			Urn:    urn,
+			State:  olds,
+			Inputs: check.Inputs,
 		})
 		assert.NoErrorf(t, err, "diff failed on update %d", i)
 		if err != nil {
@@ -282,8 +457,8 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			_, err = server.Update(p.UpdateRequest{
 				ID:      id,
 				Urn:     urn,
-				Olds:    olds,
-				News:    check.Inputs.Copy(),
+				State:   olds,
+				Inputs:  check.Inputs,
 				Preview: true,
 			})
 
@@ -292,20 +467,24 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			}
 
 			result, err := server.Update(p.UpdateRequest{
-				ID:   id,
-				Urn:  urn,
-				Olds: olds,
-				News: check.Inputs.Copy(),
+				ID:     id,
+				Urn:    urn,
+				State:  olds,
+				Inputs: check.Inputs,
 			})
+			if !update.ExpectFailure && err != nil {
+				assert.NoError(t, err, "failed to update the resource")
+				continue
+			}
 			if update.ExpectFailure {
 				assert.Errorf(t, err, "expected failure on update %d", i)
 				continue
 			}
 			if update.Hook != nil {
-				update.Hook(check.Inputs, result.Properties.Copy())
+				update.Hook(check.Inputs, result.Properties)
 			}
 			if update.ExpectedOutput != nil {
-				assert.EqualValues(t, update.ExpectedOutput, result.Properties.Copy(), "expected output on update %d", i)
+				assert.EqualValues(t, update.ExpectedOutput, result.Properties, "expected output on update %d", i)
 			}
 			olds = result.Properties
 		}
@@ -316,5 +495,4 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		Properties: olds,
 	})
 	assert.NoError(t, err, "failed to delete the resource")
-
 }

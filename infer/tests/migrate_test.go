@@ -19,8 +19,8 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,17 +48,17 @@ func (*MigrateR) StateMigrations(context.Context) []infer.StateMigrationFunc[Mig
 	}
 }
 
-func migrateFromRaw(_ context.Context, m resource.PropertyMap) (infer.MigrationResult[MigrateStateV2], error) {
-	inputs, ok := m["__inputs"]
-	if !ok || !inputs.IsObject() {
+func migrateFromRaw(_ context.Context, m property.Map) (infer.MigrationResult[MigrateStateV2], error) {
+	inputs, ok := m.GetOk("__inputs")
+	if !ok || !inputs.IsMap() {
 		return infer.MigrationResult[MigrateStateV2]{}, nil
 	}
-	m = inputs.ObjectValue()
+	m = inputs.AsMap()
 
 	return infer.MigrationResult[MigrateStateV2]{
 		Result: &MigrateStateV2{
-			AString: m["aString"].StringValue(),
-			AInt:    int(m["aInt"].NumberValue()),
+			AString: m.Get("aString").AsString(),
+			AInt:    int(m.Get("aInt").AsNumber()),
 		},
 	}, nil
 }
@@ -114,37 +114,34 @@ func migrationServer() integration.Server {
 }
 
 // Test f on some old states that should be equivalent after upgrades.
-func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2State resource.PropertyMap)) {
+func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2State property.Map)) {
 	t.Run("defaults", func(t *testing.T) {
-
-		v2 := func() resource.PropertyMap {
-			return resource.PropertyMap{
-				"aString": resource.NewProperty("default-string"),
-				"aInt":    resource.NewProperty(-7.0),
-			}
-		}
+		v2 := property.NewMap(map[string]property.Value{
+			"aString": property.New("default-string"),
+			"aInt":    property.New(-7.0),
+		})
 
 		t.Run("raw", func(t *testing.T) {
-			f(t, resource.PropertyMap{
-				"__inputs": resource.NewProperty(resource.PropertyMap{
-					"aString": resource.NewProperty("default-string"),
-					"aInt":    resource.NewProperty(-7.0),
+			f(t, property.NewMap(map[string]property.Value{
+				"__inputs": property.New(map[string]property.Value{
+					"aString": property.New("default-string"),
+					"aInt":    property.New(-7.0),
 				}),
-			}, v2())
+			}), v2)
 		})
 
 		t.Run("v0", func(t *testing.T) {
-			f(t, resource.PropertyMap{}, v2())
+			f(t, property.Map{}, v2)
 		})
 
 		t.Run("v1", func(t *testing.T) {
-			f(t, resource.PropertyMap{
-				"aString": resource.NewProperty("default-string"),
-			}, v2())
+			f(t, property.NewMap(map[string]property.Value{
+				"aString": property.New("default-string"),
+			}), v2)
 		})
 
 		t.Run("v2", func(t *testing.T) {
-			f(t, v2(), v2())
+			f(t, v2, v2)
 		})
 	})
 
@@ -154,31 +151,29 @@ func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2S
 			aInt    = 33.0
 		)
 
-		v2 := func() resource.PropertyMap {
-			return resource.PropertyMap{
-				"aString": resource.NewProperty(aString),
-				"aInt":    resource.NewProperty(aInt),
-			}
-		}
+		v2 := property.NewMap(map[string]property.Value{
+			"aString": property.New(aString),
+			"aInt":    property.New(aInt),
+		})
 
 		t.Run("raw", func(t *testing.T) {
-			f(t, resource.PropertyMap{
-				"__inputs": resource.NewProperty(resource.PropertyMap{
-					"aString": resource.NewProperty(aString),
-					"aInt":    resource.NewProperty(aInt),
+			f(t, property.NewMap(map[string]property.Value{
+				"__inputs": property.New(map[string]property.Value{
+					"aString": property.New(aString),
+					"aInt":    property.New(aInt),
 				}),
-			}, v2())
+			}), v2)
 		})
 
 		t.Run("v1", func(t *testing.T) {
-			f(t, resource.PropertyMap{
-				"aString": resource.NewProperty(aString),
-				"someInt": resource.NewProperty(aInt),
-			}, v2())
+			f(t, property.NewMap(map[string]property.Value{
+				"aString": property.New(aString),
+				"someInt": property.New(aInt),
+			}), v2)
 		})
 
 		t.Run("v2", func(t *testing.T) {
-			f(t, v2(), v2())
+			f(t, v2, v2)
 		})
 	})
 }
@@ -186,11 +181,11 @@ func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2S
 func TestMigrateUpdate(t *testing.T) {
 	t.Parallel()
 
-	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State resource.PropertyMap) {
+	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		resp, err := migrationServer().Update(p.UpdateRequest{
-			ID:   "some-id",
-			Urn:  urn("MigrateR", "update"),
-			Olds: state,
+			ID:    "some-id",
+			Urn:   urn("MigrateR", "update"),
+			State: state,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, v2State, resp.Properties)
@@ -200,25 +195,25 @@ func TestMigrateUpdate(t *testing.T) {
 func TestMigrateDiff(t *testing.T) {
 	t.Parallel()
 
-	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State resource.PropertyMap) {
+	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		_, err := migrationServer().Diff(p.DiffRequest{
-			ID:   "some-id",
-			Urn:  urn("MigrateR", "diff"),
-			Olds: state,
+			ID:    "some-id",
+			Urn:   urn("MigrateR", "diff"),
+			State: state,
 		})
 		var via viaError[MigrateStateV2]
 		require.ErrorAs(t, err, &via)
-		assert.Equal(t, v2State, resource.PropertyMap{
-			"aString": resource.NewProperty(via.t.AString),
-			"aInt":    resource.NewProperty(float64(via.t.AInt)),
-		})
+		assert.Equal(t, v2State, property.NewMap(map[string]property.Value{
+			"aString": property.New(via.t.AString),
+			"aInt":    property.New(float64(via.t.AInt)),
+		}))
 	})
 }
 
 func TestMigrateDelete(t *testing.T) {
 	t.Parallel()
 
-	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State resource.PropertyMap) {
+	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		err := migrationServer().Delete(p.DeleteRequest{
 			ID:         "some-id",
 			Urn:        urn("MigrateR", "delete"),
@@ -226,17 +221,17 @@ func TestMigrateDelete(t *testing.T) {
 		})
 		var via viaError[MigrateStateV2]
 		require.ErrorAs(t, err, &via)
-		assert.Equal(t, v2State, resource.PropertyMap{
-			"aString": resource.NewProperty(via.t.AString),
-			"aInt":    resource.NewProperty(float64(via.t.AInt)),
-		})
+		assert.Equal(t, v2State, property.NewMap(map[string]property.Value{
+			"aString": property.New(via.t.AString),
+			"aInt":    property.New(float64(via.t.AInt)),
+		}))
 	})
 }
 
 func TestMigrateRead(t *testing.T) {
 	t.Parallel()
 
-	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State resource.PropertyMap) {
+	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		resp, err := migrationServer().Read(p.ReadRequest{
 			ID:         "some-id",
 			Urn:        urn("MigrateR", "read"),
@@ -248,7 +243,8 @@ func TestMigrateRead(t *testing.T) {
 }
 
 func (*MigrateR) Create(_ context.Context,
-	req infer.CreateRequest[MigrateStateInput]) (infer.CreateResponse[MigrateStateV2], error) {
+	req infer.CreateRequest[MigrateStateInput],
+) (infer.CreateResponse[MigrateStateV2], error) {
 	panic("CANNOT CREATE; ONLY MIGRATE")
 }
 
@@ -256,7 +252,7 @@ func (*MigrateR) Create(_ context.Context,
 func (*MigrateR) Update(
 	_ context.Context, req infer.UpdateRequest[MigrateStateInput, MigrateStateV2],
 ) (infer.UpdateResponse[MigrateStateV2], error) {
-	return infer.UpdateResponse[MigrateStateV2]{Output: req.Olds}, nil
+	return infer.UpdateResponse[MigrateStateV2]{Output: req.State}, nil
 }
 
 func (*MigrateR) Read(
@@ -270,8 +266,9 @@ func (*MigrateR) Delete(_ context.Context, req infer.DeleteRequest[MigrateStateV
 }
 
 func (*MigrateR) Diff(_ context.Context,
-	req infer.DiffRequest[MigrateStateInput, MigrateStateV2]) (infer.DiffResponse, error) {
-	return infer.DiffResponse{}, viaError[MigrateStateV2]{req.Olds}
+	req infer.DiffRequest[MigrateStateInput, MigrateStateV2],
+) (infer.DiffResponse, error) {
+	return infer.DiffResponse{}, viaError[MigrateStateV2]{req.State}
 }
 
 type viaError[T any] struct{ t T }

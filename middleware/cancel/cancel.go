@@ -90,6 +90,7 @@ func Wrap(provider p.Provider) p.Provider {
 		return r.Timeout
 	})
 	wrapper.Construct = setCancel2(cancel, provider.Construct, nil)
+	wrapper.Call = setCancel2(cancel, provider.Call, nil)
 	return wrapper
 }
 

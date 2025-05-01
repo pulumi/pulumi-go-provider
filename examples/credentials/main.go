@@ -105,7 +105,7 @@ var _ = (infer.CustomDiff[UserArgs, UserState])((*User)(nil))
 
 func (*User) Diff(ctx context.Context, req infer.DiffRequest[UserArgs, UserState]) (infer.DiffResponse, error) {
 	config := infer.GetConfig[Config](ctx)
-	if config.User != req.Olds.Name {
+	if config.User != req.State.Name {
 		return infer.DiffResponse{
 			HasChanges: true,
 			DetailedDiff: map[string]p.PropertyDiff{
@@ -118,7 +118,7 @@ func (*User) Diff(ctx context.Context, req infer.DiffRequest[UserArgs, UserState
 
 type Sign struct{}
 
-func (Sign) Call(ctx context.Context, req infer.FunctionRequest[SignArgs]) (infer.FunctionResponse[SignRes], error) {
+func (Sign) Invoke(ctx context.Context, req infer.FunctionRequest[SignArgs]) (infer.FunctionResponse[SignRes], error) {
 	config := infer.GetConfig[Config](ctx)
 	return infer.FunctionResponse[SignRes]{
 		Output: SignRes{

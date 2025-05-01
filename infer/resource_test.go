@@ -24,6 +24,7 @@ import (
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/asset"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
@@ -212,7 +213,6 @@ func TestFieldGenerator(t *testing.T) {
 			tt.assert(t, *fm)
 		})
 	}
-
 }
 
 type Context struct {
@@ -231,70 +231,70 @@ func TestDiff(t *testing.T) {
 		Environment map[string]string `pulumi:"environment,optional"`
 	}
 	tests := []struct {
-		olds r.PropertyMap
-		news r.PropertyMap
+		olds property.Map
+		news property.Map
 		diff map[string]p.DiffKind
 	}{
 		{
-			olds: r.PropertyMap{
-				"environment": r.NewObjectProperty(r.PropertyMap{
-					"FOO": r.NewStringProperty("foo"),
+			olds: property.NewMap(map[string]property.Value{
+				"environment": property.New(map[string]property.Value{
+					"FOO": property.New("foo"),
 				}),
-			},
-			news: r.PropertyMap{
-				"environment": r.NewObjectProperty(r.PropertyMap{
-					"FOO": r.NewStringProperty("bar"),
+			}),
+			news: property.NewMap(map[string]property.Value{
+				"environment": property.New(map[string]property.Value{
+					"FOO": property.New("bar"),
 				}),
-			},
+			}),
 			diff: map[string]p.DiffKind{"environment.FOO": "update"},
 		},
 		{
-			olds: r.PropertyMap{},
-			news: r.PropertyMap{
-				"environment": r.NewObjectProperty(r.PropertyMap{
-					"FOO": r.NewStringProperty("bar"),
+			olds: property.Map{},
+			news: property.NewMap(map[string]property.Value{
+				"environment": property.New(map[string]property.Value{
+					"FOO": property.New("bar"),
 				}),
-			},
+			}),
 			diff: map[string]p.DiffKind{"environment": "add"},
 		},
 		{
-			olds: r.PropertyMap{
-				"environment": r.NewObjectProperty(r.PropertyMap{
-					"FOO": r.NewStringProperty("bar"),
+			olds: property.NewMap(map[string]property.Value{
+				"environment": property.New(map[string]property.Value{
+					"FOO": property.New("bar"),
 				}),
-			},
-			news: r.PropertyMap{},
+			}),
+			news: property.Map{},
 			diff: map[string]p.DiffKind{"environment": "delete"},
 		},
 		{
-			olds: r.PropertyMap{
-				"environment": r.NewObjectProperty(r.PropertyMap{
-					"FOO": r.NewStringProperty("bar"),
+			olds: property.NewMap(map[string]property.Value{
+				"environment": property.New(map[string]property.Value{
+					"FOO": property.New("bar"),
 				}),
-				"output": r.NewNumberProperty(42),
-			},
-			news: r.PropertyMap{},
+				"output": property.New(42.0),
+			}),
+			news: property.NewMap(map[string]property.Value{}),
 			diff: map[string]p.DiffKind{"environment": "delete"},
 		},
 		{
-			olds: r.PropertyMap{
-				"output": r.NewNumberProperty(42),
-			},
-			news: r.PropertyMap{
-				"environment": r.NewObjectProperty(r.PropertyMap{
-					"FOO": r.NewStringProperty("bar"),
+			olds: property.NewMap(map[string]property.Value{
+				"output": property.New(42.0),
+			}),
+			news: property.NewMap(map[string]property.Value{
+				"environment": property.New(map[string]property.Value{
+					"FOO": property.New("bar"),
 				}),
-			},
+			}),
 			diff: map[string]p.DiffKind{"environment": "add"},
 		},
 	}
 
 	for _, test := range tests {
 		diffRequest := p.DiffRequest{
-			ID:   "foo",
-			Urn:  r.CreateURN("foo", "a:b:c", "", "proj", "stack"),
-			Olds: test.olds,
-			News: test.news,
+			ID:     "foo",
+			Urn:    r.CreateURN("foo", "a:b:c", "", "proj", "stack"),
+			State:  test.olds,
+			Inputs: test.news,
 		}
 		resp, err := diff[struct{}, I, any](
 			Context{context.Background()},
@@ -337,7 +337,7 @@ func (CustomHydrateFromState[O]) StateMigrations(ctx context.Context) []StateMig
 }
 
 func testHydrateFromState[O any](
-	oldState, expected r.PropertyMap, expectedError error,
+	oldState, expected property.Map, expectedError error,
 	migrations ...StateMigrationFunc[O],
 ) func(t *testing.T) {
 	return func(t *testing.T) {
@@ -355,7 +355,7 @@ func testHydrateFromState[O any](
 		}
 		m, err := enc.Encode(actual)
 		require.NoErrorf(t, err, "We should be able to encode the result to a p.Map")
-		assert.Equal(t, expected, m)
+		assert.Equal(t, expected, r.FromResourcePropertyValue(r.NewProperty(m)).AsMap())
 	}
 }
 
@@ -373,12 +373,12 @@ func TestHydrateFromState(t *testing.T) {
 	}
 
 	t.Run("migrate type", testHydrateFromState[numberMigrateTarget](
-		r.PropertyMap{
-			"number": r.NewProperty("42"),
-		},
-		r.PropertyMap{
-			"number": r.NewProperty(42.0),
-		},
+		property.NewMap(map[string]property.Value{
+			"number": property.New("42"),
+		}),
+		property.NewMap(map[string]property.Value{
+			"number": property.New(42.0),
+		}),
 		nil,
 		StateMigration(func(_ context.Context, old numberMigrateSource) (MigrationResult[numberMigrateTarget], error) {
 			n, err := strconv.ParseInt(old.Number, 10, 64)
@@ -394,15 +394,15 @@ func TestHydrateFromState(t *testing.T) {
 	))
 
 	t.Run("migrate-raw", testHydrateFromState[numberMigrateTarget](
-		r.PropertyMap{
-			"number": r.NewProperty("42"),
-		},
-		r.PropertyMap{
-			"number": r.NewProperty(42.0),
-		},
+		property.NewMap(map[string]property.Value{
+			"number": property.New("42"),
+		}),
+		property.NewMap(map[string]property.Value{
+			"number": property.New(42.0),
+		}),
 		nil,
-		StateMigration(func(_ context.Context, old r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
-			n, err := strconv.ParseInt(old["number"].StringValue(), 10, 64)
+		StateMigration(func(_ context.Context, old property.Map) (MigrationResult[numberMigrateTarget], error) {
+			n, err := strconv.ParseInt(old.Get("number").AsString(), 10, 64)
 			if err != nil {
 				return MigrationResult[numberMigrateTarget]{}, err
 			}
@@ -415,39 +415,39 @@ func TestHydrateFromState(t *testing.T) {
 	))
 
 	t.Run("ordering-success", testHydrateFromState[numberMigrateTarget](
-		r.PropertyMap{
-			"number": r.NewProperty("0"),
-		},
-		r.PropertyMap{
-			"number": r.NewProperty(1.0),
-		},
+		property.NewMap(map[string]property.Value{
+			"number": property.New("0"),
+		}),
+		property.NewMap(map[string]property.Value{
+			"number": property.New(1.0),
+		}),
 		nil,
-		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, property.Map) (MigrationResult[numberMigrateTarget], error) {
 			return MigrationResult[numberMigrateTarget]{
 				Result: &numberMigrateTarget{
 					Number: int(1),
 				},
 			}, nil
 		}),
-		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, property.Map) (MigrationResult[numberMigrateTarget], error) {
 			panic("Should never be called")
 		}),
 	))
 
 	t.Run("ordering", testHydrateFromState[numberMigrateTarget](
-		r.PropertyMap{
-			"number": r.NewProperty("0"),
-		},
-		r.PropertyMap{
-			"number": r.NewProperty(2.0),
-		},
+		property.NewMap(map[string]property.Value{
+			"number": property.New("0"),
+		}),
+		property.NewMap(map[string]property.Value{
+			"number": property.New(2.0),
+		}),
 		nil,
-		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, property.Map) (MigrationResult[numberMigrateTarget], error) {
 			return MigrationResult[numberMigrateTarget]{
 				Result: nil,
 			}, nil
 		}),
-		StateMigration(func(context.Context, r.PropertyMap) (MigrationResult[numberMigrateTarget], error) {
+		StateMigration(func(context.Context, property.Map) (MigrationResult[numberMigrateTarget], error) {
 			return MigrationResult[numberMigrateTarget]{
 				Result: &numberMigrateTarget{
 					Number: int(2),
@@ -465,18 +465,18 @@ func TestHydrateFromState(t *testing.T) {
 	// testHydrateFromState decodes and encodes, so the asset should come back out as a plain asset
 	// after having been decoded to an AssetOrArchive.
 	t.Run("assets", testHydrateFromState[hasAsset](
-		r.PropertyMap{
-			"aa": r.NewPropertyValue(testAsset),
-		},
-		r.PropertyMap{
-			"aa": r.NewObjectProperty(r.PropertyMap{
-				sig.Key: r.NewStringProperty(sig.AssetSig),
-				"text":  r.NewStringProperty("pulumi"),
-				"hash":  r.NewStringProperty(testAsset.Hash),
-				"path":  r.NewStringProperty(""),
-				"uri":   r.NewStringProperty(""),
+		property.NewMap(map[string]property.Value{
+			"aa": property.New(testAsset),
+		}),
+		property.NewMap(map[string]property.Value{
+			"aa": property.New(map[string]property.Value{
+				sig.Key: property.New(sig.AssetSig),
+				"text":  property.New("pulumi"),
+				"hash":  property.New(testAsset.Hash),
+				"path":  property.New(""),
+				"uri":   property.New(""),
 			}),
-		},
+		}),
 		nil,
 	))
 }
@@ -501,14 +501,16 @@ func (c checkResource) Create(context.Context, CreateRequest[checkResource],
 func TestCheck(t *testing.T) {
 	t.Parallel()
 
+	type m = map[string]property.Value
+
 	for tcName, tc := range map[string]struct {
-		input    r.PropertyMap
+		input    property.Map
 		expected string
 	}{
-		"applies default for missing value":     {nil, defaultValue},
-		"applies default for empty value":       {r.PropertyMap{"str": r.NewStringProperty("")}, defaultValue},
-		"no change when default is already set": {r.PropertyMap{"str": r.NewStringProperty(defaultValue)}, defaultValue},
-		"respects non-default value":            {r.PropertyMap{"str": r.NewStringProperty("different")}, "different"},
+		"applies default for missing value":     {property.Map{}, defaultValue},
+		"applies default for empty value":       {property.NewMap(m{"str": property.New("")}), defaultValue},
+		"no change when default is already set": {property.NewMap(m{"str": property.New(defaultValue)}), defaultValue},
+		"respects non-default value":            {property.NewMap(m{"str": property.New("different")}), "different"},
 	} {
 		tc := tc
 
@@ -516,19 +518,20 @@ func TestCheck(t *testing.T) {
 			t.Parallel()
 			res := Resource[checkResource]()
 			checkResp, err := res.Check(context.Background(), p.CheckRequest{
-				Urn:  "a:b:c",
-				Olds: r.PropertyMap{},
-				News: tc.input.Copy(),
+				Urn:    "a:b:c",
+				State:  property.Map{},
+				Inputs: tc.input,
 			})
 			require.NoError(t, err)
 			assert.Empty(t, checkResp.Failures)
-			assert.True(t, checkResp.Inputs.HasValue("str"))
-			assert.Equal(t, tc.expected, checkResp.Inputs["str"].StringValue())
+			v, ok := checkResp.Inputs.GetOk("str")
+			assert.True(t, ok)
+			assert.Equal(t, tc.expected, v.AsString())
 		})
 
 		t.Run("DefaultCheck "+tcName, func(t *testing.T) {
 			t.Parallel()
-			in, failures, err := DefaultCheck[checkResource](context.Background(), tc.input.Copy())
+			in, failures, err := DefaultCheck[checkResource](context.Background(), tc.input)
 			require.NoError(t, err)
 			assert.Empty(t, failures)
 			assert.Equal(t, tc.expected, in.P1)

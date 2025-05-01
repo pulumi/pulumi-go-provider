@@ -17,7 +17,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,15 +26,13 @@ import (
 
 func TestConfigure(t *testing.T) {
 	t.Parallel()
-	pString := resource.NewStringProperty
-	type pMap = resource.PropertyMap
 
-	prov := providerWithConfig[Config]()
+	prov := providerWithConfig[Config](t)
 	err := prov.Configure(p.ConfigureRequest{
-		Args: pMap{
-			"value":        pString("foo"),
-			"unknownField": pString("bar"),
-		},
+		Args: property.NewMap(map[string]property.Value{
+			"value":        property.New("foo"),
+			"unknownField": property.New("bar"),
+		}),
 	})
 	require.NoError(t, err)
 
@@ -42,22 +40,19 @@ func TestConfigure(t *testing.T) {
 		Urn: urn("ReadConfig", "config"),
 	})
 	require.NoError(t, err)
-	assert.Equal(t, pMap{
-		"config": pString("{\"Value\":\"foo\"}"),
-	}, resp.Properties)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"config": property.New("{\"Value\":\"foo\"}"),
+	}), resp.Properties)
 }
 
 func TestConfigureCustom(t *testing.T) {
 	t.Parallel()
-	pString := resource.NewStringProperty
-	pNumber := resource.NewNumberProperty
-	type pMap = resource.PropertyMap
 
-	test := func(inputs, expected pMap) func(t *testing.T) {
+	test := func(inputs, expected property.Map) func(t *testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
 
-			prov := providerWithConfig[*ConfigCustom]()
+			prov := providerWithConfig[*ConfigCustom](t)
 			err := prov.Configure(p.ConfigureRequest{
 				Args: inputs,
 			})
@@ -72,12 +67,12 @@ func TestConfigureCustom(t *testing.T) {
 	}
 
 	t.Run("empty", test( //nolint:paralleltest // test already calls t.Parallel.
-		nil,
-		pMap{"config": pString(`{"Number":null,"Squared":0}`)}))
+		property.Map{},
+		property.NewMap(map[string]property.Value{"config": property.New(`{"Number":null,"Squared":0}`)})))
 	t.Run("unknown", test( //nolint:paralleltest // test already calls t.Parallel.
-		pMap{"unknownField": pString("bar")},
-		pMap{"config": pString(`{"Number":null,"Squared":0}`)}))
+		property.NewMap(map[string]property.Value{"unknownField": property.New("bar")}),
+		property.NewMap(map[string]property.Value{"config": property.New(`{"Number":null,"Squared":0}`)})))
 	t.Run("number", test( //nolint:paralleltest // test already calls t.Parallel.
-		pMap{"number": pNumber(42)},
-		pMap{"config": pString(`{"Number":42,"Squared":1764}`)}))
+		property.NewMap(map[string]property.Value{"number": property.New(42.0)}),
+		property.NewMap(map[string]property.Value{"config": property.New(`{"Number":42,"Squared":1764}`)})))
 }

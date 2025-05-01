@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
@@ -78,13 +79,18 @@ func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resource
 	return r, errs.ErrorOrNil()
 }
 
+// markAsInferProvider adds a key to the provider state to indicate that [infer] is being used for this provider.
+func markAsInferProvider(pm resource.PropertyMap) {
+	pm[inferStateKeyName] = resource.NewBoolProperty(true)
+}
+
 func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	var t T
 	if v := reflect.ValueOf(t); v.Kind() == reflect.Pointer && v.IsNil() {
 		t = reflect.New(v.Type().Elem()).Interface().(T)
 	}
 
-	encoder, decodeError := ende.DecodeConfig(req.News, &t)
+	encoder, decodeError := ende.DecodeConfig(req.Inputs, &t)
 	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that.
 		//
@@ -93,7 +99,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		if req.Urn != "" {
 			name = req.Urn.Name()
 		}
-		defCheckEnc, i, failures, err := callCustomCheck(ctx, t, name, req.Olds, req.News)
+		defCheckEnc, i, failures, err := callCustomCheck(ctx, t, name, req.State, req.Inputs)
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
@@ -106,6 +112,9 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		if err != nil {
 			return p.CheckResponse{}, err
 		}
+
+		markAsInferProvider(inputs)
+
 		return p.CheckResponse{
 			Inputs:   applySecrets[T](inputs),
 			Failures: failures,
@@ -126,6 +135,8 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
+
+	markAsInferProvider(news)
 
 	return p.CheckResponse{
 		Inputs:   applySecrets[T](news),

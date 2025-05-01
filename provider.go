@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/go-multierror"
@@ -32,14 +33,14 @@ import (
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -47,6 +48,8 @@ import (
 
 	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
+	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
 
@@ -60,8 +63,8 @@ type GetSchemaResponse struct {
 
 type CheckRequest struct {
 	Urn        presource.URN
-	Olds       presource.PropertyMap
-	News       presource.PropertyMap
+	State      property.Map
+	Inputs     property.Map
 	RandomSeed []byte
 }
 
@@ -71,16 +74,16 @@ type CheckFailure struct {
 }
 
 type CheckResponse struct {
-	Inputs   presource.PropertyMap
+	Inputs   property.Map
 	Failures []CheckFailure
 }
 
 type DiffRequest struct {
 	ID            string
 	Urn           presource.URN
-	Olds          presource.PropertyMap
-	News          presource.PropertyMap
-	IgnoreChanges []presource.PropertyKey
+	State         property.Map
+	Inputs        property.Map
+	IgnoreChanges []string
 }
 
 type PropertyDiff struct {
@@ -165,7 +168,6 @@ func (c diffChanges) rpc() rpc.DiffResponse_DiffChanges {
 }
 
 func (d DiffResponse) rpc() *rpc.DiffResponse {
-
 	hasDetailedDiff := true
 	if _, ok := d.DetailedDiff[key.ForceNoDetailedDiff]; ok {
 		hasDetailedDiff = false
@@ -204,29 +206,29 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 
 type ConfigureRequest struct {
 	Variables map[string]string
-	Args      presource.PropertyMap
+	Args      property.Map
 }
 
 type InvokeRequest struct {
-	Token tokens.Type           // the function token to invoke.
-	Args  presource.PropertyMap // the arguments for the function invocation.
+	Token tokens.Type  // the function token to invoke.
+	Args  property.Map // the arguments for the function invocation.
 }
 
 type InvokeResponse struct {
-	Return   presource.PropertyMap // the returned values, if invoke was successful.
-	Failures []CheckFailure        // the failures if any arguments didn't pass verification.
+	Return   property.Map   // the returned values, if invoke was successful.
+	Failures []CheckFailure // the failures if any arguments didn't pass verification.
 }
 
 type CreateRequest struct {
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the provider inputs to set during creation.
-	Timeout    float64               // the create request timeout represented in seconds.
-	Preview    bool                  // true if this is a preview and the provider should not actually create the resource.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the provider inputs to set during creation.
+	Timeout    float64       // the create request timeout represented in seconds.
+	Preview    bool          // true if this is a preview and the provider should not actually create the resource.
 }
 
 type CreateResponse struct {
-	ID         string                // the ID of the created resource.
-	Properties presource.PropertyMap // any properties that were computed during creation.
+	ID         string       // the ID of the created resource.
+	Properties property.Map // any properties that were computed during creation.
 
 	// non-nil to indicate that the create failed and left the resource in a partial
 	// state.
@@ -237,16 +239,16 @@ type CreateResponse struct {
 }
 
 type ReadRequest struct {
-	ID         string                // the ID of the resource to read.
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the current state (sufficiently complete to identify the resource).
-	Inputs     presource.PropertyMap // the current inputs, if any (only populated during refresh).
+	ID         string        // the ID of the resource to read.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the current state (sufficiently complete to identify the resource).
+	Inputs     property.Map  // the current inputs, if any (only populated during refresh).
 }
 
 type ReadResponse struct {
-	ID         string                // the ID of the resource read back (or empty if missing).
-	Properties presource.PropertyMap // the state of the resource read from the live environment.
-	Inputs     presource.PropertyMap // the inputs for this resource that would be returned from Check.
+	ID         string       // the ID of the resource read back (or empty if missing).
+	Properties property.Map // the state of the resource read from the live environment.
+	Inputs     property.Map // the inputs for this resource that would be returned from Check.
 
 	// non-nil to indicate that the read failed and left the resource in a partial
 	// state.
@@ -257,18 +259,18 @@ type ReadResponse struct {
 }
 
 type UpdateRequest struct {
-	ID            string                  // the ID of the resource to update.
-	Urn           presource.URN           // the Pulumi URN for this resource.
-	Olds          presource.PropertyMap   // the old values of provider inputs for the resource to update.
-	News          presource.PropertyMap   // the new values of provider inputs for the resource to update.
-	Timeout       float64                 // the update request timeout represented in seconds.
-	IgnoreChanges []presource.PropertyKey // a set of property paths that should be treated as unchanged.
-	Preview       bool                    // true if the provider should not actually create the resource.
+	ID            string        // the ID of the resource to update.
+	Urn           presource.URN // the Pulumi URN for this resource.
+	State         property.Map  // the old state of the resource to update.
+	Inputs        property.Map  // the new values of provider inputs for the resource to update.
+	Timeout       float64       // the update request timeout represented in seconds.
+	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
+	Preview       bool          // true if the provider should not actually create the resource.
 }
 
 type UpdateResponse struct {
 	// any properties that were computed during updating.
-	Properties presource.PropertyMap
+	Properties property.Map
 	// non-nil to indicate that the update failed and left the resource in a partial
 	// state.
 	//
@@ -278,10 +280,10 @@ type UpdateResponse struct {
 }
 
 type DeleteRequest struct {
-	ID         string                // the ID of the resource to delete.
-	Urn        presource.URN         // the Pulumi URN for this resource.
-	Properties presource.PropertyMap // the current properties on the resource.
-	Timeout    float64               // the delete request timeout represented in seconds.
+	ID         string        // the ID of the resource to delete.
+	Urn        presource.URN // the Pulumi URN for this resource.
+	Properties property.Map  // the current properties on the resource.
+	Timeout    float64       // the delete request timeout represented in seconds.
 }
 
 // InitializationFailed indicates that a resource exists but failed to initialize, and is
@@ -555,6 +557,7 @@ func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (
 	}
 }
 
+// Hosts a [Provider] and implements the [pulumirpc.ResourceProviderServer] interface of the Pulumi Go SDK.
 type provider struct {
 	rpc.UnimplementedResourceProviderServer
 
@@ -563,6 +566,15 @@ type provider struct {
 	host    *pprovider.HostClient
 	client  Provider
 }
+
+var _ rpc.ResourceProviderServer = (*provider)(nil)
+
+type host struct {
+	p    *provider
+	host *pprovider.HostClient
+}
+
+var _ Host = (*host)(nil)
 
 type RunInfo struct {
 	PackageName string
@@ -576,6 +588,7 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 		ctx = context.WithValue(ctx, key.Logger, &hostSink{
 			host: p.host,
 		})
+		ctx = context.WithValue(ctx, key.ProviderHost, &host{p, p.host})
 	}
 	ctx = context.WithValue(ctx, key.URN, urn)
 	return context.WithValue(ctx, key.RuntimeInfo, RunInfo{
@@ -584,20 +597,25 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 	})
 }
 
-func (p *provider) getMap(s *structpb.Struct) (presource.PropertyMap, error) {
-	return plugin.UnmarshalProperties(s, plugin.MarshalOptions{
-		KeepUnknowns:  true,
-		SkipNulls:     true,
-		KeepResources: true,
-		KeepSecrets:   true,
+func (p *provider) getMap(s *structpb.Struct) (property.Map, error) {
+	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
+		KeepUnknowns:     true,
+		SkipNulls:        true,
+		KeepResources:    true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
 	})
+	return presource.FromResourcePropertyMap(m), err
 }
 
-func (p *provider) asStruct(m presource.PropertyMap) (*structpb.Struct, error) {
-	return plugin.MarshalProperties(m, plugin.MarshalOptions{
-		KeepUnknowns: true,
-		SkipNulls:    true,
-		KeepSecrets:  true,
+func (p *provider) asStruct(m property.Map) (*structpb.Struct, error) {
+	rm := presource.ToResourcePropertyMap(m)
+	return plugin.MarshalProperties(rm, plugin.MarshalOptions{
+		KeepUnknowns:     true,
+		SkipNulls:        true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+		KeepResources:    true,
 	})
 }
 
@@ -654,16 +672,19 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	if err != nil {
 		return nil, err
 	}
+
 	r, err := p.client.CheckConfig(ctx, CheckRequest{
 		Urn:        presource.URN(req.GetUrn()),
-		Olds:       olds,
-		News:       news,
+		State:      olds,
+		Inputs:     news,
 		RandomSeed: req.RandomSeed,
 	})
-
 	if err != nil {
 		return nil, err
 	}
+
+	// Inject the version of pulumi-go-provider into the news map to store in state.
+	r.Inputs = r.Inputs.Set(frameworkStateKeyName, property.New(frameworkVersion.String()))
 
 	inputs, err := p.asStruct(r.Inputs)
 	if err != nil {
@@ -674,14 +695,6 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 		Inputs:   inputs,
 		Failures: checkFailureList(r.Failures).rpc(),
 	}, err
-}
-
-func getIgnoreChanges(l []string) []presource.PropertyKey {
-	r := make([]presource.PropertyKey, len(l))
-	for i, p := range l {
-		r[i] = presource.PropertyKey(p)
-	}
-	return r
 }
 
 func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
@@ -697,9 +710,9 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 	r, err := p.client.DiffConfig(ctx, DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
-		Olds:          olds,
-		News:          news,
-		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
+		State:         olds,
+		Inputs:        news,
+		IgnoreChanges: req.GetIgnoreChanges(),
 	})
 	if err != nil {
 		return nil, err
@@ -751,66 +764,31 @@ func (p *provider) Invoke(ctx context.Context, req *rpc.InvokeRequest) (*rpc.Inv
 	}, nil
 }
 
-func (p *provider) StreamInvoke(*rpc.InvokeRequest, rpc.ResourceProvider_StreamInvokeServer) error {
-	return status.Error(codes.Unimplemented, "StreamInvoke is not yet implemented")
-}
-
 func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
-
-	configPropertyMap := make(presource.PropertyMap, len(req.GetConfig()))
-	for k, v := range req.GetConfig() {
-		configPropertyMap[presource.PropertyKey(k)] = presource.NewProperty(v)
-	}
-	pulumiContext, err := pulumi.NewContext(ctx, pulumi.RunInfo{
-		Project:           req.GetProject(),
-		Stack:             req.GetStack(),
-		Config:            req.GetConfig(),
-		ConfigSecretKeys:  req.GetConfigSecretKeys(),
-		ConfigPropertyMap: configPropertyMap,
-		Parallel:          req.GetParallel(),
-		DryRun:            req.GetDryRun(),
-		MonitorAddr:       req.GetMonitorEndpoint(),
-		Organization:      req.GetOrganization(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build pulumi.Context: %w", err)
-	}
-
-	args, err := p.getMap(req.GetArgs())
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert args into a property map: %w", err)
-	}
-
-	resp, err := p.client.Call(ctx, CallRequest{
-		Tok:     tokens.ModuleMember(req.GetTok()),
-		Args:    args,
-		Context: pulumiContext,
-	})
+	ctx = p.ctx(ctx, "")
+	r, err := newCallRequest(req, p.getMap)
 	if err != nil {
 		return nil, err
 	}
 
-	// [comProvider.Call] acts as a synchronization point, ensuring that all actions
-	// within p.client.Call are witnessed before Call returns.
-	//
-	// Eventually, [comProvider.Call] results in a call to [pulumi.Context.wait],
-	// which is what forces the synchronization.
-	var engineConn *grpc.ClientConn
-	if p.host != nil {
-		engineConn = p.host.EngineConn()
-	}
-	_, err = comProvider.Call(ctx, req, engineConn,
-		func(ctx *pulumi.Context, tok string, args comProvider.CallArgs) (*comProvider.CallResult, error) {
-			return &comProvider.CallResult{}, nil
-		})
+	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
+
+	resp, err := p.client.Call(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
 	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
-	for name, v := range resp.Return {
+	for name, v := range resp.ReturnDependencies {
 		var urns []string
-		resourcex.Walk(v, func(v presource.PropertyValue, state resourcex.WalkState) {
+		for _, dep := range v {
+			urns = append(urns, string(dep))
+		}
+		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+	}
+	for name, v := range resp.Return.All {
+		var urns []string
+		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
 			if state.Entering || !v.IsOutput() {
 				return
 			}
@@ -818,8 +796,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 				urns = append(urns, string(dep))
 			}
 		})
-
-		returnDependencies[string(name)] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
 
 	_return, err := p.asStruct(resp.Return)
@@ -834,13 +811,156 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 	}, nil
 }
 
+func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallFunc,
+) (CallResponse, error) {
+	r, err := comProvider.Call(ctx, req.rpc(internalrpc.MarshalProperties), h.host.EngineConn(), call)
+	if err != nil {
+		return CallResponse{}, err
+	}
+	return newCallResponse(r)
+}
+
 // CallRequest represents a requested resource method invocation.
 //
 // It corresponds to [rpc.CallRequest] on the wire.
 type CallRequest struct {
-	Tok     tokens.ModuleMember
-	Args    presource.PropertyMap
-	Context *pulumi.Context
+	// the function token to invoke.
+	Tok tokens.ModuleMember
+	// the arguments for the function invocation.
+	Args property.Map
+	// a map from argument keys to the dependencies of the argument.
+	ArgDependencies map[string][]presource.URN
+	// the project name.
+	Project string
+	// the name of the stack being deployed into.
+	Stack string
+	// the configuration variables to apply before running.
+	Config map[pconfig.Key]string
+	// the configuration keys that have secret values.
+	ConfigSecretKeys []pconfig.Key
+	// true if we're only doing a dryrun (preview).
+	DryRun bool
+	// the degree of parallelism for resource operations (<=1 for serial).
+	Parallel int32
+	// the address for communicating back to the resource monitor.
+	MonitorEndpoint string
+	// the organization of the stack being deployed into.
+	Organization string
+	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
+	AcceptsOutputValues bool
+}
+
+func newCallRequest(req *rpc.CallRequest,
+	unmarshal func(s *structpb.Struct) (property.Map, error),
+) (CallRequest, error) {
+	var errs multierror.Error
+
+	r := CallRequest{
+		Tok: tokens.ModuleMember(req.GetTok()),
+		ArgDependencies: func() map[string][]presource.URN {
+			r := make(map[string][]presource.URN, len(req.GetArgDependencies()))
+			for k, v := range req.GetArgDependencies() {
+				r[k] = make([]presource.URN, len(v.GetUrns()))
+				for i, urn := range v.GetUrns() {
+					r[k][i] = presource.URN(urn)
+				}
+			}
+			return r
+		}(),
+		Project: req.GetProject(),
+		Stack:   req.GetStack(),
+		Config: func() map[pconfig.Key]string {
+			m := make(map[pconfig.Key]string, len(req.GetConfig()))
+			for k, v := range req.GetConfig() {
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config key: %w", err))
+					continue
+				}
+				m[key] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []pconfig.Key {
+			keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
+			for i, k := range req.GetConfigSecretKeys() {
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config secret key: %w", err))
+					continue
+				}
+				keys[i] = key
+			}
+			return keys
+		}(),
+		DryRun:              req.GetDryRun(),
+		Parallel:            req.GetParallel(),
+		MonitorEndpoint:     req.GetMonitorEndpoint(),
+		Organization:        req.GetOrganization(),
+		AcceptsOutputValues: req.GetAcceptsOutputValues(),
+	}
+
+	args, err := unmarshal(req.GetArgs())
+	if err != nil {
+		errs.Errors = append(errs.Errors, fmt.Errorf("invalid args: %w", err))
+	} else {
+		r.Args = args
+	}
+
+	return r, errs.ErrorOrNil()
+}
+
+func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
+	fromUrns := func(urns []presource.URN) []string {
+		r := make([]string, len(urns))
+		for i, urn := range urns {
+			r[i] = string(urn)
+		}
+		return r
+	}
+
+	// Marshal the args.
+	args, err := marshal(c.Args)
+	if err != nil {
+		return nil
+	}
+
+	req := &rpc.CallRequest{
+		Tok:  c.Tok.String(),
+		Args: args,
+		ArgDependencies: func() map[string]*rpc.CallRequest_ArgumentDependencies {
+			r := make(map[string]*rpc.CallRequest_ArgumentDependencies, len(c.ArgDependencies))
+			for k, v := range c.ArgDependencies {
+				r[k] = &rpc.CallRequest_ArgumentDependencies{
+					Urns: fromUrns(v),
+				}
+			}
+			return r
+		}(),
+		Project: c.Project,
+		Stack:   c.Stack,
+		Config: func() map[string]string {
+			m := make(map[string]string, len(c.Config))
+			for k, v := range c.Config {
+				m[k.String()] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []string {
+			keys := make([]string, len(c.ConfigSecretKeys))
+			for i, k := range c.ConfigSecretKeys {
+				keys[i] = k.String()
+			}
+			return keys
+		}(),
+		DryRun:              c.DryRun,
+		Parallel:            c.Parallel,
+		MonitorEndpoint:     c.MonitorEndpoint,
+		Organization:        c.Organization,
+		AcceptsOutputValues: c.AcceptsOutputValues,
+	}
+
+	return req
 }
 
 // CallResponse represents a completed resource method invocation.
@@ -848,9 +968,44 @@ type CallRequest struct {
 // It corresponds to [rpc.CallResponse] on the wire.
 type CallResponse struct {
 	// The returned values, if the call was successful.
-	Return presource.PropertyMap
+	Return property.Map
+	// A map from return keys to the dependencies of the return value.
+	ReturnDependencies map[string][]presource.URN
 	// The failures if any arguments didn't pass verification.
 	Failures []CheckFailure
+}
+
+func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
+	// Umarshal the return properties.
+	ret, err := internalrpc.UnmarshalProperties(req.Return)
+	if err != nil {
+		return CallResponse{}, err
+	}
+
+	r := CallResponse{
+		Return: ret,
+		Failures: func() []CheckFailure {
+			failures := make([]CheckFailure, len(req.Failures))
+			for i, f := range req.Failures {
+				failures[i] = CheckFailure{
+					Property: f.Property,
+					Reason:   f.Reason,
+				}
+			}
+			return failures
+		}(),
+		ReturnDependencies: func() map[string][]presource.URN {
+			r := make(map[string][]presource.URN, len(req.ReturnDependencies))
+			for k, v := range req.ReturnDependencies {
+				r[k] = make([]presource.URN, len(v.Urns))
+				for i, urn := range v.Urns {
+					r[k][i] = presource.URN(urn)
+				}
+			}
+			return r
+		}(),
+	}
+	return r, nil
 }
 
 func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
@@ -865,9 +1020,9 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 	}
 
 	r, err := p.client.Check(ctx, CheckRequest{
-		Urn:  presource.URN(req.GetUrn()),
-		Olds: olds,
-		News: news,
+		Urn:    presource.URN(req.GetUrn()),
+		State:  olds,
+		Inputs: news,
 	})
 	if err != nil {
 		return nil, err
@@ -881,7 +1036,6 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 		Inputs:   inputs,
 		Failures: checkFailureList(r.Failures).rpc(),
 	}, nil
-
 }
 
 func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
@@ -897,9 +1051,9 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 	r, err := p.client.Diff(ctx, DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
-		Olds:          olds,
-		News:          news,
-		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
+		State:         olds,
+		Inputs:        news,
+		IgnoreChanges: req.GetIgnoreChanges(),
 	})
 	if err != nil {
 		return nil, err
@@ -1004,10 +1158,10 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	r, err := p.client.Update(ctx, UpdateRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
-		Olds:          oldsMap,
-		News:          newsMap,
+		State:         oldsMap,
+		Inputs:        newsMap,
 		Timeout:       req.GetTimeout(),
-		IgnoreChanges: getIgnoreChanges(req.GetIgnoreChanges()),
+		IgnoreChanges: req.GetIgnoreChanges(),
 		Preview:       req.GetPreview(),
 	})
 	if initFailed := r.PartialState; initFailed != nil {
@@ -1030,7 +1184,6 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	return &rpc.UpdateResponse{
 		Properties: props,
 	}, nil
-
 }
 
 func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
@@ -1049,58 +1202,391 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
-
 }
 
+// ConstructRequest captures enough data to be able to register nested components against the caller's resource
+// monitor.
 type ConstructRequest struct {
-	URN       presource.URN
-	Preview   bool
-	Construct func(context.Context, ConstructFunc) (ConstructResponse, error)
+	// URN is the Pulumi URN for this resource.
+	Urn presource.URN
+
+	// Configuration for the specified project and stack.
+	Config map[pconfig.Key]string
+
+	// A set of configuration keys whose values are secrets.
+	ConfigSecretKeys []pconfig.Key
+
+	// True if and only if the request is being made as part of a preview/dry run, in which case the provider should not
+	// actually construct the component.
+	DryRun bool
+
+	// The degree of parallelism that may be used for resource operations. A value less than or equal to 1 indicates
+	// that operations should be performed serially.
+	Parallel int32
+
+	// The address of the [](pulumirpc.ResourceMonitor) that the provider should connect to in order to send [resource
+	// registrations](resource-registration) for its nested resources.
+	MonitorEndpoint string // the RPC address to the host resource monitor.
+
+	// Parent is the URN of the parent resource.
+	Parent presource.URN
+
+	// Inputs is the set of inputs for the component.
+	Inputs property.Map
+
+	// Aliases is the set of aliases for the component.
+	Aliases []presource.URN
+
+	// Dependencies is the list of resources this component depends on, i.e. the DependsOn resource option.
+	Dependencies []presource.URN
+
+	// Protect is true if the component is protected.
+	Protect *bool
+
+	// Providers is a map from package name to provider reference.
+	Providers map[tokens.Package]ProviderReference
+
+	// InputDependencies is a map from property name to a list of resources that property depends on.
+	InputDependencies map[string][]presource.URN
+
+	// AdditionalSecretOutputs lists extra output properties
+	// that should be treated as secrets.
+	AdditionalSecretOutputs []string
+
+	// CustomTimeouts overrides default timeouts for resource operations.
+	CustomTimeouts *presource.CustomTimeouts
+
+	// DeletedWith specifies that if the given resource is deleted,
+	// it will also delete this resource.
+	DeletedWith presource.URN
+
+	// DeleteBeforeReplace specifies that replacements of this resource
+	// should delete the old resource before creating the new resource.
+	DeleteBeforeReplace *bool
+
+	// IgnoreChanges lists properties that should be ignored
+	// when determining whether the resource should has changed.
+	IgnoreChanges []string
+
+	// ReplaceOnChanges lists properties changing which should cause
+	// the resource to be replaced.
+	ReplaceOnChanges []string
+
+	// RetainOnDelete is true if deletion of the resource should not
+	// delete the resource in the provider.
+	RetainOnDelete *bool
+
+	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
+	AcceptsOutputValues bool
 }
 
-type ConstructFunc = func(
-	*pulumi.Context, comProvider.ConstructInputs, pulumi.ResourceOption,
-) (pulumi.ComponentResource, error)
+// ProviderReference is a (URN, ID) tuple that refers to a particular provider instance.
+type ProviderReference struct {
+	Urn presource.URN
+	ID  presource.ID
+}
 
-type ConstructResponse struct{ inner *rpc.ConstructResponse }
+func newConstructRequest(req *rpc.ConstructRequest,
+	unmarshal func(s *structpb.Struct) (property.Map, error),
+) (ConstructRequest, error) {
+	var errs multierror.Error
 
-func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
-	// This returns the URN of the parent, we just need the type.
-	parent := tokens.Type(req.GetParent())
-	if parent != "" {
-		parent = presource.URN(parent).Type()
+	toTimeout := func(name, s string) float64 {
+		if s == "" {
+			return 0
+		}
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			errs.Errors = append(errs.Errors, fmt.Errorf("invalid %s timeout: %w", name, err))
+			return 0
+		}
+		return d.Seconds()
 	}
 
+	toUrns := func(s []string) []presource.URN {
+		r := make([]presource.URN, len(s))
+		for i, a := range s {
+			r[i] = presource.URN(a)
+		}
+		return r
+	}
+
+	parent := presource.URN(req.GetParent())
 	urn := presource.NewURN(
 		tokens.QName(req.GetStack()),
 		tokens.PackageName(req.GetProject()),
-		parent,
+		func() tokens.Type {
+			if parent == "" {
+				return ""
+			}
+			return parent.Type()
+		}(),
 		tokens.Type(req.GetType()),
 		req.GetName(),
 	)
-	ctx = p.ctx(ctx, urn)
-	f := func(ctx context.Context, construct ConstructFunc) (ConstructResponse, error) {
-		r, err := comProvider.Construct(ctx, req, p.host.EngineConn(),
-			func(
-				ctx *pulumi.Context, _, _ string, inputs comProvider.ConstructInputs, options pulumi.ResourceOption,
-			) (*comProvider.ConstructResult, error) {
-				r, err := construct(ctx, inputs, options)
+
+	// https://github.com/pulumi/pulumi/blob/v3.162.0/sdk/go/common/resource/plugin/provider_plugin.go#L1735-L1812
+
+	r := ConstructRequest{
+		Urn: urn,
+		Config: func() map[pconfig.Key]string {
+			m := make(map[pconfig.Key]string, len(req.GetConfig()))
+			for k, v := range req.GetConfig() {
+				key, err := pconfig.ParseKey(k)
 				if err != nil {
-					return nil, err
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config key: %w", err))
+					continue
 				}
-				return comProvider.NewConstructResult(r)
-			})
-		if err != nil {
-			return ConstructResponse{}, err
-		}
-		return ConstructResponse{r}, nil
+				m[key] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []pconfig.Key {
+			keys := make([]pconfig.Key, len(req.GetConfigSecretKeys()))
+			for i, k := range req.GetConfigSecretKeys() {
+				key, err := pconfig.ParseKey(k)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid config secret key: %w", err))
+					continue
+				}
+				keys[i] = key
+			}
+			return keys
+		}(),
+		DryRun:          req.GetDryRun(),
+		Parallel:        req.GetParallel(),
+		MonitorEndpoint: req.GetMonitorEndpoint(),
+		Parent:          parent,
+		Inputs:          property.Map{},
+		Protect:         req.Protect,
+		Providers: func() map[tokens.Package]ProviderReference {
+			m := make(map[tokens.Package]ProviderReference, len(req.GetProviders()))
+			for k, v := range req.GetProviders() {
+				urn, id, err := putil.ParseProviderReference(v)
+				if err != nil {
+					errs.Errors = append(errs.Errors, fmt.Errorf("invalid provider reference: %w", err))
+					continue
+				}
+				m[tokens.Package(k)] = ProviderReference{
+					Urn: urn,
+					ID:  id,
+				}
+			}
+			return m
+		}(),
+		InputDependencies: func() map[string][]presource.URN {
+			m := make(map[string][]presource.URN, len(req.GetInputDependencies()))
+			for k, v := range req.GetInputDependencies() {
+				m[k] = toUrns(v.Urns)
+			}
+			return m
+		}(),
+		Aliases:      toUrns(req.GetAliases()),
+		Dependencies: toUrns(req.GetDependencies()),
+		AdditionalSecretOutputs: func() []string {
+			r := make([]string, len(req.GetAdditionalSecretOutputs()))
+			for i, k := range req.GetAdditionalSecretOutputs() {
+				r[i] = k
+			}
+			return r
+		}(),
+		DeletedWith:         presource.URN(req.GetDeletedWith()),
+		DeleteBeforeReplace: req.DeleteBeforeReplace,
+		IgnoreChanges:       req.IgnoreChanges,
+		ReplaceOnChanges:    req.ReplaceOnChanges,
+		RetainOnDelete:      req.RetainOnDelete,
+		CustomTimeouts: func() *presource.CustomTimeouts {
+			t := req.GetCustomTimeouts()
+			if t == nil {
+				return nil
+			}
+			return &presource.CustomTimeouts{
+				Create: toTimeout("create", t.GetCreate()),
+				Update: toTimeout("update", t.GetUpdate()),
+				Delete: toTimeout("delete", t.GetDelete()),
+			}
+		}(),
+		AcceptsOutputValues: req.AcceptsOutputValues,
 	}
-	result, err := p.client.Construct(ctx, ConstructRequest{
-		URN:       urn,
-		Preview:   req.GetDryRun(),
-		Construct: f,
-	})
-	return result.inner, err
+
+	inputs, err := unmarshal(req.Inputs)
+	if err != nil {
+		errs.Errors = append(errs.Errors, fmt.Errorf("invalid inputs: %w", err))
+	} else {
+		r.Inputs = inputs
+	}
+
+	return r, errs.ErrorOrNil()
+}
+
+type propertyToRPC func(m property.Map) (*structpb.Struct, error)
+
+func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
+	// https://github.com/pulumi/pulumi/blob/v3.162.0/sdk/go/common/resource/plugin/provider_plugin.go#L1735-L1812
+
+	fromUrns := func(urns []presource.URN) []string {
+		r := make([]string, len(urns))
+		for i, urn := range urns {
+			r[i] = string(urn)
+		}
+		return r
+	}
+
+	// Marshal the input properties.
+	minputs, err := marshal(c.Inputs)
+	if err != nil {
+		return nil
+	}
+
+	req := &rpc.ConstructRequest{
+		Project: string(c.Urn.Project()),
+		Stack:   string(c.Urn.Stack()),
+		Config: func() map[string]string {
+			m := make(map[string]string, len(c.Config))
+			for k, v := range c.Config {
+				m[k.String()] = v
+			}
+			return m
+		}(),
+		ConfigSecretKeys: func() []string {
+			keys := make([]string, len(c.ConfigSecretKeys))
+			for i, k := range c.ConfigSecretKeys {
+				keys[i] = k.String()
+			}
+			return keys
+		}(),
+		DryRun:          c.DryRun,
+		Parallel:        c.Parallel,
+		MonitorEndpoint: c.MonitorEndpoint,
+		Type:            string(c.Urn.Type()),
+		Name:            c.Urn.Name(),
+		Parent:          string(c.Parent),
+		Inputs:          minputs,
+		Protect:         c.Protect,
+		Providers: func() map[string]string {
+			m := make(map[string]string, len(c.Providers))
+			for k, v := range c.Providers {
+				m[string(k)] = putil.FormatProviderReference(v.Urn, v.ID)
+			}
+			return m
+		}(),
+		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
+			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.InputDependencies))
+			for k, v := range c.InputDependencies {
+				m[k] = &rpc.ConstructRequest_PropertyDependencies{
+					Urns: fromUrns(v),
+				}
+			}
+			return m
+		}(),
+		Aliases:                 fromUrns(c.Aliases),
+		Dependencies:            fromUrns(c.Dependencies),
+		AdditionalSecretOutputs: c.AdditionalSecretOutputs,
+		DeletedWith:             string(c.DeletedWith),
+		DeleteBeforeReplace:     c.DeleteBeforeReplace,
+		IgnoreChanges:           c.IgnoreChanges,
+		ReplaceOnChanges:        c.ReplaceOnChanges,
+		RetainOnDelete:          c.RetainOnDelete,
+		AcceptsOutputValues:     c.AcceptsOutputValues,
+	}
+
+	if ct := c.CustomTimeouts; ct != nil {
+		req.CustomTimeouts = &rpc.ConstructRequest_CustomTimeouts{
+			Create: (time.Duration(ct.Create) * time.Second).String(),
+			Update: (time.Duration(ct.Update) * time.Second).String(),
+			Delete: (time.Duration(ct.Delete) * time.Second).String(),
+		}
+	}
+
+	return req
+}
+
+type ConstructResponse struct {
+	Urn               presource.URN // the Pulumi URN for this resource.
+	State             property.Map
+	StateDependencies map[string][]presource.URN
+}
+
+func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error) {
+	toUrns := func(s []string) []presource.URN {
+		l := make([]presource.URN, len(s))
+		for i, a := range s {
+			l[i] = presource.URN(a)
+		}
+		return l
+	}
+
+	// Umarshal the state properties.
+	state, err := internalrpc.UnmarshalProperties(req.State)
+	if err != nil {
+		return ConstructResponse{}, err
+	}
+
+	r := ConstructResponse{
+		Urn:   presource.URN(req.Urn),
+		State: state,
+		StateDependencies: func() map[string][]presource.URN {
+			m := make(map[string][]presource.URN, len(req.StateDependencies))
+			for k, v := range req.StateDependencies {
+				m[k] = toUrns(v.Urns)
+			}
+			return m
+		}(),
+	}
+	return r, nil
+}
+
+func (c ConstructResponse) rpc(marshal propertyToRPC) *rpc.ConstructResponse {
+	fromUrns := func(urns []presource.URN) []string {
+		r := make([]string, len(urns))
+		for i, urn := range urns {
+			r[i] = string(urn)
+		}
+		return r
+	}
+
+	// Marshal the state properties.
+	mstate, err := marshal(c.State)
+	if err != nil {
+		return nil
+	}
+
+	return &rpc.ConstructResponse{
+		Urn:   string(c.Urn),
+		State: mstate,
+		StateDependencies: func() map[string]*rpc.ConstructResponse_PropertyDependencies {
+			m := make(map[string]*rpc.ConstructResponse_PropertyDependencies, len(c.StateDependencies))
+			for k, v := range c.StateDependencies {
+				m[k] = &rpc.ConstructResponse_PropertyDependencies{
+					Urns: fromUrns(v),
+				}
+			}
+			return m
+		}(),
+	}
+}
+
+func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+	r, err := newConstructRequest(req, p.getMap)
+	if err != nil {
+		return nil, err
+	}
+
+	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
+
+	ctx = p.ctx(ctx, r.Urn)
+	result, err := p.client.Construct(ctx, r)
+
+	return result.rpc(p.asStruct), err
+}
+
+func (h *host) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc,
+) (ConstructResponse, error) {
+	r, err := comProvider.Construct(ctx, req.rpc(internalrpc.MarshalProperties), h.host.EngineConn(), construct)
+	if err != nil {
+		return ConstructResponse{}, err
+	}
+	return newConstructResponse(r)
 }
 
 func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
@@ -1110,7 +1596,6 @@ func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
-
 }
 
 type (
@@ -1241,4 +1726,20 @@ func GetTypeToken[Ctx interface{ Value(any) any }](ctx Ctx) string {
 		return urn.Type().String()
 	}
 	return ""
+}
+
+type Host interface {
+	// Construct constructs a new resource using the provided [comProvider.ConstructFunc].
+	Construct(context.Context, ConstructRequest, comProvider.ConstructFunc) (ConstructResponse, error)
+
+	// Call calls a method using the provided [comProvider.CallFunc].
+	Call(context.Context, CallRequest, comProvider.CallFunc) (CallResponse, error)
+}
+
+// GetHost retrieves the provider's [Host] from the context.
+func GetHost(ctx context.Context) Host {
+	if v := ctx.Value(key.ProviderHost); v != nil {
+		return v.(Host)
+	}
+	return nil
 }

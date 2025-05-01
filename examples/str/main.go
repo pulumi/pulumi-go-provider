@@ -37,7 +37,7 @@ func provider() p.Provider {
 
 type Replace struct{}
 
-func (Replace) Call(ctx context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[Ret], error) {
+func (Replace) Invoke(ctx context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[Ret], error) {
 	return infer.FunctionResponse[Ret]{
 		Output: Ret{strings.ReplaceAll(req.Input.S, req.Input.Old, req.Input.New)},
 	}, nil
@@ -76,7 +76,7 @@ func (p *Print) Annotate(a infer.Annotator) {
 
 type Empty struct{}
 
-func (Print) Call(ctx context.Context, req infer.FunctionRequest[In]) (infer.FunctionResponse[Empty], error) {
+func (Print) Invoke(ctx context.Context, req infer.FunctionRequest[In]) (infer.FunctionResponse[Empty], error) {
 	fmt.Print(req.Input.S)
 	return infer.FunctionResponse[Empty]{}, nil
 }
@@ -87,7 +87,7 @@ type In struct {
 
 type GiveMeAString struct{}
 
-func (GiveMeAString) Call(ctx context.Context, _ infer.FunctionRequest[Empty]) (infer.FunctionResponse[Ret], error) {
+func (GiveMeAString) Invoke(ctx context.Context, _ infer.FunctionRequest[Empty]) (infer.FunctionResponse[Ret], error) {
 	return infer.FunctionResponse[Ret]{
 		Output: Ret{"A string"},
 	}, nil

@@ -191,20 +191,20 @@ var _ = (infer.CustomUpdate[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil)
 
 func (r *RandomSalt) Update(ctx context.Context, req infer.UpdateRequest[RandomSaltArgs, RandomSaltState]) (infer.UpdateResponse[RandomSaltState], error) {
 	var redoSalt bool
-	if req.Olds.SaltLength != nil && req.News.SaltLength != nil {
-		redoSalt = *req.Olds.SaltLength != *req.News.SaltLength
-	} else if req.Olds.SaltLength != nil || req.News.SaltLength != nil {
+	if req.State.SaltLength != nil && req.Inputs.SaltLength != nil {
+		redoSalt = *req.State.SaltLength != *req.Inputs.SaltLength
+	} else if req.State.SaltLength != nil || req.Inputs.SaltLength != nil {
 		redoSalt = true
 	}
 
-	salt := req.Olds.Salt
+	salt := req.State.Salt
 	if redoSalt {
 		if req.Preview {
 			return infer.UpdateResponse[RandomSaltState]{}, nil
 		}
 		l := 4
-		if req.News.SaltLength != nil {
-			l = *req.News.SaltLength
+		if req.Inputs.SaltLength != nil {
+			l = *req.Inputs.SaltLength
 		}
 		salt = makeSalt(l)
 	}
@@ -212,9 +212,9 @@ func (r *RandomSalt) Update(ctx context.Context, req infer.UpdateRequest[RandomS
 	return infer.UpdateResponse[RandomSaltState]{
 		Output: RandomSaltState{
 			Salt:           salt,
-			SaltedPassword: fmt.Sprintf("%s%s", salt, req.News.Password),
-			Password:       req.News.Password,
-			SaltLength:     req.News.SaltLength,
+			SaltedPassword: fmt.Sprintf("%s%s", salt, req.Inputs.Password),
+			Password:       req.Inputs.Password,
+			SaltLength:     req.Inputs.SaltLength,
 		},
 	}, nil
 }
