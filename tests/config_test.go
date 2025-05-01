@@ -112,7 +112,7 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
 		Config: infer.Config[config](),
 	})).CheckConfig(p.CheckRequest{
-		News: property.NewMap(map[string]property.Value{
+		Inputs: property.NewMap(map[string]property.Value{
 			"field": property.New("value"),
 			"nested": property.New(map[string]property.Value{
 				"int":        property.New(1.0),
@@ -203,7 +203,7 @@ func TestInferCustomCheckConfig(t *testing.T) {
 			t.Parallel()
 			resp, err := s.CheckConfig(p.CheckRequest{
 				Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
-				News: property.NewMap(map[string]property.Value{
+				Inputs: property.NewMap(map[string]property.Value{
 					"field":         property.New("value"),
 					"not":           property.New("not-secret"),
 					"applyDefaults": property.New(applyDefaults),

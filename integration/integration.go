@@ -88,7 +88,8 @@ func NewServerWithContext(ctx context.Context, pkg string, version semver.Versio
 }
 
 func NewServerWithOptions(ctx context.Context, pkg string, version semver.Version, provider p.Provider,
-	opts ...ServerOption) Server {
+	opts ...ServerOption,
+) Server {
 	o := &serverOptions{}
 	for _, opt := range opts {
 		opt.applyServerOption(o)
@@ -231,7 +232,6 @@ var _ = (p.Host)(&host{})
 // Construct implements the host interface to allow the provider to construct resources.
 func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct comProvider.ConstructFunc,
 ) (p.ConstructResponse, error) {
-
 	// Use the fake engine to create a pulumi context,
 	// and then call the user's construct function with the context.
 	// the function is expected to register resources, which will be
@@ -260,7 +260,6 @@ func (s *server) Call(req p.CallRequest) (p.CallResponse, error) {
 
 func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.CallFunc,
 ) (p.CallResponse, error) {
-
 	// Use the fake engine to create a pulumi context,
 	// and then call the user's call function with the context.
 	// the function is expected to register resources, which will be
@@ -333,9 +332,9 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 	runCreate := func(op Operation) (p.CreateResponse, bool) {
 		// Here we do the create and the initial setup
 		checkResponse, err := server.Check(p.CheckRequest{
-			Urn:  urn,
-			Olds: property.Map{},
-			News: op.Inputs,
+			Urn:    urn,
+			State:  property.Map{},
+			Inputs: op.Inputs,
 		})
 		assert.NoError(t, err, "resource check errored")
 		if len(op.CheckFailures) > 0 || len(checkResponse.Failures) > 0 {
@@ -384,9 +383,9 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 	for i, update := range l.Updates {
 		// Perform the check
 		check, err := server.Check(p.CheckRequest{
-			Urn:  urn,
-			Olds: olds,
-			News: update.Inputs,
+			Urn:    urn,
+			State:  olds,
+			Inputs: update.Inputs,
 		})
 
 		assert.NoErrorf(t, err, "check returned an error on update %d", i)
@@ -400,10 +399,10 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		}
 
 		diff, err := server.Diff(p.DiffRequest{
-			ID:   id,
-			Urn:  urn,
-			Olds: olds,
-			News: check.Inputs,
+			ID:     id,
+			Urn:    urn,
+			State:  olds,
+			Inputs: check.Inputs,
 		})
 		assert.NoErrorf(t, err, "diff failed on update %d", i)
 		if err != nil {
@@ -458,8 +457,8 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			_, err = server.Update(p.UpdateRequest{
 				ID:      id,
 				Urn:     urn,
-				Olds:    olds,
-				News:    check.Inputs,
+				State:   olds,
+				Inputs:  check.Inputs,
 				Preview: true,
 			})
 
@@ -468,10 +467,10 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			}
 
 			result, err := server.Update(p.UpdateRequest{
-				ID:   id,
-				Urn:  urn,
-				Olds: olds,
-				News: check.Inputs,
+				ID:     id,
+				Urn:    urn,
+				State:  olds,
+				Inputs: check.Inputs,
 			})
 			if !update.ExpectFailure && err != nil {
 				assert.NoError(t, err, "failed to update the resource")
@@ -496,5 +495,4 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		Properties: olds,
 	})
 	assert.NoError(t, err, "failed to delete the resource")
-
 }

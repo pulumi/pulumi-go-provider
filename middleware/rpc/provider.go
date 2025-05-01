@@ -63,12 +63,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			return err
 		},
 		CheckConfig: func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
 
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
@@ -81,11 +81,11 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		DiffConfig: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
@@ -113,7 +113,6 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			return err
 		},
 		Invoke: func(ctx context.Context, req p.InvokeRequest) (p.InvokeResponse, error) {
-
 			args, err := runtime.propertyToRPC(req.Args)
 			if err != nil {
 				return p.InvokeResponse{}, err
@@ -130,12 +129,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}, err
 		},
 		Check: func(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
 
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.CheckResponse{}, err
 			}
@@ -148,12 +147,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		Diff: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-			olds, err := runtime.propertyToRPC(req.Olds)
+			olds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
 
-			news, err := runtime.propertyToRPC(req.News)
+			news, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.DiffResponse{}, err
 			}
@@ -217,12 +216,12 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.UpdateResponse{}, nil
 			}
 
-			inOlds, err := runtime.propertyToRPC(req.Olds)
+			inOlds, err := runtime.propertyToRPC(req.State)
 			if err != nil {
 				return p.UpdateResponse{}, err
 			}
 
-			inNews, err := runtime.propertyToRPC(req.News)
+			inNews, err := runtime.propertyToRPC(req.Inputs)
 			if err != nil {
 				return p.UpdateResponse{}, err
 			}

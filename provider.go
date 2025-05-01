@@ -63,8 +63,8 @@ type GetSchemaResponse struct {
 
 type CheckRequest struct {
 	Urn        presource.URN
-	Olds       property.Map
-	News       property.Map
+	State      property.Map
+	Inputs     property.Map
 	RandomSeed []byte
 }
 
@@ -81,8 +81,8 @@ type CheckResponse struct {
 type DiffRequest struct {
 	ID            string
 	Urn           presource.URN
-	Olds          property.Map
-	News          property.Map
+	State         property.Map
+	Inputs        property.Map
 	IgnoreChanges []string
 }
 
@@ -168,7 +168,6 @@ func (c diffChanges) rpc() rpc.DiffResponse_DiffChanges {
 }
 
 func (d DiffResponse) rpc() *rpc.DiffResponse {
-
 	hasDetailedDiff := true
 	if _, ok := d.DetailedDiff[key.ForceNoDetailedDiff]; ok {
 		hasDetailedDiff = false
@@ -262,8 +261,8 @@ type ReadResponse struct {
 type UpdateRequest struct {
 	ID            string        // the ID of the resource to update.
 	Urn           presource.URN // the Pulumi URN for this resource.
-	Olds          property.Map  // the old values of provider inputs for the resource to update.
-	News          property.Map  // the new values of provider inputs for the resource to update.
+	State         property.Map  // the old state of the resource to update.
+	Inputs        property.Map  // the new values of provider inputs for the resource to update.
 	Timeout       float64       // the update request timeout represented in seconds.
 	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
 	Preview       bool          // true if the provider should not actually create the resource.
@@ -676,11 +675,10 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 
 	r, err := p.client.CheckConfig(ctx, CheckRequest{
 		Urn:        presource.URN(req.GetUrn()),
-		Olds:       olds,
-		News:       news,
+		State:      olds,
+		Inputs:     news,
 		RandomSeed: req.RandomSeed,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -712,8 +710,8 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 	r, err := p.client.DiffConfig(ctx, DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
-		Olds:          olds,
-		News:          news,
+		State:         olds,
+		Inputs:        news,
 		IgnoreChanges: req.GetIgnoreChanges(),
 	})
 	if err != nil {
@@ -853,8 +851,8 @@ type CallRequest struct {
 }
 
 func newCallRequest(req *rpc.CallRequest,
-	unmarshal func(s *structpb.Struct) (property.Map, error)) (CallRequest, error) {
-
+	unmarshal func(s *structpb.Struct) (property.Map, error),
+) (CallRequest, error) {
 	var errs multierror.Error
 
 	r := CallRequest{
@@ -913,7 +911,6 @@ func newCallRequest(req *rpc.CallRequest,
 }
 
 func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
-
 	fromUrns := func(urns []presource.URN) []string {
 		r := make([]string, len(urns))
 		for i, urn := range urns {
@@ -979,7 +976,6 @@ type CallResponse struct {
 }
 
 func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
-
 	// Umarshal the return properties.
 	ret, err := internalrpc.UnmarshalProperties(req.Return)
 	if err != nil {
@@ -1024,9 +1020,9 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 	}
 
 	r, err := p.client.Check(ctx, CheckRequest{
-		Urn:  presource.URN(req.GetUrn()),
-		Olds: olds,
-		News: news,
+		Urn:    presource.URN(req.GetUrn()),
+		State:  olds,
+		Inputs: news,
 	})
 	if err != nil {
 		return nil, err
@@ -1040,7 +1036,6 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 		Inputs:   inputs,
 		Failures: checkFailureList(r.Failures).rpc(),
 	}, nil
-
 }
 
 func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
@@ -1056,8 +1051,8 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 	r, err := p.client.Diff(ctx, DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
-		Olds:          olds,
-		News:          news,
+		State:         olds,
+		Inputs:        news,
 		IgnoreChanges: req.GetIgnoreChanges(),
 	})
 	if err != nil {
@@ -1163,8 +1158,8 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	r, err := p.client.Update(ctx, UpdateRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
-		Olds:          oldsMap,
-		News:          newsMap,
+		State:         oldsMap,
+		Inputs:        newsMap,
 		Timeout:       req.GetTimeout(),
 		IgnoreChanges: req.GetIgnoreChanges(),
 		Preview:       req.GetPreview(),
@@ -1189,7 +1184,6 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	return &rpc.UpdateResponse{
 		Properties: props,
 	}, nil
-
 }
 
 func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
@@ -1208,7 +1202,6 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
-
 }
 
 // ConstructRequest captures enough data to be able to register nested components against the caller's resource
@@ -1294,8 +1287,8 @@ type ProviderReference struct {
 }
 
 func newConstructRequest(req *rpc.ConstructRequest,
-	unmarshal func(s *structpb.Struct) (property.Map, error)) (ConstructRequest, error) {
-
+	unmarshal func(s *structpb.Struct) (property.Map, error),
+) (ConstructRequest, error) {
 	var errs multierror.Error
 
 	toTimeout := func(name, s string) float64 {
@@ -1429,7 +1422,6 @@ func newConstructRequest(req *rpc.ConstructRequest,
 type propertyToRPC func(m property.Map) (*structpb.Struct, error)
 
 func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
-
 	// https://github.com/pulumi/pulumi/blob/v3.162.0/sdk/go/common/resource/plugin/provider_plugin.go#L1735-L1812
 
 	fromUrns := func(urns []presource.URN) []string {
@@ -1604,7 +1596,6 @@ func (p *provider) Cancel(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
-
 }
 
 type (

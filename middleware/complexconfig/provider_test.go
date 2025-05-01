@@ -73,7 +73,6 @@ func TestComplexConfigEncoding(t *testing.T) {
 				}
 
 				return p, nil
-
 			},
 			expected: property.NewMap(map[string]property.Value{
 				"$": property.New("42"),
@@ -99,8 +98,8 @@ func TestComplexConfigEncoding(t *testing.T) {
 					}, err
 				},
 				CheckConfig: func(_ context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-					if !property.New(req.News).Equals(property.New(tt.expected)) {
-						assert.Equal(t, tt.expected, req.News)
+					if !property.New(req.Inputs).Equals(property.New(tt.expected)) {
+						assert.Equal(t, tt.expected, req.Inputs)
 					}
 
 					return p.CheckResponse{}, nil
@@ -108,7 +107,7 @@ func TestComplexConfigEncoding(t *testing.T) {
 			})
 
 			_, err := provider.CheckConfig(context.Background(), p.CheckRequest{
-				News: generateJSONEncoding(t, resource.ToResourcePropertyValue(property.New(tt.input)).ObjectValue()),
+				Inputs: generateJSONEncoding(t, resource.ToResourcePropertyValue(property.New(tt.input)).ObjectValue()),
 			})
 			require.NoError(t, err)
 		})
@@ -141,14 +140,14 @@ func TestRapidComplexConfigEncoding(t *testing.T) {
 				}, err
 			},
 			CheckConfig: func(_ context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-				assert.Equal(t, resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(), req.News)
+				assert.Equal(t, resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(), req.Inputs)
 
 				return p.CheckResponse{}, nil
 			},
 		})
 
 		_, err := provider.CheckConfig(context.Background(), p.CheckRequest{
-			News: generateJSONEncoding(t, m.Copy()),
+			Inputs: generateJSONEncoding(t, m.Copy()),
 		})
 		require.NoError(t, err)
 	})

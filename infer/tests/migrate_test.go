@@ -116,7 +116,6 @@ func migrationServer() integration.Server {
 // Test f on some old states that should be equivalent after upgrades.
 func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2State property.Map)) {
 	t.Run("defaults", func(t *testing.T) {
-
 		v2 := property.NewMap(map[string]property.Value{
 			"aString": property.New("default-string"),
 			"aInt":    property.New(-7.0),
@@ -184,9 +183,9 @@ func TestMigrateUpdate(t *testing.T) {
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		resp, err := migrationServer().Update(p.UpdateRequest{
-			ID:   "some-id",
-			Urn:  urn("MigrateR", "update"),
-			Olds: state,
+			ID:    "some-id",
+			Urn:   urn("MigrateR", "update"),
+			State: state,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, v2State, resp.Properties)
@@ -198,9 +197,9 @@ func TestMigrateDiff(t *testing.T) {
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
 		_, err := migrationServer().Diff(p.DiffRequest{
-			ID:   "some-id",
-			Urn:  urn("MigrateR", "diff"),
-			Olds: state,
+			ID:    "some-id",
+			Urn:   urn("MigrateR", "diff"),
+			State: state,
 		})
 		var via viaError[MigrateStateV2]
 		require.ErrorAs(t, err, &via)
@@ -244,7 +243,8 @@ func TestMigrateRead(t *testing.T) {
 }
 
 func (*MigrateR) Create(_ context.Context,
-	req infer.CreateRequest[MigrateStateInput]) (infer.CreateResponse[MigrateStateV2], error) {
+	req infer.CreateRequest[MigrateStateInput],
+) (infer.CreateResponse[MigrateStateV2], error) {
 	panic("CANNOT CREATE; ONLY MIGRATE")
 }
 
@@ -252,7 +252,7 @@ func (*MigrateR) Create(_ context.Context,
 func (*MigrateR) Update(
 	_ context.Context, req infer.UpdateRequest[MigrateStateInput, MigrateStateV2],
 ) (infer.UpdateResponse[MigrateStateV2], error) {
-	return infer.UpdateResponse[MigrateStateV2]{Output: req.Olds}, nil
+	return infer.UpdateResponse[MigrateStateV2]{Output: req.State}, nil
 }
 
 func (*MigrateR) Read(
@@ -266,8 +266,9 @@ func (*MigrateR) Delete(_ context.Context, req infer.DeleteRequest[MigrateStateV
 }
 
 func (*MigrateR) Diff(_ context.Context,
-	req infer.DiffRequest[MigrateStateInput, MigrateStateV2]) (infer.DiffResponse, error) {
-	return infer.DiffResponse{}, viaError[MigrateStateV2]{req.Olds}
+	req infer.DiffRequest[MigrateStateInput, MigrateStateV2],
+) (infer.DiffResponse, error) {
+	return infer.DiffResponse{}, viaError[MigrateStateV2]{req.State}
 }
 
 type viaError[T any] struct{ t T }
