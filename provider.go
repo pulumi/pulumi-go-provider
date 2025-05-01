@@ -261,7 +261,7 @@ type ReadResponse struct {
 type UpdateRequest struct {
 	ID            string        // the ID of the resource to update.
 	Urn           presource.URN // the Pulumi URN for this resource.
-	State         property.Map  // the old values of provider inputs for the resource to update.
+	State         property.Map  // the old state of the resource to update.
 	Inputs        property.Map  // the new values of provider inputs for the resource to update.
 	Timeout       float64       // the update request timeout represented in seconds.
 	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
