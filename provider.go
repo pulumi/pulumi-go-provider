@@ -50,7 +50,6 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
-	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
 
 type GetSchemaRequest struct {
@@ -787,15 +786,11 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
 	for name, v := range resp.Return.All {
-		var urns []string
-		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
-			if state.Entering || !v.IsOutput() {
-				return
-			}
-			for _, dep := range v.OutputValue().Dependencies {
-				urns = append(urns, string(dep))
-			}
-		})
+		deps := v.Dependencies()
+		urns := make([]string, 0, len(deps))
+		for _, u := range v.Dependencies() {
+			urns = append(urns, string(u))
+		}
 		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
 
