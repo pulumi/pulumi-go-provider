@@ -223,7 +223,7 @@ type CreateRequest struct {
 	Urn        presource.URN // the Pulumi URN for this resource.
 	Properties property.Map  // the provider inputs to set during creation.
 	Timeout    float64       // the create request timeout represented in seconds.
-	Preview    bool          // true if this is a preview and the provider should not actually create the resource.
+	DryRun     bool          // true if this is a preview and the provider should not actually create the resource.
 }
 
 type CreateResponse struct {
@@ -265,7 +265,7 @@ type UpdateRequest struct {
 	Inputs        property.Map  // the new values of provider inputs for the resource to update.
 	Timeout       float64       // the update request timeout represented in seconds.
 	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
-	Preview       bool          // true if the provider should not actually create the resource.
+	DryRun        bool          // true if the provider should not actually create the resource.
 }
 
 type UpdateResponse struct {
@@ -1072,7 +1072,7 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: props,
 		Timeout:    req.GetTimeout(),
-		Preview:    req.GetPreview(),
+		DryRun:     req.GetPreview(),
 	})
 	if initFailed := r.PartialState; initFailed != nil {
 		prop, propErr := p.asStruct(r.Properties)
@@ -1162,7 +1162,7 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		Inputs:        newsMap,
 		Timeout:       req.GetTimeout(),
 		IgnoreChanges: req.GetIgnoreChanges(),
-		Preview:       req.GetPreview(),
+		DryRun:        req.GetPreview(),
 	})
 	if initFailed := r.PartialState; initFailed != nil {
 		prop, propErr := p.asStruct(r.Properties)

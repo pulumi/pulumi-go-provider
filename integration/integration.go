@@ -346,7 +346,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		_, err = server.Create(p.CreateRequest{
 			Urn:        urn,
 			Properties: checkResponse.Inputs,
-			Preview:    true,
+			DryRun:     true,
 		})
 		// We allow the failure from ExpectFailure to hit at either the preview or the Create.
 		if op.ExpectFailure && err != nil {
@@ -455,11 +455,11 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 
 			// Now perform the preview
 			_, err = server.Update(p.UpdateRequest{
-				ID:      id,
-				Urn:     urn,
-				State:   olds,
-				Inputs:  check.Inputs,
-				Preview: true,
+				ID:     id,
+				Urn:    urn,
+				State:  olds,
+				Inputs: check.Inputs,
+				DryRun: true,
 			})
 
 			if update.ExpectFailure && err != nil {

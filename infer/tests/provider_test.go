@@ -88,7 +88,7 @@ func (*Echo) Create(ctx context.Context,
 	id := req.Name + "-id"
 	state := EchoOutputs{EchoInputs: req.Inputs}
 
-	if req.Preview {
+	if req.DryRun {
 		return infer.CreateResponse[EchoOutputs]{
 			ID:     id,
 			Output: state,
@@ -109,7 +109,7 @@ func (*Echo) Create(ctx context.Context,
 func (*Echo) Update(ctx context.Context,
 	req infer.UpdateRequest[EchoInputs, EchoOutputs],
 ) (infer.UpdateResponse[EchoOutputs], error) {
-	if req.Preview {
+	if req.DryRun {
 		return infer.UpdateResponse[EchoOutputs]{
 			Output: req.State,
 		}, nil
@@ -148,7 +148,7 @@ func (*Wired) Create(ctx context.Context,
 	id := req.Name + "-id"
 	state := WiredOutputs{Name: "(" + req.Name + ")"}
 
-	if req.Preview {
+	if req.DryRun {
 		return infer.CreateResponse[WiredOutputs]{
 			ID:     id,
 			Output: state,
@@ -225,10 +225,10 @@ func (*WiredPlus) Update(
 ) (infer.UpdateResponse[WiredPlusOutputs], error) {
 	r := new(Wired)
 	updateReq := infer.UpdateRequest[WiredInputs, WiredOutputs]{
-		ID:      req.ID,
-		State:   req.State.WiredOutputs,
-		Inputs:  req.Inputs,
-		Preview: req.Preview,
+		ID:     req.ID,
+		State:  req.State.WiredOutputs,
+		Inputs: req.Inputs,
+		DryRun: req.DryRun,
 	}
 	resp, err := r.Update(ctx, updateReq)
 	if err != nil {
