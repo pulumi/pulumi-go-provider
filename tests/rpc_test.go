@@ -865,7 +865,7 @@ func TestRPCCall(t *testing.T) {
 		args, expectedArgs := exampleCallArgs(true)
 		expectedArgDeps := exampleCallArgDependencies(true)
 		returns, expectedReturns := exampleCallReturns()
-		returnDeps, expectedReturnDeps := exampleCallReturnDependencies()
+		returnDeps, _ := exampleCallReturnDependencies()
 		wasCalled := false
 
 		s := rpcServer(rpcTestServer{
@@ -900,7 +900,6 @@ func TestRPCCall(t *testing.T) {
 		assert.Equal(t,
 			expectedReturns,
 			resp.Return, "return values should be the same")
-		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "return dependencies should be the same")
 	})
 
 	// Check that we downgrade args when outputs are not supported.
@@ -971,7 +970,6 @@ func TestRPCCall(t *testing.T) {
 			}
 			assert.Equal(t, deps, v.Dependencies(), "return dependencies for %q should be the same", name)
 		}
-		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "return dependencies should be the same")
 	})
 }
 

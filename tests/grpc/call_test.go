@@ -78,13 +78,7 @@ func TestCall(t *testing.T) {
               "dependencies": ["urn1","urn2"]
           },
           "r2": "s"
-       },
-       "returnDependencies": {
-           "r1": {
-              "urns": ["urn1", "urn2"]
-           },
-           "r2": {}
-        }
+       }
     },
     "metadata": {
         "kind": "resource",
@@ -115,7 +109,6 @@ func TestCall(t *testing.T) {
 				}),
 				"r2": property.New("s"),
 			}),
-			ReturnDependencies: map[string][]resource.URN{},
 		}, nil
 	}
 

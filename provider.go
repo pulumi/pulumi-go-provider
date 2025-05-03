@@ -50,7 +50,6 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
-	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
 
 type GetSchemaRequest struct {
@@ -778,27 +777,6 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 		return nil, err
 	}
 
-	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
-	for name, v := range resp.ReturnDependencies {
-		var urns []string
-		for _, dep := range v {
-			urns = append(urns, string(dep))
-		}
-		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-	}
-	for name, v := range resp.Return.All {
-		var urns []string
-		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
-			if state.Entering || !v.IsOutput() {
-				return
-			}
-			for _, dep := range v.OutputValue().Dependencies {
-				urns = append(urns, string(dep))
-			}
-		})
-		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-	}
-
 	_return, err := p.asStruct(resp.Return)
 	if err != nil {
 		return nil, err
@@ -806,7 +784,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 
 	return &rpc.CallResponse{
 		Return:             _return,
-		ReturnDependencies: returnDependencies,
+		ReturnDependencies: nil,
 		Failures:           checkFailureList(resp.Failures).rpc(),
 	}, nil
 }
@@ -817,6 +795,7 @@ func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallF
 	if err != nil {
 		return CallResponse{}, err
 	}
+	// note that r.ReturnDependencies is ignored because req.AcceptsOutputValues is true
 	return newCallResponse(r)
 }
 
@@ -945,8 +924,6 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 type CallResponse struct {
 	// The returned values, if the call was successful.
 	Return property.Map
-	// A map from return keys to the dependencies of the return value.
-	ReturnDependencies map[string][]presource.URN
 	// The failures if any arguments didn't pass verification.
 	Failures []CheckFailure
 }
@@ -970,17 +947,10 @@ func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
 			}
 			return failures
 		}(),
-		ReturnDependencies: func() map[string][]presource.URN {
-			r := make(map[string][]presource.URN, len(req.ReturnDependencies))
-			for k, v := range req.ReturnDependencies {
-				r[k] = make([]presource.URN, len(v.Urns))
-				for i, urn := range v.Urns {
-					r[k][i] = presource.URN(urn)
-				}
-			}
-			return r
-		}(),
 	}
+
+	// note that req.ReturnDependencies is ignored
+
 	return r, nil
 }
 
