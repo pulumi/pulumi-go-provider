@@ -98,11 +98,6 @@ func TestConstruct(t *testing.T) {
         "4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
         "dependencies": ["urn7","urn8"]
       }
-    },
-    "stateDependencies": {
-      "r1": {
-        "urns": ["urn7", "urn8"]
-      }
     }
   },
   "metadata": {
@@ -148,9 +143,6 @@ func TestConstruct(t *testing.T) {
 					"urn7", "urn8",
 				}),
 			}),
-			StateDependencies: map[string][]resource.URN{
-				"r1": {resource.URN("urn7"), resource.URN("urn8")},
-			},
 		}, nil
 	}
 	replay.Replay(t, constructProvider(t, construct), jsonLog)

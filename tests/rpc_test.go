@@ -791,7 +791,6 @@ func TestRPCConstruct(t *testing.T) {
 			}
 			assert.Equal(t, deps, v.Dependencies(), "state dependencies for %q should be the same", name)
 		}
-		assert.Equal(t, expectedStateDeps, resp.StateDependencies, "state dependencies should be the same")
 	})
 }
 

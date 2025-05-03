@@ -1423,9 +1423,10 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 }
 
 type ConstructResponse struct {
-	Urn               presource.URN // the Pulumi URN for this resource.
-	State             property.Map
-	StateDependencies map[string][]presource.URN
+	// the Pulumi URN for this resource.
+	Urn presource.URN
+	// the state of this resource.
+	State property.Map
 }
 
 func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error) {
@@ -1435,48 +1436,13 @@ func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error)
 		return ConstructResponse{}, err
 	}
 
+	// note that req.StateDependencies is ignored
+
 	r := ConstructResponse{
 		Urn:   presource.URN(req.Urn),
 		State: state,
-		StateDependencies: func() map[string][]presource.URN {
-			m := make(map[string][]presource.URN, len(req.StateDependencies))
-			for k, v := range req.StateDependencies {
-				m[k] = putil.ToUrns(v.Urns)
-			}
-			return m
-		}(),
 	}
 	return r, nil
-}
-
-func (c ConstructResponse) rpc(marshal propertyToRPC) *rpc.ConstructResponse {
-	fromUrns := func(urns []presource.URN) []string {
-		r := make([]string, len(urns))
-		for i, urn := range urns {
-			r[i] = string(urn)
-		}
-		return r
-	}
-
-	// Marshal the state properties.
-	mstate, err := marshal(c.State)
-	if err != nil {
-		return nil
-	}
-
-	return &rpc.ConstructResponse{
-		Urn:   string(c.Urn),
-		State: mstate,
-		StateDependencies: func() map[string]*rpc.ConstructResponse_PropertyDependencies {
-			m := make(map[string]*rpc.ConstructResponse_PropertyDependencies, len(c.StateDependencies))
-			for k, v := range c.StateDependencies {
-				m[k] = &rpc.ConstructResponse_PropertyDependencies{
-					Urns: fromUrns(v),
-				}
-			}
-			return m
-		}(),
-	}
 }
 
 func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
@@ -1488,9 +1454,20 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
 
 	ctx = p.ctx(ctx, r.Urn)
-	result, err := p.client.Construct(ctx, r)
+	resp, err := p.client.Construct(ctx, r)
+	if err != nil {
+		return nil, err
+	}
 
-	return result.rpc(p.asStruct), err
+	state, err := p.asStruct(resp.State)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpc.ConstructResponse{
+		Urn:   string(resp.Urn),
+		State: state,
+	}, nil
 }
 
 func (h *host) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc,
