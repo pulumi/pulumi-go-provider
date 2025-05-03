@@ -263,6 +263,21 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedConstructRequestToRPC(&req, runtime.propertyToRPC)
+			rpcReq.AcceptsOutputValues = true
+
+			// downgrade the input dependencies if the provider doesn't support output values,
+			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
+			if !runtime.configuration.AcceptOutputs {
+				inputDependencies := map[string]*rpc.ConstructRequest_PropertyDependencies{}
+				for name, v := range req.Inputs.All {
+					urns := getPropertyDependencies(v)
+					if len(urns) != 0 {
+						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: urns}
+					}
+				}
+				rpcReq.InputDependencies = inputDependencies
+			}
+
 			rpcResp, err := server.Construct(ctx, rpcReq)
 			if err != nil {
 				return p.ConstructResponse{}, err
@@ -273,6 +288,16 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.ConstructResponse{}, err
 			}
 
+			// upgrade the state dependencies if the provider doesn't support output values,
+			// in which case [rpcResp.StateDependencies] has meaningful information.
+			state := resp.State.AsMap()
+			for name, deps := range rpcResp.GetStateDependencies() {
+				if v, ok := state[name]; ok {
+					state[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
+				}
+			}
+			resp.State = property.NewMap(state)
+
 			return resp, nil
 		},
 		Call: func(ctx context.Context, req p.CallRequest) (p.CallResponse, error) {
@@ -281,21 +306,14 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedCallRequestToRPC(&req, runtime.propertyToRPC)
+			rpcReq.AcceptsOutputValues = true
 
 			// downgrade the arg dependencies if the provider doesn't support output values,
 			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
 			if !runtime.configuration.AcceptOutputs {
 				argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
 				for name, v := range req.Args.All {
-					var urns []string
-					resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
-						if state.Entering || !v.IsOutput() {
-							return
-						}
-						for _, dep := range v.OutputValue().Dependencies {
-							urns = append(urns, string(dep))
-						}
-					})
+					urns := getPropertyDependencies(v)
 					if len(urns) != 0 {
 						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: urns}
 					}
@@ -394,6 +412,20 @@ func checkFailures(resp []*rpc.CheckFailure) []p.CheckFailure {
 		}
 	}
 	return arr
+}
+
+// getPropertyDependencies gathers (deeply) the dependencies of the given property value.
+func getPropertyDependencies(v property.Value) []string {
+	var urns []string
+	resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
+		if state.Entering || !v.IsOutput() {
+			return
+		}
+		for _, dep := range v.OutputValue().Dependencies {
+			urns = append(urns, string(dep))
+		}
+	})
+	return urns
 }
 
 type runtime struct {

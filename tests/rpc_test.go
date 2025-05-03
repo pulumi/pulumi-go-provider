@@ -621,15 +621,76 @@ func TestRPCDelete(t *testing.T) {
 	})
 }
 
+func exampleConstructInputs(acceptOutputs bool) (property.Map, map[string]any) {
+	r := property.NewMap(map[string]property.Value{
+		"k1": property.New("s"),
+		"k2": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+		"k3": property.New(property.Null),
+	})
+	if acceptOutputs {
+		return r, map[string]any{
+			"k1": "s",
+			"k2": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"k3": nil,
+		}
+	} else {
+		return r, map[string]any{
+			"k1": "s",
+			"k2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+			"k3": nil,
+		}
+	}
+}
+
+func exampleConstructInputDependencies(acceptOutputs bool) (map[string][]resource.URN, map[string]*rpc.ConstructRequest_PropertyDependencies) {
+	r := map[string][]resource.URN{}
+	if acceptOutputs {
+		return r, map[string]*rpc.ConstructRequest_PropertyDependencies{}
+	} else {
+		return r, map[string]*rpc.ConstructRequest_PropertyDependencies{
+			"k2": {Urns: []string{"urn1", "urn2"}},
+		}
+	}
+}
+
+func exampleConstuctState() (map[string]any, property.Map) {
+	return map[string]any{
+			"r1": "s",
+			"r2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+			"r3": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"r4": nil,
+		},
+		property.NewMap(map[string]property.Value{
+			"r1": property.New("s"),
+			"r2": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+			"r3": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+			"r4": property.New(property.Null),
+		})
+}
+
+func exampleConstructStateDependencies() (map[string]*rpc.ConstructResponse_PropertyDependencies, map[string][]resource.URN) {
+	return map[string]*rpc.ConstructResponse_PropertyDependencies{
+			"r2": {Urns: []string{"urn1", "urn2"}},
+		},
+		map[string][]resource.URN{
+			"r2": {"urn1", "urn2"},
+		}
+}
+
 func TestRPCConstruct(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no-error", func(t *testing.T) {
 		t.Parallel()
-		inputs, expectedInputs := exampleNews()
+		inputs, expectedInputs := exampleConstructInputs(true)
+		state, _ := exampleConstuctState()
+		stateDeps, _ := exampleConstructStateDependencies()
 		wasCalled := false
 
-		_, err := rpcServer(rpcTestServer{
+		s := rpcServer(rpcTestServer{
+			onConfigure: configureResult(&rpc.ConfigureResponse{
+				AcceptOutputs: true,
+			}),
 			onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 				assert.Equal(t, "test:index:Component", req.GetType())
 				assert.Equal(t, "component", req.GetName())
@@ -639,19 +700,105 @@ func TestRPCConstruct(t *testing.T) {
 
 				wasCalled = true
 				return &rpc.ConstructResponse{
-					Urn:   "urn:pulumi:test::test::test:index:Component::component",
-					State: must(structpb.NewStruct(expectedInputs)),
+					Urn:               "urn:pulumi:test::test::test:index:Component::component",
+					State:             must(structpb.NewStruct(state)),
+					StateDependencies: stateDeps,
 				}, nil
 			},
-		}).Construct(p.ConstructRequest{
+		})
+		require.NoError(t, s.Configure(p.ConfigureRequest{}))
+		_, err := s.Construct(p.ConstructRequest{
 			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
 			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
-			Inputs:              resource.FromResourcePropertyValue(resource.NewProperty(inputs)).AsMap(),
+			Inputs:              inputs,
 			AcceptsOutputValues: true,
 		})
 
 		assert.NoError(t, err)
 		assert.True(t, wasCalled)
+	})
+
+	// Check that we downgrade inputs when outputs are not supported.
+	t.Run("inputs", func(t *testing.T) {
+		t.Parallel()
+		for _, acceptOutputs := range []bool{true, false} {
+			inputs, expectedInputs := exampleConstructInputs(acceptOutputs)
+			inputDeps, expectedInputDeps := exampleConstructInputDependencies(acceptOutputs)
+			state, _ := exampleConstuctState()
+			stateDeps, _ := exampleConstructStateDependencies()
+
+			wasCalled := false
+			s := rpcServer(rpcTestServer{
+				onConfigure: configureResult(&rpc.ConfigureResponse{
+					AcceptOutputs: acceptOutputs,
+				}),
+				onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+					assert.Equal(t, expectedInputs, req.GetInputs().AsMap())
+					assert.Equal(t, expectedInputDeps, req.GetInputDependencies())
+					wasCalled = true
+
+					return &rpc.ConstructResponse{
+						Urn:               "urn:pulumi:test::test::test:index:Component::component",
+						State:             must(structpb.NewStruct(state)),
+						StateDependencies: stateDeps,
+					}, nil
+				},
+			})
+			require.NoError(t, s.Configure(p.ConfigureRequest{}))
+			_, err := s.Construct(p.ConstructRequest{
+				Urn:                 "urn:pulumi:test::test::test:index:Component::component",
+				Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
+				Inputs:              inputs,
+				InputDependencies:   inputDeps,
+				AcceptsOutputValues: true,
+			})
+
+			assert.NoError(t, err)
+			assert.True(t, wasCalled)
+		}
+	})
+
+	// Check that we upgrade state values when outputs are not supported.
+	t.Run("state", func(t *testing.T) {
+		t.Parallel()
+
+		inputs, _ := exampleConstructInputs(true)
+		inputDeps, _ := exampleConstructInputDependencies(true)
+		state, expectedState := exampleConstuctState()
+		stateDeps, expectedStateDeps := exampleConstructStateDependencies()
+
+		s := rpcServer(rpcTestServer{
+			onConfigure: configureResult(&rpc.ConfigureResponse{
+				AcceptOutputs: true,
+			}),
+			onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+				return &rpc.ConstructResponse{
+					Urn:               "urn:pulumi:test::test::test:index:Component::component",
+					State:             must(structpb.NewStruct(state)),
+					StateDependencies: stateDeps,
+				}, nil
+			},
+		})
+		require.NoError(t, s.Configure(p.ConfigureRequest{}))
+		resp, err := s.Construct(p.ConstructRequest{
+			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
+			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs:              inputs,
+			InputDependencies:   inputDeps,
+			AcceptsOutputValues: true,
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedState, resp.State, "state should be the same")
+		for name, deps := range expectedStateDeps {
+			v, ok := resp.State.GetOk(name)
+			if !ok {
+				assert.Fail(t, "state value for %q should be present", name)
+				continue
+			}
+			assert.Equal(t, deps, v.Dependencies(), "state dependencies for %q should be the same", name)
+		}
+		assert.Equal(t, expectedStateDeps, resp.StateDependencies, "state dependencies should be the same")
 	})
 }
 
@@ -821,7 +968,7 @@ func TestRPCCall(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, expectedReturn, resp.Return, "args should be the same")
+		assert.Equal(t, expectedReturn, resp.Return, "return values should be the same")
 		for name, deps := range expectedReturnDeps {
 			v, ok := resp.Return.GetOk(name)
 			if !ok {
@@ -830,7 +977,7 @@ func TestRPCCall(t *testing.T) {
 			}
 			assert.Equal(t, deps, v.Dependencies(), "return dependencies for %q should be the same", name)
 		}
-		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "arg dependencies should be the same")
+		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "return dependencies should be the same")
 	})
 }
 
