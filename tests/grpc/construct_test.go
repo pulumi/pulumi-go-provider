@@ -140,9 +140,6 @@ func TestConstruct(t *testing.T) {
 		assert.Equal(t, property.NewMap(map[string]property.Value{
 			"k1": property.New("s").WithDependencies([]resource.URN{"urn4", "urn5"}),
 		}), req.Inputs)
-		assert.Equal(t, map[string][]resource.URN{
-			"k1": {resource.URN("urn4"), resource.URN("urn5")},
-		}, req.InputDependencies)
 
 		return p.ConstructResponse{
 			Urn: resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),

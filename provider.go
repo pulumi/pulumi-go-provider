@@ -1191,9 +1191,6 @@ type ConstructRequest struct {
 	// Providers is a map from package name to provider reference.
 	Providers map[tokens.Package]ProviderReference
 
-	// InputDependencies is a map from property name to a list of resources that property depends on.
-	InputDependencies map[string][]presource.URN
-
 	// AdditionalSecretOutputs lists extra output properties
 	// that should be treated as secrets.
 	AdditionalSecretOutputs []string
@@ -1308,13 +1305,6 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			}
 			return m
 		}(),
-		InputDependencies: func() map[string][]presource.URN {
-			m := make(map[string][]presource.URN, len(req.GetInputDependencies()))
-			for k, v := range req.GetInputDependencies() {
-				m[k] = putil.ToUrns(v.Urns)
-			}
-			return m
-		}(),
 		Aliases:      putil.ToUrns(req.GetAliases()),
 		Dependencies: putil.ToUrns(req.GetDependencies()),
 		AdditionalSecretOutputs: func() []string {
@@ -1407,15 +1397,6 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 			m := make(map[string]string, len(c.Providers))
 			for k, v := range c.Providers {
 				m[string(k)] = putil.FormatProviderReference(v.Urn, v.ID)
-			}
-			return m
-		}(),
-		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
-			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.InputDependencies))
-			for k, v := range c.InputDependencies {
-				m[k] = &rpc.ConstructRequest_PropertyDependencies{
-					Urns: fromUrns(v),
-				}
 			}
 			return m
 		}(),
