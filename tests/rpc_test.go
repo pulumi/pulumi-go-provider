@@ -708,10 +708,9 @@ func TestRPCConstruct(t *testing.T) {
 		})
 		require.NoError(t, s.Configure(p.ConfigureRequest{}))
 		_, err := s.Construct(p.ConstructRequest{
-			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
-			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
-			Inputs:              inputs,
-			AcceptsOutputValues: true,
+			Urn:    "urn:pulumi:test::test::test:index:Component::component",
+			Parent: "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs: inputs,
 		})
 
 		assert.NoError(t, err)
@@ -746,11 +745,10 @@ func TestRPCConstruct(t *testing.T) {
 			})
 			require.NoError(t, s.Configure(p.ConfigureRequest{}))
 			_, err := s.Construct(p.ConstructRequest{
-				Urn:                 "urn:pulumi:test::test::test:index:Component::component",
-				Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
-				Inputs:              inputs,
-				InputDependencies:   inputDeps,
-				AcceptsOutputValues: true,
+				Urn:               "urn:pulumi:test::test::test:index:Component::component",
+				Parent:            "urn:pulumi:test::test::test:index:Parent::parent",
+				Inputs:            inputs,
+				InputDependencies: inputDeps,
 			})
 
 			assert.NoError(t, err)
@@ -781,11 +779,10 @@ func TestRPCConstruct(t *testing.T) {
 		})
 		require.NoError(t, s.Configure(p.ConfigureRequest{}))
 		resp, err := s.Construct(p.ConstructRequest{
-			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
-			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
-			Inputs:              inputs,
-			InputDependencies:   inputDeps,
-			AcceptsOutputValues: true,
+			Urn:               "urn:pulumi:test::test::test:index:Component::component",
+			Parent:            "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs:            inputs,
+			InputDependencies: inputDeps,
 		})
 
 		assert.NoError(t, err)

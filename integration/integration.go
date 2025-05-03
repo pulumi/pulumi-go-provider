@@ -219,7 +219,6 @@ func (s *server) Delete(req p.DeleteRequest) error {
 
 func (s *server) Construct(req p.ConstructRequest) (p.ConstructResponse, error) {
 	// apply some defaults for convenenience
-	req.AcceptsOutputValues = true
 	if req.Parallel < 1 {
 		req.Parallel = 1
 	}

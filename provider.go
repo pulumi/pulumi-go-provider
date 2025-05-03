@@ -871,8 +871,7 @@ func newCallRequest(req *rpc.CallRequest,
 		// upgrade the args to include the dependencies
 		_args := args.AsMap()
 		for name, deps := range req.GetArgDependencies() {
-			if v, ok := args.GetOk(name); ok {
-				contract.Assertf(len(v.Dependencies()) == 0, "unexpected dependencies for %q", name)
+			if v, ok := _args[name]; ok {
 				_args[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
 			}
 		}
@@ -1221,9 +1220,6 @@ type ConstructRequest struct {
 	// RetainOnDelete is true if deletion of the resource should not
 	// delete the resource in the provider.
 	RetainOnDelete *bool
-
-	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
-	AcceptsOutputValues bool
 }
 
 // ProviderReference is a (URN, ID) tuple that refers to a particular provider instance.
@@ -1344,14 +1340,20 @@ func newConstructRequest(req *rpc.ConstructRequest,
 				Delete: toTimeout("delete", t.GetDelete()),
 			}
 		}(),
-		AcceptsOutputValues: req.AcceptsOutputValues,
 	}
 
 	inputs, err := unmarshal(req.Inputs)
 	if err != nil {
 		errs.Errors = append(errs.Errors, fmt.Errorf("invalid inputs: %w", err))
 	} else {
-		r.Inputs = inputs
+		// upgrade the inputs to include the dependencies
+		_inputs := inputs.AsMap()
+		for name, deps := range req.GetInputDependencies() {
+			if v, ok := _inputs[name]; ok {
+				_inputs[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
+			}
+		}
+		r.Inputs = property.NewMap(_inputs)
 	}
 
 	return r, errs.ErrorOrNil()
@@ -1425,7 +1427,7 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		IgnoreChanges:           c.IgnoreChanges,
 		ReplaceOnChanges:        c.ReplaceOnChanges,
 		RetainOnDelete:          c.RetainOnDelete,
-		AcceptsOutputValues:     c.AcceptsOutputValues,
+		AcceptsOutputValues:     true,
 	}
 
 	if ct := c.CustomTimeouts; ct != nil {
@@ -1516,6 +1518,7 @@ func (h *host) Construct(ctx context.Context, req ConstructRequest, construct co
 	if err != nil {
 		return ConstructResponse{}, err
 	}
+	// note that r.StateDependencies is ignored because req.AcceptsOutputValues is true
 	return newConstructResponse(r)
 }
 
