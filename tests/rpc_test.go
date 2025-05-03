@@ -823,12 +823,11 @@ func exampleCallArgs(acceptOutputs bool) (property.Map, map[string]any) {
 	}
 }
 
-func exampleCallArgDependencies(acceptOutputs bool) (map[string][]resource.URN, map[string]*rpc.CallRequest_ArgumentDependencies) {
-	r := map[string][]resource.URN{}
+func exampleCallArgDependencies(acceptOutputs bool) map[string]*rpc.CallRequest_ArgumentDependencies {
 	if acceptOutputs {
-		return r, map[string]*rpc.CallRequest_ArgumentDependencies{}
+		return map[string]*rpc.CallRequest_ArgumentDependencies{}
 	} else {
-		return r, map[string]*rpc.CallRequest_ArgumentDependencies{
+		return map[string]*rpc.CallRequest_ArgumentDependencies{
 			"k2": {Urns: []string{"urn1", "urn2"}},
 		}
 	}
@@ -864,7 +863,7 @@ func TestRPCCall(t *testing.T) {
 	t.Run("no-error", func(t *testing.T) {
 		t.Parallel()
 		args, expectedArgs := exampleCallArgs(true)
-		argDeps, expectedArgDeps := exampleCallArgDependencies(true)
+		expectedArgDeps := exampleCallArgDependencies(true)
 		returns, expectedReturns := exampleCallReturns()
 		returnDeps, expectedReturnDeps := exampleCallReturnDependencies()
 		wasCalled := false
@@ -890,11 +889,10 @@ func TestRPCCall(t *testing.T) {
 		})
 		require.NoError(t, s.Configure(p.ConfigureRequest{}))
 		resp, err := s.Call(p.CallRequest{
-			Tok:             tokens.ModuleMember("some-token"),
-			Project:         "some-project",
-			Stack:           "some-stack",
-			Args:            args,
-			ArgDependencies: argDeps,
+			Tok:     tokens.ModuleMember("some-token"),
+			Project: "some-project",
+			Stack:   "some-stack",
+			Args:    args,
 		})
 
 		assert.NoError(t, err)
@@ -911,7 +909,7 @@ func TestRPCCall(t *testing.T) {
 		for _, acceptOutputs := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%v", acceptOutputs), func(t *testing.T) {
 				args, expectedArgs := exampleCallArgs(acceptOutputs)
-				argDeps, expectedArgDeps := exampleCallArgDependencies(acceptOutputs)
+				expectedArgDeps := exampleCallArgDependencies(acceptOutputs)
 
 				var wasCalled bool
 				s := rpcServer(rpcTestServer{
@@ -927,11 +925,10 @@ func TestRPCCall(t *testing.T) {
 				})
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				_, err := s.Call(p.CallRequest{
-					Tok:             tokens.ModuleMember("some-token"),
-					Project:         "some-project",
-					Stack:           "some-stack",
-					Args:            args,
-					ArgDependencies: argDeps,
+					Tok:     tokens.ModuleMember("some-token"),
+					Project: "some-project",
+					Stack:   "some-stack",
+					Args:    args,
 				})
 
 				assert.NoError(t, err)

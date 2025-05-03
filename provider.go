@@ -828,8 +828,6 @@ type CallRequest struct {
 	Tok tokens.ModuleMember
 	// the arguments for the function invocation.
 	Args property.Map
-	// a map from argument keys to the dependencies of the argument.
-	ArgDependencies map[string][]presource.URN
 	// the project name.
 	Project string
 	// the name of the stack being deployed into.
@@ -854,17 +852,7 @@ func newCallRequest(req *rpc.CallRequest,
 	var errs multierror.Error
 
 	r := CallRequest{
-		Tok: tokens.ModuleMember(req.GetTok()),
-		ArgDependencies: func() map[string][]presource.URN {
-			r := make(map[string][]presource.URN, len(req.GetArgDependencies()))
-			for k, v := range req.GetArgDependencies() {
-				r[k] = make([]presource.URN, len(v.GetUrns()))
-				for i, urn := range v.GetUrns() {
-					r[k][i] = presource.URN(urn)
-				}
-			}
-			return r
-		}(),
+		Tok:     tokens.ModuleMember(req.GetTok()),
 		Project: req.GetProject(),
 		Stack:   req.GetStack(),
 		Config: func() map[pconfig.Key]string {
@@ -901,21 +889,21 @@ func newCallRequest(req *rpc.CallRequest,
 	if err != nil {
 		errs.Errors = append(errs.Errors, fmt.Errorf("invalid args: %w", err))
 	} else {
-		r.Args = args
+		// upgrade the args to include the dependencies
+		_args := args.AsMap()
+		for name, deps := range req.GetArgDependencies() {
+			if v, ok := args.GetOk(name); ok {
+				contract.Assertf(len(v.Dependencies()) == 0, "unexpected dependencies for %q", name)
+				_args[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
+			}
+		}
+		r.Args = property.NewMap(_args)
 	}
 
 	return r, errs.ErrorOrNil()
 }
 
 func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
-	fromUrns := func(urns []presource.URN) []string {
-		r := make([]string, len(urns))
-		for i, urn := range urns {
-			r[i] = string(urn)
-		}
-		return r
-	}
-
 	// Marshal the args.
 	args, err := marshal(c.Args)
 	if err != nil {
@@ -923,17 +911,8 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 	}
 
 	req := &rpc.CallRequest{
-		Tok:  c.Tok.String(),
-		Args: args,
-		ArgDependencies: func() map[string]*rpc.CallRequest_ArgumentDependencies {
-			r := make(map[string]*rpc.CallRequest_ArgumentDependencies, len(c.ArgDependencies))
-			for k, v := range c.ArgDependencies {
-				r[k] = &rpc.CallRequest_ArgumentDependencies{
-					Urns: fromUrns(v),
-				}
-			}
-			return r
-		}(),
+		Tok:     c.Tok.String(),
+		Args:    args,
 		Project: c.Project,
 		Stack:   c.Stack,
 		Config: func() map[string]string {

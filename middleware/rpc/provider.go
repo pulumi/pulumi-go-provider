@@ -267,16 +267,16 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 
 			// downgrade the input dependencies if the provider doesn't support output values,
 			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
+			inputDependencies := map[string]*rpc.ConstructRequest_PropertyDependencies{}
 			if !runtime.configuration.AcceptOutputs {
-				inputDependencies := map[string]*rpc.ConstructRequest_PropertyDependencies{}
 				for name, v := range req.Inputs.All {
 					urns := getPropertyDependencies(v)
 					if len(urns) != 0 {
 						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: urns}
 					}
 				}
-				rpcReq.InputDependencies = inputDependencies
 			}
+			rpcReq.InputDependencies = inputDependencies
 
 			rpcResp, err := server.Construct(ctx, rpcReq)
 			if err != nil {
@@ -306,20 +306,19 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedCallRequestToRPC(&req, runtime.propertyToRPC)
-			rpcReq.AcceptsOutputValues = true
 
 			// downgrade the arg dependencies if the provider doesn't support output values,
 			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
+			argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
 			if !runtime.configuration.AcceptOutputs {
-				argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
 				for name, v := range req.Args.All {
 					urns := getPropertyDependencies(v)
 					if len(urns) != 0 {
 						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: urns}
 					}
 				}
-				rpcReq.ArgDependencies = argDependencies
 			}
+			rpcReq.ArgDependencies = argDependencies
 
 			rpcResp, err := server.Call(ctx, rpcReq)
 			if err != nil {

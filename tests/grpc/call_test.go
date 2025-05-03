@@ -80,9 +80,10 @@ func TestCall(t *testing.T) {
           "r2": "s"
        },
        "returnDependencies": {
-           "r2": {
+           "r1": {
               "urns": ["urn1", "urn2"]
-           }
+           },
+           "r2": {}
         }
     },
     "metadata": {
@@ -94,12 +95,9 @@ func TestCall(t *testing.T) {
 
 	call := func(_ context.Context, req p.CallRequest) (p.CallResponse, error) {
 		assert.Equal(t, property.NewMap(map[string]property.Value{
-			"k1": property.New("s"),
+			"k1": property.New("s").WithDependencies([]resource.URN{"urn1", "urn2"}),
 			"k2": property.New(3.14),
 		}), req.Args)
-		assert.Equal(t, map[string][]resource.URN{
-			"k1": {resource.URN("urn1"), resource.URN("urn2")},
-		}, req.ArgDependencies)
 		assert.Equal(t, tokens.ModuleMember("some-token"), req.Tok)
 		assert.Equal(t, "some-project", req.Project)
 		assert.Equal(t, "some-stack", req.Stack)
@@ -109,7 +107,6 @@ func TestCall(t *testing.T) {
 			config.MustParseKey("test:c2"): "3.14",
 		}, req.Config)
 		assert.Equal(t, []config.Key{config.MustParseKey("test:c1")}, req.ConfigSecretKeys)
-		assert.Equal(t, true, req.AcceptsOutputValues)
 
 		return p.CallResponse{
 			Return: property.NewMap(map[string]property.Value{
@@ -118,9 +115,7 @@ func TestCall(t *testing.T) {
 				}),
 				"r2": property.New("s"),
 			}),
-			ReturnDependencies: map[string][]resource.URN{
-				"r2": {resource.URN("urn1"), resource.URN("urn2")},
-			},
+			ReturnDependencies: map[string][]resource.URN{},
 		}, nil
 	}
 
