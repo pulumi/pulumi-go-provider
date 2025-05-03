@@ -50,6 +50,7 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
+	"github.com/pulumi/pulumi-go-provider/resourcex"
 )
 
 type GetSchemaRequest struct {
@@ -785,6 +786,18 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 		}
 		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
 	}
+	for name, v := range resp.Return.All {
+		var urns []string
+		resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
+			if state.Entering || !v.IsOutput() {
+				return
+			}
+			for _, dep := range v.OutputValue().Dependencies {
+				urns = append(urns, string(dep))
+			}
+		})
+		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
+	}
 
 	_return, err := p.asStruct(resp.Return)
 	if err != nil {
@@ -1290,14 +1303,6 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		return d.Seconds()
 	}
 
-	toUrns := func(s []string) []presource.URN {
-		r := make([]presource.URN, len(s))
-		for i, a := range s {
-			r[i] = presource.URN(a)
-		}
-		return r
-	}
-
 	parent := presource.URN(req.GetParent())
 	urn := presource.NewURN(
 		tokens.QName(req.GetStack()),
@@ -1364,12 +1369,12 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		InputDependencies: func() map[string][]presource.URN {
 			m := make(map[string][]presource.URN, len(req.GetInputDependencies()))
 			for k, v := range req.GetInputDependencies() {
-				m[k] = toUrns(v.Urns)
+				m[k] = putil.ToUrns(v.Urns)
 			}
 			return m
 		}(),
-		Aliases:      toUrns(req.GetAliases()),
-		Dependencies: toUrns(req.GetDependencies()),
+		Aliases:      putil.ToUrns(req.GetAliases()),
+		Dependencies: putil.ToUrns(req.GetDependencies()),
 		AdditionalSecretOutputs: func() []string {
 			r := make([]string, len(req.GetAdditionalSecretOutputs()))
 			for i, k := range req.GetAdditionalSecretOutputs() {
@@ -1495,14 +1500,6 @@ type ConstructResponse struct {
 }
 
 func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error) {
-	toUrns := func(s []string) []presource.URN {
-		l := make([]presource.URN, len(s))
-		for i, a := range s {
-			l[i] = presource.URN(a)
-		}
-		return l
-	}
-
 	// Umarshal the state properties.
 	state, err := internalrpc.UnmarshalProperties(req.State)
 	if err != nil {
@@ -1515,7 +1512,7 @@ func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error)
 		StateDependencies: func() map[string][]presource.URN {
 			m := make(map[string][]presource.URN, len(req.StateDependencies))
 			for k, v := range req.StateDependencies {
-				m[k] = toUrns(v.Urns)
+				m[k] = putil.ToUrns(v.Urns)
 			}
 			return m
 		}(),

@@ -25,7 +25,10 @@ import (
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
+	"github.com/pulumi/pulumi-go-provider/resourcex"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
@@ -278,6 +281,28 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedCallRequestToRPC(&req, runtime.propertyToRPC)
+
+			// downgrade the arg dependencies if the provider doesn't support output values,
+			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
+			if !runtime.configuration.AcceptOutputs {
+				argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
+				for name, v := range req.Args.All {
+					var urns []string
+					resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
+						if state.Entering || !v.IsOutput() {
+							return
+						}
+						for _, dep := range v.OutputValue().Dependencies {
+							urns = append(urns, string(dep))
+						}
+					})
+					if len(urns) != 0 {
+						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: urns}
+					}
+				}
+				rpcReq.ArgDependencies = argDependencies
+			}
+
 			rpcResp, err := server.Call(ctx, rpcReq)
 			if err != nil {
 				return p.CallResponse{}, err
@@ -287,6 +312,16 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			if err != nil {
 				return p.CallResponse{}, err
 			}
+
+			// upgrade the return dependencies if the provider doesn't support output values,
+			// in which case [rpcResp.ReturnDependencies] has meaningful information.
+			_return := resp.Return.AsMap()
+			for name, deps := range rpcResp.GetReturnDependencies() {
+				if v, ok := _return[name]; ok {
+					_return[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
+				}
+			}
+			resp.Return = property.NewMap(_return)
 
 			return resp, nil
 		},

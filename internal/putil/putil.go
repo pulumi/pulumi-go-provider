@@ -231,3 +231,12 @@ func ParseProviderReference(s string) (resource.URN, resource.ID, error) {
 func FormatProviderReference(urn resource.URN, id resource.ID) string {
 	return fmt.Sprintf("%s%s%s", urn, resource.URNNameDelimiter, id)
 }
+
+// ToUrns converts a slice of strings to a slice of URNs.
+func ToUrns(s []string) []resource.URN {
+	r := make([]resource.URN, len(s))
+	for i, a := range s {
+		r[i] = resource.URN(a)
+	}
+	return r
+}
