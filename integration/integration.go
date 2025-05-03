@@ -251,7 +251,6 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 
 func (s *server) Call(req p.CallRequest) (p.CallResponse, error) {
 	// apply some defaults for convenience
-	req.AcceptsOutputValues = true
 	if req.Parallel < 1 {
 		req.Parallel = 1
 	}

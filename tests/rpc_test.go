@@ -890,12 +890,11 @@ func TestRPCCall(t *testing.T) {
 		})
 		require.NoError(t, s.Configure(p.ConfigureRequest{}))
 		resp, err := s.Call(p.CallRequest{
-			Tok:                 tokens.ModuleMember("some-token"),
-			Project:             "some-project",
-			Stack:               "some-stack",
-			Args:                args,
-			ArgDependencies:     argDeps,
-			AcceptsOutputValues: true,
+			Tok:             tokens.ModuleMember("some-token"),
+			Project:         "some-project",
+			Stack:           "some-stack",
+			Args:            args,
+			ArgDependencies: argDeps,
 		})
 
 		assert.NoError(t, err)
@@ -928,12 +927,11 @@ func TestRPCCall(t *testing.T) {
 				})
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				_, err := s.Call(p.CallRequest{
-					Tok:                 tokens.ModuleMember("some-token"),
-					Project:             "some-project",
-					Stack:               "some-stack",
-					Args:                args,
-					ArgDependencies:     argDeps,
-					AcceptsOutputValues: true,
+					Tok:             tokens.ModuleMember("some-token"),
+					Project:         "some-project",
+					Stack:           "some-stack",
+					Args:            args,
+					ArgDependencies: argDeps,
 				})
 
 				assert.NoError(t, err)
@@ -961,10 +959,9 @@ func TestRPCCall(t *testing.T) {
 		})
 		require.NoError(t, s.Configure(p.ConfigureRequest{}))
 		resp, err := s.Call(p.CallRequest{
-			Tok:                 tokens.ModuleMember("some-token"),
-			Project:             "some-project",
-			Stack:               "some-stack",
-			AcceptsOutputValues: true,
+			Tok:     tokens.ModuleMember("some-token"),
+			Project: "some-project",
+			Stack:   "some-stack",
 		})
 
 		assert.NoError(t, err)

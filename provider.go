@@ -846,8 +846,6 @@ type CallRequest struct {
 	MonitorEndpoint string
 	// the organization of the stack being deployed into.
 	Organization string
-	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
-	AcceptsOutputValues bool
 }
 
 func newCallRequest(req *rpc.CallRequest,
@@ -893,11 +891,10 @@ func newCallRequest(req *rpc.CallRequest,
 			}
 			return keys
 		}(),
-		DryRun:              req.GetDryRun(),
-		Parallel:            req.GetParallel(),
-		MonitorEndpoint:     req.GetMonitorEndpoint(),
-		Organization:        req.GetOrganization(),
-		AcceptsOutputValues: req.GetAcceptsOutputValues(),
+		DryRun:          req.GetDryRun(),
+		Parallel:        req.GetParallel(),
+		MonitorEndpoint: req.GetMonitorEndpoint(),
+		Organization:    req.GetOrganization(),
 	}
 
 	args, err := unmarshal(req.GetArgs())
@@ -957,7 +954,7 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 		Parallel:            c.Parallel,
 		MonitorEndpoint:     c.MonitorEndpoint,
 		Organization:        c.Organization,
-		AcceptsOutputValues: c.AcceptsOutputValues,
+		AcceptsOutputValues: true,
 	}
 
 	return req
