@@ -21,6 +21,7 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 // IsComputed checks if v is some form of a computed/unknown value.
@@ -239,4 +240,27 @@ func ToUrns(s []string) []resource.URN {
 		r[i] = resource.URN(a)
 	}
 	return r
+}
+
+// Walk traverses a property value along all paths, performing a depth first search.
+func Walk(v property.Value, f func(property.Value) (continueWalking bool)) bool {
+	cont := f(v)
+	if !cont {
+		return false
+	}
+	switch {
+	case v.IsArray():
+		for _, v := range v.AsArray().All {
+			if !Walk(v, f) {
+				return false
+			}
+		}
+	case v.IsMap():
+		for _, v := range v.AsMap().All {
+			if !Walk(v, f) {
+				return false
+			}
+		}
+	}
+	return true
 }

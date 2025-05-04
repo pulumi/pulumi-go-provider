@@ -27,9 +27,7 @@ import (
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
-	"github.com/pulumi/pulumi-go-provider/resourcex"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
@@ -418,16 +416,15 @@ func checkFailures(resp []*rpc.CheckFailure) []p.CheckFailure {
 
 // getPropertyDependencies gathers (deeply) the dependencies of the given property value.
 func getPropertyDependencies(v property.Value) []string {
-	var urns []string
-	resourcex.Walk(presource.ToResourcePropertyValue(v), func(v presource.PropertyValue, state resourcex.WalkState) {
-		if state.Entering || !v.IsOutput() {
-			return
+	var deps []string
+	putil.Walk(v, func(v property.Value) (continueWalking bool) {
+		for _, v := range v.Dependencies() {
+			deps = append(deps, string(v))
 		}
-		for _, dep := range v.OutputValue().Dependencies {
-			urns = append(urns, string(dep))
-		}
+		return true
 	})
-	return urns
+	slices.Sort(deps)
+	return slices.Compact(deps)
 }
 
 func mergePropertyDependencies(deps []resource.URN) []resource.URN {

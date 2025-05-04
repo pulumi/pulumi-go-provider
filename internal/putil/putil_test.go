@@ -21,6 +21,7 @@ import (
 	rresource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
@@ -170,4 +171,36 @@ func TestParseProviderReference(t *testing.T) {
 			assert.Error(t, err, "expected an invalid reference: %s", tc)
 		}
 	})
+}
+
+func TestWalk(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		v    property.Value
+		want []r.URN
+	}
+	testCases := []testCase{
+		{
+			v:    property.New("s").WithDependencies([]r.URN{"s"}),
+			want: []r.URN{"s"},
+		},
+		{
+			v: property.New(map[string]property.Value{
+				"k": property.New("s").WithDependencies([]r.URN{"s"}),
+			}).WithDependencies([]r.URN{"k"}),
+			want: []r.URN{"k", "s"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.v.GoString(), func(t *testing.T) {
+			t.Parallel()
+			var got []r.URN
+			putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
+				got = append(got, v.Dependencies()...)
+				return true
+			})
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
