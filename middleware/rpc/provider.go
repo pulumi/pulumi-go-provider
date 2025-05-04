@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
@@ -293,7 +294,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			state := resp.State.AsMap()
 			for name, deps := range rpcResp.GetStateDependencies() {
 				if v, ok := state[name]; ok {
-					state[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
+					deps := mergePropertyDependencies(append(v.Dependencies(), putil.ToUrns(deps.GetUrns())...))
+					state[name] = v.WithDependencies(deps)
 				}
 			}
 			resp.State = property.NewMap(state)
@@ -335,7 +337,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			_return := resp.Return.AsMap()
 			for name, deps := range rpcResp.GetReturnDependencies() {
 				if v, ok := _return[name]; ok {
-					_return[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
+					deps := mergePropertyDependencies(append(v.Dependencies(), putil.ToUrns(deps.GetUrns())...))
+					_return[name] = v.WithDependencies(deps)
 				}
 			}
 			resp.Return = property.NewMap(_return)
@@ -425,6 +428,11 @@ func getPropertyDependencies(v property.Value) []string {
 		}
 	})
 	return urns
+}
+
+func mergePropertyDependencies(deps []resource.URN) []resource.URN {
+	slices.Sort(deps)
+	return slices.Compact(deps)
 }
 
 type runtime struct {
