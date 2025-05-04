@@ -23,22 +23,22 @@ import (
 // We want to make low-level rpc functionality available to the middleware for implementation purposes.
 // To achieve this, go:linkname is used by various packages to link to the below function(s).
 
-//nolint:unused
+//go:linkname linkedConstructRequestToRPC github.com/pulumi/pulumi-go-provider.linkedConstructRequestToRPC
 func linkedConstructRequestToRPC(req *ConstructRequest, marshal propertyToRPC) *pulumirpc.ConstructRequest {
 	return req.rpc(marshal)
 }
 
-//nolint:unused
+//go:linkname linkedConstructResponseFromRPC github.com/pulumi/pulumi-go-provider.linkedConstructResponseFromRPC
 func linkedConstructResponseFromRPC(resp *pulumirpc.ConstructResponse) (ConstructResponse, error) {
 	return newConstructResponse(resp)
 }
 
-//nolint:unused
+//go:linkname linkedCallRequestToRPC github.com/pulumi/pulumi-go-provider.linkedCallRequestToRPC
 func linkedCallRequestToRPC(req *CallRequest, marshal propertyToRPC) *pulumirpc.CallRequest {
 	return req.rpc(marshal)
 }
 
-//nolint:unused
+//go:linkname linkedCallResponseFromRPC github.com/pulumi/pulumi-go-provider.linkedCallResponseFromRPC
 func linkedCallResponseFromRPC(resp *pulumirpc.CallResponse) (CallResponse, error) {
 	return newCallResponse(resp)
 }
