@@ -795,7 +795,10 @@ func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallF
 	if err != nil {
 		return CallResponse{}, err
 	}
-	// note that r.ReturnDependencies is ignored because req.AcceptsOutputValues is true
+
+	// note that req.ReturnDependencies is silently discarded
+	// because the information is simply derived from the property values in r.Return.
+
 	return newCallResponse(r)
 }
 
@@ -947,8 +950,6 @@ func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
 			return failures
 		}(),
 	}
-
-	// note that req.ReturnDependencies is ignored
 
 	return r, nil
 }
@@ -1436,8 +1437,6 @@ func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error)
 		return ConstructResponse{}, err
 	}
 
-	// note that req.StateDependencies is ignored
-
 	r := ConstructResponse{
 		Urn:   presource.URN(req.Urn),
 		State: state,
@@ -1476,7 +1475,10 @@ func (h *host) Construct(ctx context.Context, req ConstructRequest, construct co
 	if err != nil {
 		return ConstructResponse{}, err
 	}
-	// note that r.StateDependencies is ignored because req.AcceptsOutputValues is true
+
+	// note that req.StateDependencies is silently discarded
+	// because the information is simply derived from the property values in req.State.
+
 	return newConstructResponse(r)
 }
 
