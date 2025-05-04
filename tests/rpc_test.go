@@ -255,7 +255,6 @@ func TestRPCConfigure(t *testing.T) {
 									resource.NewProperty(""),
 								),
 							}, m)
-							// TODO assert the dependencies are present in deps.
 						}
 
 						return &rpc.CreateResponse{Id: "some-id"}, nil
@@ -1293,15 +1292,6 @@ func (r rpcTestServer) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.Cal
 }
 
 func rpcServer(server rpcTestServer) integration.Server {
-	// if server.onConfigure == nil {
-	// 	server.onConfigure = func(context.Context, *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
-	// 		return &rpc.ConfigureResponse{
-	// 			AcceptOutputs:   true,
-	// 			AcceptResources: true,
-	// 			AcceptSecrets:   true,
-	// 		}, nil
-	// 	}
-	// }
 	return integration.NewServer("test",
 		semver.Version{Major: 1},
 		wraprpc.Provider(server))
