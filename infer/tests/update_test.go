@@ -37,11 +37,11 @@ func TestUpdateManualDeps(t *testing.T) {
 				t.Parallel()
 				prov := provider(t)
 				resp, err := prov.Update(p.UpdateRequest{
-					ID:      "some-id",
-					Urn:     urn(resource, "test"),
-					State:   olds,
-					Inputs:  newsPreview,
-					Preview: true,
+					ID:     "some-id",
+					Urn:    urn(resource, "test"),
+					State:  olds,
+					Inputs: newsPreview,
+					DryRun: true,
 				})
 				assert.NoError(t, err)
 				assert.Equal(t, p.UpdateResponse{
@@ -144,7 +144,7 @@ func TestUpdateDefaultDeps(t *testing.T) {
 					"string": newString,
 					"int":    property.New(1.0),
 				}),
-				Preview: true,
+				DryRun: true,
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, p.UpdateResponse{

@@ -79,7 +79,7 @@ func (*DNAStore) Create(ctx context.Context, req infer.CreateRequest[DNAStoreArg
 		return retErr("error reading file: '%s'", path)
 	}
 
-	if req.Preview {
+	if req.DryRun {
 		req.Inputs.Data = []Molecule{}
 		return infer.CreateResponse[DNAStoreArgs]{
 			ID:     path,

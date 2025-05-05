@@ -78,7 +78,7 @@ import (
 //		ctx context.Context, req infer.CreateRequest[MyResourceInputs],
 //	) (infer.CreateResponse[MyResourceOutputs], error) {
 //		id := req.Inputs.MyString + ".id"
-//		if req.Preview {
+//		if req.DryRun {
 //			return infer.CreateResponse[MyResourceOutputs]{
 //				ID: id,
 //				Output: MyResourceOutputs{MyResourceInputs: inputs},
@@ -107,7 +107,7 @@ type CreateRequest[I any] struct {
 	// The resource inputs.
 	Inputs I
 	// Whether this is a preview operation.
-	Preview bool
+	DryRun bool
 }
 
 // CreateResponse contains all the results from a Create operation
@@ -192,7 +192,7 @@ type UpdateRequest[I, O any] struct {
 	// The new resource inputs.
 	Inputs I
 	// Whether this is a preview operation.
-	Preview bool
+	DryRun bool
 }
 
 // UpdateResponse contains all the results from an Update operation
@@ -1236,9 +1236,9 @@ func (rc *derivedResourceController[R, I, O]) Create(
 	}
 
 	inferResp, err := (*r).Create(ctx, CreateRequest[I]{
-		Name:    req.Urn.Name(),
-		Inputs:  input,
-		Preview: req.Preview,
+		Name:   req.Urn.Name(),
+		Inputs: input,
+		DryRun: req.DryRun,
 	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(createErr error) {
@@ -1264,16 +1264,16 @@ func (rc *derivedResourceController[R, I, O]) Create(
 		return p.CreateResponse{}, err
 	}
 
-	if inferResp.ID == "" && !req.Preview {
+	if inferResp.ID == "" && !req.DryRun {
 		return p.CreateResponse{}, ProviderErrorf("'%s' was created without an id", req.Urn)
 	}
 
-	m, err := encoder.AllowUnknown(req.Preview).Encode(inferResp.Output)
+	m, err := encoder.AllowUnknown(req.DryRun).Encode(inferResp.Output)
 	if err != nil {
 		return p.CreateResponse{}, fmt.Errorf("encoding resource properties: %w", err)
 	}
 
-	setDeps, err := getDependencies(r, &input, &inferResp.Output, true /* isCreate */, req.Preview)
+	setDeps, err := getDependencies(r, &input, &inferResp.Output, true /* isCreate */, req.DryRun)
 	if err != nil {
 		return p.CreateResponse{}, err
 	}
@@ -1404,10 +1404,10 @@ func (rc *derivedResourceController[R, I, O]) Update(
 		return p.UpdateResponse{}, err
 	}
 	inferResp, err := update.Update(ctx, UpdateRequest[I, O]{
-		ID:      req.ID,
-		State:   olds,
-		Inputs:  news,
-		Preview: req.Preview,
+		ID:     req.ID,
+		State:  olds,
+		Inputs: news,
+		DryRun: req.DryRun,
 	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(updateErr error) {
@@ -1434,11 +1434,11 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	m, err := encoder.AllowUnknown(req.Preview).Encode(inferResp.Output)
+	m, err := encoder.AllowUnknown(req.DryRun).Encode(inferResp.Output)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
-	setDeps, err := getDependencies(r, &news, &inferResp.Output, false /* isCreate */, req.Preview)
+	setDeps, err := getDependencies(r, &news, &inferResp.Output, false /* isCreate */, req.DryRun)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}

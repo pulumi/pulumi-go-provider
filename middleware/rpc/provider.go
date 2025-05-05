@@ -166,7 +166,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}))
 		},
 		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
-			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.CreateResponse{}, nil
 			}
 
@@ -179,7 +179,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Urn:        string(req.Urn),
 				Properties: inProperties,
 				Timeout:    req.Timeout,
-				Preview:    req.Preview,
+				Preview:    req.DryRun,
 			})
 			properties, err := rpcToProperty(resp.GetProperties(), err)
 			return p.CreateResponse{
@@ -212,7 +212,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}, err
 		},
 		Update: func(ctx context.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
-			if req.Preview && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
+			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
 				return p.UpdateResponse{}, nil
 			}
 
@@ -233,7 +233,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				News:          inNews,
 				Timeout:       req.Timeout,
 				IgnoreChanges: req.IgnoreChanges,
-				Preview:       req.Preview,
+				Preview:       req.DryRun,
 			})
 
 			properties, err := rpcToProperty(resp.GetProperties(), err)

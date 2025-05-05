@@ -50,7 +50,7 @@ type State struct {
 }
 
 func (*Partial) Create(ctx context.Context, req infer.CreateRequest[Args]) (infer.CreateResponse[State], error) {
-	if req.Preview {
+	if req.DryRun {
 		return infer.CreateResponse[State]{}, nil
 	}
 	contract.Assertf(req.Inputs.S == "for-create", `expected input.S to be "for-create"`)
@@ -66,7 +66,7 @@ func (*Partial) Create(ctx context.Context, req infer.CreateRequest[Args]) (infe
 }
 
 func (*Partial) Update(ctx context.Context, req infer.UpdateRequest[Args, State]) (infer.UpdateResponse[State], error) {
-	if req.Preview {
+	if req.DryRun {
 		return infer.UpdateResponse[State]{}, nil
 	}
 	contract.Assertf(req.Inputs.S == "for-update", `expected news.S to be "for-update"`)

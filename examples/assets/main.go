@@ -84,7 +84,7 @@ func assertState(s HasAssetsArgs, includesAssets bool) {
 }
 
 func (*HasAssets) Create(ctx context.Context, req infer.CreateRequest[HasAssetsArgs]) (resp infer.CreateResponse[HasAssetsArgs], err error) {
-	if req.Preview {
+	if req.DryRun {
 		return resp, nil
 	}
 

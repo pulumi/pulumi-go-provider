@@ -76,7 +76,7 @@ func (*File) Create(ctx context.Context, req infer.CreateRequest[FileArgs]) (res
 		}
 	}
 
-	if req.Preview { // Don't do the actual creating if in preview
+	if req.DryRun { // Don't do the actual creating if in preview
 		return infer.CreateResponse[FileState]{ID: req.Inputs.Path}, nil
 	}
 
@@ -124,7 +124,7 @@ func (*File) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResp
 }
 
 func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileState]) (infer.UpdateResponse[FileState], error) {
-	if !req.Preview && req.State.Content != req.Inputs.Content {
+	if !req.DryRun && req.State.Content != req.Inputs.Content {
 		f, err := os.Create(req.State.Path)
 		if err != nil {
 			return infer.UpdateResponse[FileState]{}, err

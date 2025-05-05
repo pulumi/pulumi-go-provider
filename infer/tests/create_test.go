@@ -39,7 +39,7 @@ func TestCreate(t *testing.T) {
 					"foo":  property.New("bar"),
 				}),
 			}),
-			Preview: true,
+			DryRun: true,
 		})
 
 		assert.NoError(t, err)
@@ -157,7 +157,7 @@ func TestCreate(t *testing.T) {
 				"string": property.New(property.Computed),
 				"int":    property.New(property.Computed).WithSecret(true),
 			}),
-			Preview: true,
+			DryRun: true,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "preview-id", resp.ID)
@@ -178,7 +178,7 @@ func TestCreate(t *testing.T) {
 				"string": property.New(property.Computed),
 				"int":    property.New(property.Computed),
 			}),
-			Preview: true,
+			DryRun: true,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "preview-id", resp.ID)
