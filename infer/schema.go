@@ -132,15 +132,11 @@ func serializeTypeAsPropertyType(
 		t = t.Elem()
 	}
 	// Provider authors should not be using resource.Asset directly, but rather types.AssetOrArchive.
-	// We will returrn an error if resource.Asset or resource.Archive is used directly for an input.
+	// We will returrn an error if resource.Asset is used directly for an input.
 	// pulumi/pulumi-go-provider#243
 	if propType == inputType && t == reflect.TypeOf(resource.Asset{}) {
 		return schema.TypeSpec{},
 			fmt.Errorf("resource.Asset is not a valid input type, please use types.AssetOrArchive instead")
-	}
-	if propType == inputType && t == reflect.TypeOf(resource.Archive{}) {
-		return schema.TypeSpec{},
-			fmt.Errorf("resource.Archive is not a valid input type, please use types.AssetOrArchive instead")
 	}
 
 	if t == reflect.TypeOf(resource.Asset{}) {
