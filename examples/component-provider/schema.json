@@ -1,6 +1,7 @@
 {
   "name": "go-components",
   "version": "0.0.1",
+  "namespace": "example-namespace",
   "meta": {
     "moduleFormat": "(.*)"
   },
