@@ -330,6 +330,7 @@ func TestMergePropertyDependencies(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := putil.MergePropertyDependencies(tc.m, tc.deps)
 			assert.Equal(t, tc.want, got)
 		})
