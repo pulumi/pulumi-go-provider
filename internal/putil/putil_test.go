@@ -176,31 +176,77 @@ func TestParseProviderReference(t *testing.T) {
 func TestWalk(t *testing.T) {
 	t.Parallel()
 
-	type testCase struct {
-		v    property.Value
-		want []r.URN
-	}
-	testCases := []testCase{
-		{
-			v:    property.New("s").WithDependencies([]r.URN{"s"}),
-			want: []r.URN{"s"},
-		},
-		{
-			v: property.New(map[string]property.Value{
-				"k": property.New("s").WithDependencies([]r.URN{"s"}),
-			}).WithDependencies([]r.URN{"k"}),
-			want: []r.URN{"k", "s"},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.v.GoString(), func(t *testing.T) {
-			t.Parallel()
-			var got []r.URN
-			putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
-				got = append(got, v.Dependencies()...)
-				return true
+	t.Run("recursion", func(t *testing.T) {
+		type testCase struct {
+			v    property.Value
+			want []r.URN
+		}
+		testCases := []testCase{
+			{
+				v:    property.New("s").WithDependencies([]r.URN{"s"}),
+				want: []r.URN{"s"},
+			},
+			{
+				v: property.New(map[string]property.Value{
+					"k1": property.New("k1").WithDependencies([]r.URN{"k1"}),
+					"k2": property.New("k2").WithDependencies([]r.URN{"k2"}),
+				}).WithDependencies([]r.URN{"m"}),
+				want: []r.URN{"m", "k1", "k2"},
+			},
+			{
+				v: property.New([]property.Value{
+					property.New("k1").WithDependencies([]r.URN{"k1"}),
+					property.New("k2").WithDependencies([]r.URN{"k2"}),
+				}).WithDependencies([]r.URN{"a"}),
+				want: []r.URN{"a", "k1", "k2"},
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.v.GoString(), func(t *testing.T) {
+				t.Parallel()
+				var got []r.URN
+				continueWalking := putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
+					got = append(got, v.Dependencies()...)
+					return true
+				})
+				assert.Equal(t, tc.want, got)
+				assert.True(t, continueWalking)
 			})
-			assert.Equal(t, tc.want, got)
-		})
-	}
+		}
+	})
+
+	t.Run("continueWalking", func(t *testing.T) {
+		type testCase struct {
+			v property.Value
+		}
+		testCases := []testCase{
+			{
+				v: property.New("stop"),
+			},
+			{
+				v: property.New(map[string]property.Value{
+					"k1": property.New("k1"),
+					"k2": property.New("stop"),
+				}),
+			},
+			{
+				v: property.New([]property.Value{
+					property.New("k1"),
+					property.New("stop"),
+				}),
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.v.GoString(), func(t *testing.T) {
+				t.Parallel()
+				var got []r.URN
+				continueWalking := putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
+					got = append(got, v.Dependencies()...)
+					return !(v.IsString() && v.AsString() == "stop")
+				})
+				assert.False(t, continueWalking)
+			})
+		}
+	})
+
 }
