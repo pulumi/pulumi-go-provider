@@ -303,7 +303,7 @@ func TestRPCConfigure(t *testing.T) {
 
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				resp, err := s.Create(p.CreateRequest{
-					Preview: true,
+					DryRun: true,
 				})
 				require.NoError(t, err)
 				if preview {
@@ -416,7 +416,7 @@ func TestRPCCreate(t *testing.T) {
 			Urn:        "some-urn",
 			Properties: resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
 			Timeout:    123,
-			Preview:    true,
+			DryRun:     true,
 		})
 
 		require.NoError(t, err)
@@ -542,7 +542,7 @@ func TestRPCUpdate(t *testing.T) {
 			Inputs:        resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			Timeout:       1.23,
 			IgnoreChanges: []string{"f1"},
-			Preview:       true,
+			DryRun:        true,
 		})
 
 		require.NoError(t, err)

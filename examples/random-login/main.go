@@ -199,7 +199,7 @@ func (r *RandomSalt) Update(ctx context.Context, req infer.UpdateRequest[RandomS
 
 	salt := req.State.Salt
 	if redoSalt {
-		if req.Preview {
+		if req.DryRun {
 			return infer.UpdateResponse[RandomSaltState]{}, nil
 		}
 		l := 4

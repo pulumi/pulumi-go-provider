@@ -78,7 +78,7 @@ import (
 //		ctx context.Context, req infer.CreateRequest[MyResourceInputs],
 //	) (infer.CreateResponse[MyResourceOutputs], error) {
 //		id := req.Inputs.MyString + ".id"
-//		if req.Preview {
+//		if req.DryRun {
 //			return infer.CreateResponse[MyResourceOutputs]{
 //				ID: id,
 //				Output: MyResourceOutputs{MyResourceInputs: inputs},

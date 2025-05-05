@@ -258,7 +258,7 @@ allow updates, we need to implement the `Update` method:
 
 ```go
 func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileState]) (infer.UpdateResponse[FileState], error) {
-	if !req.Preview && req.State.Content != req.Inputs.Content {
+	if !req.DryRun && req.State.Content != req.Inputs.Content {
 		f, err := os.Create(req.State.Path)
 		if err != nil {
 			return infer.UpdateResponse[FileState]{}, err
