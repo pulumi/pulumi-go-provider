@@ -27,7 +27,7 @@ func main() {
 		// In this case, a single custom resource.
 		infer.Provider(infer.Options{
 			Resources: []infer.InferredResource{
-				infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
+				infer.Resource[HelloWorld](),
 			},
 		}))
 }
@@ -56,17 +56,19 @@ type HelloWorldState struct {
 
 // All resources must implement Create at a minumum.
 func (HelloWorld) Create(
-	ctx context.Context, name string, input HelloWorldArgs, preview bool,
-) (string, HelloWorldState, error) {
-	state := HelloWorldState{HelloWorldArgs: input}
-	if preview {
-		return name, state, nil
+	ctx context.Context, req infer.CreateRequest[HelloWorldArgs],
+) (infer.CreateResponse[HelloWorldState], error) {
+	name := req.Name
+	inputs := req.Inputs
+	state := HelloWorldState{HelloWorldArgs: inputs}
+	if req.DryRun {
+		return infer.CreateResponse[HelloWorldState]{ID: name, Output: state}, nil
 	}
-	state.Message = fmt.Sprintf("Hello, %s", input.Name)
-	if input.Loud != nil && *input.Loud {
+	state.Message = fmt.Sprintf("Hello, %s", inputs.Name)
+	if inputs.Loud != nil && *inputs.Loud {
 		state.Message = strings.ToUpper(state.Message)
 	}
-	return name, state, nil
+	return infer.CreateResponse[HelloWorldState]{ID: name, Output: state}, nil
 }
 ```
 
