@@ -236,14 +236,7 @@ func FormatProviderReference(urn resource.URN, id resource.ID) string {
 }
 
 // ToUrns converts a slice of strings to a slice of URNs.
-func ToUrns(s []string) []resource.URN {
-	r := make([]resource.URN, len(s))
-	for i, a := range s {
-		r[i] = resource.URN(a)
-	}
-	return r
-}
-func ToUrns2(s []string) []urn.URN {
+func ToUrns(s []string) []urn.URN {
 	r := make([]urn.URN, len(s))
 	for i, a := range s {
 		r[i] = urn.URN(a)
@@ -251,15 +244,7 @@ func ToUrns2(s []string) []urn.URN {
 	return r
 }
 
-func FromUrns(urns []resource.URN) []string {
-	r := make([]string, len(urns))
-	for i, urn := range urns {
-		r[i] = string(urn)
-	}
-	return r
-}
-
-func FromUrns2(urns []urn.URN) []string {
+func FromUrns(urns []urn.URN) []string {
 	r := make([]string, len(urns))
 	for i, urn := range urns {
 		r[i] = string(urn)

@@ -271,7 +271,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				for name, v := range req.Inputs.All {
 					urns := putil.GetPropertyDependencies(v)
 					if len(urns) != 0 {
-						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: putil.FromUrns2(urns)}
+						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: putil.FromUrns(urns)}
 					}
 				}
 			}
@@ -291,7 +291,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			// in which case [rpcResp.StateDependencies] has meaningful information.
 			stateDeps := make(map[string][]urn.URN, len(rpcResp.GetStateDependencies()))
 			for name, deps := range rpcResp.GetStateDependencies() {
-				stateDeps[name] = putil.ToUrns2(deps.GetUrns())
+				stateDeps[name] = putil.ToUrns(deps.GetUrns())
 			}
 			resp.State = putil.MergePropertyDependencies(resp.State, stateDeps)
 
@@ -311,7 +311,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				for name, v := range req.Args.All {
 					urns := putil.GetPropertyDependencies(v)
 					if len(urns) != 0 {
-						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: putil.FromUrns2(urns)}
+						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: putil.FromUrns(urns)}
 					}
 				}
 			}
@@ -331,7 +331,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			// in which case [rpcResp.ReturnDependencies] has meaningful information.
 			returnDeps := make(map[string][]urn.URN, len(rpcResp.GetReturnDependencies()))
 			for name, deps := range rpcResp.GetReturnDependencies() {
-				returnDeps[name] = putil.ToUrns2(deps.GetUrns())
+				returnDeps[name] = putil.ToUrns(deps.GetUrns())
 			}
 			resp.Return = putil.MergePropertyDependencies(resp.Return, returnDeps)
 

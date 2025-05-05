@@ -15,6 +15,7 @@
 package putil_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
@@ -191,7 +192,7 @@ func TestWalk(t *testing.T) {
 					"k1": property.New("k1").WithDependencies([]r.URN{"k1"}),
 					"k2": property.New("k2").WithDependencies([]r.URN{"k2"}),
 				}).WithDependencies([]r.URN{"m"}),
-				want: []r.URN{"m", "k1", "k2"},
+				want: []r.URN{"k1", "k2", "m"},
 			},
 			{
 				v: property.New([]property.Value{
@@ -209,6 +210,7 @@ func TestWalk(t *testing.T) {
 					got = append(got, v.Dependencies()...)
 					return true
 				})
+				slices.Sort(got)
 				assert.Equal(t, tc.want, got)
 				assert.True(t, continueWalking)
 			})

@@ -875,7 +875,7 @@ func newCallRequest(req *rpc.CallRequest,
 		// upgrade the args to include the dependencies
 		argDeps := make(map[string][]urn.URN, len(req.GetArgDependencies()))
 		for name, deps := range req.GetArgDependencies() {
-			argDeps[name] = putil.ToUrns2(deps.GetUrns())
+			argDeps[name] = putil.ToUrns(deps.GetUrns())
 		}
 		r.Args = putil.MergePropertyDependencies(args, argDeps)
 	}
@@ -1225,6 +1225,14 @@ type ProviderReference struct {
 	ID  presource.ID
 }
 
+func toUrns(s []string) []presource.URN {
+	r := make([]presource.URN, len(s))
+	for i, a := range s {
+		r[i] = presource.URN(a)
+	}
+	return r
+}
+
 func newConstructRequest(req *rpc.ConstructRequest,
 	unmarshal func(s *structpb.Struct) (property.Map, error),
 ) (ConstructRequest, error) {
@@ -1305,8 +1313,8 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			}
 			return m
 		}(),
-		Aliases:      putil.ToUrns(req.GetAliases()),
-		Dependencies: putil.ToUrns(req.GetDependencies()),
+		Aliases:      toUrns(req.GetAliases()),
+		Dependencies: toUrns(req.GetDependencies()),
 		AdditionalSecretOutputs: func() []string {
 			r := make([]string, len(req.GetAdditionalSecretOutputs()))
 			for i, k := range req.GetAdditionalSecretOutputs() {
@@ -1339,7 +1347,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		// upgrade the inputs to include the dependencies
 		inputDeps := make(map[string][]urn.URN, len(req.GetInputDependencies()))
 		for name, deps := range req.GetInputDependencies() {
-			inputDeps[name] = putil.ToUrns2(deps.GetUrns())
+			inputDeps[name] = putil.ToUrns(deps.GetUrns())
 		}
 		r.Inputs = putil.MergePropertyDependencies(inputs, inputDeps)
 	}
