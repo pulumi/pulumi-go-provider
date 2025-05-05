@@ -35,6 +35,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
@@ -872,13 +873,11 @@ func newCallRequest(req *rpc.CallRequest,
 		errs.Errors = append(errs.Errors, fmt.Errorf("invalid args: %w", err))
 	} else {
 		// upgrade the args to include the dependencies
-		_args := args.AsMap()
+		argDeps := make(map[string][]urn.URN, len(req.GetArgDependencies()))
 		for name, deps := range req.GetArgDependencies() {
-			if v, ok := _args[name]; ok {
-				_args[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
-			}
+			argDeps[name] = putil.ToUrns2(deps.GetUrns())
 		}
-		r.Args = property.NewMap(_args)
+		r.Args = putil.MergePropertyDependencies(args, argDeps)
 	}
 
 	return r, errs.ErrorOrNil()
@@ -1244,7 +1243,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 	}
 
 	parent := presource.URN(req.GetParent())
-	urn := presource.NewURN(
+	_urn := presource.NewURN(
 		tokens.QName(req.GetStack()),
 		tokens.PackageName(req.GetProject()),
 		func() tokens.Type {
@@ -1260,7 +1259,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 	// https://github.com/pulumi/pulumi/blob/v3.162.0/sdk/go/common/resource/plugin/provider_plugin.go#L1735-L1812
 
 	r := ConstructRequest{
-		Urn: urn,
+		Urn: _urn,
 		Config: func() map[pconfig.Key]string {
 			m := make(map[pconfig.Key]string, len(req.GetConfig()))
 			for k, v := range req.GetConfig() {
@@ -1338,13 +1337,11 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		errs.Errors = append(errs.Errors, fmt.Errorf("invalid inputs: %w", err))
 	} else {
 		// upgrade the inputs to include the dependencies
-		_inputs := inputs.AsMap()
+		inputDeps := make(map[string][]urn.URN, len(req.GetInputDependencies()))
 		for name, deps := range req.GetInputDependencies() {
-			if v, ok := _inputs[name]; ok {
-				_inputs[name] = v.WithDependencies(putil.ToUrns(deps.GetUrns()))
-			}
+			inputDeps[name] = putil.ToUrns2(deps.GetUrns())
 		}
-		r.Inputs = property.NewMap(_inputs)
+		r.Inputs = putil.MergePropertyDependencies(inputs, inputDeps)
 	}
 
 	return r, errs.ErrorOrNil()

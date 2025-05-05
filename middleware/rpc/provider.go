@@ -22,13 +22,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -269,9 +269,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			inputDependencies := map[string]*rpc.ConstructRequest_PropertyDependencies{}
 			if !runtime.configuration.AcceptOutputs {
 				for name, v := range req.Inputs.All {
-					urns := getPropertyDependencies(v)
+					urns := putil.GetPropertyDependencies(v)
 					if len(urns) != 0 {
-						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: urns}
+						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: putil.FromUrns2(urns)}
 					}
 				}
 			}
@@ -289,14 +289,11 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 
 			// upgrade the state dependencies if the provider doesn't support output values,
 			// in which case [rpcResp.StateDependencies] has meaningful information.
-			state := resp.State.AsMap()
+			stateDeps := make(map[string][]urn.URN, len(rpcResp.GetStateDependencies()))
 			for name, deps := range rpcResp.GetStateDependencies() {
-				if v, ok := state[name]; ok {
-					deps := mergePropertyDependencies(append(v.Dependencies(), putil.ToUrns(deps.GetUrns())...))
-					state[name] = v.WithDependencies(deps)
-				}
+				stateDeps[name] = putil.ToUrns2(deps.GetUrns())
 			}
-			resp.State = property.NewMap(state)
+			resp.State = putil.MergePropertyDependencies(resp.State, stateDeps)
 
 			return resp, nil
 		},
@@ -312,9 +309,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
 			if !runtime.configuration.AcceptOutputs {
 				for name, v := range req.Args.All {
-					urns := getPropertyDependencies(v)
+					urns := putil.GetPropertyDependencies(v)
 					if len(urns) != 0 {
-						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: urns}
+						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: putil.FromUrns2(urns)}
 					}
 				}
 			}
@@ -332,14 +329,11 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 
 			// upgrade the return dependencies if the provider doesn't support output values,
 			// in which case [rpcResp.ReturnDependencies] has meaningful information.
-			_return := resp.Return.AsMap()
+			returnDeps := make(map[string][]urn.URN, len(rpcResp.GetReturnDependencies()))
 			for name, deps := range rpcResp.GetReturnDependencies() {
-				if v, ok := _return[name]; ok {
-					deps := mergePropertyDependencies(append(v.Dependencies(), putil.ToUrns(deps.GetUrns())...))
-					_return[name] = v.WithDependencies(deps)
-				}
+				returnDeps[name] = putil.ToUrns2(deps.GetUrns())
 			}
-			resp.Return = property.NewMap(_return)
+			resp.Return = putil.MergePropertyDependencies(resp.Return, returnDeps)
 
 			return resp, nil
 		},
@@ -412,24 +406,6 @@ func checkFailures(resp []*rpc.CheckFailure) []p.CheckFailure {
 		}
 	}
 	return arr
-}
-
-// getPropertyDependencies gathers (deeply) the dependencies of the given property value.
-func getPropertyDependencies(v property.Value) []string {
-	var deps []string
-	putil.Walk(v, func(v property.Value) (continueWalking bool) {
-		for _, v := range v.Dependencies() {
-			deps = append(deps, string(v))
-		}
-		return true
-	})
-	slices.Sort(deps)
-	return slices.Compact(deps)
-}
-
-func mergePropertyDependencies(deps []resource.URN) []resource.URN {
-	slices.Sort(deps)
-	return slices.Compact(deps)
 }
 
 type runtime struct {
