@@ -287,7 +287,7 @@ func TestMergePropertyDependencies(t *testing.T) {
 		{
 			name: "output value with extra dependencies",
 			m:    property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
-			deps: map[string][]urn.URN{"k1": {"urn2"}},
+			deps: map[string][]urn.URN{"k1": {"urn2"}}, // an extra dependency
 			want: property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1", "urn2"})}),
 		},
 		{
@@ -297,14 +297,32 @@ func TestMergePropertyDependencies(t *testing.T) {
 			want: property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
 		},
 		{
-			name: "output value with folded dependencies (from children)",
-			m: property.NewMap(map[string]property.Value{"k1": property.New(map[string]property.Value{
-				"k2": s.WithDependencies([]r.URN{"urn1"}),
-			})}),
+			name: "output value with folded dependencies (from child)",
+			m: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}),
+			}),
 			deps: map[string][]urn.URN{"k1": {"urn1"}}, // a folded dependency from k2
-			want: property.NewMap(map[string]property.Value{"k1": property.New(map[string]property.Value{
-				"k2": s.WithDependencies([]r.URN{"urn1"}),
-			})}),
+			want: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}),
+			}),
+		},
+		{
+			name: "output value with extra dependencies and folded dependencies",
+			m: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}),
+			}),
+			deps: map[string][]urn.URN{"k1": {"urn1", "urn2"}}, // a folded dependency from k2 and an extra dependency
+			want: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}).WithDependencies([]r.URN{"urn2"}),
+			}),
 		},
 	}
 
