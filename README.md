@@ -6,10 +6,6 @@ A framework for building Providers for Pulumi in Go.
 
 **Library documentation can be found at** [![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
 
-_Note_: This library is in active development, and not everything is hooked up. You should
-expect breaking changes as we fine tune the exposed APIs. We definitely appreciate
-community feedback, but you should probably wait to port any existing providers over.
-
 The highest level of `pulumi-go-provider` is `infer`, which derives as much possible from
 your Go code. The "Hello, Pulumi" example below uses `infer`. For detailed instructions on
 building providers with `infer`, click
@@ -18,18 +14,33 @@ building providers with `infer`, click
 ## The "Hello, Pulumi" Provider
 
 Here we provide the code to create an entire native provider consumable from any of the
-Pulumi languages (TypeScript, Python, Go, C#, Java and Pulumi YAML).
+Pulumi languages (TypeScript, Python, Go, C#, Java and Pulumi YAML). This example produces
+a simple [Pulumi custom resource](https://www.pulumi.com/docs/iac/concepts/resources/).
 
 ```go
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/pulumi/pulumi-go-provider/infer"
+)
+
 func main() {
-	p.RunProvider("greetings", "0.1.0",
-		// We tell the provider what resources it needs to support.
-		// In this case, a single custom resource.
-		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{
-				infer.Resource[HelloWorld, HelloWorldArgs, HelloWorldState](),
-			},
-		}))
+	// We tell the provider what resources it needs to support.
+	// In this case, a single custom resource called HelloWorld.
+	err := infer.NewProviderBuilder().
+		WithName("greetings").
+		WithVersion("0.1.0").
+		WithResources(
+			infer.Resource[HelloWorld](),
+		).
+		BuildAndRun()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 // Each resource has a controlling struct.
@@ -56,17 +67,23 @@ type HelloWorldState struct {
 
 // All resources must implement Create at a minumum.
 func (HelloWorld) Create(
-	ctx context.Context, name string, input HelloWorldArgs, preview bool,
-) (string, HelloWorldState, error) {
-	state := HelloWorldState{HelloWorldArgs: input}
-	if preview {
-		return name, state, nil
+	ctx context.Context, req infer.CreateRequest[HelloWorldArgs],
+) (infer.CreateResponse[HelloWorldState], error) {
+	name := req.Name
+	inputs := req.Inputs
+	state := HelloWorldState{HelloWorldArgs: inputs}
+	if req.DryRun {
+		return infer.CreateResponse[HelloWorldState]{ID: name, Output: state}, nil
 	}
-	state.Message = fmt.Sprintf("Hello, %s", input.Name)
-	if input.Loud != nil && *input.Loud {
+	state.Message = fmt.Sprintf("Hello, %s", inputs.Name)
+	if inputs.Loud != nil && *inputs.Loud {
 		state.Message = strings.ToUpper(state.Message)
 	}
-	return name, state, nil
+	return infer.CreateResponse[HelloWorldState]{ID: name, Output: state}, nil
+}
+
+func (r *HelloWorld) Annotate(a infer.Annotator) {
+	a.Describe(&r, "Produces a Hello message.")
 }
 ```
 
@@ -74,6 +91,202 @@ The framework is doing a lot of work for us here. Since we didn't implement `Dif
 assumed to be structural. The diff will require a replace if any field changes, since we
 didn't implement `Update`. `Check` will confirm that our inputs can be serialized into
 `HelloWorldArgs` and `Read` will do the same. `Delete` is a no-op.
+
+## Adding a Component 
+
+Let's extend the provider to produce a [component resource](https://www.pulumi.com/docs/iac/concepts/resources/components/).
+Components define a sub-graph of child resources using the Pulumi Go SDK and the SDKs of other providers.
+This example produces a component that encapsulates a randomly-generated username and password.
+
+```go
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+)
+
+func main() {
+	err := infer.NewProviderBuilder().
+		WithName("greetings").
+		WithVersion("0.1.0").
+		WithComponents(
+			infer.Component(NewRandomLogin),
+		).
+		BuildAndRun()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+type RandomLoginArgs struct {
+	Prefix pulumi.StringInput `pulumi:"prefix"`
+}
+
+type RandomLogin struct {
+	pulumi.ResourceState
+	RandomLoginArgs
+
+	Username pulumi.StringOutput `pulumi:"username"`
+	Password pulumi.StringOutput `pulumi:"password"`
+}
+
+func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts ...pulumi.ResourceOption) (*RandomLogin, error) {
+	comp := &RandomLogin{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	username, err := random.NewRandomPet(ctx, name+"-username", &random.RandomPetArgs{
+		Prefix: args.Prefix,
+	}, pulumi.Parent(comp))
+	if err != nil {
+		return nil, err
+	}
+	comp.Username = username.ID().ToStringOutput()
+
+	password, err := random.NewRandomPassword(ctx, name+"-password", &random.RandomPasswordArgs{
+		Length: pulumi.Int(12),
+	}, pulumi.Parent(comp))
+	if err != nil {
+		return nil, err
+	}
+	comp.Password = password.Result
+
+	return comp, nil
+}
+
+func (l *RandomLogin) Annotate(a infer.Annotator) {
+	a.Describe(&l, "Generate a random login credential (a username and password).")
+	a.Describe(&l.Prefix, "An optional prefix for the generated username.")
+	a.SetDefault(&l.Prefix, "user-")
+}
+```
+
+## Working with Configuration
+
+Providers are confgurable [via code and stack configuration](https://www.pulumi.com/docs/iac/concepts/resources/providers/#default-and-explicit-providers).
+To access your provider's configuration, declare a Config structure and update the provider options.
+
+```go
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+)
+
+func main() {
+	err := infer.NewProviderBuilder().
+		WithName("greetings").
+		WithVersion("0.1.0").
+		WithResources(
+			infer.Resource[HelloWorld](),
+		).
+		WithConfig(
+			infer.Config[*Config](),
+		).
+		BuildAndRun()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+type Config struct {
+	AccessKey string `pulumi:"accessKey" provider:"secret"`
+}
+
+func (c *Config) Annotate(a infer.Annotator) {
+	a.Describe(&c.AccessKey, "The access key for the provider's backend")
+}
+
+// All resources must implement Create at a minumum.
+func (HelloWorld) Create(
+	ctx context.Context, req infer.CreateRequest[HelloWorldArgs],
+) (infer.CreateResponse[HelloWorldState], error) {
+
+	config := infer.GetConfig[Config](ctx)
+	if config.AccessKey == "" {
+		return infer.CreateResponse[HelloWorldState]{}, fmt.Errorf("access key is required")
+	}
+
+	...
+}
+```
+
+### Providing Functions
+
+A provider may offer [functions](https://www.pulumi.com/docs/iac/concepts/resources/functions/)
+that are consumable from any of the Pulumi languages.
+
+```go
+import (
+	"context"
+	"fmt"
+	"os"
+	"regexp"
+	"strings"
+
+	"github.com/pulumi/pulumi-go-provider/infer"
+)
+
+func main() {
+	err := infer.NewProviderBuilder().
+		WithName("greetings").
+		WithVersion("0.1.0").
+		WithFunctions(
+			infer.Function[*Replace](),
+		).
+		BuildAndRun()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+type Replace struct{}
+
+func (Replace) Invoke(_ context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[ReplaceResult], error) {
+	r, err := regexp.Compile(req.Input.Pattern)
+	if err != nil {
+		return infer.FunctionResponse[Ret]{}, err
+	}
+	result := r.ReplaceAllLiteralString(req.Input.S, req.Input.New)
+	return infer.FunctionResponse[ReplaceResult]{
+		Output: ReplaceResult{result},
+	}, nil
+}
+
+func (r *Replace) Annotate(a infer.Annotator) {
+	a.Describe(r,
+		"Replace returns a copy of `s`, replacing matches of the `old`\n"+
+			"with the replacement string `new`.")
+}
+
+type ReplaceArgs struct {
+	S       string `pulumi:"s"`
+	Pattern string `pulumi:"pattern"`
+	New     string `pulumi:"new"`
+}
+
+type ReplaceResult struct {
+	Out string `pulumi:"out"`
+}
+```
 
 ## Library structure
 
@@ -84,7 +297,7 @@ things simple. The library comes in 4 parts:
    `Provider` interface and the `RunProvider` function respectively. The rest of the
    library is written against the `Provider` interface.
 2. Middleware layers built on top of the `Provider` interface. Middleware layers handle
-   things like token dispatch, schema generation, cancel propagation, ect.
+   things like schema generation, cancel propagation, legacy provider migration, etc.
 3. A testing framework found in the `integration` folder. This allows unit and integration
    tests against `Provider`s.
 4. A top layer called `infer`, which generates full providers from Go types and methods.
