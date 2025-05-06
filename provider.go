@@ -373,6 +373,9 @@ type Provider struct {
 
 	// Components Resources
 	Construct func(context.Context, ConstructRequest) (ConstructResponse, error)
+
+	Name    string
+	Version string
 }
 
 // WithDefaults returns a provider with sensible defaults. It does not mutate its
@@ -465,6 +468,10 @@ func (d Provider) WithDefaults() Provider {
 		}
 	}
 	return d
+}
+
+func (d Provider) Run(ctx context.Context) error {
+	return RunProvider(ctx, d.Name, d.Version, d)
 }
 
 // RunProvider runs a provider with the given name and version.

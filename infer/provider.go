@@ -79,6 +79,10 @@ type Options struct {
 	// will instead result in exposing the same resources at `pkg:bar:Foo`, `pkg:bar:Bar` and
 	// `pkg:fizz:Buzz`.
 	ModuleMap map[tokens.ModuleName]tokens.ModuleName
+
+	Name string
+
+	Version string
 }
 
 func (o Options) dispatch() dispatch.Options {
@@ -169,6 +173,9 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 			return context.WithValue(ctx, configKey, opts.Config)
 		})
 	}
+
+	provider.Name = opts.Name
+	provider.Version = opts.Version
 
 	provider = complexconfig.Wrap(provider)
 	return cancel.Wrap(provider)

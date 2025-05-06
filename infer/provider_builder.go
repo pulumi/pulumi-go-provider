@@ -15,7 +15,6 @@
 package infer
 
 import (
-	"context"
 	"fmt"
 
 	provider "github.com/pulumi/pulumi-go-provider"
@@ -40,30 +39,31 @@ type ProviderBuilder struct {
 //
 // This is an example of how to create a simple provider with a single component resource:
 //
-//	type RandomComponent struct {
-//		pulumi.ResourceState
-//		RandomComponentArgs
-//	 	Password        pulumi.StringOutput `pulumi:"password"`
-//	}
+//		type RandomComponent struct {
+//			pulumi.ResourceState
+//			RandomComponentArgs
+//		 	Password        pulumi.StringOutput `pulumi:"password"`
+//		}
 //
-//	type RandomComponentArgs struct {
-//		Length pulumi.IntInput `pulumi:"length"`
-//	}
+//		type RandomComponentArgs struct {
+//			Length pulumi.IntInput `pulumi:"length"`
+//		}
 //
-//	func NewMyComponent(ctx *pulumi.Context, name string,
-//			compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
-//		// Define your component constructor logic here.
-//	}
+//		func NewMyComponent(ctx *pulumi.Context, name string,
+//				compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+//			// Define your component constructor logic here.
+//		}
 //
-//	func main() {
-//		err := infer.NewProviderBuilder().
-//			WithName("go-components").
-//			WithVersion("v0.0.1").
-//			WithComponents(
-//				infer.Component(NewMyComponent),
-//			).
-//			BuildAndRun()
-//	}
+//		func main() {
+//			err := infer.NewProviderBuilder().
+//				WithName("go-components").
+//				WithVersion("v0.0.1").
+//				WithComponents(
+//					infer.Component(NewMyComponent),
+//				).
+//				Build().
+//	         Run()
+//		}
 //
 // Please note that the initial defaults provided by this function may change with future releases of
 // this framework. Currently, we are setting the following defaults:
@@ -217,6 +217,8 @@ func (pb *ProviderBuilder) BuildOptions() Options {
 		Functions:  pb.functions,
 		Config:     pb.config,
 		ModuleMap:  pb.moduleMap,
+		Name:       pb.name,
+		Version:    pb.version,
 	}
 }
 
@@ -232,12 +234,12 @@ func (pb *ProviderBuilder) validate() error {
 	return nil
 }
 
-// BuildAndRun builds the provider options, validates them, and runs the provider.
-func (pb *ProviderBuilder) BuildAndRun() error {
+// Build builds the provider options and validates them., and runs the provider.
+func (pb *ProviderBuilder) Build() (provider.Provider, error) {
 	if err := pb.validate(); err != nil {
-		return err
+		return provider.Provider{}, err
 	}
 
 	opts := pb.BuildOptions()
-	return provider.RunProvider(context.Background(), pb.name, pb.version, Provider(opts))
+	return Provider(opts), nil
 }

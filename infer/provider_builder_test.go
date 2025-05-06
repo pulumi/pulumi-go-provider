@@ -41,7 +41,8 @@ func NewMockComponentResource(
 	ctx *pulumi.Context,
 	name string,
 	inputs MockComponentResourceInput,
-	options ...pulumi.ResourceOption) (*MockComponentResource, error) {
+	options ...pulumi.ResourceOption,
+) (*MockComponentResource, error) {
 	return &MockComponentResource{}, nil
 }
 
@@ -62,17 +63,21 @@ type MockConfig struct{}
 func (mc MockConfig) GetSchema(schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
 	return pschema.ResourceSpec{}, nil
 }
+
 func (mc MockConfig) GetToken() (tokens.Type, error) {
 	return "", nil
 }
 
-type MockFunction struct{}
-type MockFunctionArgs struct{}
-type MockFunctionResult struct{}
+type (
+	MockFunction       struct{}
+	MockFunctionArgs   struct{}
+	MockFunctionResult struct{}
+)
 
 func (mf MockFunction) Invoke(
 	ctx context.Context,
-	req FunctionRequest[MockFunctionArgs]) (FunctionResponse[MockFunctionResult], error) {
+	req FunctionRequest[MockFunctionArgs],
+) (FunctionResponse[MockFunctionResult], error) {
 	return FunctionResponse[MockFunctionResult]{}, nil
 }
 
@@ -330,7 +335,7 @@ func TestValidate(t *testing.T) {
 //nolint:paralleltest // Running in parallel causes a data race.
 func TestBuildAndRun(t *testing.T) {
 	// 1. Create a provider without any components and ensure that it returns an error.
-	err := NewProviderBuilder().BuildAndRun()
+	_, err := NewProviderBuilder().Build()
 	require.Error(t, err)
 
 	// 2. Create a provider with a component and ensure that it starts successfully by starting the
@@ -338,19 +343,24 @@ func TestBuildAndRun(t *testing.T) {
 	errChan := make(chan error)
 
 	go func(errCh chan error) {
-		errCh <- NewProviderBuilder().
+		defer close(errCh)
+
+		p, err := NewProviderBuilder().
 			WithComponents(Component(NewMockComponentResource)).
 			WithName("test-provider").
 			WithVersion("1.0.0").
-			BuildAndRun()
+			Build()
+		if err != nil {
+			errCh <- err
+			return
+		}
 
-		close(errCh)
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		errCh <- p.Run(ctx)
 	}(errChan)
 
-	select {
-	case err := <-errChan:
-		require.NoError(t, err, "provider startup should not fail")
-	case <-time.After(5 * time.Second):
-		return // The provider started successfully, so we can return.
-	}
+	err = <-errChan
+	assert.NoError(t, err, "provider startup should not fail")
 }
