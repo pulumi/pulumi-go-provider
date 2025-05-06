@@ -338,29 +338,18 @@ func TestBuildAndRun(t *testing.T) {
 	_, err := NewProviderBuilder().Build()
 	require.Error(t, err)
 
-	// 2. Create a provider with a component and ensure that it starts successfully by starting the
-	// provider in a separate goroutine as it blocks the main thread.
-	errChan := make(chan error)
+	// 2. Create a provider with a component and ensure that it starts and runs successfully.
+	p, err := NewProviderBuilder().
+		WithComponents(Component(NewMockComponentResource)).
+		WithName("test-provider").
+		WithVersion("1.0.0").
+		Build()
+	require.NoError(t, err)
 
-	go func(errCh chan error) {
-		defer close(errCh)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 
-		p, err := NewProviderBuilder().
-			WithComponents(Component(NewMockComponentResource)).
-			WithName("test-provider").
-			WithVersion("1.0.0").
-			Build()
-		if err != nil {
-			errCh <- err
-			return
-		}
+	err = p.Run(ctx)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer cancel()
-
-		errCh <- p.Run(ctx)
-	}(errChan)
-
-	err = <-errChan
 	assert.NoError(t, err, "provider startup should not fail")
 }
