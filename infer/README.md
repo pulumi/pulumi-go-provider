@@ -344,7 +344,7 @@ Here we get a partial view of the id, inputs and state and need to figure out th
 return the correct id, args and state.
 
 The last step in defining the resource is serving it. Here we define the provider,
-telling it that it should serve the `File` component.
+telling it that it should serve the `File` resource.
 
 ```go
 func main() {
