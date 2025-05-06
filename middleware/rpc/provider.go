@@ -25,8 +25,10 @@ import (
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
+	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -260,6 +262,21 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedConstructRequestToRPC(&req, runtime.propertyToRPC)
+			rpcReq.AcceptsOutputValues = true
+
+			// downgrade the input dependencies if the provider doesn't support output values,
+			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
+			inputDependencies := map[string]*rpc.ConstructRequest_PropertyDependencies{}
+			if !runtime.configuration.AcceptOutputs {
+				for name, v := range req.Inputs.All {
+					urns := putil.GetPropertyDependencies(v)
+					if len(urns) != 0 {
+						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: putil.FromUrns(urns)}
+					}
+				}
+			}
+			rpcReq.InputDependencies = inputDependencies
+
 			rpcResp, err := server.Construct(ctx, rpcReq)
 			if err != nil {
 				return p.ConstructResponse{}, err
@@ -270,6 +287,14 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.ConstructResponse{}, err
 			}
 
+			// upgrade the state dependencies if the provider doesn't support output values,
+			// in which case [rpcResp.StateDependencies] has meaningful information.
+			stateDeps := make(map[string][]urn.URN, len(rpcResp.GetStateDependencies()))
+			for name, deps := range rpcResp.GetStateDependencies() {
+				stateDeps[name] = putil.ToUrns(deps.GetUrns())
+			}
+			resp.State = putil.MergePropertyDependencies(resp.State, stateDeps)
+
 			return resp, nil
 		},
 		Call: func(ctx context.Context, req p.CallRequest) (p.CallResponse, error) {
@@ -278,6 +303,20 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			rpcReq := linkedCallRequestToRPC(&req, runtime.propertyToRPC)
+
+			// downgrade the arg dependencies if the provider doesn't support output values,
+			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
+			argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
+			if !runtime.configuration.AcceptOutputs {
+				for name, v := range req.Args.All {
+					urns := putil.GetPropertyDependencies(v)
+					if len(urns) != 0 {
+						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: putil.FromUrns(urns)}
+					}
+				}
+			}
+			rpcReq.ArgDependencies = argDependencies
+
 			rpcResp, err := server.Call(ctx, rpcReq)
 			if err != nil {
 				return p.CallResponse{}, err
@@ -287,6 +326,14 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			if err != nil {
 				return p.CallResponse{}, err
 			}
+
+			// upgrade the return dependencies if the provider doesn't support output values,
+			// in which case [rpcResp.ReturnDependencies] has meaningful information.
+			returnDeps := make(map[string][]urn.URN, len(rpcResp.GetReturnDependencies()))
+			for name, deps := range rpcResp.GetReturnDependencies() {
+				returnDeps[name] = putil.ToUrns(deps.GetUrns())
+			}
+			resp.Return = putil.MergePropertyDependencies(resp.Return, returnDeps)
 
 			return resp, nil
 		},

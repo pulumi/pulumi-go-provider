@@ -98,11 +98,6 @@ func TestConstruct(t *testing.T) {
         "4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
         "dependencies": ["urn7","urn8"]
       }
-    },
-    "stateDependencies": {
-      "r1": {
-        "urns": ["urn7", "urn8"]
-      }
     }
   },
   "metadata": {
@@ -130,23 +125,16 @@ func TestConstruct(t *testing.T) {
 				ID:  "09e6d266-58b0-4452-8395-7bbe03011fad",
 			},
 		}, req.Providers)
-		assert.Equal(t, map[string][]resource.URN{
-			"k1": {resource.URN("urn4"), resource.URN("urn5")},
-		}, req.InputDependencies)
 		assert.Equal(t, []string{"r1"}, req.AdditionalSecretOutputs)
 		assert.Equal(t, &resource.CustomTimeouts{Create: 60, Update: 120, Delete: 180}, req.CustomTimeouts)
 		assert.Equal(t, resource.URN("urn6"), req.DeletedWith)
 		assert.Equal(t, &_true, req.DeleteBeforeReplace)
 		assert.Equal(t, []string{"k1"}, req.IgnoreChanges)
 		assert.Equal(t, []string{"k2"}, req.ReplaceOnChanges)
-		assert.Equal(t, true, req.AcceptsOutputValues)
 
 		assert.Equal(t, property.NewMap(map[string]property.Value{
-			"k1": property.New("s"),
+			"k1": property.New("s").WithDependencies([]resource.URN{"urn4", "urn5"}),
 		}), req.Inputs)
-		assert.Equal(t, map[string][]resource.URN{
-			"k1": {resource.URN("urn4"), resource.URN("urn5")},
-		}, req.InputDependencies)
 
 		return p.ConstructResponse{
 			Urn: resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),
@@ -155,9 +143,6 @@ func TestConstruct(t *testing.T) {
 					"urn7", "urn8",
 				}),
 			}),
-			StateDependencies: map[string][]resource.URN{
-				"r1": {resource.URN("urn7"), resource.URN("urn8")},
-			},
 		}, nil
 	}
 	replay.Replay(t, constructProvider(t, construct), jsonLog)

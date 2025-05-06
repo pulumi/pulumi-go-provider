@@ -15,12 +15,14 @@
 package putil_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	rresource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
@@ -170,4 +172,167 @@ func TestParseProviderReference(t *testing.T) {
 			assert.Error(t, err, "expected an invalid reference: %s", tc)
 		}
 	})
+}
+
+func TestWalk(t *testing.T) {
+	t.Parallel()
+
+	t.Run("recursion", func(t *testing.T) {
+		type testCase struct {
+			v    property.Value
+			want []r.URN
+		}
+		testCases := []testCase{
+			{
+				v:    property.New("s").WithDependencies([]r.URN{"s"}),
+				want: []r.URN{"s"},
+			},
+			{
+				v: property.New(map[string]property.Value{
+					"k1": property.New("k1").WithDependencies([]r.URN{"k1"}),
+					"k2": property.New("k2").WithDependencies([]r.URN{"k2"}),
+				}).WithDependencies([]r.URN{"m"}),
+				want: []r.URN{"k1", "k2", "m"},
+			},
+			{
+				v: property.New([]property.Value{
+					property.New("k1").WithDependencies([]r.URN{"k1"}),
+					property.New("k2").WithDependencies([]r.URN{"k2"}),
+				}).WithDependencies([]r.URN{"a"}),
+				want: []r.URN{"a", "k1", "k2"},
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.v.GoString(), func(t *testing.T) {
+				t.Parallel()
+				var got []r.URN
+				continueWalking := putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
+					got = append(got, v.Dependencies()...)
+					return true
+				})
+				slices.Sort(got)
+				assert.Equal(t, tc.want, got)
+				assert.True(t, continueWalking)
+			})
+		}
+	})
+
+	t.Run("continueWalking", func(t *testing.T) {
+		type testCase struct {
+			v property.Value
+		}
+		testCases := []testCase{
+			{
+				v: property.New("stop"),
+			},
+			{
+				v: property.New(map[string]property.Value{
+					"k1": property.New("k1"),
+					"k2": property.New("stop"),
+				}),
+			},
+			{
+				v: property.New([]property.Value{
+					property.New("k1"),
+					property.New("stop"),
+				}),
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.v.GoString(), func(t *testing.T) {
+				t.Parallel()
+				continueWalking := putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
+					return !(v.IsString() && v.AsString() == "stop")
+				})
+				assert.False(t, continueWalking)
+			})
+		}
+	})
+}
+
+func TestMergePropertyDependencies(t *testing.T) {
+	t.Parallel()
+
+	s := property.New("s")
+
+	type testCase struct {
+		name string
+		m    property.Map
+		deps map[string][]urn.URN
+		want property.Map
+	}
+	testCases := []testCase{
+		{
+			name: "empty map",
+			m:    property.NewMap(map[string]property.Value{}),
+			deps: map[string][]urn.URN{},
+			want: property.NewMap(map[string]property.Value{}),
+		},
+		{
+			name: "literal value",
+			m:    property.NewMap(map[string]property.Value{"k1": s}),
+			deps: map[string][]urn.URN{},
+			want: property.NewMap(map[string]property.Value{"k1": s}),
+		},
+		{
+			name: "literal value with old-style dependencies",
+			m:    property.NewMap(map[string]property.Value{"k1": s}),
+			deps: map[string][]urn.URN{"k1": {"urn1"}},
+			want: property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
+		},
+		{
+			name: "output value",
+			m:    property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
+			deps: map[string][]urn.URN{},
+			want: property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
+		},
+		{
+			name: "output value with extra dependencies",
+			m:    property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
+			deps: map[string][]urn.URN{"k1": {"urn2"}}, // an extra dependency
+			want: property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1", "urn2"})}),
+		},
+		{
+			name: "output value with folded dependencies",
+			m:    property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
+			deps: map[string][]urn.URN{"k1": {"urn1"}},
+			want: property.NewMap(map[string]property.Value{"k1": s.WithDependencies([]r.URN{"urn1"})}),
+		},
+		{
+			name: "output value with folded dependencies (from child)",
+			m: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}),
+			}),
+			deps: map[string][]urn.URN{"k1": {"urn1"}}, // a folded dependency from k2
+			want: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}),
+			}),
+		},
+		{
+			name: "output value with extra dependencies and folded dependencies",
+			m: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}),
+			}),
+			deps: map[string][]urn.URN{"k1": {"urn1", "urn2"}}, // a folded dependency from k2 and an extra dependency
+			want: property.NewMap(map[string]property.Value{
+				"k1": property.New(map[string]property.Value{
+					"k2": s.WithDependencies([]r.URN{"urn1"}),
+				}).WithDependencies([]r.URN{"urn2"}),
+			}),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := putil.MergePropertyDependencies(tc.m, tc.deps)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

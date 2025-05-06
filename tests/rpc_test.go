@@ -40,6 +40,14 @@ import (
 	wraprpc "github.com/pulumi/pulumi-go-provider/middleware/rpc"
 )
 
+func configureResult(
+	ret *rpc.ConfigureResponse,
+) func(context.Context, *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
+	return func(context.Context, *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
+		return ret, nil
+	}
+}
+
 func TestRPCGetSchema(t *testing.T) {
 	t.Run("no-error", func(t *testing.T) {
 		resp, err := rpcServer(rpcTestServer{
@@ -158,14 +166,6 @@ func TestRPCConfigure(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, didRun)
 	})
-
-	configureResult := func(
-		ret *rpc.ConfigureResponse,
-	) func(context.Context, *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
-		return func(context.Context, *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
-			return ret, nil
-		}
-	}
 
 	// Check that we elide secretes when secrets are not supported.
 	t.Run("secrets", func(t *testing.T) {
@@ -620,15 +620,75 @@ func TestRPCDelete(t *testing.T) {
 	})
 }
 
+func exampleConstructInputs(acceptOutputs bool) (property.Map, map[string]any) {
+	r := property.NewMap(map[string]property.Value{
+		"k1": property.New("s"),
+		"k2": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+		"k3": property.New(property.Null),
+	})
+	if acceptOutputs {
+		return r, map[string]any{
+			"k1": "s",
+			"k2": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"k3": nil,
+		}
+	} else {
+		return r, map[string]any{
+			"k1": "s",
+			"k2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+			"k3": nil,
+		}
+	}
+}
+
+func exampleConstructInputDependencies(acceptOutputs bool) map[string]*rpc.ConstructRequest_PropertyDependencies {
+	if acceptOutputs {
+		return map[string]*rpc.ConstructRequest_PropertyDependencies{}
+	} else {
+		return map[string]*rpc.ConstructRequest_PropertyDependencies{
+			"k2": {Urns: []string{"urn1", "urn2"}},
+		}
+	}
+}
+
+func exampleConstuctState() (map[string]any, property.Map) {
+	return map[string]any{
+			"r1": "s",
+			"r2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+			"r3": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"r4": nil,
+		},
+		property.NewMap(map[string]property.Value{
+			"r1": property.New("s"),
+			"r2": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+			"r3": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+			"r4": property.New(property.Null),
+		})
+}
+
+func exampleConstructStateDependencies() (map[string]*rpc.ConstructResponse_PropertyDependencies, map[string][]resource.URN) {
+	return map[string]*rpc.ConstructResponse_PropertyDependencies{
+			"r2": {Urns: []string{"urn1", "urn2"}},
+		},
+		map[string][]resource.URN{
+			"r2": {"urn1", "urn2"},
+		}
+}
+
 func TestRPCConstruct(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no-error", func(t *testing.T) {
 		t.Parallel()
-		inputs, expectedInputs := exampleNews()
+		inputs, expectedInputs := exampleConstructInputs(true)
+		state, _ := exampleConstuctState()
+		stateDeps, _ := exampleConstructStateDependencies()
 		wasCalled := false
 
-		_, err := rpcServer(rpcTestServer{
+		s := rpcServer(rpcTestServer{
+			onConfigure: configureResult(&rpc.ConfigureResponse{
+				AcceptOutputs: true,
+			}),
 			onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
 				assert.Equal(t, "test:index:Component", req.GetType())
 				assert.Equal(t, "component", req.GetName())
@@ -638,61 +698,153 @@ func TestRPCConstruct(t *testing.T) {
 
 				wasCalled = true
 				return &rpc.ConstructResponse{
-					Urn:   "urn:pulumi:test::test::test:index:Component::component",
-					State: must(structpb.NewStruct(expectedInputs)),
+					Urn:               "urn:pulumi:test::test::test:index:Component::component",
+					State:             must(structpb.NewStruct(state)),
+					StateDependencies: stateDeps,
 				}, nil
 			},
-		}).Construct(p.ConstructRequest{
-			Urn:                 "urn:pulumi:test::test::test:index:Component::component",
-			Parent:              "urn:pulumi:test::test::test:index:Parent::parent",
-			Inputs:              resource.FromResourcePropertyValue(resource.NewProperty(inputs)).AsMap(),
-			AcceptsOutputValues: true,
+		})
+		require.NoError(t, s.Configure(p.ConfigureRequest{}))
+		_, err := s.Construct(p.ConstructRequest{
+			Urn:    "urn:pulumi:test::test::test:index:Component::component",
+			Parent: "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs: inputs,
 		})
 
 		assert.NoError(t, err)
 		assert.True(t, wasCalled)
 	})
+
+	// Check that we downgrade inputs when outputs are not supported.
+	t.Run("inputs", func(t *testing.T) {
+		t.Parallel()
+		for _, acceptOutputs := range []bool{true, false} {
+			inputs, expectedInputs := exampleConstructInputs(acceptOutputs)
+			expectedInputDeps := exampleConstructInputDependencies(acceptOutputs)
+			state, _ := exampleConstuctState()
+			stateDeps, _ := exampleConstructStateDependencies()
+
+			wasCalled := false
+			s := rpcServer(rpcTestServer{
+				onConfigure: configureResult(&rpc.ConfigureResponse{
+					AcceptOutputs: acceptOutputs,
+				}),
+				onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+					assert.Equal(t, expectedInputs, req.GetInputs().AsMap())
+					assert.Equal(t, expectedInputDeps, req.GetInputDependencies())
+					wasCalled = true
+
+					return &rpc.ConstructResponse{
+						Urn:               "urn:pulumi:test::test::test:index:Component::component",
+						State:             must(structpb.NewStruct(state)),
+						StateDependencies: stateDeps,
+					}, nil
+				},
+			})
+			require.NoError(t, s.Configure(p.ConfigureRequest{}))
+			_, err := s.Construct(p.ConstructRequest{
+				Urn:    "urn:pulumi:test::test::test:index:Component::component",
+				Parent: "urn:pulumi:test::test::test:index:Parent::parent",
+				Inputs: inputs,
+			})
+
+			assert.NoError(t, err)
+			assert.True(t, wasCalled)
+		}
+	})
+
+	// Check that we upgrade state values when outputs are not supported.
+	t.Run("state", func(t *testing.T) {
+		t.Parallel()
+
+		inputs, _ := exampleConstructInputs(true)
+		state, expectedState := exampleConstuctState()
+		stateDeps, expectedStateDeps := exampleConstructStateDependencies()
+
+		s := rpcServer(rpcTestServer{
+			onConfigure: configureResult(&rpc.ConfigureResponse{
+				AcceptOutputs: true,
+			}),
+			onConstruct: func(_ context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
+				return &rpc.ConstructResponse{
+					Urn:               "urn:pulumi:test::test::test:index:Component::component",
+					State:             must(structpb.NewStruct(state)),
+					StateDependencies: stateDeps,
+				}, nil
+			},
+		})
+		require.NoError(t, s.Configure(p.ConfigureRequest{}))
+		resp, err := s.Construct(p.ConstructRequest{
+			Urn:    "urn:pulumi:test::test::test:index:Component::component",
+			Parent: "urn:pulumi:test::test::test:index:Parent::parent",
+			Inputs: inputs,
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedState, resp.State, "state should be the same")
+		for name, deps := range expectedStateDeps {
+			v, ok := resp.State.GetOk(name)
+			if !ok {
+				assert.Fail(t, "state value for %q should be present", name)
+				continue
+			}
+			assert.Equal(t, deps, v.Dependencies(), "state dependencies for %q should be the same", name)
+		}
+	})
 }
 
-func exampleCallArgs() (resource.PropertyMap, map[string]any) {
-	return resource.PropertyMap{
-			"k1": resource.NewProperty("s"),
-			"k2": resource.MakeComputed(resource.NewProperty("")),
-			"k3": resource.NewNullProperty(),
-		}, map[string]any{
+func exampleCallArgs(acceptOutputs bool) (property.Map, map[string]any) {
+	r := property.NewMap(map[string]property.Value{
+		"k1": property.New("s"),
+		"k2": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+		"k3": property.New(property.Null),
+	})
+	if acceptOutputs {
+		return r, map[string]any{
+			"k1": "s",
+			"k2": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"k3": nil,
+		}
+	} else {
+		return r, map[string]any{
 			"k1": "s",
 			"k2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
 			"k3": nil,
 		}
+	}
 }
 
-func exampleCallArgDependencies() (map[string][]resource.URN, map[string]*rpc.CallRequest_ArgumentDependencies) {
-	return map[string][]resource.URN{
-			"k1": {"urn1", "urn2"},
-		}, map[string]*rpc.CallRequest_ArgumentDependencies{
-			"k1": {Urns: []string{"urn1", "urn2"}},
+func exampleCallArgDependencies(acceptOutputs bool) map[string]*rpc.CallRequest_ArgumentDependencies {
+	if acceptOutputs {
+		return map[string]*rpc.CallRequest_ArgumentDependencies{}
+	} else {
+		return map[string]*rpc.CallRequest_ArgumentDependencies{
+			"k2": {Urns: []string{"urn1", "urn2"}},
 		}
+	}
 }
 
-func exampleCallReturns() (map[string]any, resource.PropertyMap) {
+func exampleCallReturns() (map[string]any, property.Map) {
 	return map[string]any{
 			"r1": "s",
 			"r2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
-			"r3": nil,
+			"r3": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"r4": nil,
 		},
-		resource.PropertyMap{
-			"r1": resource.NewProperty("s"),
-			"r2": resource.MakeComputed(resource.NewProperty("")),
-			"r3": resource.NewNullProperty(),
-		}
+		property.NewMap(map[string]property.Value{
+			"r1": property.New("s"),
+			"r2": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+			"r3": property.New(property.Computed).WithDependencies([]resource.URN{"urn1", "urn2"}),
+			"r4": property.New(property.Null),
+		})
 }
 
 func exampleCallReturnDependencies() (map[string]*rpc.CallResponse_ReturnDependencies, map[string][]resource.URN) {
 	return map[string]*rpc.CallResponse_ReturnDependencies{
-			"r1": {Urns: []string{"urn1", "urn2"}},
+			"r2": {Urns: []string{"urn1", "urn2"}},
 		},
 		map[string][]resource.URN{
-			"r1": {"urn1", "urn2"},
+			"r2": {"urn1", "urn2"},
 		}
 }
 
@@ -701,13 +853,16 @@ func TestRPCCall(t *testing.T) {
 
 	t.Run("no-error", func(t *testing.T) {
 		t.Parallel()
-		args, expectedArgs := exampleCallArgs()
-		argDeps, expectedArgDeps := exampleCallArgDependencies()
+		args, expectedArgs := exampleCallArgs(true)
+		expectedArgDeps := exampleCallArgDependencies(true)
 		returns, expectedReturns := exampleCallReturns()
-		returnDeps, expectedReturnDeps := exampleCallReturnDependencies()
+		returnDeps, _ := exampleCallReturnDependencies()
 		wasCalled := false
 
-		resp, err := rpcServer(rpcTestServer{
+		s := rpcServer(rpcTestServer{
+			onConfigure: configureResult(&rpc.ConfigureResponse{
+				AcceptOutputs: true,
+			}),
 			onCall: func(_ context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
 				assert.Equal(t, "some-token", req.GetTok(), "token should be the same")
 				assert.Equal(t, expectedArgs, req.GetArgs().AsMap(), "args should be the same")
@@ -722,20 +877,90 @@ func TestRPCCall(t *testing.T) {
 					ReturnDependencies: returnDeps,
 				}, nil
 			},
-		}).Call(p.CallRequest{
-			Tok:             tokens.ModuleMember("some-token"),
-			Project:         "some-project",
-			Stack:           "some-stack",
-			Args:            resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
-			ArgDependencies: argDeps,
+		})
+		require.NoError(t, s.Configure(p.ConfigureRequest{}))
+		resp, err := s.Call(p.CallRequest{
+			Tok:     tokens.ModuleMember("some-token"),
+			Project: "some-project",
+			Stack:   "some-stack",
+			Args:    args,
 		})
 
 		assert.NoError(t, err)
 		assert.True(t, wasCalled)
 		assert.Equal(t,
-			resource.FromResourcePropertyMap(expectedReturns),
+			expectedReturns,
 			resp.Return, "return values should be the same")
-		assert.Equal(t, expectedReturnDeps, resp.ReturnDependencies, "return dependencies should be the same")
+	})
+
+	// Check that we downgrade args when outputs are not supported.
+	t.Run("args", func(t *testing.T) {
+		t.Parallel()
+		for _, acceptOutputs := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%v", acceptOutputs), func(t *testing.T) {
+				args, expectedArgs := exampleCallArgs(acceptOutputs)
+				expectedArgDeps := exampleCallArgDependencies(acceptOutputs)
+
+				var wasCalled bool
+				s := rpcServer(rpcTestServer{
+					onConfigure: configureResult(&rpc.ConfigureResponse{
+						AcceptOutputs: acceptOutputs,
+					}),
+					onCall: func(_ context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
+						wasCalled = true
+						assert.Equal(t, expectedArgs, req.GetArgs().AsMap(), "args should be the same")
+						assert.Equal(t, expectedArgDeps, req.GetArgDependencies(), "arg dependencies should be the same")
+						return &rpc.CallResponse{}, nil
+					},
+				})
+				require.NoError(t, s.Configure(p.ConfigureRequest{}))
+				_, err := s.Call(p.CallRequest{
+					Tok:     tokens.ModuleMember("some-token"),
+					Project: "some-project",
+					Stack:   "some-stack",
+					Args:    args,
+				})
+
+				assert.NoError(t, err)
+				assert.True(t, wasCalled)
+			})
+		}
+	})
+
+	// Check that we upgrade return values when outputs are not supported.
+	t.Run("returns", func(t *testing.T) {
+		t.Parallel()
+		_return, expectedReturn := exampleCallReturns()
+		returnDeps, expectedReturnDeps := exampleCallReturnDependencies()
+
+		s := rpcServer(rpcTestServer{
+			onConfigure: configureResult(&rpc.ConfigureResponse{
+				AcceptOutputs: true,
+			}),
+			onCall: func(_ context.Context, req *rpc.CallRequest) (*rpc.CallResponse, error) {
+				return &rpc.CallResponse{
+					Return:             must(structpb.NewStruct(_return)),
+					ReturnDependencies: returnDeps,
+				}, nil
+			},
+		})
+		require.NoError(t, s.Configure(p.ConfigureRequest{}))
+		resp, err := s.Call(p.CallRequest{
+			Tok:     tokens.ModuleMember("some-token"),
+			Project: "some-project",
+			Stack:   "some-stack",
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedReturn, resp.Return, "return values should be the same")
+		for name, deps := range expectedReturnDeps {
+			v, ok := resp.Return.GetOk(name)
+			if !ok {
+				assert.Fail(t, "return value for %q should be present", name)
+				continue
+			}
+			assert.Equal(t, deps, v.Dependencies(), "return dependencies for %q should be the same", name)
+		}
 	})
 }
 

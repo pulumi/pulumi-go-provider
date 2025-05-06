@@ -17,10 +17,13 @@ package putil
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
 // IsComputed checks if v is some form of a computed/unknown value.
@@ -230,4 +233,83 @@ func ParseProviderReference(s string) (resource.URN, resource.ID, error) {
 // FormatProviderReference formats the URN and ID into a string representation of a provider reference.
 func FormatProviderReference(urn resource.URN, id resource.ID) string {
 	return fmt.Sprintf("%s%s%s", urn, resource.URNNameDelimiter, id)
+}
+
+// ToUrns converts a slice of strings to a slice of URNs.
+func ToUrns(s []string) []urn.URN {
+	r := make([]urn.URN, len(s))
+	for i, a := range s {
+		r[i] = urn.URN(a)
+	}
+	return r
+}
+
+func FromUrns(urns []urn.URN) []string {
+	r := make([]string, len(urns))
+	for i, urn := range urns {
+		r[i] = string(urn)
+	}
+	return r
+}
+
+// Walk traverses a property value along all paths, performing a depth first search.
+func Walk(v property.Value, f func(property.Value) (continueWalking bool)) bool {
+	cont := f(v)
+	if !cont {
+		return false
+	}
+	switch {
+	case v.IsArray():
+		for _, v := range v.AsArray().All {
+			if !Walk(v, f) {
+				return false
+			}
+		}
+	case v.IsMap():
+		for _, v := range v.AsMap().All {
+			if !Walk(v, f) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// GetPropertyDependencies gathers (deeply) the dependencies of the given property value.
+func GetPropertyDependencies(v property.Value) []urn.URN {
+	var deps []urn.URN
+	Walk(v, func(v property.Value) (continueWalking bool) {
+		deps = append(deps, v.Dependencies()...)
+		return true
+	})
+	slices.Sort(deps)
+	return slices.Compact(deps)
+}
+
+// MergePropertyDependencies merges the given dependencies into the property map.
+//
+// Apply the dependencies to the property map, only for "legacy" values that don't have output dependencies.
+// The caller may fold the output dependencies of a value's children into the dependencies map,
+// and we seek to avoid treating those as true dependencies of the top-level value.
+func MergePropertyDependencies(m property.Map, dependencies map[string][]urn.URN) property.Map {
+	if len(dependencies) == 0 {
+		return m
+	}
+	_m := m.AsMap()
+	for name, deps := range dependencies {
+		if v, ok := _m[name]; ok {
+			vdeps := GetPropertyDependencies(v)
+			deps := slices.DeleteFunc(slices.Clone(deps), func(dep urn.URN) bool {
+				return slices.Contains(vdeps, dep)
+			})
+			deps = mergePropertyDependencies(append(v.Dependencies(), deps...))
+			_m[name] = v.WithDependencies(deps)
+		}
+	}
+	return property.NewMap(_m)
+}
+
+func mergePropertyDependencies(deps []urn.URN) []urn.URN {
+	slices.Sort(deps)
+	return slices.Compact(deps)
 }

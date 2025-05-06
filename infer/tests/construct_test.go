@@ -45,9 +45,6 @@ func TestConstruct(t *testing.T) {
 		Inputs: property.NewMap(map[string]property.Value{
 			"prefix": prefix,
 		}),
-		InputDependencies: map[string][]r.URN{
-			"prefix": {urn("Other", "more")},
-		},
 	})
 
 	assert.NoError(t, err)

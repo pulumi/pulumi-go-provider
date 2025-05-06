@@ -35,6 +35,7 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
@@ -777,23 +778,6 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 		return nil, err
 	}
 
-	returnDependencies := map[string]*rpc.CallResponse_ReturnDependencies{}
-	for name, v := range resp.ReturnDependencies {
-		var urns []string
-		for _, dep := range v {
-			urns = append(urns, string(dep))
-		}
-		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-	}
-	for name, v := range resp.Return.All {
-		deps := v.Dependencies()
-		urns := make([]string, 0, len(deps))
-		for _, u := range v.Dependencies() {
-			urns = append(urns, string(u))
-		}
-		returnDependencies[name] = &rpc.CallResponse_ReturnDependencies{Urns: urns}
-	}
-
 	_return, err := p.asStruct(resp.Return)
 	if err != nil {
 		return nil, err
@@ -801,7 +785,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 
 	return &rpc.CallResponse{
 		Return:             _return,
-		ReturnDependencies: returnDependencies,
+		ReturnDependencies: nil,
 		Failures:           checkFailureList(resp.Failures).rpc(),
 	}, nil
 }
@@ -812,6 +796,10 @@ func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallF
 	if err != nil {
 		return CallResponse{}, err
 	}
+
+	// note that req.ReturnDependencies is silently discarded
+	// because the information is simply derived from the property values in r.Return.
+
 	return newCallResponse(r)
 }
 
@@ -823,8 +811,6 @@ type CallRequest struct {
 	Tok tokens.ModuleMember
 	// the arguments for the function invocation.
 	Args property.Map
-	// a map from argument keys to the dependencies of the argument.
-	ArgDependencies map[string][]presource.URN
 	// the project name.
 	Project string
 	// the name of the stack being deployed into.
@@ -841,8 +827,6 @@ type CallRequest struct {
 	MonitorEndpoint string
 	// the organization of the stack being deployed into.
 	Organization string
-	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
-	AcceptsOutputValues bool
 }
 
 func newCallRequest(req *rpc.CallRequest,
@@ -851,17 +835,7 @@ func newCallRequest(req *rpc.CallRequest,
 	var errs multierror.Error
 
 	r := CallRequest{
-		Tok: tokens.ModuleMember(req.GetTok()),
-		ArgDependencies: func() map[string][]presource.URN {
-			r := make(map[string][]presource.URN, len(req.GetArgDependencies()))
-			for k, v := range req.GetArgDependencies() {
-				r[k] = make([]presource.URN, len(v.GetUrns()))
-				for i, urn := range v.GetUrns() {
-					r[k][i] = presource.URN(urn)
-				}
-			}
-			return r
-		}(),
+		Tok:     tokens.ModuleMember(req.GetTok()),
 		Project: req.GetProject(),
 		Stack:   req.GetStack(),
 		Config: func() map[pconfig.Key]string {
@@ -888,32 +862,28 @@ func newCallRequest(req *rpc.CallRequest,
 			}
 			return keys
 		}(),
-		DryRun:              req.GetDryRun(),
-		Parallel:            req.GetParallel(),
-		MonitorEndpoint:     req.GetMonitorEndpoint(),
-		Organization:        req.GetOrganization(),
-		AcceptsOutputValues: req.GetAcceptsOutputValues(),
+		DryRun:          req.GetDryRun(),
+		Parallel:        req.GetParallel(),
+		MonitorEndpoint: req.GetMonitorEndpoint(),
+		Organization:    req.GetOrganization(),
 	}
 
 	args, err := unmarshal(req.GetArgs())
 	if err != nil {
 		errs.Errors = append(errs.Errors, fmt.Errorf("invalid args: %w", err))
 	} else {
-		r.Args = args
+		// upgrade the args to include the dependencies
+		argDeps := make(map[string][]urn.URN, len(req.GetArgDependencies()))
+		for name, deps := range req.GetArgDependencies() {
+			argDeps[name] = putil.ToUrns(deps.GetUrns())
+		}
+		r.Args = putil.MergePropertyDependencies(args, argDeps)
 	}
 
 	return r, errs.ErrorOrNil()
 }
 
 func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
-	fromUrns := func(urns []presource.URN) []string {
-		r := make([]string, len(urns))
-		for i, urn := range urns {
-			r[i] = string(urn)
-		}
-		return r
-	}
-
 	// Marshal the args.
 	args, err := marshal(c.Args)
 	if err != nil {
@@ -921,17 +891,8 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 	}
 
 	req := &rpc.CallRequest{
-		Tok:  c.Tok.String(),
-		Args: args,
-		ArgDependencies: func() map[string]*rpc.CallRequest_ArgumentDependencies {
-			r := make(map[string]*rpc.CallRequest_ArgumentDependencies, len(c.ArgDependencies))
-			for k, v := range c.ArgDependencies {
-				r[k] = &rpc.CallRequest_ArgumentDependencies{
-					Urns: fromUrns(v),
-				}
-			}
-			return r
-		}(),
+		Tok:     c.Tok.String(),
+		Args:    args,
 		Project: c.Project,
 		Stack:   c.Stack,
 		Config: func() map[string]string {
@@ -952,7 +913,7 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 		Parallel:            c.Parallel,
 		MonitorEndpoint:     c.MonitorEndpoint,
 		Organization:        c.Organization,
-		AcceptsOutputValues: c.AcceptsOutputValues,
+		AcceptsOutputValues: true,
 	}
 
 	return req
@@ -964,8 +925,6 @@ func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 type CallResponse struct {
 	// The returned values, if the call was successful.
 	Return property.Map
-	// A map from return keys to the dependencies of the return value.
-	ReturnDependencies map[string][]presource.URN
 	// The failures if any arguments didn't pass verification.
 	Failures []CheckFailure
 }
@@ -989,17 +948,8 @@ func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
 			}
 			return failures
 		}(),
-		ReturnDependencies: func() map[string][]presource.URN {
-			r := make(map[string][]presource.URN, len(req.ReturnDependencies))
-			for k, v := range req.ReturnDependencies {
-				r[k] = make([]presource.URN, len(v.Urns))
-				for i, urn := range v.Urns {
-					r[k][i] = presource.URN(urn)
-				}
-			}
-			return r
-		}(),
 	}
+
 	return r, nil
 }
 
@@ -1241,9 +1191,6 @@ type ConstructRequest struct {
 	// Providers is a map from package name to provider reference.
 	Providers map[tokens.Package]ProviderReference
 
-	// InputDependencies is a map from property name to a list of resources that property depends on.
-	InputDependencies map[string][]presource.URN
-
 	// AdditionalSecretOutputs lists extra output properties
 	// that should be treated as secrets.
 	AdditionalSecretOutputs []string
@@ -1270,15 +1217,20 @@ type ConstructRequest struct {
 	// RetainOnDelete is true if deletion of the resource should not
 	// delete the resource in the provider.
 	RetainOnDelete *bool
-
-	// AcceptsOutputValues is true if the caller is capable of accepting output values in response to the call.
-	AcceptsOutputValues bool
 }
 
 // ProviderReference is a (URN, ID) tuple that refers to a particular provider instance.
 type ProviderReference struct {
 	Urn presource.URN
 	ID  presource.ID
+}
+
+func toUrns(s []string) []presource.URN {
+	r := make([]presource.URN, len(s))
+	for i, a := range s {
+		r[i] = presource.URN(a)
+	}
+	return r
 }
 
 func newConstructRequest(req *rpc.ConstructRequest,
@@ -1298,16 +1250,8 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		return d.Seconds()
 	}
 
-	toUrns := func(s []string) []presource.URN {
-		r := make([]presource.URN, len(s))
-		for i, a := range s {
-			r[i] = presource.URN(a)
-		}
-		return r
-	}
-
 	parent := presource.URN(req.GetParent())
-	urn := presource.NewURN(
+	_urn := presource.NewURN(
 		tokens.QName(req.GetStack()),
 		tokens.PackageName(req.GetProject()),
 		func() tokens.Type {
@@ -1323,7 +1267,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 	// https://github.com/pulumi/pulumi/blob/v3.162.0/sdk/go/common/resource/plugin/provider_plugin.go#L1735-L1812
 
 	r := ConstructRequest{
-		Urn: urn,
+		Urn: _urn,
 		Config: func() map[pconfig.Key]string {
 			m := make(map[pconfig.Key]string, len(req.GetConfig()))
 			for k, v := range req.GetConfig() {
@@ -1369,13 +1313,6 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			}
 			return m
 		}(),
-		InputDependencies: func() map[string][]presource.URN {
-			m := make(map[string][]presource.URN, len(req.GetInputDependencies()))
-			for k, v := range req.GetInputDependencies() {
-				m[k] = toUrns(v.Urns)
-			}
-			return m
-		}(),
 		Aliases:      toUrns(req.GetAliases()),
 		Dependencies: toUrns(req.GetDependencies()),
 		AdditionalSecretOutputs: func() []string {
@@ -1401,14 +1338,18 @@ func newConstructRequest(req *rpc.ConstructRequest,
 				Delete: toTimeout("delete", t.GetDelete()),
 			}
 		}(),
-		AcceptsOutputValues: req.AcceptsOutputValues,
 	}
 
 	inputs, err := unmarshal(req.Inputs)
 	if err != nil {
 		errs.Errors = append(errs.Errors, fmt.Errorf("invalid inputs: %w", err))
 	} else {
-		r.Inputs = inputs
+		// upgrade the inputs to include the dependencies
+		inputDeps := make(map[string][]urn.URN, len(req.GetInputDependencies()))
+		for name, deps := range req.GetInputDependencies() {
+			inputDeps[name] = putil.ToUrns(deps.GetUrns())
+		}
+		r.Inputs = putil.MergePropertyDependencies(inputs, inputDeps)
 	}
 
 	return r, errs.ErrorOrNil()
@@ -1465,15 +1406,6 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 			}
 			return m
 		}(),
-		InputDependencies: func() map[string]*rpc.ConstructRequest_PropertyDependencies {
-			m := make(map[string]*rpc.ConstructRequest_PropertyDependencies, len(c.InputDependencies))
-			for k, v := range c.InputDependencies {
-				m[k] = &rpc.ConstructRequest_PropertyDependencies{
-					Urns: fromUrns(v),
-				}
-			}
-			return m
-		}(),
 		Aliases:                 fromUrns(c.Aliases),
 		Dependencies:            fromUrns(c.Dependencies),
 		AdditionalSecretOutputs: c.AdditionalSecretOutputs,
@@ -1482,7 +1414,7 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		IgnoreChanges:           c.IgnoreChanges,
 		ReplaceOnChanges:        c.ReplaceOnChanges,
 		RetainOnDelete:          c.RetainOnDelete,
-		AcceptsOutputValues:     c.AcceptsOutputValues,
+		AcceptsOutputValues:     true,
 	}
 
 	if ct := c.CustomTimeouts; ct != nil {
@@ -1497,20 +1429,13 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 }
 
 type ConstructResponse struct {
-	Urn               presource.URN // the Pulumi URN for this resource.
-	State             property.Map
-	StateDependencies map[string][]presource.URN
+	// the Pulumi URN for this resource.
+	Urn presource.URN
+	// the state of this resource.
+	State property.Map
 }
 
 func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error) {
-	toUrns := func(s []string) []presource.URN {
-		l := make([]presource.URN, len(s))
-		for i, a := range s {
-			l[i] = presource.URN(a)
-		}
-		return l
-	}
-
 	// Umarshal the state properties.
 	state, err := internalrpc.UnmarshalProperties(req.State)
 	if err != nil {
@@ -1520,45 +1445,8 @@ func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error)
 	r := ConstructResponse{
 		Urn:   presource.URN(req.Urn),
 		State: state,
-		StateDependencies: func() map[string][]presource.URN {
-			m := make(map[string][]presource.URN, len(req.StateDependencies))
-			for k, v := range req.StateDependencies {
-				m[k] = toUrns(v.Urns)
-			}
-			return m
-		}(),
 	}
 	return r, nil
-}
-
-func (c ConstructResponse) rpc(marshal propertyToRPC) *rpc.ConstructResponse {
-	fromUrns := func(urns []presource.URN) []string {
-		r := make([]string, len(urns))
-		for i, urn := range urns {
-			r[i] = string(urn)
-		}
-		return r
-	}
-
-	// Marshal the state properties.
-	mstate, err := marshal(c.State)
-	if err != nil {
-		return nil
-	}
-
-	return &rpc.ConstructResponse{
-		Urn:   string(c.Urn),
-		State: mstate,
-		StateDependencies: func() map[string]*rpc.ConstructResponse_PropertyDependencies {
-			m := make(map[string]*rpc.ConstructResponse_PropertyDependencies, len(c.StateDependencies))
-			for k, v := range c.StateDependencies {
-				m[k] = &rpc.ConstructResponse_PropertyDependencies{
-					Urns: fromUrns(v),
-				}
-			}
-			return m
-		}(),
-	}
 }
 
 func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*rpc.ConstructResponse, error) {
@@ -1570,9 +1458,20 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 	contract.Assertf(req.AcceptsOutputValues, "The caller must accept output values")
 
 	ctx = p.ctx(ctx, r.Urn)
-	result, err := p.client.Construct(ctx, r)
+	resp, err := p.client.Construct(ctx, r)
+	if err != nil {
+		return nil, err
+	}
 
-	return result.rpc(p.asStruct), err
+	state, err := p.asStruct(resp.State)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpc.ConstructResponse{
+		Urn:   string(resp.Urn),
+		State: state,
+	}, nil
 }
 
 func (h *host) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc,
@@ -1581,6 +1480,10 @@ func (h *host) Construct(ctx context.Context, req ConstructRequest, construct co
 	if err != nil {
 		return ConstructResponse{}, err
 	}
+
+	// note that req.StateDependencies is silently discarded
+	// because the information is simply derived from the property values in req.State.
+
 	return newConstructResponse(r)
 }
 
