@@ -41,7 +41,8 @@ func NewMockComponentResource(
 	ctx *pulumi.Context,
 	name string,
 	inputs MockComponentResourceInput,
-	options ...pulumi.ResourceOption) (*MockComponentResource, error) {
+	options ...pulumi.ResourceOption,
+) (*MockComponentResource, error) {
 	return &MockComponentResource{}, nil
 }
 
@@ -62,17 +63,21 @@ type MockConfig struct{}
 func (mc MockConfig) GetSchema(schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
 	return pschema.ResourceSpec{}, nil
 }
+
 func (mc MockConfig) GetToken() (tokens.Type, error) {
 	return "", nil
 }
 
-type MockFunction struct{}
-type MockFunctionArgs struct{}
-type MockFunctionResult struct{}
+type (
+	MockFunction       struct{}
+	MockFunctionArgs   struct{}
+	MockFunctionResult struct{}
+)
 
 func (mf MockFunction) Invoke(
 	ctx context.Context,
-	req FunctionRequest[MockFunctionArgs]) (FunctionResponse[MockFunctionResult], error) {
+	req FunctionRequest[MockFunctionArgs],
+) (FunctionResponse[MockFunctionResult], error) {
 	return FunctionResponse[MockFunctionResult]{}, nil
 }
 
@@ -106,8 +111,8 @@ func TestWithResources(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	resource1 := Resource[MockResource]()
-	resource2 := Resource[MockResource]()
+	resource1 := Resource(MockResource{})
+	resource2 := Resource(MockResource{})
 
 	dp.WithResources(resource1, resource2)
 
@@ -116,7 +121,7 @@ func TestWithResources(t *testing.T) {
 	assert.Equal(t, resource2, dp.resources[1])
 
 	// Test chaining
-	resource3 := Resource[MockResource]()
+	resource3 := Resource(MockResource{})
 	dp.WithResources(resource3)
 
 	assert.Equal(t, 3, len(dp.resources))
@@ -146,8 +151,8 @@ func TestWithFunctions(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	function1 := Function[MockFunction]()
-	function2 := Function[MockFunction]()
+	function1 := Function(MockFunction{})
+	function2 := Function(MockFunction{})
 
 	dp.WithFunctions(function1, function2)
 
@@ -156,13 +161,13 @@ func TestWithFunctions(t *testing.T) {
 	assert.Equal(t, function2, dp.functions[1])
 
 	// Test chaining
-	function3 := Function[MockFunction]()
+	function3 := Function(MockFunction{})
 	dp.WithFunctions(function3)
 
 	assert.Equal(t, 3, len(dp.functions))
 
 	// Test with multiple functions
-	functions := []InferredFunction{Function[MockFunction](), Function[MockFunction]()}
+	functions := []InferredFunction{Function(MockFunction{}), Function(MockFunction{})}
 	dp.WithFunctions(functions...)
 
 	assert.Equal(t, 5, len(dp.functions))
@@ -172,7 +177,7 @@ func TestWithConfig(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	config := Config[MockConfig]()
+	config := Config(MockConfig{})
 
 	dp.WithConfig(config)
 
@@ -268,10 +273,10 @@ func TestBuild(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	resource := Resource[MockResource]()
+	resource := Resource(MockResource{})
 	component := Component(NewMockComponentResource)
-	functions := Function[MockFunction]()
-	config := Config[MockConfig]()
+	functions := Function(MockFunction{})
+	config := Config(MockConfig{})
 	moduleMap := map[tokens.ModuleName]tokens.ModuleName{
 		"module1": "mappedModule1",
 	}
@@ -308,7 +313,7 @@ func TestValidate(t *testing.T) {
 	assert.Contains(t, err.Error(), "at least one resource, component, or function is required")
 
 	// Add a resource, should pass
-	dp.WithResources(Resource[MockResource]())
+	dp.WithResources(Resource(MockResource{}))
 	err = dp.validate()
 	assert.NoError(t, err)
 
@@ -322,7 +327,7 @@ func TestValidate(t *testing.T) {
 	// Reset and test with function
 	dp = NewProviderBuilder()
 	dp.WithName("test-provider").WithVersion("1.0.0")
-	dp.WithFunctions(Function[MockFunction]())
+	dp.WithFunctions(Function(MockFunction{}))
 	err = dp.validate()
 	assert.NoError(t, err)
 }

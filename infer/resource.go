@@ -933,7 +933,7 @@ type InferredResource interface {
 
 // Resource creates a new InferredResource, where `R` is the resource controller, `I` is
 // the resources inputs and `O` is the resources outputs.
-func Resource[R CustomResource[I, O], I, O any]() InferredResource {
+func Resource[R CustomResource[I, O], I, O any](rsc R) InferredResource {
 	return &derivedResourceController[R, I, O]{}
 }
 

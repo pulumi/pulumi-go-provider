@@ -580,23 +580,23 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 	return infer.Options{
 		Config: config,
 		Resources: []infer.InferredResource{
-			infer.Resource[*Echo](),
-			infer.Resource[*Wired](),
-			infer.Resource[*WiredPlus](),
-			infer.Resource[*Increment](),
-			infer.Resource[*WithDefaults](),
-			infer.Resource[*ReadEnv](),
-			infer.Resource[*Recursive](),
-			infer.Resource[*ReadConfig](),
-			infer.Resource[*ReadConfigCustom](),
-			infer.Resource[*CustomCheckNoDefaults](),
+			infer.Resource(&Echo{}),
+			infer.Resource(&Wired{}),
+			infer.Resource(&WiredPlus{}),
+			infer.Resource(&Increment{}),
+			infer.Resource(&WithDefaults{}),
+			infer.Resource(&ReadEnv{}),
+			infer.Resource(&Recursive{}),
+			infer.Resource(&ReadConfig{}),
+			infer.Resource(&ReadConfigCustom{}),
+			infer.Resource(&CustomCheckNoDefaults{}),
 		},
 		Components: []infer.InferredComponent{
 			infer.Component(NewRandomComponent),
 			infer.Component(NewReadConfigComponent),
 		},
 		Functions: []infer.InferredFunction{
-			infer.Function[*GetJoin](),
+			infer.Function(&GetJoin{}),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	}
@@ -608,12 +608,14 @@ func provider(t testing.TB) integration.Server {
 }
 
 func providerWithConfig[T any](t testing.TB) integration.Server {
-	p := infer.Provider(providerOpts(infer.Config[T]()))
+	var cfg T
+	p := infer.Provider(providerOpts(infer.Config(cfg)))
 	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
 }
 
 func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
-	p := infer.Provider(providerOpts(infer.Config[T]()))
+	var cfg T
+	p := infer.Provider(providerOpts(infer.Config(cfg)))
 	return integration.NewServerWithOptions(t.Context(), "test", semver.MustParse("1.0.0"), p,
 		integration.WithMocks(mocks))
 }

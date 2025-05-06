@@ -80,13 +80,13 @@ func TestTokens(t *testing.T) {
 
 	provider := infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{
-			infer.Resource[*CustomToken](),
+			infer.Resource(&CustomToken{}),
 		},
 		Components: []infer.InferredComponent{
 			infer.Component(Construct),
 		},
 		Functions: []infer.InferredFunction{
-			infer.Function[*FnToken](),
+			infer.Function(&FnToken{}),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"overwritten": "index"},
 	})

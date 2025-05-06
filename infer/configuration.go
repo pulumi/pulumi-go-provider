@@ -35,7 +35,7 @@ import (
 // responsive to the same interfaces.
 //
 // `T` can implement [CustomDiff] and [CustomCheck] and [CustomConfigure] and [Annotated].
-func Config[T any]() InferredConfig {
+func Config[T any](cfg T) InferredConfig {
 	return &config[T]{}
 }
 

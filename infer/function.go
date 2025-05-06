@@ -60,7 +60,7 @@ type InferredFunction interface {
 }
 
 // Function infers a function from `F`, which maps `I` to `O`.
-func Function[F Fn[I, O], I, O any]() InferredFunction {
+func Function[F Fn[I, O], I, O any](fnc F) InferredFunction {
 	return &derivedInvokeController[F, I, O]{}
 }
 

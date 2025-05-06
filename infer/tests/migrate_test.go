@@ -107,7 +107,7 @@ func migrationServer() integration.Server {
 		semver.MustParse("1.0.0"),
 		infer.Provider(infer.Options{
 			Resources: []infer.InferredResource{
-				infer.Resource[*MigrateR](),
+				infer.Resource(&MigrateR{}),
 			},
 			ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 		}))
