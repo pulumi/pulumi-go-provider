@@ -38,29 +38,30 @@ type ProviderBuilder struct {
 //
 // This is an example of how to create a simple provider with a single component resource:
 //
-//		type RandomComponent struct {
-//			pulumi.ResourceState
-//			RandomComponentArgs
-//		 	Password        pulumi.StringOutput `pulumi:"password"`
-//		}
+//	type RandomComponent struct {
+//	    pulumi.ResourceState
+//	    RandomComponentArgs
 //
-//		type RandomComponentArgs struct {
-//			Length pulumi.IntInput `pulumi:"length"`
-//		}
+//	    Password pulumi.StringOutput `pulumi:"password"`
+//	}
 //
-//		func NewMyComponent(ctx *pulumi.Context, name string,
-//				compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
-//			// Define your component constructor logic here.
-//		}
+//	type RandomComponentArgs struct {
+//	    Length pulumi.IntInput `pulumi:"length"`
+//	}
 //
-//		func main() {
-//			p, _ := infer.NewProviderBuilder().
-//				WithComponents(
-//					infer.Component(NewMyComponent),
-//				).
-//				Build()
-//	        p.Run(context.Background(), "go-components", "v0.0.1")
-//		}
+//	func NewMyComponent(ctx *pulumi.Context, name string,
+//	    compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+//	    // Define your component constructor logic here.
+//	}
+//
+//	func main() {
+//	    p, _ := infer.NewProviderBuilder().
+//	        WithComponents(
+//	            infer.Component(NewMyComponent),
+//	        ).
+//	        Build()
+//	    p.Run(context.Background(), "go-components", "v0.0.1")
+//	}
 //
 // Please note that the initial defaults provided by this function may change with future releases of
 // this framework. Currently, we are setting the following defaults:
