@@ -120,7 +120,7 @@ func NewServer(ctx context.Context, pkg string, version semver.Version,
 		opt.applyServerOption(o)
 	}
 	if o.mocks == nil {
-		o.mocks = &MockMonitor{} // Why?
+		o.mocks = &MockMonitor{} // MockResourceMonitor requires a non-nil monitor.
 	}
 	if o.provider == nil && o.providerF == nil {
 		return nil, fmt.Errorf("WithProvider or WithProviderF is required")
