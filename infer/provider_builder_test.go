@@ -19,8 +19,10 @@ import (
 	"testing"
 	"time"
 
+	provider "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -266,6 +268,27 @@ func TestWithNamespace(t *testing.T) {
 
 	opts := dp.BuildOptions()
 	assert.Equal(t, finalNamespace, opts.Metadata.Namespace)
+}
+
+func TestWithWrapped(t *testing.T) {
+	t.Parallel()
+
+	wrapped := provider.Provider{
+		Create: func(_ context.Context, _ provider.CreateRequest) (provider.CreateResponse, error) {
+			return provider.CreateResponse{ID: "foo"}, nil
+		},
+	}
+
+	p, err := NewProviderBuilder().
+		WithResources(Resource[MockResource]()).
+		WithWrapped(wrapped).Build()
+	require.NoError(t, err)
+
+	resp, err := p.Create(context.Background(), provider.CreateRequest{
+		Urn: resource.URN("urn:pulumi:x::y::z:a:b::c"),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "foo", resp.ID)
 }
 
 func TestBuild(t *testing.T) {
