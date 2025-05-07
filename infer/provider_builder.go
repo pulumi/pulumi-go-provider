@@ -29,6 +29,7 @@ type ProviderBuilder struct {
 	functions  []InferredFunction
 	config     InferredConfig
 	moduleMap  map[tokens.ModuleName]tokens.ModuleName
+	wrapped    provider.Provider
 }
 
 // NewProviderBuilder creates an inferred provider which fills as many defaults as possible.
@@ -141,6 +142,12 @@ func (pb *ProviderBuilder) WithDisplayName(displayName string) *ProviderBuilder 
 	return pb
 }
 
+// WithWrapped wraps another provider.
+func (pb *ProviderBuilder) WithWrapped(provider provider.Provider) *ProviderBuilder {
+	pb.wrapped = provider
+	return pb
+}
+
 // WithKeywords adds the specified keywords to the provider's metadata.
 // These keywords can be used to improve discoverability of the provider.
 func (pb *ProviderBuilder) WithKeywords(keywords ...string) *ProviderBuilder {
@@ -200,6 +207,7 @@ func (pb *ProviderBuilder) BuildOptions() Options {
 		Functions:  pb.functions,
 		Config:     pb.config,
 		ModuleMap:  pb.moduleMap,
+		wrapped:    pb.wrapped,
 	}
 }
 
