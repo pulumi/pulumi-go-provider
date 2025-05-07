@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	provider "github.com/pulumi/pulumi-go-provider"
 	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -34,7 +33,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration/fake"
@@ -63,17 +61,18 @@ type ServerOption interface {
 	applyServerOption(*serverOptions)
 }
 
-// TODO: What does this do?
+// WithMocks allows injecting mock resources, helpful for testing a component
+// which cretes child resources.
 func WithMocks(mocks pulumi.MockResourceMonitor) ServerOption {
 	return mocksOption{mocks: mocks}
 }
 
 // WithProvider backs the server with the given concrete provider.
-func WithProvider(p provider.Provider) ServerOption {
+func WithProvider(p p.Provider) ServerOption {
 	return providerOption{provider: p}
 }
 
-// WithProviderF backes the server with a lazily initialized provider.
+// WithProviderF backs the server with a lazily initialized provider.
 func WithProviderF(p func(*pprovider.HostClient) p.Provider) ServerOption {
 	return providerFOption{providerF: p}
 }
@@ -135,11 +134,7 @@ func NewServer(ctx context.Context, pkg string, version semver.Version,
 	}
 	if o.providerF != nil {
 		host.lazyInit()
-		hc, err := pprovider.NewHostClient(host.engineAddr)
-		if err != nil {
-			return nil, fmt.Errorf("constructing HostClient: %w", err)
-		}
-		prov = o.providerF(hc)
+		prov = o.providerF(host.client)
 	}
 
 	s := &server{p.RunInfo{
@@ -163,7 +158,7 @@ type host struct {
 
 	engine      *fake.EngineServer
 	engineAddr  string
-	engineConn  *grpc.ClientConn
+	client      *pprovider.HostClient
 	monitor     *fake.ResourceMonitorServer
 	monitorAddr string
 }
@@ -182,7 +177,12 @@ func newHost(ctx context.Context, m pulumi.MockResourceMonitor) *host {
 			panic(fmt.Errorf("could not start engine server: %w", err))
 		}
 		h.engineAddr = engineAddr
-		h.engineConn = fake.NewEngineConn(h.engineAddr)
+
+		hc, err := pprovider.NewHostClient(h.engineAddr)
+		if err != nil {
+			panic(err)
+		}
+		h.client = hc
 
 		monitorCtx, monitorCancel := context.WithCancel(ctx)
 		monitorAddr, monitorDone, err := fake.StartMonitorServer(monitorCtx, h.monitor)
@@ -195,7 +195,7 @@ func newHost(ctx context.Context, m pulumi.MockResourceMonitor) *host {
 			<-ctx.Done()
 			monitorCancel()
 			<-monitorDone
-			_ = h.engineConn.Close()
+			_ = h.client.EngineConn().Close()
 			engineCancel()
 			<-engineDone
 		}()
@@ -284,7 +284,7 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 	req.MonitorEndpoint = h.monitorAddr
 
 	comReq := linkedConstructRequestToRPC(&req, internalrpc.MarshalProperties)
-	comResp, err := comProvider.Construct(ctx, comReq, h.engineConn, construct)
+	comResp, err := comProvider.Construct(ctx, comReq, h.client.EngineConn(), construct)
 	if err != nil {
 		return p.ConstructResponse{}, err
 	}
@@ -311,7 +311,7 @@ func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.Cal
 	req.MonitorEndpoint = h.monitorAddr
 
 	comReq := linkedCallRequestToRPC(&req, internalrpc.MarshalProperties)
-	comResp, err := comProvider.Call(ctx, comReq, h.engineConn, call)
+	comResp, err := comProvider.Call(ctx, comReq, h.client.EngineConn(), call)
 	if err != nil {
 		return p.CallResponse{}, err
 	}
