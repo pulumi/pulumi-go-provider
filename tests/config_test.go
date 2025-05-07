@@ -51,12 +51,12 @@ func TestInferConfigWrap(t *testing.T) {
 
 	var checkWasCalled bool
 
-	s := integration.NewServerWithContext(
-		context.WithValue(context.Background(),
+	s, err := integration.NewServer(
+		context.WithValue(t.Context(),
 			ctxKey{},
 			&inferConfigureWasCalled),
 		"test", semver.MustParse("1.2.3"),
-		infer.Wrap(p.Provider{
+		integration.WithProvider(infer.Wrap(p.Provider{
 			Configure: func(ctx context.Context, req p.ConfigureRequest) error {
 				assert.Equal(t, "foo", req.Args.Get("field").AsString())
 				baseConfigureWasCalled = true
@@ -71,10 +71,11 @@ func TestInferConfigWrap(t *testing.T) {
 			},
 		}, infer.Options{
 			Config: infer.Config[*testConfig](),
-		}),
+		})),
 	)
+	require.NoError(t, err)
 
-	err := s.Configure(p.ConfigureRequest{
+	err = s.Configure(p.ConfigureRequest{
 		Args: property.NewMap(map[string]property.Value{
 			"field": property.New("foo"),
 		}),
@@ -109,9 +110,16 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 		MapNested   map[string]nestedElem `pulumi:"mapNested"`
 	}
 
-	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
-		Config: infer.Config[config](),
-	})).CheckConfig(p.CheckRequest{
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Config: infer.Config[config](),
+		})),
+	)
+	require.NoError(t, err)
+
+	resp, err := s.CheckConfig(p.CheckRequest{
 		Inputs: property.NewMap(map[string]property.Value{
 			"field": property.New("value"),
 			"nested": property.New(map[string]property.Value{
@@ -191,9 +199,14 @@ func (c *config) Check(
 func TestInferCustomCheckConfig(t *testing.T) {
 	t.Parallel()
 
-	s := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
-		Config: infer.Config[*config](),
-	}))
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Config: infer.Config[*config](),
+		})),
+	)
+	require.NoError(t, err)
 
 	// Test that our manual implementation of check works the same as the default
 	// version, and that secrets are applied regardless of if check is used.

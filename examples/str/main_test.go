@@ -9,6 +9,7 @@ import (
 	integration "github.com/pulumi/pulumi-go-provider/integration"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const schema = `{
@@ -124,7 +125,13 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
-	server := integration.NewServer("str", semver.Version{Minor: 1}, provider())
+	server, err := integration.NewServer(t.Context(),
+		"str",
+		semver.Version{Minor: 1},
+		integration.WithProvider(provider()),
+	)
+	require.NoError(t, err)
+
 	s, err := server.GetSchema(p.GetSchemaRequest{})
 	assert.NoError(t, err)
 	blob := json.RawMessage{}
@@ -136,7 +143,12 @@ func TestSchema(t *testing.T) {
 }
 
 func TestInvokes(t *testing.T) {
-	server := integration.NewServer("str", semver.Version{Minor: 1}, provider())
+	server, err := integration.NewServer(t.Context(),
+		"str",
+		semver.Version{Minor: 1},
+		integration.WithProvider(provider()),
+	)
+	require.NoError(t, err)
 
 	r, err := server.Invoke(p.InvokeRequest{
 		Token: "str:index:replace",

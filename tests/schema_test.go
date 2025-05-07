@@ -66,7 +66,13 @@ func TestMergeSchema(t *testing.T) {
 			&givenResource{"foo:index:foo", "from s2"},
 		},
 	})
-	server := integration.NewServer("pkg", semver.Version{Major: 2}, s2)
+	server, err := integration.NewServer(t.Context(),
+		"pkg",
+		semver.Version{Major: 2},
+		integration.WithProvider(s2),
+	)
+	require.NoError(t, err)
+
 	schema, err := server.GetSchema(p.GetSchemaRequest{})
 	require.NoError(t, err)
 

@@ -26,6 +26,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/require"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
@@ -604,16 +605,32 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 
 func provider(t testing.TB) integration.Server {
 	p := infer.Provider(providerOpts(nil))
-	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("1.0.0"),
+		integration.WithProvider(p),
+	)
+	require.NoError(t, err)
+
+	return s
 }
 
 func providerWithConfig[T any](t testing.TB) integration.Server {
 	p := infer.Provider(providerOpts(infer.Config[T]()))
-	return integration.NewServer("test", semver.MustParse("1.0.0"), p)
+	s, err := integration.NewServer(t.Context(), "test", semver.MustParse("1.0.0"), integration.WithProvider(p))
+	require.NoError(t, err)
+	return s
 }
 
 func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
 	p := infer.Provider(providerOpts(infer.Config[T]()))
-	return integration.NewServerWithOptions(t.Context(), "test", semver.MustParse("1.0.0"), p,
-		integration.WithMocks(mocks))
+	s, err := integration.NewServer(
+		t.Context(),
+		"test",
+		semver.MustParse("1.0.0"),
+		integration.WithProvider(p),
+		integration.WithMocks(mocks),
+	)
+	require.NoError(t, err)
+	return s
 }

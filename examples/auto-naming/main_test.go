@@ -16,7 +16,12 @@ import (
 func TestAutoName(t *testing.T) {
 	t.Parallel()
 
-	s := integration.NewServer("autoname", semver.MustParse("0.1.0"), provider())
+	s, err := integration.NewServer(t.Context(),
+		"autoname",
+		semver.MustParse("0.1.0"),
+		integration.WithProvider(provider()),
+	)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name     string
