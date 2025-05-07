@@ -480,7 +480,12 @@ func RunProvider(ctx context.Context, name, version string, provider Provider) e
 }
 
 // RunProviderF allows running a provider that has not yet been bound to a HostClient.
-func RunProviderF(ctx context.Context, name, version string, providerF func(*pprovider.HostClient) (Provider, error)) error {
+func RunProviderF(
+	ctx context.Context,
+	name string,
+	version string,
+	providerF func(*pprovider.HostClient) (Provider, error),
+) error {
 	return pprovider.MainContext(ctx, name, func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 		provider, err := providerF(host)
 		if err != nil {
