@@ -67,9 +67,12 @@ func TestOmittingAssetTypes(t *testing.T) {
 	}
 
 	p := infer.Provider(providerOpts)
-	server := integration.NewServer("test", semver.MustParse("1.0.0"), p)
+	server, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("1.0.0"), integration.WithProvider(p))
+	require.NoError(t, err)
 
-	_, err := server.GetSchema(pgp.GetSchemaRequest{Version: 1})
+	_, err = server.GetSchema(pgp.GetSchemaRequest{Version: 1})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "is not a valid input type, please use types.AssetOrArchive instead")
 }

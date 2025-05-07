@@ -50,7 +50,7 @@ func configureResult(
 
 func TestRPCGetSchema(t *testing.T) {
 	t.Run("no-error", func(t *testing.T) {
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onGetSchema: func(_ context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
 				assert.Equal(t, int32(4), req.Version)
 				return &rpc.GetSchemaResponse{
@@ -66,7 +66,7 @@ func TestRPCGetSchema(t *testing.T) {
 		}, resp)
 	})
 	t.Run("error", func(t *testing.T) {
-		_, err := rpcServer(rpcTestServer{
+		_, err := rpcServer(t, rpcTestServer{
 			onGetSchema: func(_ context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
 				assert.Equal(t, int32(0), req.Version)
 				return &rpc.GetSchemaResponse{}, fmt.Errorf("no schema found")
@@ -81,7 +81,7 @@ func TestRPCGetSchema(t *testing.T) {
 func TestRPCCancel(t *testing.T) {
 	t.Run("no-error", func(t *testing.T) {
 		var wasCalled bool
-		err := rpcServer(rpcTestServer{
+		err := rpcServer(t, rpcTestServer{
 			onCancel: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 				wasCalled = true
 				return &emptypb.Empty{}, nil
@@ -91,7 +91,7 @@ func TestRPCCancel(t *testing.T) {
 		assert.True(t, wasCalled)
 	})
 	t.Run("error", func(t *testing.T) {
-		err := rpcServer(rpcTestServer{
+		err := rpcServer(t, rpcTestServer{
 			onCancel: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 				return &emptypb.Empty{}, fmt.Errorf("cancel failed")
 			},
@@ -105,7 +105,7 @@ func TestRPCCheckConfig(t *testing.T) {
 	testRPCCheck(t, func(
 		f func(context.Context, *rpc.CheckRequest) (*rpc.CheckResponse, error),
 	) func(p.CheckRequest) (p.CheckResponse, error) {
-		s := rpcServer(rpcTestServer{onCheckConfig: f})
+		s := rpcServer(t, rpcTestServer{onCheckConfig: f})
 		return s.CheckConfig
 	})
 }
@@ -115,7 +115,7 @@ func TestRPCDiffConfig(t *testing.T) {
 	testRPCDiff(t, func(
 		f func(context.Context, *rpc.DiffRequest) (*rpc.DiffResponse, error),
 	) func(p.DiffRequest) (p.DiffResponse, error) {
-		s := rpcServer(rpcTestServer{onDiffConfig: f})
+		s := rpcServer(t, rpcTestServer{onDiffConfig: f})
 		return s.DiffConfig
 	})
 }
@@ -127,7 +127,7 @@ func TestRPCConfigure(t *testing.T) {
 		t.Parallel()
 		args, expectedArgs := exampleOlds()
 		var didRun bool
-		s := rpcServer(rpcTestServer{
+		s := rpcServer(t, rpcTestServer{
 			onConfigure: func(
 				_ context.Context, req *rpc.ConfigureRequest,
 			) (*rpc.ConfigureResponse, error) {
@@ -152,7 +152,7 @@ func TestRPCConfigure(t *testing.T) {
 			"nested": `{"foo": "bar"}`,
 		}
 		var didRun bool
-		s := rpcServer(rpcTestServer{
+		s := rpcServer(t, rpcTestServer{
 			onConfigure: func(
 				_ context.Context, req *rpc.ConfigureRequest,
 			) (*rpc.ConfigureResponse, error) {
@@ -172,7 +172,7 @@ func TestRPCConfigure(t *testing.T) {
 		t.Parallel()
 		for _, acceptSecrets := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%v", acceptSecrets), func(t *testing.T) {
-				s := rpcServer(rpcTestServer{
+				s := rpcServer(t, rpcTestServer{
 					onConfigure: configureResult(&rpc.ConfigureResponse{
 						AcceptSecrets: acceptSecrets,
 					}),
@@ -216,7 +216,7 @@ func TestRPCConfigure(t *testing.T) {
 		t.Parallel()
 		for _, acceptOutputs := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%v", acceptOutputs), func(t *testing.T) {
-				s := rpcServer(rpcTestServer{
+				s := rpcServer(t, rpcTestServer{
 					onConfigure: configureResult(&rpc.ConfigureResponse{
 						AcceptOutputs: acceptOutputs,
 					}),
@@ -283,7 +283,7 @@ func TestRPCConfigure(t *testing.T) {
 		t.Parallel()
 		for _, preview := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%v", preview), func(t *testing.T) {
-				s := rpcServer(rpcTestServer{
+				s := rpcServer(t, rpcTestServer{
 					onConfigure: configureResult(&rpc.ConfigureResponse{
 						SupportsPreview: preview,
 					}),
@@ -323,7 +323,7 @@ func TestRPCInvoke(t *testing.T) {
 		t.Parallel()
 
 		args, expectedArgs := exampleNews()
-		_, err := rpcServer(rpcTestServer{
+		_, err := rpcServer(t, rpcTestServer{
 			onInvoke: func(_ context.Context, req *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
 				assert.Equal(t, "some-token", req.GetTok())
 				assert.Equal(t, expectedArgs, req.GetArgs().AsMap())
@@ -341,7 +341,7 @@ func TestRPCInvoke(t *testing.T) {
 		t.Parallel()
 
 		args, expectedArgs := exampleNews()
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onInvoke: func(context.Context, *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
 				return &rpc.InvokeResponse{
 					Return: must(structpb.NewStruct(expectedArgs)),
@@ -355,7 +355,7 @@ func TestRPCInvoke(t *testing.T) {
 	t.Run("failures", func(t *testing.T) {
 		t.Parallel()
 
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onInvoke: func(context.Context, *rpc.InvokeRequest) (*rpc.InvokeResponse, error) {
 				return &rpc.InvokeResponse{
 					Failures: []*rpc.CheckFailure{
@@ -380,7 +380,7 @@ func TestRPCCheck(t *testing.T) {
 	testRPCCheck(t, func(
 		f func(context.Context, *rpc.CheckRequest) (*rpc.CheckResponse, error),
 	) func(p.CheckRequest) (p.CheckResponse, error) {
-		return rpcServer(rpcTestServer{onCheck: f}).Check
+		return rpcServer(t, rpcTestServer{onCheck: f}).Check
 	})
 }
 
@@ -389,7 +389,7 @@ func TestRPCDiff(t *testing.T) {
 	testRPCDiff(t, func(
 		f func(context.Context, *rpc.DiffRequest) (*rpc.DiffResponse, error),
 	) func(p.DiffRequest) (p.DiffResponse, error) {
-		s := rpcServer(rpcTestServer{onDiff: f})
+		s := rpcServer(t, rpcTestServer{onDiff: f})
 		return s.Diff
 	})
 }
@@ -402,7 +402,7 @@ func TestRPCCreate(t *testing.T) {
 
 		args, expectedArgs := exampleNews()
 
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onCreate: func(_ context.Context, req *rpc.CreateRequest) (*rpc.CreateResponse, error) {
 
 				assert.Equal(t, "some-urn", req.GetUrn())
@@ -427,7 +427,7 @@ func TestRPCCreate(t *testing.T) {
 		t.Parallel()
 		props, mapProps := exampleOlds()
 
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onCreate: func(context.Context, *rpc.CreateRequest) (*rpc.CreateResponse, error) {
 				return &rpc.CreateResponse{
 					Id:         "some-id",
@@ -455,7 +455,7 @@ func TestRPCRead(t *testing.T) {
 
 		wasCalled := false
 
-		_, err := rpcServer(rpcTestServer{
+		_, err := rpcServer(t, rpcTestServer{
 			onRead: func(_ context.Context, req *rpc.ReadRequest) (*rpc.ReadResponse, error) {
 				assert.Equal(t, "some-id", req.GetId())
 				assert.Equal(t, "some-urn", req.GetUrn())
@@ -481,7 +481,7 @@ func TestRPCRead(t *testing.T) {
 		props, expectedProps := exampleOlds()
 		inputs, expectedInputs := exampleNews()
 
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onRead: func(context.Context, *rpc.ReadRequest) (*rpc.ReadResponse, error) {
 				return &rpc.ReadResponse{
 					Id:         "some-id",
@@ -501,7 +501,7 @@ func TestRPCRead(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := rpcServer(rpcTestServer{
+		_, err := rpcServer(t, rpcTestServer{
 			onRead: func(context.Context, *rpc.ReadRequest) (*rpc.ReadResponse, error) {
 				return nil, fmt.Errorf("on-error")
 			},
@@ -523,7 +523,7 @@ func TestRPCUpdate(t *testing.T) {
 
 		wasCalled := false
 
-		_, err := rpcServer(rpcTestServer{
+		_, err := rpcServer(t, rpcTestServer{
 			onUpdate: func(_ context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 				assert.Equal(t, "some-id", req.GetId())
 				assert.Equal(t, "some-urn", req.GetUrn())
@@ -554,7 +554,7 @@ func TestRPCUpdate(t *testing.T) {
 
 		props, propsMap := exampleOlds()
 
-		resp, err := rpcServer(rpcTestServer{
+		resp, err := rpcServer(t, rpcTestServer{
 			onUpdate: func(context.Context, *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 				return &rpc.UpdateResponse{
 					Properties: must(structpb.NewStruct(propsMap)),
@@ -570,7 +570,7 @@ func TestRPCUpdate(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := rpcServer(rpcTestServer{
+		_, err := rpcServer(t, rpcTestServer{
 			onUpdate: func(context.Context, *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 				return nil, fmt.Errorf("on-error")
 			},
@@ -588,7 +588,7 @@ func TestRPCDelete(t *testing.T) {
 		props, expectedProps := exampleOlds()
 		wasCalled := false
 
-		err := rpcServer(rpcTestServer{
+		err := rpcServer(t, rpcTestServer{
 			onDelete: func(_ context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
 				assert.Equal(t, "my-id", req.GetId())
 				assert.Equal(t, "my-urn", req.GetUrn())
@@ -610,7 +610,7 @@ func TestRPCDelete(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		t.Parallel()
-		err := rpcServer(rpcTestServer{
+		err := rpcServer(t, rpcTestServer{
 			onDelete: func(_ context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
 				return &emptypb.Empty{}, fmt.Errorf("my-error")
 			},
@@ -685,7 +685,7 @@ func TestRPCConstruct(t *testing.T) {
 		stateDeps, _ := exampleConstructStateDependencies()
 		wasCalled := false
 
-		s := rpcServer(rpcTestServer{
+		s := rpcServer(t, rpcTestServer{
 			onConfigure: configureResult(&rpc.ConfigureResponse{
 				AcceptOutputs: true,
 			}),
@@ -725,7 +725,7 @@ func TestRPCConstruct(t *testing.T) {
 			stateDeps, _ := exampleConstructStateDependencies()
 
 			wasCalled := false
-			s := rpcServer(rpcTestServer{
+			s := rpcServer(t, rpcTestServer{
 				onConfigure: configureResult(&rpc.ConfigureResponse{
 					AcceptOutputs: acceptOutputs,
 				}),
@@ -761,7 +761,7 @@ func TestRPCConstruct(t *testing.T) {
 		state, expectedState := exampleConstuctState()
 		stateDeps, expectedStateDeps := exampleConstructStateDependencies()
 
-		s := rpcServer(rpcTestServer{
+		s := rpcServer(t, rpcTestServer{
 			onConfigure: configureResult(&rpc.ConfigureResponse{
 				AcceptOutputs: true,
 			}),
@@ -859,7 +859,7 @@ func TestRPCCall(t *testing.T) {
 		returnDeps, _ := exampleCallReturnDependencies()
 		wasCalled := false
 
-		s := rpcServer(rpcTestServer{
+		s := rpcServer(t, rpcTestServer{
 			onConfigure: configureResult(&rpc.ConfigureResponse{
 				AcceptOutputs: true,
 			}),
@@ -902,7 +902,7 @@ func TestRPCCall(t *testing.T) {
 				expectedArgDeps := exampleCallArgDependencies(acceptOutputs)
 
 				var wasCalled bool
-				s := rpcServer(rpcTestServer{
+				s := rpcServer(t, rpcTestServer{
 					onConfigure: configureResult(&rpc.ConfigureResponse{
 						AcceptOutputs: acceptOutputs,
 					}),
@@ -933,7 +933,7 @@ func TestRPCCall(t *testing.T) {
 		_return, expectedReturn := exampleCallReturns()
 		returnDeps, expectedReturnDeps := exampleCallReturnDependencies()
 
-		s := rpcServer(rpcTestServer{
+		s := rpcServer(t, rpcTestServer{
 			onConfigure: configureResult(&rpc.ConfigureResponse{
 				AcceptOutputs: true,
 			}),
@@ -1291,8 +1291,14 @@ func (r rpcTestServer) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.Cal
 	return r.onCall(ctx, req)
 }
 
-func rpcServer(server rpcTestServer) integration.Server {
-	return integration.NewServer("test",
+func rpcServer(t *testing.T, server rpcTestServer) integration.Server {
+	t.Helper()
+
+	s, err := integration.NewServer(t.Context(), "test",
 		semver.Version{Major: 1},
-		wraprpc.Provider(server))
+		integration.WithProvider(wraprpc.Provider(server)),
+	)
+	require.NoError(t, err)
+
+	return s
 }

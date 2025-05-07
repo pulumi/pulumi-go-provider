@@ -20,6 +20,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration"
@@ -29,22 +30,27 @@ import (
 // Regression test for https://github.com/pulumi/pulumi-go-provider/issues/224
 func TestContextCancel(t *testing.T) {
 	t.Run("no-cancel", func(t *testing.T) {
-		s := integration.NewServer("test", semver.Version{Major: 1},
-			pContext.Wrap(p.Provider{}, func(ctx context.Context) context.Context {
+		s, err := integration.NewServer(t.Context(),
+			"test",
+			semver.Version{Major: 1},
+			integration.WithProvider(pContext.Wrap(p.Provider{}, func(ctx context.Context) context.Context {
 				assert.Fail(t, "Cancel was not implemented, so the wrapper should not be called")
 				return ctx
-			}),
+			})),
 		)
+		require.NoError(t, err)
 
-		err := s.Cancel()
+		err = s.Cancel()
 		assert.ErrorContains(t, err, "rpc error: code = Unimplemented desc = Cancel is not implemented")
 	})
 
 	t.Run("cancel-called", func(t *testing.T) {
 		var wasCalled bool
 		type key struct{}
-		s := integration.NewServer("test", semver.Version{Major: 1},
-			pContext.Wrap(p.Provider{
+		s, err := integration.NewServer(t.Context(),
+			"test",
+			semver.Version{Major: 1},
+			integration.WithProvider(pContext.Wrap(p.Provider{
 				Cancel: func(ctx context.Context) error {
 					assert.True(t, ctx.Value(key{}).(bool))
 					wasCalled = true
@@ -52,8 +58,9 @@ func TestContextCancel(t *testing.T) {
 				},
 			}, func(ctx context.Context) context.Context {
 				return context.WithValue(ctx, key{}, true)
-			}),
+			})),
 		)
+		require.NoError(t, err)
 
 		assert.NoError(t, s.Cancel())
 		assert.True(t, wasCalled)

@@ -53,11 +53,18 @@ func (c inv) Annotate(a infer.Annotator) { a.SetToken("index", "inv") }
 func TestInferInvokeSecrets(t *testing.T) {
 	t.Parallel()
 
-	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
-		Functions: []infer.InferredFunction{
-			infer.Function[inv](),
-		},
-	})).Invoke(p.InvokeRequest{
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Functions: []infer.InferredFunction{
+				infer.Function[inv](),
+			},
+		})),
+	)
+	require.NoError(t, err)
+
+	resp, err := s.Invoke(p.InvokeRequest{
 		Token: "test:index:inv",
 		Args: property.NewMap(map[string]property.Value{
 			"field": property.New("value"),

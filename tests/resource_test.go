@@ -48,11 +48,17 @@ func (c res) Annotate(a infer.Annotator) { a.SetToken("index", "res") }
 func TestInferCheckSecrets(t *testing.T) {
 	t.Parallel()
 
-	resp, err := integration.NewServer("test", semver.MustParse("0.0.0"), infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{
-			infer.Resource[res](),
-		},
-	})).Check(p.CheckRequest{
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Resources: []infer.InferredResource{
+				infer.Resource[res](),
+			},
+		})))
+	require.NoError(t, err)
+
+	resp, err := s.Check(p.CheckRequest{
 		Urn: resource.CreateURN("name", "test:index:res", "", "proj", "stack"),
 		Inputs: property.NewMap(map[string]property.Value{
 			"field": property.New("value"),

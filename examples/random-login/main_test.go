@@ -131,7 +131,13 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
-	server := integration.NewServer("random-login", semver.Version{Minor: 1}, provider())
+	server, err := integration.NewServer(t.Context(),
+		"random-login",
+		semver.Version{Minor: 1},
+		integration.WithProvider(provider()),
+	)
+	require.NoError(t, err)
+
 	s, err := server.GetSchema(p.GetSchemaRequest{})
 	require.NoError(t, err)
 	blob := json.RawMessage{}
@@ -143,7 +149,13 @@ func TestSchema(t *testing.T) {
 }
 
 func TestRandomSalt(t *testing.T) {
-	server := integration.NewServer("random-login", semver.Version{Minor: 1}, provider())
+	server, err := integration.NewServer(t.Context(),
+		"random-login",
+		semver.Version{Minor: 1},
+		integration.WithProvider(provider()),
+	)
+	require.NoError(t, err)
+
 	integration.LifeCycleTest{
 		Resource: "random-login:index:RandomSalt",
 		Create: integration.Operation{
