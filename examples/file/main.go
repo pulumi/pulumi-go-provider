@@ -151,7 +151,7 @@ func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileS
 
 func (*File) Diff(ctx context.Context, req infer.DiffRequest[FileArgs, FileState]) (infer.DiffResponse, error) {
 	diff := map[string]p.PropertyDiff{}
-	if req.Inputs.Content != req.Inputs.Content {
+	if req.Inputs.Content != req.State.Content {
 		diff["content"] = p.PropertyDiff{Kind: p.Update}
 	}
 	if req.Inputs.Force != req.State.Force {
