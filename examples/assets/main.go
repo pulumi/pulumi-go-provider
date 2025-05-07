@@ -1,3 +1,4 @@
+// Package main implements as asset provider.
 package main
 
 import (
@@ -83,7 +84,10 @@ func assertState(s HasAssetsArgs, includesAssets bool) {
 	}
 }
 
-func (*HasAssets) Create(ctx context.Context, req infer.CreateRequest[HasAssetsArgs]) (resp infer.CreateResponse[HasAssetsArgs], err error) {
+func (*HasAssets) Create(
+	ctx context.Context,
+	req infer.CreateRequest[HasAssetsArgs],
+) (resp infer.CreateResponse[HasAssetsArgs], err error) {
 	if req.DryRun {
 		return resp, nil
 	}

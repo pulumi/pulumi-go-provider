@@ -1,11 +1,11 @@
-// This is intended to be an example of the enclosing SDK. Do not use this for
-// cryptography.
+// Package main is intended to be an example of the enclosing SDK. Do not use
+// this for cryptography.
 package main
 
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -48,6 +48,7 @@ func provider() p.Provider {
 	})
 }
 
+// MoreRandomPasswordArgs contains an external resource as an arg.
 // TODO: Deserialization does not yet work for external resources. Right now, it looks
 // like this structure is only implementable in typescript, but that will need to change.
 type MoreRandomPasswordArgs struct {
@@ -60,7 +61,12 @@ type MoreRandomPassword struct {
 	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
 }
 
-func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
+func NewMoreRandomPassword(
+	ctx *pulumi.Context,
+	name string,
+	args *MoreRandomPasswordArgs,
+	opts ...pulumi.ResourceOption,
+) (*MoreRandomPassword, error) {
 	comp := &MoreRandomPassword{
 		Length: args.Length,
 	}
@@ -98,7 +104,12 @@ type RandomLogin struct {
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts ...pulumi.ResourceOption) (*RandomLogin, error) {
+func NewRandomLogin(
+	ctx *pulumi.Context,
+	name string,
+	args RandomLoginArgs,
+	opts ...pulumi.ResourceOption,
+) (*RandomLogin, error) {
 	comp := &RandomLogin{}
 	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
 	if err != nil {
@@ -162,12 +173,15 @@ func makeSalt(length int) string {
 	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	b := make([]rune, length)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letterRunes[rand.IntN(len(letterRunes))] //nolint:gosec // Intentionally insecure random.
 	}
 	return string(b)
 }
 
-func (*RandomSalt) Create(ctx context.Context, req infer.CreateRequest[RandomSaltArgs]) (infer.CreateResponse[RandomSaltState], error) {
+func (*RandomSalt) Create(
+	ctx context.Context,
+	req infer.CreateRequest[RandomSaltArgs],
+) (infer.CreateResponse[RandomSaltState], error) {
 	l := 4
 	if req.Inputs.SaltLength != nil {
 		l = *req.Inputs.SaltLength
@@ -189,7 +203,10 @@ func (*RandomSalt) Create(ctx context.Context, req infer.CreateRequest[RandomSal
 
 var _ = (infer.CustomUpdate[RandomSaltArgs, RandomSaltState])((*RandomSalt)(nil))
 
-func (r *RandomSalt) Update(ctx context.Context, req infer.UpdateRequest[RandomSaltArgs, RandomSaltState]) (infer.UpdateResponse[RandomSaltState], error) {
+func (r *RandomSalt) Update(
+	ctx context.Context,
+	req infer.UpdateRequest[RandomSaltArgs, RandomSaltState],
+) (infer.UpdateResponse[RandomSaltState], error) {
 	var redoSalt bool
 	if req.State.SaltLength != nil && req.Inputs.SaltLength != nil {
 		redoSalt = *req.State.SaltLength != *req.Inputs.SaltLength

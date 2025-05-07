@@ -36,5 +36,5 @@ func main() {
 		panic(err)
 	}
 
-	p.Run(context.Background(), "go-components", "v0.0.1")
+	_ = p.Run(context.Background(), "go-components", "v0.0.1")
 }

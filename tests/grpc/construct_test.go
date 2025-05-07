@@ -35,6 +35,8 @@ import (
 )
 
 func TestConstructLifecycle(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -47,6 +49,8 @@ func TestConstructLifecycle(t *testing.T) {
 }
 
 func TestConstruct(t *testing.T) {
+	t.Parallel()
+
 	jsonLog := `
 {
   "method": "/pulumirpc.ResourceProvider/Construct",
@@ -109,7 +113,10 @@ func TestConstruct(t *testing.T) {
 
 	construct := func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
 		_true := true
-		assert.Equal(t, resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"), req.Urn)
+		assert.Equal(t,
+			resource.URN("urn:pulumi:test::test::test:index:Parent$test:index:Component::test-component"),
+			req.Urn,
+		)
 		assert.Equal(t, resource.URN("urn:pulumi:test::test::test:index:Parent::parent"), req.Parent)
 		assert.Equal(t, map[config.Key]string{
 			config.MustParseKey("test:c1"): "s",
@@ -149,6 +156,7 @@ func TestConstruct(t *testing.T) {
 }
 
 func TestConstructWithMalformedRequest(t *testing.T) {
+	t.Parallel()
 
 	jsonLog := `
 {

@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Lint
         # TODO: Enable linting after a cleanup commit.
         # Avoiding in this commit so as to not mix code changes w/ CI changes.

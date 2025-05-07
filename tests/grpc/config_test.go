@@ -38,7 +38,7 @@ func injectFrameworkVersion(logTemplate string) string {
 	}
 
 	// Read the contents of the .version file.
-	version, err := os.ReadFile(path)
+	version, err := os.ReadFile(path) //nolint:gosec // Intentional file inclusion via variable.
 	if err != nil {
 		panic(fmt.Errorf("unable to read .version file: %w", err))
 	}
@@ -55,6 +55,8 @@ func injectFrameworkVersion(logTemplate string) string {
 // These test values were derived from a Pulumi YAML program, which does not JSON encode
 // it's values.
 func TestBasicConfig(t *testing.T) {
+	t.Parallel()
+
 	sequence := injectFrameworkVersion(`[
   {
     "method": "/pulumirpc.ResourceProvider/CheckConfig",
@@ -279,6 +281,8 @@ func TestBasicConfig(t *testing.T) {
 }
 
 func TestConfigWithSecrets(t *testing.T) {
+	t.Parallel()
+
 	sequence := injectFrameworkVersion(`[
   {
     "method": "/pulumirpc.ResourceProvider/CheckConfig",
@@ -546,6 +550,8 @@ func TestConfigWithSecrets(t *testing.T) {
 //
 // Write the program and run `consumer/run.sh` to generate gRPC logs.
 func TestJSONEncodedConfig(t *testing.T) {
+	t.Parallel()
+
 	replayConfig(t, injectFrameworkVersion(`[{
     "method": "/pulumirpc.ResourceProvider/CheckConfig",
     "request": {

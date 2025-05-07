@@ -30,7 +30,9 @@ import (
 )
 
 func TestCheckAsset(t *testing.T) {
+	t.Parallel()
 
+	//nolint:lll // Recorded JSON.
 	replay.Replay(t, assetProvider(t), `{
     "method": "/pulumirpc.ResourceProvider/Check",
     "request": {
@@ -103,6 +105,8 @@ func (*B) Create(ctx context.Context,
 }
 
 func TestSchemaGenError(t *testing.T) {
+	t.Parallel()
+
 	// Ensure that schema generation fails when we use the raw resource.Asset or Archive types.
 	s := assetProvider(t)
 	_, err := s.GetSchema(t.Context(), &pulumirpc.GetSchemaRequest{})

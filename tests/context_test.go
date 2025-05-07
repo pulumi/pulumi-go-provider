@@ -29,7 +29,11 @@ import (
 
 // Regression test for https://github.com/pulumi/pulumi-go-provider/issues/224
 func TestContextCancel(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no-cancel", func(t *testing.T) {
+		t.Parallel()
+
 		s, err := integration.NewServer(t.Context(),
 			"test",
 			semver.Version{Major: 1},
@@ -45,6 +49,8 @@ func TestContextCancel(t *testing.T) {
 	})
 
 	t.Run("cancel-called", func(t *testing.T) {
+		t.Parallel()
+
 		var wasCalled bool
 		type key struct{}
 		s, err := integration.NewServer(t.Context(),

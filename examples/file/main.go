@@ -1,3 +1,4 @@
+// Package main implements a file provider.
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 )
 
@@ -68,7 +70,10 @@ func (f *FileState) Annotate(a infer.Annotator) {
 	a.Describe(&f.Path, "The path of the file.")
 }
 
-func (*File) Create(ctx context.Context, req infer.CreateRequest[FileArgs]) (resp infer.CreateResponse[FileState], err error) {
+func (*File) Create(
+	ctx context.Context,
+	req infer.CreateRequest[FileArgs],
+) (resp infer.CreateResponse[FileState], err error) {
 	if !req.Inputs.Force {
 		_, err := os.Stat(req.Inputs.Path)
 		if !os.IsNotExist(err) {
@@ -84,7 +89,7 @@ func (*File) Create(ctx context.Context, req infer.CreateRequest[FileArgs]) (res
 	if err != nil {
 		return resp, err
 	}
-	defer f.Close()
+	defer contract.IgnoreClose(f)
 	n, err := f.WriteString(req.Inputs.Content)
 	if err != nil {
 		return resp, err
@@ -123,13 +128,16 @@ func (*File) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResp
 	}, err
 }
 
-func (*File) Update(ctx context.Context, req infer.UpdateRequest[FileArgs, FileState]) (infer.UpdateResponse[FileState], error) {
+func (*File) Update(
+	ctx context.Context,
+	req infer.UpdateRequest[FileArgs, FileState],
+) (infer.UpdateResponse[FileState], error) {
 	if !req.DryRun && req.State.Content != req.Inputs.Content {
 		f, err := os.Create(req.State.Path)
 		if err != nil {
 			return infer.UpdateResponse[FileState]{}, err
 		}
-		defer f.Close()
+		defer contract.IgnoreClose(f)
 		n, err := f.WriteString(req.Inputs.Content)
 		if err != nil {
 			return infer.UpdateResponse[FileState]{}, err
@@ -167,9 +175,12 @@ func (*File) Diff(ctx context.Context, req infer.DiffRequest[FileArgs, FileState
 	}, nil
 }
 
-func (*File) Read(ctx context.Context, req infer.ReadRequest[FileArgs, FileState]) (infer.ReadResponse[FileArgs, FileState], error) {
+func (*File) Read(
+	ctx context.Context,
+	req infer.ReadRequest[FileArgs, FileState],
+) (infer.ReadResponse[FileArgs, FileState], error) {
 	path := req.ID
-	byteContent, err := os.ReadFile(path)
+	byteContent, err := os.ReadFile(path) //nolint:gosec // Intentional file inclusion via variable.
 	if err != nil {
 		return infer.ReadResponse[FileArgs, FileState]{}, err
 	}

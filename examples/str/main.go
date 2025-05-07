@@ -1,3 +1,4 @@
+// Package main implements a string provider.
 package main
 
 import (
@@ -37,7 +38,10 @@ func provider() p.Provider {
 
 type Replace struct{}
 
-func (Replace) Invoke(ctx context.Context, req infer.FunctionRequest[ReplaceArgs]) (infer.FunctionResponse[Ret], error) {
+func (Replace) Invoke(
+	ctx context.Context,
+	req infer.FunctionRequest[ReplaceArgs],
+) (infer.FunctionResponse[Ret], error) {
 	return infer.FunctionResponse[Ret]{
 		Output: Ret{strings.ReplaceAll(req.Input.S, req.Input.Old, req.Input.New)},
 	}, nil
@@ -94,5 +98,5 @@ func (GiveMeAString) Invoke(ctx context.Context, _ infer.FunctionRequest[Empty])
 }
 
 func (g *GiveMeAString) Annotate(a infer.Annotator) {
-	a.Describe(g, "Return a string, withing any inputs")
+	a.Describe(g, "Return a string, without any inputs")
 }

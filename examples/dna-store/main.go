@@ -1,3 +1,4 @@
+// Package main implements a DNS store provider.
 package main
 
 import (
@@ -10,6 +11,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
 type Molecule int
@@ -67,7 +69,10 @@ type DNAStoreArgs struct {
 
 type DNAStore struct{}
 
-func (*DNAStore) Create(ctx context.Context, req infer.CreateRequest[DNAStoreArgs]) (resp infer.CreateResponse[DNAStoreArgs], err error) {
+func (*DNAStore) Create(
+	ctx context.Context,
+	req infer.CreateRequest[DNAStoreArgs],
+) (resp infer.CreateResponse[DNAStoreArgs], err error) {
 	path := filepath.Join(req.Inputs.Storage, req.Name)
 	p.GetLogger(ctx).Warningf("path=%q", path)
 	retErr := func(msg string, args ...any) (infer.CreateResponse[DNAStoreArgs], error) {
@@ -99,10 +104,10 @@ func (*DNAStore) Create(ctx context.Context, req infer.CreateRequest[DNAStoreArg
 		case T:
 			bytes[i] = 'T'
 		default:
-			retErr("'%s' is not a valid DNA molecule", b)
+			return retErr("'%s' is not a valid DNA molecule", b)
 		}
 	}
-	err = os.WriteFile(path, bytes, 0644)
+	err = os.WriteFile(path, bytes, 0o600)
 	if err != nil {
 		return retErr("failed to write file '%s': %w", path, err)
 	}
@@ -115,7 +120,7 @@ func (*DNAStore) Create(ctx context.Context, req infer.CreateRequest[DNAStoreArg
 	return infer.CreateResponse[DNAStoreArgs]{
 		ID:     path,
 		Output: req.Inputs,
-	}, os.WriteFile(path+".metadata", metadata, 0644)
+	}, os.WriteFile(path+".metadata", metadata, 0o600)
 
 }
 
@@ -137,14 +142,14 @@ func (*DNAStore) Read(ctx context.Context, req infer.ReadRequest[DNAStoreArgs, D
 	retErr := func(msg string, a ...any) (infer.ReadResponse[DNAStoreArgs, DNAStoreArgs], error) {
 		return infer.ReadResponse[DNAStoreArgs, DNAStoreArgs]{}, fmt.Errorf(msg, a...)
 	}
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // Intentional file inclusion via variable.
 	if err != nil {
 		if os.IsNotExist(err) {
 			return retErr("DNAStore does not exist with local ID = '%s'", req.ID)
 		}
 		return retErr("could not read DNAStore(%s): %w", req.ID, err)
 	}
-	defer file.Close()
+	defer contract.IgnoreClose(file)
 	bytes, err := io.ReadAll(file)
 	if err != nil {
 		return retErr("could not read DNAStore(%s): %w", req.ID, err)
@@ -166,13 +171,13 @@ func (*DNAStore) Read(ctx context.Context, req infer.ReadRequest[DNAStoreArgs, D
 	}
 
 	var metadata Metadata
-	file, err = os.Open(path + ".metadata")
+	file, err = os.Open(path + ".metadata") //nolint:gosec // Intentional file inclusion via variable.
 	if os.IsNotExist(err) {
 		// pass
 	} else if err != nil {
 		return retErr("failed to read metadata of DNAStore(%s): %w", req.ID, err)
 	} else {
-		defer file.Close()
+		defer contract.IgnoreClose(file)
 		data, err := io.ReadAll(file)
 		if err != nil {
 			return retErr("failed to read metadata of DNAStore(%s): %w", req.ID, err)
