@@ -373,9 +373,6 @@ type Provider struct {
 
 	// Components Resources
 	Construct func(context.Context, ConstructRequest) (ConstructResponse, error)
-
-	Name    string
-	Version string
 }
 
 // WithDefaults returns a provider with sensible defaults. It does not mutate its
@@ -470,13 +467,27 @@ func (d Provider) WithDefaults() Provider {
 	return d
 }
 
-func (d Provider) Run(ctx context.Context) error {
-	return RunProvider(ctx, d.Name, d.Version, d)
+// Run starts the provider.
+func (d Provider) Run(ctx context.Context, name string, version string) error {
+	return RunProvider(ctx, name, version, d)
 }
 
 // RunProvider runs a provider with the given name and version.
 func RunProvider(ctx context.Context, name, version string, provider Provider) error {
-	return pprovider.MainContext(ctx, name, newProvider(name, version, provider.WithDefaults()))
+	return RunProviderF(ctx, name, version, func(_ *pprovider.HostClient) (Provider, error) {
+		return provider, nil
+	})
+}
+
+// RunProviderF allows running a provider that has not yet been bound to a HostClient.
+func RunProviderF(ctx context.Context, name, version string, providerF func(*pprovider.HostClient) (Provider, error)) error {
+	return pprovider.MainContext(ctx, name, func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
+		provider, err := providerF(host)
+		if err != nil {
+			return nil, err
+		}
+		return newProvider(name, version, provider.WithDefaults())(host)
+	})
 }
 
 // RawServer converts the Provider into a factory for gRPC servers.

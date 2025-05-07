@@ -23,13 +23,12 @@ import (
 )
 
 type ProviderBuilder struct {
-	name, version string
-	metadata      schema.Metadata
-	resources     []InferredResource
-	components    []InferredComponent
-	functions     []InferredFunction
-	config        InferredConfig
-	moduleMap     map[tokens.ModuleName]tokens.ModuleName
+	metadata   schema.Metadata
+	resources  []InferredResource
+	components []InferredComponent
+	functions  []InferredFunction
+	config     InferredConfig
+	moduleMap  map[tokens.ModuleName]tokens.ModuleName
 }
 
 // NewProviderBuilder creates an inferred provider which fills as many defaults as possible.
@@ -56,7 +55,6 @@ type ProviderBuilder struct {
 //
 //		func main() {
 //			err := infer.NewProviderBuilder().
-//				WithName("go-components").
 //				WithVersion("v0.0.1").
 //				WithComponents(
 //					infer.Component(NewMyComponent),
@@ -89,9 +87,6 @@ func NewProviderBuilder() *ProviderBuilder {
 	}
 
 	return &ProviderBuilder{
-		// Default the component provider schema version to "0.0.0" if not provided for now,
-		// otherwise SDK codegen gets confused without a version.
-		version:  "0.0.0",
 		metadata: defaultMetadata,
 	}
 }
@@ -189,18 +184,6 @@ func (pb *ProviderBuilder) WithPluginDownloadURL(pluginDownloadURL string) *Prov
 	return pb
 }
 
-// WithName sets the provider name.
-func (pb *ProviderBuilder) WithName(name string) *ProviderBuilder {
-	pb.name = name
-	return pb
-}
-
-// WithVersion sets the provider version.
-func (pb *ProviderBuilder) WithVersion(version string) *ProviderBuilder {
-	pb.version = version
-	return pb
-}
-
 // WithNamespace sets the provider namespace.
 func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
 	pb.metadata.Namespace = namespace
@@ -217,17 +200,12 @@ func (pb *ProviderBuilder) BuildOptions() Options {
 		Functions:  pb.functions,
 		Config:     pb.config,
 		ModuleMap:  pb.moduleMap,
-		Name:       pb.name,
-		Version:    pb.version,
 	}
 }
 
 // validate checks if the provider builder configuration is valid.
 func (pb *ProviderBuilder) validate() error {
-	switch {
-	case pb.name == "":
-		return fmt.Errorf("provider name is required")
-	case len(pb.components) == 0 && len(pb.resources) == 0 && len(pb.functions) == 0:
+	if len(pb.components) == 0 && len(pb.resources) == 0 && len(pb.functions) == 0 {
 		return fmt.Errorf("at least one resource, component, or function is required")
 	}
 

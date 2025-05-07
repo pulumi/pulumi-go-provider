@@ -103,7 +103,6 @@ func TestNewDefaultProvider(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "0.0.0", dp.version)
 	assert.Equal(t, expectedLangMap, dp.metadata.LanguageMap)
 }
 
@@ -301,14 +300,8 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	// Should fail with no name
+	// Should fail with no resources, components or functions
 	err := dp.validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "provider name is required")
-
-	// Set name, should fail with no resources, components or functions
-	dp.WithName("test-provider")
-	err = dp.validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one resource, component, or function is required")
 
@@ -319,14 +312,12 @@ func TestValidate(t *testing.T) {
 
 	// Reset and test with component
 	dp = NewProviderBuilder()
-	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithComponents(Component(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with function
 	dp = NewProviderBuilder()
-	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithFunctions(Function[MockFunction]())
 	err = dp.validate()
 	assert.NoError(t, err)
@@ -341,15 +332,13 @@ func TestBuildAndRun(t *testing.T) {
 	// 2. Create a provider with a component and ensure that it starts and runs successfully.
 	p, err := NewProviderBuilder().
 		WithComponents(Component(NewMockComponentResource)).
-		WithName("test-provider").
-		WithVersion("1.0.0").
 		Build()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err = p.Run(ctx)
+	err = p.Run(ctx, "test-provider", "v0.0.1")
 
 	assert.NoError(t, err, "provider startup should not fail")
 }
