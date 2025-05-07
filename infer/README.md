@@ -93,17 +93,17 @@ telling it that it should serve the `Login` component.
 
 ```go
 func main() {
-	err := infer.NewProviderBuilder().
-		WithName("example").
-		WithVersion("0.1.0").
+	p, err := infer.NewProviderBuilder().
 		WithComponents(
 			infer.Component(NewLogin),
 		).
-		BuildAndRun()
+		Build()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
+
+    p.Run(context.Background(), "example", "0.1.0")
 }
 ```
 
@@ -348,17 +348,17 @@ telling it that it should serve the `File` resource.
 
 ```go
 func main() {
-	err := infer.NewProviderBuilder().
-		WithName("example").
-		WithVersion("0.1.0").
+	p, err := infer.NewProviderBuilder().
 		WithResources(
 			infer.Resource[File](),
 		).
-		BuildAndRun()
+		Build()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
+
+    p.Run(context.Background(), "example", "0.1.0")
 }
 ```
 

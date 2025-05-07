@@ -25,8 +25,6 @@ import (
 
 func main() {
 	p, err := infer.NewProviderBuilder().
-		WithName("go-components").
-		WithVersion("v0.0.1").
 		WithNamespace("example-namespace").
 		WithComponents(
 			infer.Component(NewMyComponent),
@@ -38,5 +36,5 @@ func main() {
 		panic(err)
 	}
 
-	p.Run(context.Background())
+	p.Run(context.Background(), "go-components", "v0.0.1")
 }

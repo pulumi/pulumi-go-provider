@@ -54,13 +54,12 @@ type ProviderBuilder struct {
 //		}
 //
 //		func main() {
-//			err := infer.NewProviderBuilder().
-//				WithVersion("v0.0.1").
+//			p, _ := infer.NewProviderBuilder().
 //				WithComponents(
 //					infer.Component(NewMyComponent),
 //				).
-//				Build().
-//	         Run()
+//				Build()
+//	        p.Run(context.Background(), "go-components", "v0.0.1")
 //		}
 //
 // Please note that the initial defaults provided by this function may change with future releases of
