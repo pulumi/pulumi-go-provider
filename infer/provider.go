@@ -79,6 +79,9 @@ type Options struct {
 	// will instead result in exposing the same resources at `pkg:bar:Foo`, `pkg:bar:Bar` and
 	// `pkg:fizz:Buzz`.
 	ModuleMap map[tokens.ModuleName]tokens.ModuleName
+
+	// wrapped is an optional provider which this new provider wraps.
+	wrapped p.Provider
 }
 
 func (o Options) dispatch() dispatch.Options {
@@ -135,7 +138,7 @@ func (o Options) schema() schema.Options {
 // To customize the resulting provider, including setting resources, functions, config options and other
 // schema metadata, look at the [Options] struct.
 func Provider(opts Options) p.Provider {
-	return Wrap(p.Provider{}, opts)
+	return Wrap(opts.wrapped, opts)
 }
 
 // Wrap wraps a compatible underlying provider in an inferred provider (as described by options).

@@ -19,8 +19,10 @@ import (
 	"testing"
 	"time"
 
+	provider "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -103,7 +105,6 @@ func TestNewDefaultProvider(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "0.0.0", dp.version)
 	assert.Equal(t, expectedLangMap, dp.metadata.LanguageMap)
 }
 
@@ -269,6 +270,27 @@ func TestWithNamespace(t *testing.T) {
 	assert.Equal(t, finalNamespace, opts.Metadata.Namespace)
 }
 
+func TestWithWrapped(t *testing.T) {
+	t.Parallel()
+
+	wrapped := provider.Provider{
+		Create: func(_ context.Context, _ provider.CreateRequest) (provider.CreateResponse, error) {
+			return provider.CreateResponse{ID: "foo"}, nil
+		},
+	}
+
+	p, err := NewProviderBuilder().
+		WithResources(Resource(MockResource{})).
+		WithWrapped(wrapped).Build()
+	require.NoError(t, err)
+
+	resp, err := p.Create(context.Background(), provider.CreateRequest{
+		Urn: resource.URN("urn:pulumi:x::y::z:a:b::c"),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "foo", resp.ID)
+}
+
 func TestBuild(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
@@ -301,14 +323,8 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	// Should fail with no name
+	// Should fail with no resources, components or functions
 	err := dp.validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "provider name is required")
-
-	// Set name, should fail with no resources, components or functions
-	dp.WithName("test-provider")
-	err = dp.validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one resource, component, or function is required")
 
@@ -319,14 +335,12 @@ func TestValidate(t *testing.T) {
 
 	// Reset and test with component
 	dp = NewProviderBuilder()
-	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithComponents(Component(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with function
 	dp = NewProviderBuilder()
-	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithFunctions(Function(MockFunction{}))
 	err = dp.validate()
 	assert.NoError(t, err)
@@ -335,27 +349,19 @@ func TestValidate(t *testing.T) {
 //nolint:paralleltest // Running in parallel causes a data race.
 func TestBuildAndRun(t *testing.T) {
 	// 1. Create a provider without any components and ensure that it returns an error.
-	err := NewProviderBuilder().BuildAndRun()
+	_, err := NewProviderBuilder().Build()
 	require.Error(t, err)
 
-	// 2. Create a provider with a component and ensure that it starts successfully by starting the
-	// provider in a separate goroutine as it blocks the main thread.
-	errChan := make(chan error)
+	// 2. Create a provider with a component and ensure that it starts and runs successfully.
+	p, err := NewProviderBuilder().
+		WithComponents(Component(NewMockComponentResource)).
+		Build()
+	require.NoError(t, err)
 
-	go func(errCh chan error) {
-		errCh <- NewProviderBuilder().
-			WithComponents(Component(NewMockComponentResource)).
-			WithName("test-provider").
-			WithVersion("1.0.0").
-			BuildAndRun()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 
-		close(errCh)
-	}(errChan)
+	err = p.Run(ctx, "test-provider", "v0.0.1")
 
-	select {
-	case err := <-errChan:
-		require.NoError(t, err, "provider startup should not fail")
-	case <-time.After(5 * time.Second):
-		return // The provider started successfully, so we can return.
-	}
+	assert.NoError(t, err, "provider startup should not fail")
 }

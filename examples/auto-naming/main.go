@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	err := p.RunProvider("auto-naming", "0.1.0", provider())
+	err := p.RunProvider(context.Background(), "auto-naming", "0.1.0", provider())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)

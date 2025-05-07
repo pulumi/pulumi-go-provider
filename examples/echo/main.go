@@ -18,7 +18,7 @@ func main() {
 
 	echoType := tokens.NewTypeToken(tokens.NewModuleToken("echo", "index"), "Echo")
 
-	err := p.RunProvider("echo", "v0.1.0-dev", p.Provider{
+	err := p.RunProvider(context.Background(), "echo", "v0.1.0-dev", p.Provider{
 		GetSchema: func(context.Context, p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			// It is recommended to use [github.com/pulumi/pulumi-go-provider/middleware/schema.Wrap] for
 			// structured schema generation.

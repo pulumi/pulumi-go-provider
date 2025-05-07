@@ -102,15 +102,23 @@ type MigrateStateV2 struct {
 
 type MigrateStateInput struct{}
 
-func migrationServer() integration.Server {
-	return integration.NewServer("test",
+func migrationServer(t *testing.T) integration.Server {
+	t.Helper()
+
+	s, err := integration.NewServer(t.Context(),
+		"test",
 		semver.MustParse("1.0.0"),
-		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{
-				infer.Resource(&MigrateR{}),
-			},
-			ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
-		}))
+		integration.WithProvider(
+			infer.Provider(infer.Options{
+				Resources: []infer.InferredResource{
+					infer.Resource(&MigrateR{}),
+				},
+				ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
+			})),
+	)
+	require.NoError(t, err)
+
+	return s
 }
 
 // Test f on some old states that should be equivalent after upgrades.
@@ -182,7 +190,7 @@ func TestMigrateUpdate(t *testing.T) {
 	t.Parallel()
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
-		resp, err := migrationServer().Update(p.UpdateRequest{
+		resp, err := migrationServer(t).Update(p.UpdateRequest{
 			ID:    "some-id",
 			Urn:   urn("MigrateR", "update"),
 			State: state,
@@ -196,7 +204,7 @@ func TestMigrateDiff(t *testing.T) {
 	t.Parallel()
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
-		_, err := migrationServer().Diff(p.DiffRequest{
+		_, err := migrationServer(t).Diff(p.DiffRequest{
 			ID:    "some-id",
 			Urn:   urn("MigrateR", "diff"),
 			State: state,
@@ -214,7 +222,7 @@ func TestMigrateDelete(t *testing.T) {
 	t.Parallel()
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
-		err := migrationServer().Delete(p.DeleteRequest{
+		err := migrationServer(t).Delete(p.DeleteRequest{
 			ID:         "some-id",
 			Urn:        urn("MigrateR", "delete"),
 			Properties: state,
@@ -232,7 +240,7 @@ func TestMigrateRead(t *testing.T) {
 	t.Parallel()
 
 	testMigrationEquivalentStates(t, func(t *testing.T, state, v2State property.Map) {
-		resp, err := migrationServer().Read(p.ReadRequest{
+		resp, err := migrationServer(t).Read(p.ReadRequest{
 			ID:         "some-id",
 			Urn:        urn("MigrateR", "read"),
 			Properties: state,

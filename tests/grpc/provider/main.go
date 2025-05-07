@@ -32,7 +32,7 @@ const componentType = "test:index:Component"
 const methodType = componentType + "/myMethod"
 
 func main() {
-	if err := p.RunProvider("test", "0.1.0", p.Provider{
+	if err := p.RunProvider(context.Background(), "test", "0.1.0", p.Provider{
 		Construct: func(ctx context.Context, req p.ConstructRequest) (p.ConstructResponse, error) {
 			if t := req.Urn.Type(); t != componentType {
 				return p.ConstructResponse{}, fmt.Errorf("unknown component type %q", t)

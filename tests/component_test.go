@@ -60,11 +60,15 @@ type Bundle struct {
 }
 
 func provider(t *testing.T) integration.Server {
-	return integration.NewServerWithContext(t.Context(), "foo", semver.Version{Major: 1},
-		infer.Provider(infer.Options{
+	s, err := integration.NewServer(t.Context(),
+		"foo",
+		semver.Version{Major: 1},
+		integration.WithProvider(infer.Provider(infer.Options{
 			Components: []infer.InferredComponent{infer.Component(NewFoo)},
-		}),
+		})),
 	)
+	require.NoError(t, err)
+	return s
 }
 
 func TestConstruct(t *testing.T) {

@@ -30,17 +30,16 @@ import (
 func main() {
 	// We tell the provider what resources it needs to support.
 	// In this case, a single custom resource called HelloWorld.
-	err := infer.NewProviderBuilder().
-		WithName("greetings").
-		WithVersion("0.1.0").
+	p, err := infer.NewProviderBuilder().
 		WithResources(
 			infer.Resource[HelloWorld](),
 		).
-		BuildAndRun()
+		Build()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+    p.Run(context.Background(), "greetings", "0.1.0")
 }
 
 // Each resource has a controlling struct.
@@ -112,17 +111,16 @@ import (
 )
 
 func main() {
-	err := infer.NewProviderBuilder().
-		WithName("greetings").
-		WithVersion("0.1.0").
+	p, err := infer.NewProviderBuilder().
 		WithComponents(
 			infer.Component(NewRandomLogin),
 		).
-		BuildAndRun()
+		Build()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+    p.Run(context.Background(), "greetings", "0.1.0")
 }
 
 type RandomLoginArgs struct {
@@ -190,20 +188,19 @@ import (
 )
 
 func main() {
-	err := infer.NewProviderBuilder().
-		WithName("greetings").
-		WithVersion("0.1.0").
+	p, err := infer.NewProviderBuilder().
 		WithResources(
 			infer.Resource[HelloWorld](),
 		).
 		WithConfig(
 			infer.Config[*Config](),
 		).
-		BuildAndRun()
+		Build()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+    p.Run(context.Background(), "greetings", "0.1.0")
 }
 
 type Config struct {
@@ -245,17 +242,16 @@ import (
 )
 
 func main() {
-	err := infer.NewProviderBuilder().
-		WithName("greetings").
-		WithVersion("0.1.0").
+	p, err := infer.NewProviderBuilder().
 		WithFunctions(
 			infer.Function[*Replace](),
 		).
-		BuildAndRun()
+		Build()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+    p.Run(context.Background(), "greetings", "0.1.0")
 }
 
 type Replace struct{}

@@ -23,13 +23,13 @@ import (
 )
 
 type ProviderBuilder struct {
-	name, version string
-	metadata      schema.Metadata
-	resources     []InferredResource
-	components    []InferredComponent
-	functions     []InferredFunction
-	config        InferredConfig
-	moduleMap     map[tokens.ModuleName]tokens.ModuleName
+	metadata   schema.Metadata
+	resources  []InferredResource
+	components []InferredComponent
+	functions  []InferredFunction
+	config     InferredConfig
+	moduleMap  map[tokens.ModuleName]tokens.ModuleName
+	wrapped    provider.Provider
 }
 
 // NewProviderBuilder creates an inferred provider which fills as many defaults as possible.
@@ -40,28 +40,28 @@ type ProviderBuilder struct {
 // This is an example of how to create a simple provider with a single component resource:
 //
 //	type RandomComponent struct {
-//		pulumi.ResourceState
-//		RandomComponentArgs
-//	 	Password        pulumi.StringOutput `pulumi:"password"`
+//	    pulumi.ResourceState
+//	    RandomComponentArgs
+//
+//	    Password pulumi.StringOutput `pulumi:"password"`
 //	}
 //
 //	type RandomComponentArgs struct {
-//		Length pulumi.IntInput `pulumi:"length"`
+//	    Length pulumi.IntInput `pulumi:"length"`
 //	}
 //
 //	func NewMyComponent(ctx *pulumi.Context, name string,
-//			compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
-//		// Define your component constructor logic here.
+//	    compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+//	    // Define your component constructor logic here.
 //	}
 //
 //	func main() {
-//		err := infer.NewProviderBuilder().
-//			WithName("go-components").
-//			WithVersion("v0.0.1").
-//			WithComponents(
-//				infer.Component(NewMyComponent),
-//			).
-//			BuildAndRun()
+//	    p, _ := infer.NewProviderBuilder().
+//	        WithComponents(
+//	            infer.Component(NewMyComponent),
+//	        ).
+//	        Build()
+//	    p.Run(context.Background(), "go-components", "v0.0.1")
 //	}
 //
 // Please note that the initial defaults provided by this function may change with future releases of
@@ -88,9 +88,6 @@ func NewProviderBuilder() *ProviderBuilder {
 	}
 
 	return &ProviderBuilder{
-		// Default the component provider schema version to "0.0.0" if not provided for now,
-		// otherwise SDK codegen gets confused without a version.
-		version:  "0.0.0",
 		metadata: defaultMetadata,
 	}
 }
@@ -145,6 +142,12 @@ func (pb *ProviderBuilder) WithDisplayName(displayName string) *ProviderBuilder 
 	return pb
 }
 
+// WithWrapped wraps another provider.
+func (pb *ProviderBuilder) WithWrapped(provider provider.Provider) *ProviderBuilder {
+	pb.wrapped = provider
+	return pb
+}
+
 // WithKeywords adds the specified keywords to the provider's metadata.
 // These keywords can be used to improve discoverability of the provider.
 func (pb *ProviderBuilder) WithKeywords(keywords ...string) *ProviderBuilder {
@@ -188,18 +191,6 @@ func (pb *ProviderBuilder) WithPluginDownloadURL(pluginDownloadURL string) *Prov
 	return pb
 }
 
-// WithName sets the provider name.
-func (pb *ProviderBuilder) WithName(name string) *ProviderBuilder {
-	pb.name = name
-	return pb
-}
-
-// WithVersion sets the provider version.
-func (pb *ProviderBuilder) WithVersion(version string) *ProviderBuilder {
-	pb.version = version
-	return pb
-}
-
 // WithNamespace sets the provider namespace.
 func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
 	pb.metadata.Namespace = namespace
@@ -216,27 +207,25 @@ func (pb *ProviderBuilder) BuildOptions() Options {
 		Functions:  pb.functions,
 		Config:     pb.config,
 		ModuleMap:  pb.moduleMap,
+		wrapped:    pb.wrapped,
 	}
 }
 
 // validate checks if the provider builder configuration is valid.
 func (pb *ProviderBuilder) validate() error {
-	switch {
-	case pb.name == "":
-		return fmt.Errorf("provider name is required")
-	case len(pb.components) == 0 && len(pb.resources) == 0 && len(pb.functions) == 0:
+	if len(pb.components) == 0 && len(pb.resources) == 0 && len(pb.functions) == 0 {
 		return fmt.Errorf("at least one resource, component, or function is required")
 	}
 
 	return nil
 }
 
-// BuildAndRun builds the provider options, validates them, and runs the provider.
-func (pb *ProviderBuilder) BuildAndRun() error {
+// Build builds the provider options and validates them., and runs the provider.
+func (pb *ProviderBuilder) Build() (provider.Provider, error) {
 	if err := pb.validate(); err != nil {
-		return err
+		return provider.Provider{}, err
 	}
 
 	opts := pb.BuildOptions()
-	return provider.RunProvider(pb.name, pb.version, Provider(opts))
+	return Provider(opts), nil
 }

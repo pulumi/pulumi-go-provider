@@ -17,22 +17,24 @@
 package main
 
 import (
+	"context"
+
 	"github.com/pulumi/pulumi-go-provider/examples/component-provider/nested"
 	"github.com/pulumi/pulumi-go-provider/infer"
 )
 
 func main() {
-	err := infer.NewProviderBuilder().
-		WithName("go-components").
-		WithVersion("v0.0.1").
+	p, err := infer.NewProviderBuilder().
 		WithNamespace("example-namespace").
 		WithComponents(
 			infer.Component(NewMyComponent),
 			infer.Component(nested.NewNestedRandomComponent),
 		).
-		BuildAndRun()
+		Build()
 
 	if err != nil {
 		panic(err)
 	}
+
+	p.Run(context.Background(), "go-components", "v0.0.1")
 }

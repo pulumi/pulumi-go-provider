@@ -90,7 +90,11 @@ func TestTokens(t *testing.T) {
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"overwritten": "index"},
 	})
-	server := integration.NewServer("test", semver.MustParse("1.0.0"), provider)
+	server, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("1.0.0"), integration.WithProvider(provider),
+	)
+	require.NoError(t, err)
 
 	schema, err := server.GetSchema(p.GetSchemaRequest{})
 	require.NoError(t, err)
