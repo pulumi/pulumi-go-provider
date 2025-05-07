@@ -41,7 +41,8 @@ func NewMockComponentResource(
 	ctx *pulumi.Context,
 	name string,
 	inputs MockComponentResourceInput,
-	options ...pulumi.ResourceOption) (*MockComponentResource, error) {
+	options ...pulumi.ResourceOption,
+) (*MockComponentResource, error) {
 	return &MockComponentResource{}, nil
 }
 
@@ -62,17 +63,21 @@ type MockConfig struct{}
 func (mc MockConfig) GetSchema(schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
 	return pschema.ResourceSpec{}, nil
 }
+
 func (mc MockConfig) GetToken() (tokens.Type, error) {
 	return "", nil
 }
 
-type MockFunction struct{}
-type MockFunctionArgs struct{}
-type MockFunctionResult struct{}
+type (
+	MockFunction       struct{}
+	MockFunctionArgs   struct{}
+	MockFunctionResult struct{}
+)
 
 func (mf MockFunction) Invoke(
 	ctx context.Context,
-	req FunctionRequest[MockFunctionArgs]) (FunctionResponse[MockFunctionResult], error) {
+	req FunctionRequest[MockFunctionArgs],
+) (FunctionResponse[MockFunctionResult], error) {
 	return FunctionResponse[MockFunctionResult]{}, nil
 }
 
@@ -98,7 +103,6 @@ func TestNewDefaultProvider(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "0.0.0", dp.version)
 	assert.Equal(t, expectedLangMap, dp.metadata.LanguageMap)
 }
 
@@ -296,14 +300,8 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	// Should fail with no name
+	// Should fail with no resources, components or functions
 	err := dp.validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "provider name is required")
-
-	// Set name, should fail with no resources, components or functions
-	dp.WithName("test-provider")
-	err = dp.validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one resource, component, or function is required")
 
@@ -314,14 +312,12 @@ func TestValidate(t *testing.T) {
 
 	// Reset and test with component
 	dp = NewProviderBuilder()
-	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithComponents(Component(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with function
 	dp = NewProviderBuilder()
-	dp.WithName("test-provider").WithVersion("1.0.0")
 	dp.WithFunctions(Function[MockFunction]())
 	err = dp.validate()
 	assert.NoError(t, err)
@@ -330,27 +326,19 @@ func TestValidate(t *testing.T) {
 //nolint:paralleltest // Running in parallel causes a data race.
 func TestBuildAndRun(t *testing.T) {
 	// 1. Create a provider without any components and ensure that it returns an error.
-	err := NewProviderBuilder().BuildAndRun()
+	_, err := NewProviderBuilder().Build()
 	require.Error(t, err)
 
-	// 2. Create a provider with a component and ensure that it starts successfully by starting the
-	// provider in a separate goroutine as it blocks the main thread.
-	errChan := make(chan error)
+	// 2. Create a provider with a component and ensure that it starts and runs successfully.
+	p, err := NewProviderBuilder().
+		WithComponents(Component(NewMockComponentResource)).
+		Build()
+	require.NoError(t, err)
 
-	go func(errCh chan error) {
-		errCh <- NewProviderBuilder().
-			WithComponents(Component(NewMockComponentResource)).
-			WithName("test-provider").
-			WithVersion("1.0.0").
-			BuildAndRun()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 
-		close(errCh)
-	}(errChan)
+	err = p.Run(ctx, "test-provider", "v0.0.1")
 
-	select {
-	case err := <-errChan:
-		require.NoError(t, err, "provider startup should not fail")
-	case <-time.After(5 * time.Second):
-		return // The provider started successfully, so we can return.
-	}
+	assert.NoError(t, err, "provider startup should not fail")
 }
