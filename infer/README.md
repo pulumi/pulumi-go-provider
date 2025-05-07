@@ -10,6 +10,8 @@ random provider. Our component resource will serve a username, derived from eith
 `random.RandomId` or `random.RandomPet`. It will also serve a password, derived from
 `random.RandomPassword`. We will call the component resource `Login`.
 
+Full working code for this example can be found in `examples/random-login/main.go`.
+
 To encapsulate the idea of a new component resource, we define the resource, its inputs
 and its outputs:
 
@@ -87,24 +89,21 @@ This works almost exactly like defining a component resource in Pulumi Go normal
 It is not necessary to call `ctx.RegisterComponentResourceOutputs`.
 
 The last step in defining the component is serving it. Here we define the provider,
-telling it that it should serve the `Login` component. We then run that provider in `main`
-with `RunProvider`.
+telling it that it should serve the `Login` component.
 
 ```go
 func main() {
-	err := p.RunProvider("", "0.1.0", provider())
+	err := infer.NewProviderBuilder().
+		WithName("example").
+		WithVersion("0.1.0").
+		WithComponents(
+			infer.Component(NewLogin),
+		).
+		BuildAndRun()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
-  }
-}
-
-func provider() p.Provider {
-	return infer.Provider(infer.Options{
-		Components: []infer.InferredComponent{
-			infer.Component(NewLogin),
-		},
-	})
+	}
 }
 ```
 
@@ -144,7 +143,6 @@ input fields and its output fields.
 func (f *File) Annotate(a infer.Annotator) {
 	a.Describe(&f, "A file projected into a pulumi resource")
 }
-
 
 func (f *FileArgs) Annotate(a infer.Annotator) {
 	a.Describe(&f.Content, "The content of the file.")
@@ -344,6 +342,25 @@ func (*File) Read(ctx context.Context, req infer.ReadRequest[FileArgs, FileState
 
 Here we get a partial view of the id, inputs and state and need to figure out the rest. We
 return the correct id, args and state.
+
+The last step in defining the resource is serving it. Here we define the provider,
+telling it that it should serve the `File` resource.
+
+```go
+func main() {
+	err := infer.NewProviderBuilder().
+		WithName("example").
+		WithVersion("0.1.0").
+		WithResources(
+			infer.Resource[File](),
+		).
+		BuildAndRun()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+}
+```
 
 This is an example of a fully functional custom resource, with full participation in the
 Pulumi lifecycle.
