@@ -12,26 +12,12 @@ test: test_unit test_examples
 .PHONY: test_unit
 test_unit: build
 	${GO_TEST} ./...
-	cd infer/tests && ${GO_TEST} ./...
-	cd integration && ${GO_TEST} ./...
-	cd tests && ${GO_TEST} ./...
-	for d in examples/*; do if [ -d $$d ]; then \
-		cd $$d; ${GO_TEST} ./... || exit $$?; \
-	cd -; fi; done
 
 lint: lint-golang lint-copyright
 lint-golang:
 	golangci-lint run -c .golangci.yaml --timeout 5m
 lint-copyright:
 	pulumictl copyright -x 'examples/**,**/sdks/test/**'
-
-.PHONY: tidy
-tidy:
-	@for f in $$(find . -name go.mod); do\
-		cd $$(dirname $$f) || exit 1;\
-		echo "tidying $$f";\
-		go mod tidy || exit 1;\
-		cd - > /dev/null; done
 
 HELPMAKEGO_VERSION := v0.1.0
 HELPMAKEGO := bin/${HELPMAKEGO_VERSION}/helpmakego
