@@ -202,7 +202,7 @@ func (d *DNAStoreArgs) Annotate(a infer.Annotator) {
 }
 
 func main() {
-	err := p.RunProvider("dna-store", "0.1.0",
+	err := p.RunProvider(context.Background(), "dna-store", "0.1.0",
 		infer.Provider(infer.Options{
 			Resources: []infer.InferredResource{infer.Resource[*DNAStore]()},
 		}))
