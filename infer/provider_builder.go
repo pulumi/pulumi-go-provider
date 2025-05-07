@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"fmt"
 
 	provider "github.com/pulumi/pulumi-go-provider"
@@ -238,5 +239,5 @@ func (pb *ProviderBuilder) BuildAndRun() error {
 	}
 
 	opts := pb.BuildOptions()
-	return provider.RunProvider(pb.name, pb.version, Provider(opts))
+	return provider.RunProvider(context.Background(), pb.name, pb.version, Provider(opts))
 }

@@ -468,8 +468,8 @@ func (d Provider) WithDefaults() Provider {
 }
 
 // RunProvider runs a provider with the given name and version.
-func RunProvider(name, version string, provider Provider) error {
-	return pprovider.Main(name, newProvider(name, version, provider.WithDefaults()))
+func RunProvider(ctx context.Context, name, version string, provider Provider) error {
+	return pprovider.MainContext(ctx, name, newProvider(name, version, provider.WithDefaults()))
 }
 
 // RawServer converts the Provider into a factory for gRPC servers.
