@@ -34,7 +34,7 @@
           "type": "integer"
         },
         "password": {
-          "type": "string"
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword"
         }
       },
       "type": "object",
@@ -62,7 +62,7 @@
           "type": "integer"
         },
         "password": {
-          "type": "string"
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword"
         }
       },
       "type": "object",

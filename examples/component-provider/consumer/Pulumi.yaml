@@ -16,7 +16,7 @@ resources:
     properties:
       length: 2
 outputs:
-  password: ${myrandom.password}
+  password: ${myrandom.password.result}
   hardcoded: ${myrandom.hardcodedOutput}
-  nestedPassword: ${myrandom-2.password}
+  nestedPassword: ${myrandom-2.password.result}
   nestedHardcoded: ${myrandom-2.hardcodedOutput}
