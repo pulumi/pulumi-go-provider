@@ -615,8 +615,7 @@ func provider(t testing.TB) integration.Server {
 	return s
 }
 
-func providerWithConfig[T any](t testing.TB) integration.Server {
-	var cfg T
+func providerWithConfig[T any](t testing.TB, cfg T) integration.Server {
 	p := infer.Provider(providerOpts(infer.Config(cfg)))
 	s, err := integration.NewServer(t.Context(), "test", semver.MustParse("1.0.0"), integration.WithProvider(p))
 	require.NoError(t, err)

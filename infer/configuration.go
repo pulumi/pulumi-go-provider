@@ -36,7 +36,7 @@ import (
 //
 // `T` can implement [CustomDiff] and [CustomCheck] and [CustomConfigure] and [Annotated].
 func Config[T any](cfg T) InferredConfig {
-	return &config[T]{}
+	return &config[T]{receiver: &cfg}
 }
 
 type InferredConfig interface {
@@ -63,7 +63,7 @@ type CustomConfigure interface {
 	Configure(ctx context.Context) error
 }
 
-type config[T any] struct{ t *T }
+type config[T any] struct{ receiver *T }
 
 func (*config[T]) underlyingType() reflect.Type {
 	var t T
@@ -85,13 +85,8 @@ func markAsInferProvider(pm resource.PropertyMap) {
 }
 
 func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	var t T
-	if v := reflect.ValueOf(t); v.Kind() == reflect.Pointer && v.IsNil() {
-		t = reflect.New(v.Type().Elem()).Interface().(T)
-	}
-
-	encoder, decodeError := ende.DecodeConfig(req.Inputs, &t)
-	if t, ok := ((interface{})(t)).(CustomCheck[T]); ok {
+	encoder, decodeError := ende.DecodeConfig(req.Inputs, c.receiver)
+	if t, ok := any(*c.receiver).(CustomCheck[T]); ok {
 		// The user implemented check manually, so call that.
 		//
 		// We don't apply defaults, but [DefaultCheck] does.
@@ -126,12 +121,12 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		return p.CheckResponse{}, err
 	}
 
-	err = applyDefaults(&t)
+	err = applyDefaults(c.receiver)
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
 
-	news, err := encoder.Encode(t)
+	news, err := encoder.Encode(*c.receiver)
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
@@ -145,35 +140,21 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 }
 
 func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	c.ensure()
-	return diff[T, T, T](ctx, req, c.t, func(string) bool { return true })
+	return diff[T, T, T](ctx, req, c.receiver, func(string) bool { return true })
 }
 
 func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
-	c.ensure()
-	_, err := ende.DecodeConfig(req.Args, c.t)
+	_, err := ende.DecodeConfig(req.Args, c.receiver)
 	if err != nil {
 		return c.handleConfigFailures(ctx, err)
 	}
 
 	// If we have a custom configure command, call that and return the error if any.
-	if typ := reflect.TypeOf(c.t).Elem(); typ.Implements(reflect.TypeOf((*CustomConfigure)(nil)).Elem()) {
-		return reflect.ValueOf(c.t).Elem().Interface().(CustomConfigure).Configure(ctx)
+	if t, ok := any(*c.receiver).(CustomConfigure); ok {
+		return t.Configure(ctx)
 	}
 
 	return nil
-}
-
-// Ensure that the config value is hydrated so we can assign to it.
-func (c *config[T]) ensure() {
-	if c.t == nil {
-		c.t = new(T)
-	}
-
-	// T might be a *C for some type C, so we need to rehydrate it.
-	if v := reflect.ValueOf(c.t).Elem(); v.Kind() == reflect.Pointer && v.IsNil() {
-		v.Set(reflect.New(v.Type().Elem()))
-	}
 }
 
 func (c *config[T]) handleConfigFailures(ctx context.Context, err mapper.MappingError) error {
