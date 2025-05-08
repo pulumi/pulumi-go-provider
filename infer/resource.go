@@ -934,10 +934,12 @@ type InferredResource interface {
 // Resource creates a new InferredResource, where `R` is the resource controller, `I` is
 // the resources inputs and `O` is the resources outputs.
 func Resource[R CustomResource[I, O], I, O any](rsc R) InferredResource {
-	return &derivedResourceController[R, I, O]{}
+	return &derivedResourceController[R, I, O]{receiver: &rsc}
 }
 
-type derivedResourceController[R CustomResource[I, O], I, O any] struct{}
+type derivedResourceController[R CustomResource[I, O], I, O any] struct {
+	receiver *R
+}
 
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
@@ -977,14 +979,12 @@ func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
 	return getToken[R](nil)
 }
 
-func (*derivedResourceController[R, I, O]) getInstance() *R {
-	var r R
-	return &r
+func (rc *derivedResourceController[R, I, O]) getInstance() *R {
+	return rc.receiver
 }
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	var r R
-	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
+	if r, ok := any(*rc.receiver).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that.
 		//
 		// We do not apply defaults if the user has implemented Check

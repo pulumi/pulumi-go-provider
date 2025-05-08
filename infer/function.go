@@ -61,10 +61,12 @@ type InferredFunction interface {
 
 // Function infers a function from `F`, which maps `I` to `O`.
 func Function[F Fn[I, O], I, O any](fnc F) InferredFunction {
-	return &derivedInvokeController[F, I, O]{}
+	return &derivedInvokeController[F, I, O]{receiver: fnc}
 }
 
-type derivedInvokeController[F Fn[I, O], I, O any] struct{}
+type derivedInvokeController[F Fn[I, O], I, O any] struct {
+	receiver F
+}
 
 func (derivedInvokeController[F, I, O]) isInferredFunction() {}
 
@@ -93,9 +95,8 @@ func fnToken(tk tokens.Type) tokens.Type {
 	return tokens.NewTypeToken(tk.Module(), tokens.TypeName(name))
 }
 
-func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
-	var f F
-	descriptions := getAnnotated(reflect.TypeOf(f))
+func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
+	descriptions := getAnnotated(reflect.TypeOf(r.receiver))
 
 	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
@@ -154,12 +155,7 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 		return p.InvokeResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
 	}
 
-	var f F
-	// If F is a *struct, we need to rehydrate the underlying struct
-	if v := reflect.ValueOf(f); v.Kind() == reflect.Pointer && v.IsNil() {
-		f = reflect.New(v.Type().Elem()).Interface().(F)
-	}
-	o, err := f.Invoke(ctx, FunctionRequest[I]{Input: i})
+	o, err := r.receiver.Invoke(ctx, FunctionRequest[I]{Input: i})
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
