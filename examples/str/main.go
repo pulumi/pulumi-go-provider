@@ -19,7 +19,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
-	err = p.RunProvider(context.Background(), "str", "0.1.0", provider())
+	err = p.RunProvider(context.Background(), "str", "0.1.0", provider)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
