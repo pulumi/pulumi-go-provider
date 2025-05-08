@@ -28,11 +28,11 @@ import (
 // MockCallArgs is used to construct a call Mock
 type MockCallArgs struct {
 	// Token indicates which function is being called. This token is of the form "package:module:function".
-	Token string
+	Token tokens.ModuleMember
 	// Args are the arguments provided to the function call.
 	Args property.Map
 	// Provider is the identifier of the provider instance being used to make the call.
-	Provider string // ProviderReference
+	Provider p.ProviderReference
 }
 
 // MockResourceArgs is a used to construct a newResource Mock
@@ -68,10 +68,17 @@ func (m *MockResourceMonitor) Call(args pulumi.MockCallArgs) (presource.Property
 	if m.CallF == nil {
 		return presource.PropertyMap{}, nil
 	}
+
 	_args := MockCallArgs{
-		Token:    args.Token,
-		Args:     presource.FromResourcePropertyMap(args.Args),
-		Provider: args.Provider,
+		Token: tokens.ModuleMember(args.Token),
+		Args:  presource.FromResourcePropertyMap(args.Args),
+		Provider: func() p.ProviderReference {
+			urn, id, _ := putil.ParseProviderReference(args.Provider)
+			return p.ProviderReference{
+				Urn: urn,
+				ID:  id,
+			}
+		}(),
 	}
 
 	result, err := m.CallF(_args)
