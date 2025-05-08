@@ -1,0 +1,14 @@
+name: wrapped
+runtime: yaml
+
+packages:
+  xyz: ..
+
+resources:
+  random:
+    type: xyz:index:Random
+    properties:
+      length: 6
+
+outputs:
+  result: ${random.result}
