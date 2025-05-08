@@ -313,6 +313,8 @@ func ConfigMissingKeys(missing map[string]string) error {
 	)
 }
 
+type HostClient = pprovider.HostClient
+
 type Provider struct {
 	// Utility
 
