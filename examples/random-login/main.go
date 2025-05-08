@@ -13,7 +13,6 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	randomlogin "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
 	"github.com/pulumi/pulumi-go-provider/infer"
-	pschema "github.com/pulumi/pulumi-go-provider/middleware/schema"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -22,32 +21,38 @@ import (
 )
 
 func main() {
-	err := p.RunProvider(context.Background(), "random-login", "0.1.0", provider())
+	provider, err := provider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+	err = provider.Run(context.Background(), "random-login", "0.1.0")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
-func provider() p.Provider {
-	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource(&RandomSalt{})},
-		Components: []infer.InferredComponent{
+func provider() (p.Provider, error) {
+	return infer.NewProviderBuilder().
+		WithNamespace("examples").
+		WithResources(
+			infer.Resource(&RandomSalt{}),
+		).
+		WithComponents(
 			infer.Component(&RandomLogin{}),
 			infer.ComponentF(NewMoreRandomPassword),
-		},
-		Config: infer.Config(Config{}),
-		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
+		).
+		WithConfig(infer.Config(Config{})).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
-		},
-		Metadata: pschema.Metadata{
-			LanguageMap: map[string]any{
-				"go": goGen.GoPackageInfo{
-					ImportBasePath: "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin",
-				},
+		}).
+		WithLanguageMap(map[string]any{
+			"go": goGen.GoPackageInfo{
+				ImportBasePath: "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin",
 			},
-		},
-	})
+		}).
+		Build()
 }
 
 type MoreRandomPasswordArgs struct {

@@ -15,11 +15,13 @@ import (
 
 func TestAutoName(t *testing.T) {
 	t.Parallel()
+	provider, err := provider()
+	require.NoError(t, err)
 
 	s, err := integration.NewServer(t.Context(),
 		"autoname",
 		semver.MustParse("0.1.0"),
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 
