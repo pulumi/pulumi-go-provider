@@ -120,7 +120,7 @@ func NewServer(ctx context.Context, pkg string, version semver.Version,
 		opt.applyServerOption(o)
 	}
 	if o.mocks == nil {
-		o.mocks = &MockMonitor{} // MockResourceMonitor requires a non-nil monitor.
+		o.mocks = &MockResourceMonitor{} // fake.MockResourceMonitor requires a non-nil monitor.
 	}
 	if o.provider == nil && o.providerF == nil {
 		return nil, fmt.Errorf("WithProvider or WithProviderF is required")
@@ -317,25 +317,6 @@ func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.Cal
 	}
 
 	return linkedCallResponseFromRPC(comResp)
-}
-
-type MockMonitor struct {
-	CallF        func(args pulumi.MockCallArgs) (presource.PropertyMap, error)
-	NewResourceF func(args pulumi.MockResourceArgs) (string, presource.PropertyMap, error)
-}
-
-func (m *MockMonitor) Call(args pulumi.MockCallArgs) (presource.PropertyMap, error) {
-	if m.CallF == nil {
-		return presource.PropertyMap{}, nil
-	}
-	return m.CallF(args)
-}
-
-func (m *MockMonitor) NewResource(args pulumi.MockResourceArgs) (string, presource.PropertyMap, error) {
-	if m.NewResourceF == nil {
-		return args.Name, args.Inputs, nil
-	}
-	return m.NewResourceF(args)
 }
 
 // Operation describes a step in a [LifeCycleTest].
