@@ -29,6 +29,62 @@ giving you an opportunity to return a simulated state for each child. See `integ
 
 To test a component resource, call the `Construct` method on the integration server.
 
+```go
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/integration"
+	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+)
+
+func TestConstruct(t *testing.T) {
+    myProvider, err := infer.NewProviderBuilder().
+		WithComponents(
+			infer.Component(MyComponent),
+		).
+		Build()
+	require.NoError(t, err)
+
+	server, err := integration.NewServer(
+		t.Context(),
+		"example",
+		semver.MustParse("1.0.0"),
+		integration.WithProvider(myProvider),
+		integration.WithMocks(&integration.MockMonitor{
+			NewResourceF: func(args pulumi.MockResourceArgs) (string, r.PropertyMap, error) {
+				// NewResourceF is called as the each resource is registered
+				switch {
+				case args.TypeToken == "my:module:MyComponent" && args.Name == "my-component":
+					// make assertions about the component resource
+				default:
+					// make assertions about the component's children
+				}
+				return args.ID, r.PropertyMap{}, nil
+			},
+		}),
+	)
+	require.NoError(t, err)
+
+	// test the "my:module:MyComponent" component
+	resp, err := prov.Construct(p.ConstructRequest{
+		Urn:    "urn:pulumi:stack::project::my:module:MyComponent::my-component",
+		Inputs: property.NewMap(map[string]property.Value{
+			"pi": property.New(3.14),
+		}),
+	})
+	require.NoError(t, err)
+	require.Equal(t, property.NewMap(map[string]property.Value{
+		"result": property.New("foo-12345").WithSecret(true),
+	}), resp.State)
+}
+```
+
 ## Custom Resource Lifecycle Testing
 The `LifeCycleTest` struct enables testing the full lifecycle of a custom resource, including:
 1. Previewing and creating resources.
@@ -41,24 +97,29 @@ It supports hooks for custom validation and assertions on resource outputs.
 
 ```go
 func TestMyResourceLifecycle(t *testing.T) {
-    myProvider, _ := infer.NewProviderBuilder().
-		WithName("example").
-		WithVersion("0.1.0").
+	myProvider, err := infer.NewProviderBuilder().
 		WithResources(
 			infer.Resource(MyResource),
 		).
 		Build()
+	require.NoError(t, err)
 
-    server := integration.NewServerWithOptions(t.Context(), "my-provider", semver.MustParse("1.0.0"), myProvider)
-    
-    test := integration.LifeCycleTest{
-        Resource: "my:module:MyResource",
-        Create: integration.Operation{
-            Inputs: property.Map{"key": property.NewStringProperty("value")},
-            ExpectedOutput: &property.Map{"key": property.NewStringProperty("value")},
-        },
-    }
-    test.Run(t, server)
+	server, err := integration.NewServer(
+		t.Context(),
+		"example",
+		semver.MustParse("1.0.0"),
+		integration.WithProvider(myProvider),
+	)
+	require.NoError(t, err)
+
+	test := integration.LifeCycleTest{
+		Resource: "my:module:MyResource",
+		Create: integration.Operation{
+			Inputs: property.Map{"key": property.NewStringProperty("value")},
+			ExpectedOutput: &property.Map{"key": property.NewStringProperty("value")},
+		},
+	}
+	test.Run(t, server)
 }
 ```
 
