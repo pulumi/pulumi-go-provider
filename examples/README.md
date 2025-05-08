@@ -36,5 +36,5 @@ To run the `echo` example, you would run `make examples/echo/test`.
 - [wrapped](./wrapped/main.go) shows how to use [`middleware/rpc`][rpc] to migrate a legacy provider
   (`rpc.ResourceProviderServer`) to the `pulumi-go-provider` framework.    
 
-[rpc]: ../middleware/provider.go
+[rpc]: ../middleware/rpc/provider.go
 
