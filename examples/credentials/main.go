@@ -1,3 +1,4 @@
+// Package main implements a credentials provider.
 package main
 
 import (

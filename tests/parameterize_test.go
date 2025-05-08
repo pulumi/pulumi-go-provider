@@ -57,6 +57,7 @@ func TestParameterize(t *testing.T) {
 		}
 	}
 
+	//nolint:paralleltest // Handled in run()
 	t.Run("cli args", run(args{
 		input: &pulumirpc.ParameterizeRequest{
 			Parameters: &pulumirpc.ParameterizeRequest_Args{
@@ -76,6 +77,7 @@ func TestParameterize(t *testing.T) {
 		},
 	}))
 
+	//nolint:paralleltest // Handled in run()
 	t.Run("re-parameterization", run(args{
 		input: &pulumirpc.ParameterizeRequest{
 			Parameters: &pulumirpc.ParameterizeRequest_Value{
@@ -100,6 +102,7 @@ func TestParameterize(t *testing.T) {
 		},
 	}))
 
+	//nolint:paralleltest // Handled in run()
 	t.Run("err-invalid-version", run(args{
 		input: &pulumirpc.ParameterizeRequest{
 			Parameters: &pulumirpc.ParameterizeRequest_Value{

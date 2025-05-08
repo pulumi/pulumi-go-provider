@@ -31,7 +31,12 @@ type RandomComponentArgs struct {
 	Length pulumi.IntInput `pulumi:"length"`
 }
 
-func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {
+func NewMyComponent(
+	ctx *pulumi.Context,
+	name string,
+	compArgs RandomComponentArgs,
+	opts ...pulumi.ResourceOption,
+) (*RandomComponent, error) {
 	comp := &RandomComponent{}
 	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx.Context()), name, comp, opts...)
 	if err != nil {

@@ -46,6 +46,8 @@ func wrapRPCProvider(t *testing.T, provider rawRPCProvider) pulumirpc.ResourcePr
 // no listed changes.
 func TestWrapRPCEmptyDiff(t *testing.T) {
 	t.Run("no-detailed-diff", func(t *testing.T) {
+		t.Parallel()
+
 		replay.Replay(t, wrapRPCProvider(t, rawRPCProvider{
 			diff: func(context.Context, *pulumirpc.DiffRequest) (*pulumirpc.DiffResponse, error) {
 				return &pulumirpc.DiffResponse{
@@ -66,6 +68,8 @@ func TestWrapRPCEmptyDiff(t *testing.T) {
 }`)
 	})
 	t.Run("has-detailed-diff", func(t *testing.T) {
+		t.Parallel()
+
 		replay.Replay(t, wrapRPCProvider(t, rawRPCProvider{
 			diff: func(context.Context, *pulumirpc.DiffRequest) (*pulumirpc.DiffResponse, error) {
 				return &pulumirpc.DiffResponse{

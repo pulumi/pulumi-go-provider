@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package partial implements a provider with partial inputs for testing.
 package partial
 
 import (
@@ -85,7 +86,10 @@ func (*Partial) Update(ctx context.Context, req infer.UpdateRequest[Args, State]
 		}
 }
 
-func (*Partial) Read(ctx context.Context, req infer.ReadRequest[Args, State]) (resp infer.ReadResponse[Args, State], err error) {
+func (*Partial) Read(
+	ctx context.Context,
+	req infer.ReadRequest[Args, State],
+) (resp infer.ReadResponse[Args, State], err error) {
 	contract.Assertf(req.Inputs.S == "for-read", `expected inputs.S to be "for-read"`)
 	contract.Assertf(req.State.S == "from-update", `expected olds.Out to be "partial-create"`)
 	contract.Assertf(req.State.Out == "state-for-read", `expected state.Out to be "state-for-read"`)

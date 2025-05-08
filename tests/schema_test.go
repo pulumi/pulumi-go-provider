@@ -46,6 +46,8 @@ func (r *givenResource) GetSchema(f schema.RegisterDerivativeType) (pschema.Reso
 }
 
 func TestMergeSchema(t *testing.T) {
+	t.Parallel()
+
 	s1 := schema.Wrap(p.Provider{}, schema.Options{
 		Metadata: schema.Metadata{
 			DisplayName: "bar",

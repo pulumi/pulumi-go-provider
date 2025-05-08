@@ -131,6 +131,8 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
+	t.Parallel()
+
 	server, err := integration.NewServer(t.Context(),
 		"random-login",
 		semver.Version{Minor: 1},
@@ -149,6 +151,8 @@ func TestSchema(t *testing.T) {
 }
 
 func TestRandomSalt(t *testing.T) {
+	t.Parallel()
+
 	server, err := integration.NewServer(t.Context(),
 		"random-login",
 		semver.Version{Minor: 1},

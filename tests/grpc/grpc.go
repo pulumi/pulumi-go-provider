@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Most tests can be performed at the provider level, since the logic lives in one of the
-// layers. These tests are not those tests. When we are unsure about (de)serialization, we
-// use replay tests against the underlying gRPC server.
+// Package grpc performs replay tests against the underlying gRPC server to
+// exercise (de)serialization. Most tests can typically be performed at the
+// respective provider layer.
 package grpc

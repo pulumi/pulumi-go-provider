@@ -1,3 +1,4 @@
+// Package regex implements a simple regex provider.
 package regex
 
 import (

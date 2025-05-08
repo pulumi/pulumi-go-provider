@@ -50,6 +50,8 @@ func configureResult(
 
 func TestRPCGetSchema(t *testing.T) {
 	t.Run("no-error", func(t *testing.T) {
+		t.Parallel()
+
 		resp, err := rpcServer(t, rpcTestServer{
 			onGetSchema: func(_ context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
 				assert.Equal(t, int32(4), req.Version)
@@ -66,6 +68,8 @@ func TestRPCGetSchema(t *testing.T) {
 		}, resp)
 	})
 	t.Run("error", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := rpcServer(t, rpcTestServer{
 			onGetSchema: func(_ context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
 				assert.Equal(t, int32(0), req.Version)
@@ -80,6 +84,8 @@ func TestRPCGetSchema(t *testing.T) {
 
 func TestRPCCancel(t *testing.T) {
 	t.Run("no-error", func(t *testing.T) {
+		t.Parallel()
+
 		var wasCalled bool
 		err := rpcServer(t, rpcTestServer{
 			onCancel: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
@@ -91,6 +97,8 @@ func TestRPCCancel(t *testing.T) {
 		assert.True(t, wasCalled)
 	})
 	t.Run("error", func(t *testing.T) {
+		t.Parallel()
+
 		err := rpcServer(t, rpcTestServer{
 			onCancel: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 				return &emptypb.Empty{}, fmt.Errorf("cancel failed")
@@ -629,7 +637,10 @@ func exampleConstructInputs(acceptOutputs bool) (property.Map, map[string]any) {
 	if acceptOutputs {
 		return r, map[string]any{
 			"k1": "s",
-			"k2": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"k2": map[string]any{
+				"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
+				"dependencies":                     []any{"urn1", "urn2"},
+			},
 			"k3": nil,
 		}
 	} else {
@@ -655,7 +666,10 @@ func exampleConstuctState() (map[string]any, property.Map) {
 	return map[string]any{
 			"r1": "s",
 			"r2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
-			"r3": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"r3": map[string]any{
+				"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
+				"dependencies":                     []any{"urn1", "urn2"},
+			},
 			"r4": nil,
 		},
 		property.NewMap(map[string]property.Value{
@@ -666,7 +680,9 @@ func exampleConstuctState() (map[string]any, property.Map) {
 		})
 }
 
-func exampleConstructStateDependencies() (map[string]*rpc.ConstructResponse_PropertyDependencies, map[string][]resource.URN) {
+func exampleConstructStateDependencies() (
+	map[string]*rpc.ConstructResponse_PropertyDependencies, map[string][]resource.URN,
+) {
 	return map[string]*rpc.ConstructResponse_PropertyDependencies{
 			"r2": {Urns: []string{"urn1", "urn2"}},
 		},
@@ -802,7 +818,10 @@ func exampleCallArgs(acceptOutputs bool) (property.Map, map[string]any) {
 	if acceptOutputs {
 		return r, map[string]any{
 			"k1": "s",
-			"k2": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"k2": map[string]any{
+				"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
+				"dependencies":                     []any{"urn1", "urn2"},
+			},
 			"k3": nil,
 		}
 	} else {
@@ -828,7 +847,10 @@ func exampleCallReturns() (map[string]any, property.Map) {
 	return map[string]any{
 			"r1": "s",
 			"r2": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
-			"r3": map[string]any{"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", "dependencies": []any{"urn1", "urn2"}},
+			"r3": map[string]any{
+				"4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4",
+				"dependencies":                     []any{"urn1", "urn2"},
+			},
 			"r4": nil,
 		},
 		property.NewMap(map[string]property.Value{

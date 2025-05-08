@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:lll // Recorded JSON.
 const schema = `{
   "name": "str",
   "version": "0.1.0",
@@ -19,7 +20,7 @@ const schema = `{
   "provider": {},
   "functions": {
     "str:index:giveMeAString": {
-      "description": "Return a string, withing any inputs",
+      "description": "Return a string, without any inputs",
       "inputs": {
         "type": "object"
       },
@@ -125,6 +126,8 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
+	t.Parallel()
+
 	server, err := integration.NewServer(t.Context(),
 		"str",
 		semver.Version{Minor: 1},
@@ -143,6 +146,8 @@ func TestSchema(t *testing.T) {
 }
 
 func TestInvokes(t *testing.T) {
+	t.Parallel()
+
 	server, err := integration.NewServer(t.Context(),
 		"str",
 		semver.Version{Minor: 1},

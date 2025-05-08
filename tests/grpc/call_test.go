@@ -34,6 +34,8 @@ import (
 )
 
 func TestCallLifecycle(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -46,6 +48,7 @@ func TestCallLifecycle(t *testing.T) {
 }
 
 func TestCall(t *testing.T) {
+	t.Parallel()
 
 	jsonLog := `
 {
@@ -116,6 +119,7 @@ func TestCall(t *testing.T) {
 }
 
 func TestCallWithMalformedRequest(t *testing.T) {
+	t.Parallel()
 
 	jsonLog := `
 {
