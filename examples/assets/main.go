@@ -19,14 +19,19 @@ type HasAssetsArgs struct {
 }
 
 func main() {
-	err := p.RunProviderF(context.Background(), "assets", "0.1.0", provider)
+	provider, err := provider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+	err = provider.Run(context.Background(), "assets", "0.1.0")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
-func provider(_ *p.HostClient) (p.Provider, error) {
+func provider() (p.Provider, error) {
 	return infer.NewProviderBuilder().
 		WithNamespace("pulumi").
 		WithResources(
