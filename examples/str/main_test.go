@@ -125,10 +125,12 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"str",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 
@@ -143,10 +145,12 @@ func TestSchema(t *testing.T) {
 }
 
 func TestInvokes(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"str",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 

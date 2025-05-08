@@ -9,6 +9,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
 type HasAssets struct{}
@@ -33,10 +34,12 @@ func main() {
 
 func provider() (p.Provider, error) {
 	return infer.NewProviderBuilder().
-		WithNamespace("pulumi").
 		WithResources(
 			infer.Resource[*HasAssets](),
 		).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+			"assets": "index",
+		}).
 		Build()
 }
 

@@ -26,7 +26,6 @@ func main() {
 
 func provider() (p.Provider, error) {
 	return infer.NewProviderBuilder().
-		WithNamespace("pulumi").
 		WithResources(
 			infer.Resource[*File](),
 		).
