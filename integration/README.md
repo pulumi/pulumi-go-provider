@@ -13,7 +13,7 @@ The interface allows you to exercise the RPC methods of your provider, including
 - Component lifecycle operations (construct)
 - Provider functions (invoke) and resource functions (call)
 
-To make a server, call `integration.NewServerWithOptions` and pass the `Provider` instance to be tested.
+To make a server, call `integration.NewServer` and use `WithProvider` to pass the `Provider` instance to be tested.
 Then, exercise the various RPC methods of your provider.
 
 ## Component Resource Mocks
