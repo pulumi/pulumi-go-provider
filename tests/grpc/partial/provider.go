@@ -26,7 +26,7 @@ import (
 
 func Provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*Partial]()},
+		Resources: []infer.InferredResource{infer.Resource(&Partial{})},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"partial": "index",
 		},

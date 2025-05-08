@@ -29,12 +29,12 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*RandomSalt]()},
+		Resources: []infer.InferredResource{infer.Resource(&RandomSalt{})},
 		Components: []infer.InferredComponent{
 			infer.Component(NewRandomLogin),
 			infer.Component(NewMoreRandomPassword),
 		},
-		Config: infer.Config[Config](),
+		Config: infer.Config(Config{}),
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
 		},

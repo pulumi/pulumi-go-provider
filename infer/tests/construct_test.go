@@ -29,7 +29,7 @@ import (
 func TestConstruct(t *testing.T) {
 	t.Parallel()
 
-	prov := providerWithMocks[Config](t, &integration.MockMonitor{
+	prov := providerWithMocks(t, Config{}, &integration.MockMonitor{
 		NewResourceF: func(args pulumi.MockResourceArgs) (string, r.PropertyMap, error) {
 			assert.Equal(t, "test:index:RandomComponent", args.TypeToken)
 			assert.Equal(t, "test-component", args.Name)

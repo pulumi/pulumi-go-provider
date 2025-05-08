@@ -622,8 +622,7 @@ func providerWithConfig[T any](t testing.TB, cfg T) integration.Server {
 	return s
 }
 
-func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
-	var cfg T
+func providerWithMocks[T any](t testing.TB, cfg T, mocks pulumi.MockResourceMonitor) integration.Server {
 	p := infer.Provider(providerOpts(infer.Config(cfg)))
 	s, err := integration.NewServer(
 		t.Context(),
