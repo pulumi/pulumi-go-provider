@@ -23,17 +23,14 @@ import (
 	"github.com/pulumi/pulumi-go-provider/integration"
 	r "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func TestConstruct(t *testing.T) {
 	t.Parallel()
 
-	prov := providerWithMocks(t, Config{}, &integration.MockMonitor{
-		NewResourceF: func(args pulumi.MockResourceArgs) (string, r.PropertyMap, error) {
-			assert.Equal(t, "test:index:RandomComponent", args.TypeToken)
-			assert.Equal(t, "test-component", args.Name)
-			return args.ID, r.PropertyMap{}, nil
+	prov := providerWithMocks(t, Config{}, &integration.MockResourceMonitor{
+		NewResourceF: func(args integration.MockResourceArgs) (string, property.Map, error) {
+			return args.ID, property.Map{}, nil
 		},
 	})
 

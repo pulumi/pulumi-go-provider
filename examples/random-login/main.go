@@ -48,21 +48,19 @@ func provider() p.Provider {
 	})
 }
 
-// TODO: Deserialization does not yet work for external resources. Right now, it looks
-// like this structure is only implementable in typescript, but that will need to change.
 type MoreRandomPasswordArgs struct {
-	Length *random.RandomInteger `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
+	Length pulumi.IntInput `pulumi:"length"`
 }
 
 type MoreRandomPassword struct {
 	pulumi.ResourceState
-	Length   *random.RandomInteger  `pulumi:"length" provider:"type=random@v4.8.1:index/randomInteger:RandomInteger"`
-	Password *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
+	Length   pulumi.IntOutput    `pulumi:"length"`
+	Password pulumi.StringOutput `pulumi:"password"`
 }
 
 func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
 	comp := &MoreRandomPassword{
-		Length: args.Length,
+		Length: args.Length.ToIntOutput(),
 	}
 	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
 	if err != nil {
@@ -70,7 +68,7 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPas
 	}
 
 	pArgs := &random.RandomPasswordArgs{
-		Length: args.Length.Result,
+		Length: args.Length,
 	}
 
 	config := infer.GetConfig[Config](ctx.Context())
@@ -78,10 +76,11 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPas
 		pArgs.Lower = pulumi.BoolPtr(*config.Scream)
 	}
 
-	comp.Password, err = random.NewRandomPassword(ctx, name+"-password", pArgs, pulumi.Parent(comp))
+	password, err := random.NewRandomPassword(ctx, name+"-password", pArgs, pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}
+	comp.Password = password.Result
 
 	return comp, nil
 }
@@ -129,12 +128,12 @@ func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts
 		return nil, err
 	}
 	password, err := randomlogin.NewMoreRandomPassword(ctx, name+"-password", &randomlogin.MoreRandomPasswordArgs{
-		Length: length,
+		Length: length.Result,
 	}, pulumi.Parent(comp))
 	if err != nil {
 		return nil, err
 	}
-	comp.Password = password.Password.Result()
+	comp.Password = password.Password
 
 	return comp, nil
 }

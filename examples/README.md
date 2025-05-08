@@ -33,3 +33,8 @@ To run the `echo` example, you would run `make examples/echo/test`.
 
 - [echo](./echo/main.go) shows how to use [`github/pulumi/pulumi-go-provider`](../README.md) without any
   middleware. It defines a simple custom resource.
+- [wrapped](./wrapped/main.go) shows how to use [`middleware/rpc`][rpc] to migrate a legacy provider
+  (`rpc.ResourceProviderServer`) to the `pulumi-go-provider` framework.    
+
+[rpc]: ../middleware/rpc/provider.go
+

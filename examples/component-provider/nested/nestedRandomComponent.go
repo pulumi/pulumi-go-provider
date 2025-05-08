@@ -23,8 +23,8 @@ import (
 type NestedRandomComponent struct {
 	pulumi.ResourceState
 	NestedRandomComponentArgs
-	Password        pulumi.StringOutput `pulumi:"password"`
-	HardcodedOutput pulumi.StringOutput `pulumi:"hardcodedOutput"`
+	Password        *random.RandomPassword `pulumi:"password" provider:"type=random@v4.8.1:index/randomPassword:RandomPassword"`
+	HardcodedOutput pulumi.StringOutput    `pulumi:"hardcodedOutput"`
 }
 
 type NestedRandomComponentArgs struct {
@@ -49,7 +49,7 @@ func NewNestedRandomComponent(ctx *pulumi.Context, name string, compArgs *Nested
 		return nil, err
 	}
 
-	comp.Password = password.Result
+	comp.Password = password
 	comp.HardcodedOutput = pulumi.String("This is a hardcoded output string from a nested module.").ToStringOutput()
 
 	return comp, nil

@@ -9,15 +9,14 @@ import (
 
 	"errors"
 	"github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin/internal"
-	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 type MoreRandomPassword struct {
 	pulumi.ResourceState
 
-	Length   random.RandomIntegerOutput  `pulumi:"length"`
-	Password random.RandomPasswordOutput `pulumi:"password"`
+	Length   pulumi.IntOutput    `pulumi:"length"`
+	Password pulumi.StringOutput `pulumi:"password"`
 }
 
 // NewMoreRandomPassword registers a new resource with the given unique name, arguments, and options.
@@ -40,12 +39,12 @@ func NewMoreRandomPassword(ctx *pulumi.Context,
 }
 
 type moreRandomPasswordArgs struct {
-	Length *random.RandomInteger `pulumi:"length"`
+	Length int `pulumi:"length"`
 }
 
 // The set of arguments for constructing a MoreRandomPassword resource.
 type MoreRandomPasswordArgs struct {
-	Length random.RandomIntegerInput
+	Length pulumi.IntInput
 }
 
 func (MoreRandomPasswordArgs) ElementType() reflect.Type {
@@ -85,12 +84,12 @@ func (o MoreRandomPasswordOutput) ToMoreRandomPasswordOutputWithContext(ctx cont
 	return o
 }
 
-func (o MoreRandomPasswordOutput) Length() random.RandomIntegerOutput {
-	return o.ApplyT(func(v *MoreRandomPassword) random.RandomIntegerOutput { return v.Length }).(random.RandomIntegerOutput)
+func (o MoreRandomPasswordOutput) Length() pulumi.IntOutput {
+	return o.ApplyT(func(v *MoreRandomPassword) pulumi.IntOutput { return v.Length }).(pulumi.IntOutput)
 }
 
-func (o MoreRandomPasswordOutput) Password() random.RandomPasswordOutput {
-	return o.ApplyT(func(v *MoreRandomPassword) random.RandomPasswordOutput { return v.Password }).(random.RandomPasswordOutput)
+func (o MoreRandomPasswordOutput) Password() pulumi.StringOutput {
+	return o.ApplyT(func(v *MoreRandomPassword) pulumi.StringOutput { return v.Password }).(pulumi.StringOutput)
 }
 
 func init() {

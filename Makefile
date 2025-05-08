@@ -48,7 +48,8 @@ _ := $(shell if ! [ -x ${HELPMAKEGO} ]; then \
 
 .PHONY: test_examples
 # test_examples runs schema generation and tests for every example in "examples/".
-test_examples: $(foreach dir,$(wildcard examples/*/),$(dir)schema.json) $(foreach dir,$(wildcard examples/*/),$(dir)test)
+EXAMPLE_DIRS := $(filter-out examples/README.md, $(wildcard examples/*/))
+test_examples: $(foreach dir,$(EXAMPLE_DIRS),$(dir)schema.json) $(foreach dir,$(EXAMPLE_DIRS),$(dir)test)
 
 # Build the provider binary for %, where % is the name of a directory in "examples/".
 bin/examples/pulumi-resource-%: $$(shell $${HELPMAKEGO} examples/$$*)
