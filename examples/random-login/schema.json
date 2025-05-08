@@ -28,10 +28,10 @@
     "random-login:index:MoreRandomPassword": {
       "properties": {
         "length": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomInteger:RandomInteger"
+          "type": "integer"
         },
         "password": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword"
+          "type": "string"
         }
       },
       "type": "object",
@@ -41,7 +41,7 @@
       ],
       "inputProperties": {
         "length": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomInteger:RandomInteger"
+          "type": "integer"
         }
       },
       "requiredInputs": [

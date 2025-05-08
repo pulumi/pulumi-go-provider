@@ -24,7 +24,7 @@ resources:
   badPassword:
     type: random-login:MoreRandomPassword
     properties:
-      length: ${badPasswordLength}
+      length: ${badPasswordLength.result}
 
 outputs:
   username:

@@ -44,10 +44,10 @@ const schema = `{
     "random-login:index:MoreRandomPassword": {
       "properties": {
         "length": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomInteger:RandomInteger"
+          "type": "integer"
         },
         "password": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomPassword:RandomPassword"
+          "type": "string"
         }
       },
       "required": [
@@ -56,7 +56,7 @@ const schema = `{
       ],
       "inputProperties": {
         "length": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomInteger:RandomInteger"
+          "type": "integer"
         }
       },
       "requiredInputs": [
@@ -184,4 +184,51 @@ func TestRandomSalt(t *testing.T) {
 			},
 		},
 	}.Run(t, server)
+}
+
+func TestRandomLogin(t *testing.T) {
+	server, err := integration.NewServer(t.Context(),
+		"random-login",
+		semver.Version{Minor: 1},
+		integration.WithProvider(provider()),
+		integration.WithMocks(&integration.MockResourceMonitor{
+			NewResourceF: func(args integration.MockResourceArgs) (string, property.Map, error) {
+				// mock the registration of the component's resources
+				switch {
+				case args.TypeToken == "random:index/randomId:RandomId" && args.Name == "login-id":
+					assert.Equal(t, 8.0, args.Inputs.Get("byteLength").AsNumber())
+					return "user", property.Map{}, nil
+
+				case args.TypeToken == "random:index/randomInteger:RandomInteger" && args.Name == "login-length":
+					assert.Equal(t, 8.0, args.Inputs.Get("min").AsNumber())
+					assert.Equal(t, 24.0, args.Inputs.Get("max").AsNumber())
+					return args.Name, property.NewMap(map[string]property.Value{
+						"result": property.New(12.0),
+					}), nil
+
+				case args.TypeToken == "random-login:index:MoreRandomPassword" && args.Name == "login-password":
+					assert.Equal(t, 12.0, args.Inputs.Get("length").AsNumber())
+					return args.Name, property.NewMap(map[string]property.Value{
+						"password": property.New("12345").WithSecret(true),
+					}), nil
+				}
+				return "", property.Map{}, nil
+			},
+		}),
+	)
+	require.NoError(t, err)
+
+	// test the "random-login:RandomLogin" component
+	resp, err := server.Construct(p.ConstructRequest{
+		Urn: "urn:pulumi:stack::project::random-login:index:RandomLogin::login",
+		Inputs: property.NewMap(map[string]property.Value{
+			"petName": property.New(false),
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, property.NewMap(map[string]property.Value{
+		"username": property.New("user"),
+		"password": property.New("12345").WithSecret(true),
+	}), resp.State)
 }

@@ -25,7 +25,7 @@ is never called.
 
 To configure mocking, use the `integration.WithMocks` server option and pass an implementation of `pulumi.MockResourceMonitor`.
 The mock monitor receives a callback for the component resource and for each child resource as it is registered,
-giving you an opportunity to return a simulated state for each child. See `integation.MockMonitor` for a simple implementation.
+giving you an opportunity to return a simulated state for each child. See `integation.MockResourceMonitor` for a simple implementation.
 
 To test a component resource, call the `Construct` method on the integration server.
 
@@ -56,23 +56,23 @@ func TestConstruct(t *testing.T) {
 		"example",
 		semver.MustParse("1.0.0"),
 		integration.WithProvider(myProvider),
-		integration.WithMocks(&integration.MockMonitor{
-			NewResourceF: func(args pulumi.MockResourceArgs) (string, r.PropertyMap, error) {
+        integration.WithMocks(&integration.MockResourceMonitor{
+			NewResourceF: func(args integration.MockResourceArgs) (string, property.Map, error) {
 				// NewResourceF is called as the each resource is registered
 				switch {
 				case args.TypeToken == "my:module:MyComponent" && args.Name == "my-component":
-					// make assertions about the component resource
-				default:
-					// make assertions about the component's children
+                default:
+                    // make assertions about the component's children and return
+                    // a fake id and some resource properties
 				}
-				return args.ID, r.PropertyMap{}, nil
+				return "", property.Map{}, nil
 			},
 		}),
 	)
 	require.NoError(t, err)
 
 	// test the "my:module:MyComponent" component
-	resp, err := prov.Construct(p.ConstructRequest{
+	resp, err := server.Construct(p.ConstructRequest{
 		Urn:    "urn:pulumi:stack::project::my:module:MyComponent::my-component",
 		Inputs: property.NewMap(map[string]property.Value{
 			"pi": property.New(3.14),
