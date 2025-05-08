@@ -19,17 +19,20 @@ type HasAssetsArgs struct {
 }
 
 func main() {
-	err := p.RunProvider(context.Background(), "assets", "0.1.0", provider())
+	err := p.RunProviderF(context.Background(), "assets", "0.1.0", provider)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
-func provider() p.Provider {
-	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*HasAssets]()},
-	})
+func provider(_ *p.HostClient) (p.Provider, error) {
+	return infer.NewProviderBuilder().
+		WithNamespace("pulumi").
+		WithResources(
+			infer.Resource[*HasAssets](),
+		).
+		Build()
 }
 
 // assertState asserts invariants about the state of the resource defined in consumer/Pulumi.yaml.
