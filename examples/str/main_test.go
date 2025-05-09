@@ -15,6 +15,21 @@ import (
 const schema = `{
   "name": "str",
   "version": "0.1.0",
+  "language": {
+    "csharp": {
+      "respectSchemaVersion": true
+    },
+    "go": {
+      "generateResourceContainerTypes": true,
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "respectSchemaVersion": true
+    }
+  },
   "config": {},
   "provider": {},
   "functions": {
