@@ -40,8 +40,10 @@ func TestCheckConfig(t *testing.T) {
 	// By default, check simply ensures that we can decode cleanly. It removes unknown
 	// fields so that diff doesn't trigger on changes to unwatched arguments.
 	assert.Equal(t, property.NewMap(map[string]property.Value{
-		"value":                      property.New("foo"),
-		"__pulumi-go-provider-infer": property.New(true),
+		"value": property.New("foo"),
+		"__internal": property.New(property.NewMap(map[string]property.Value{
+			"pulumi-go-provider-infer": property.New(true),
+		})),
 	}), resp.Inputs)
 }
 
@@ -61,23 +63,35 @@ func TestCheckConfigCustom(t *testing.T) {
 
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
-		test(t, property.Map{}, property.NewMap(map[string]property.Value{
-			"__pulumi-go-provider-infer": property.New(true),
-		}))
+		test(t, property.Map{},
+			property.NewMap(map[string]property.Value{
+				"__internal": property.New(property.NewMap(map[string]property.Value{
+					"pulumi-go-provider-infer": property.New(true),
+				})),
+			}),
+		)
 	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
 		test(t,
 			property.NewMap(map[string]property.Value{"unknownField": property.New("bar")}),
-			property.NewMap(map[string]property.Value{"__pulumi-go-provider-infer": property.New(true)}))
+			property.NewMap(map[string]property.Value{
+				"__internal": property.New(property.NewMap(map[string]property.Value{
+					"pulumi-go-provider-infer": property.New(true),
+				}))},
+			),
+		)
 	})
 	t.Run("number", func(t *testing.T) {
 		t.Parallel()
 		test(t,
 			property.NewMap(map[string]property.Value{"number": property.New(42.0)}),
 			property.NewMap(map[string]property.Value{
-				"number":                     property.New(42.5),
-				"__pulumi-go-provider-infer": property.New(true),
-			}))
+				"number": property.New(42.5),
+				"__internal": property.New(property.NewMap(map[string]property.Value{
+					"pulumi-go-provider-infer": property.New(true),
+				})),
+			}),
+		)
 	})
 }
