@@ -62,7 +62,7 @@ func TestOmittingAssetTypes(t *testing.T) {
 
 	providerOpts := infer.Options{
 		Resources: []infer.InferredResource{
-			infer.Resource[*HasAssets](),
+			infer.Resource(&HasAssets{}),
 		},
 	}
 

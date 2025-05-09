@@ -516,7 +516,7 @@ func TestCheck(t *testing.T) {
 
 		t.Run("Check "+tcName, func(t *testing.T) {
 			t.Parallel()
-			res := Resource[checkResource]()
+			res := Resource(checkResource{})
 			checkResp, err := res.Check(context.Background(), p.CheckRequest{
 				Urn:    "a:b:c",
 				State:  property.Map{},

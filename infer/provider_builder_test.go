@@ -112,8 +112,8 @@ func TestWithResources(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	resource1 := Resource[MockResource]()
-	resource2 := Resource[MockResource]()
+	resource1 := Resource(MockResource{})
+	resource2 := Resource(MockResource{})
 
 	dp.WithResources(resource1, resource2)
 
@@ -122,7 +122,7 @@ func TestWithResources(t *testing.T) {
 	assert.Equal(t, resource2, dp.resources[1])
 
 	// Test chaining
-	resource3 := Resource[MockResource]()
+	resource3 := Resource(MockResource{})
 	dp.WithResources(resource3)
 
 	assert.Equal(t, 3, len(dp.resources))
@@ -132,8 +132,8 @@ func TestWithComponents(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	component1 := Component(NewMockComponentResource)
-	component2 := Component(NewMockComponentResource)
+	component1 := ComponentF(NewMockComponentResource)
+	component2 := ComponentF(NewMockComponentResource)
 
 	dp.WithComponents(component1, component2)
 
@@ -142,7 +142,7 @@ func TestWithComponents(t *testing.T) {
 	assert.Equal(t, component2, dp.components[1])
 
 	// Test chaining
-	component3 := Component(NewMockComponentResource)
+	component3 := ComponentF(NewMockComponentResource)
 	dp.WithComponents(component3)
 
 	assert.Equal(t, 3, len(dp.components))
@@ -152,8 +152,8 @@ func TestWithFunctions(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	function1 := Function[MockFunction]()
-	function2 := Function[MockFunction]()
+	function1 := Function(MockFunction{})
+	function2 := Function(MockFunction{})
 
 	dp.WithFunctions(function1, function2)
 
@@ -162,13 +162,13 @@ func TestWithFunctions(t *testing.T) {
 	assert.Equal(t, function2, dp.functions[1])
 
 	// Test chaining
-	function3 := Function[MockFunction]()
+	function3 := Function(MockFunction{})
 	dp.WithFunctions(function3)
 
 	assert.Equal(t, 3, len(dp.functions))
 
 	// Test with multiple functions
-	functions := []InferredFunction{Function[MockFunction](), Function[MockFunction]()}
+	functions := []InferredFunction{Function(MockFunction{}), Function(MockFunction{})}
 	dp.WithFunctions(functions...)
 
 	assert.Equal(t, 5, len(dp.functions))
@@ -178,7 +178,7 @@ func TestWithConfig(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	config := Config[MockConfig]()
+	config := Config(MockConfig{})
 
 	dp.WithConfig(config)
 
@@ -280,7 +280,7 @@ func TestWithWrapped(t *testing.T) {
 	}
 
 	p, err := NewProviderBuilder().
-		WithResources(Resource[MockResource]()).
+		WithResources(Resource(MockResource{})).
 		WithWrapped(wrapped).Build()
 	require.NoError(t, err)
 
@@ -295,10 +295,10 @@ func TestBuild(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	resource := Resource[MockResource]()
-	component := Component(NewMockComponentResource)
-	functions := Function[MockFunction]()
-	config := Config[MockConfig]()
+	resource := Resource(MockResource{})
+	component := ComponentF(NewMockComponentResource)
+	functions := Function(MockFunction{})
+	config := Config(MockConfig{})
 	moduleMap := map[tokens.ModuleName]tokens.ModuleName{
 		"module1": "mappedModule1",
 	}
@@ -329,19 +329,19 @@ func TestValidate(t *testing.T) {
 	assert.Contains(t, err.Error(), "at least one resource, component, or function is required")
 
 	// Add a resource, should pass
-	dp.WithResources(Resource[MockResource]())
+	dp.WithResources(Resource(MockResource{}))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with component
 	dp = NewProviderBuilder()
-	dp.WithComponents(Component(NewMockComponentResource))
+	dp.WithComponents(ComponentF(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
 	// Reset and test with function
 	dp = NewProviderBuilder()
-	dp.WithFunctions(Function[MockFunction]())
+	dp.WithFunctions(Function(MockFunction{}))
 	err = dp.validate()
 	assert.NoError(t, err)
 }
@@ -354,7 +354,7 @@ func TestBuildAndRun(t *testing.T) {
 
 	// 2. Create a provider with a component and ensure that it starts and runs successfully.
 	p, err := NewProviderBuilder().
-		WithComponents(Component(NewMockComponentResource)).
+		WithComponents(ComponentF(NewMockComponentResource)).
 		Build()
 	require.NoError(t, err)
 

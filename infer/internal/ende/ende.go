@@ -77,6 +77,7 @@ func decode(
 		target = target.Elem()
 	}
 	m = e.simplify(m, target.Type())
+
 	return Encoder{e}, mapper.New(&mapper.Opts{
 		IgnoreUnrecognized: ignoreUnrecognized,
 		IgnoreMissing:      allowMissing,

@@ -32,7 +32,7 @@ import (
 
 // InferredComponent is a component resource inferred from code.
 //
-// To create an [InferredComponent], call the [Component] function.
+// To create an [InferredComponent], call the [ComponentF] function.
 type InferredComponent interface {
 	t.ComponentResource
 	schema.Resource
@@ -47,14 +47,14 @@ type ComponentFn[A any, R pulumi.ComponentResource] = func(
 	ctx *pulumi.Context, name string, args A, opts ...pulumi.ResourceOption,
 ) (R, error)
 
-// Component creates an [InferredComponent] using functions and types that a existing Pulumi component program
+// ComponentF creates an [InferredComponent] using functions and types that a existing Pulumi component program
 // would have implemented.
 //
 // fn is the function you would use to construct the program.
 //
 // See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
-func Component[A any, R pulumi.ComponentResource, F ComponentFn[A, R]](fn F) InferredComponent {
-	return &derivedComponentController[R, A, R]{fn}
+func ComponentF[A any, R pulumi.ComponentResource, F ComponentFn[A, R]](fn F) InferredComponent {
+	return &derivedComponentController[R, A, R]{construct: fn}
 }
 
 type derivedComponentController[R any, I any, O pulumi.ComponentResource] struct {
@@ -62,7 +62,8 @@ type derivedComponentController[R any, I any, O pulumi.ComponentResource] struct
 }
 
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
-	pschema.ResourceSpec, error) {
+	pschema.ResourceSpec, error,
+) {
 	r, err := getResourceSchema[R, I, O](true)
 	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err

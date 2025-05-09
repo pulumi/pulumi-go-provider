@@ -111,7 +111,7 @@ func migrationServer(t *testing.T) integration.Server {
 		integration.WithProvider(
 			infer.Provider(infer.Options{
 				Resources: []infer.InferredResource{
-					infer.Resource[*MigrateR](),
+					infer.Resource(&MigrateR{}),
 				},
 				ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 			})),

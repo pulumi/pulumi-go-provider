@@ -95,7 +95,7 @@ telling it that it should serve the `Login` component.
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithComponents(
-			infer.Component(NewLogin),
+			infer.ComponentF(NewLogin),
 		).
 		Build()
 	if err != nil {
@@ -350,7 +350,7 @@ telling it that it should serve the `File` resource.
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithResources(
-			infer.Resource[File](),
+			infer.Resource(File{}),
 		).
 		Build()
 	if err != nil {

@@ -70,7 +70,7 @@ func TestInferConfigWrap(t *testing.T) {
 				return p.CheckResponse{}, nil
 			},
 		}, infer.Options{
-			Config: infer.Config[*testConfig](),
+			Config: infer.Config(&testConfig{}),
 		})),
 	)
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 		"test",
 		semver.MustParse("0.0.0"),
 		integration.WithProvider(infer.Provider(infer.Options{
-			Config: infer.Config[config](),
+			Config: infer.Config(config{}),
 		})),
 	)
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestInferCustomCheckConfig(t *testing.T) {
 		"test",
 		semver.MustParse("0.0.0"),
 		integration.WithProvider(infer.Provider(infer.Options{
-			Config: infer.Config[*config](),
+			Config: infer.Config(&config{}),
 		})),
 	)
 	require.NoError(t, err)

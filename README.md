@@ -32,7 +32,7 @@ func main() {
 	// In this case, a single custom resource called HelloWorld.
 	p, err := infer.NewProviderBuilder().
 		WithResources(
-			infer.Resource[HelloWorld](),
+			infer.Resource(HelloWorld{}),
 		).
 		Build()
 	if err != nil {
@@ -113,7 +113,7 @@ import (
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithComponents(
-			infer.Component(NewRandomLogin),
+			infer.ComponentF(NewRandomLogin),
 		).
 		Build()
 	if err != nil {
@@ -190,10 +190,10 @@ import (
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithResources(
-			infer.Resource[HelloWorld](),
+			infer.Resource(HelloWorld{}),
 		).
 		WithConfig(
-			infer.Config[*Config](),
+			infer.Config(&Config{}),
 		).
 		Build()
 	if err != nil {
@@ -244,7 +244,7 @@ import (
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithFunctions(
-			infer.Function[*Replace](),
+			infer.Function(&Replace{}),
 		).
 		Build()
 	if err != nil {
