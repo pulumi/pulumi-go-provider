@@ -46,7 +46,7 @@ import (
 func TestConstruct(t *testing.T) {
     myProvider, err := infer.NewProviderBuilder().
 		WithComponents(
-			infer.Component(MyComponent),
+			infer.ComponentF(MyComponent),
 		).
 		Build()
 	require.NoError(t, err)

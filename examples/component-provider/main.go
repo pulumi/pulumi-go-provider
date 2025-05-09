@@ -27,8 +27,8 @@ func main() {
 	p, err := infer.NewProviderBuilder().
 		WithNamespace("example-namespace").
 		WithComponents(
-			infer.Component(NewMyComponent),
-			infer.Component(nested.NewNestedRandomComponent),
+			infer.ComponentF(NewMyComponent),
+			infer.ComponentF(nested.NewNestedRandomComponent),
 		).
 		Build()
 

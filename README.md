@@ -113,7 +113,7 @@ import (
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithComponents(
-			infer.Component(NewRandomLogin),
+			infer.ComponentF(NewRandomLogin),
 		).
 		Build()
 	if err != nil {

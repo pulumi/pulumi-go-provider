@@ -95,7 +95,7 @@ telling it that it should serve the `Login` component.
 func main() {
 	p, err := infer.NewProviderBuilder().
 		WithComponents(
-			infer.Component(NewLogin),
+			infer.ComponentF(NewLogin),
 		).
 		Build()
 	if err != nil {
