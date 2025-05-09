@@ -131,10 +131,12 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"random-login",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 
@@ -149,10 +151,12 @@ func TestSchema(t *testing.T) {
 }
 
 func TestRandomSalt(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"random-login",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 
@@ -187,10 +191,12 @@ func TestRandomSalt(t *testing.T) {
 }
 
 func TestRandomLogin(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"random-login",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 		integration.WithMocks(&integration.MockResourceMonitor{
 			NewResourceF: func(args integration.MockResourceArgs) (string, property.Map, error) {
 				// mock the registration of the component's resources

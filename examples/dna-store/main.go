@@ -10,6 +10,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
 type Molecule int
@@ -202,12 +203,25 @@ func (d *DNAStoreArgs) Annotate(a infer.Annotator) {
 }
 
 func main() {
-	err := p.RunProvider(context.Background(), "dna-store", "0.1.0",
-		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{infer.Resource[*DNAStore]()},
-		}))
+	provider, err := provider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+	err = p.RunProvider(context.Background(), "dna-store", "0.1.0", provider)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
 	}
+}
+
+func provider() (p.Provider, error) {
+	return infer.NewProviderBuilder().
+		WithResources(
+			infer.Resource[*DNAStore](),
+		).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+			"dna-store": "index",
+		}).
+		Build()
 }

@@ -4,6 +4,21 @@
   "meta": {
     "moduleFormat": "(.*)"
   },
+  "language": {
+    "csharp": {
+      "respectSchemaVersion": true
+    },
+    "go": {
+      "generateResourceContainerTypes": true,
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "respectSchemaVersion": true
+    }
+  },
   "config": {},
   "types": {
     "dna-store:index:Metadata": {

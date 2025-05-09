@@ -15,6 +15,21 @@ import (
 const schema = `{
   "name": "str",
   "version": "0.1.0",
+  "language": {
+    "csharp": {
+      "respectSchemaVersion": true
+    },
+    "go": {
+      "generateResourceContainerTypes": true,
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "respectSchemaVersion": true
+    }
+  },
   "config": {},
   "provider": {},
   "functions": {
@@ -125,10 +140,12 @@ const schema = `{
 }`
 
 func TestSchema(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"str",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 
@@ -143,10 +160,12 @@ func TestSchema(t *testing.T) {
 }
 
 func TestInvokes(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
 	server, err := integration.NewServer(t.Context(),
 		"str",
 		semver.Version{Minor: 1},
-		integration.WithProvider(provider()),
+		integration.WithProvider(provider),
 	)
 	require.NoError(t, err)
 
