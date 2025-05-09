@@ -83,7 +83,7 @@ func TestTokens(t *testing.T) {
 			infer.Resource(&CustomToken{}),
 		},
 		Components: []infer.InferredComponent{
-			infer.Component(Construct),
+			infer.ComponentF(Construct),
 		},
 		Functions: []infer.InferredFunction{
 			infer.Function(&FnToken{}),

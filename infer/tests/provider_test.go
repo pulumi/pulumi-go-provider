@@ -593,8 +593,8 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 			infer.Resource(&CustomCheckNoDefaults{}),
 		},
 		Components: []infer.InferredComponent{
-			infer.Component(NewRandomComponent),
-			infer.Component(NewReadConfigComponent),
+			infer.ComponentF(NewRandomComponent),
+			infer.ComponentF(NewReadConfigComponent),
 		},
 		Functions: []infer.InferredFunction{
 			infer.Function(&GetJoin{}),

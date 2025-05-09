@@ -31,8 +31,8 @@ func provider() p.Provider {
 	return infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{infer.Resource(&RandomSalt{})},
 		Components: []infer.InferredComponent{
-			infer.Component(NewRandomLogin),
-			infer.Component(NewMoreRandomPassword),
+			infer.ComponentF(NewRandomLogin),
+			infer.ComponentF(NewMoreRandomPassword),
 		},
 		Config: infer.Config(Config{}),
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{

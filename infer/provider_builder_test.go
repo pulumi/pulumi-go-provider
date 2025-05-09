@@ -132,8 +132,8 @@ func TestWithComponents(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
 
-	component1 := Component(NewMockComponentResource)
-	component2 := Component(NewMockComponentResource)
+	component1 := ComponentF(NewMockComponentResource)
+	component2 := ComponentF(NewMockComponentResource)
 
 	dp.WithComponents(component1, component2)
 
@@ -142,7 +142,7 @@ func TestWithComponents(t *testing.T) {
 	assert.Equal(t, component2, dp.components[1])
 
 	// Test chaining
-	component3 := Component(NewMockComponentResource)
+	component3 := ComponentF(NewMockComponentResource)
 	dp.WithComponents(component3)
 
 	assert.Equal(t, 3, len(dp.components))
@@ -296,7 +296,7 @@ func TestBuild(t *testing.T) {
 	dp := NewProviderBuilder()
 
 	resource := Resource(MockResource{})
-	component := Component(NewMockComponentResource)
+	component := ComponentF(NewMockComponentResource)
 	functions := Function(MockFunction{})
 	config := Config(MockConfig{})
 	moduleMap := map[tokens.ModuleName]tokens.ModuleName{
@@ -335,7 +335,7 @@ func TestValidate(t *testing.T) {
 
 	// Reset and test with component
 	dp = NewProviderBuilder()
-	dp.WithComponents(Component(NewMockComponentResource))
+	dp.WithComponents(ComponentF(NewMockComponentResource))
 	err = dp.validate()
 	assert.NoError(t, err)
 
@@ -354,7 +354,7 @@ func TestBuildAndRun(t *testing.T) {
 
 	// 2. Create a provider with a component and ensure that it starts and runs successfully.
 	p, err := NewProviderBuilder().
-		WithComponents(Component(NewMockComponentResource)).
+		WithComponents(ComponentF(NewMockComponentResource)).
 		Build()
 	require.NoError(t, err)
 

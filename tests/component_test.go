@@ -64,7 +64,7 @@ func provider(t *testing.T) integration.Server {
 		"foo",
 		semver.Version{Major: 1},
 		integration.WithProvider(infer.Provider(infer.Options{
-			Components: []infer.InferredComponent{infer.Component(NewFoo)},
+			Components: []infer.InferredComponent{infer.ComponentF(NewFoo)},
 		})),
 	)
 	require.NoError(t, err)
