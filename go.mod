@@ -4,8 +4,8 @@ go 1.24
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.167.1-0.20250507185715-bddbda9403ca
-	github.com/pulumi/pulumi/sdk/v3 v3.168.1-0.20250507185715-bddbda9403ca
+	github.com/pulumi/pulumi/pkg/v3 v3.169.0
+	github.com/pulumi/pulumi/sdk/v3 v3.169.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
