@@ -31,7 +31,7 @@ func provider() p.Provider {
 	return infer.Provider(infer.Options{
 		Resources: []infer.InferredResource{infer.Resource(&RandomSalt{})},
 		Components: []infer.InferredComponent{
-			infer.ComponentF(NewRandomLogin),
+			infer.Component(&RandomLogin{}),
 			infer.ComponentF(NewMoreRandomPassword),
 		},
 		Config: infer.Config(Config{}),
@@ -56,6 +56,14 @@ type MoreRandomPassword struct {
 	pulumi.ResourceState
 	Length   pulumi.IntOutput    `pulumi:"length"`
 	Password pulumi.StringOutput `pulumi:"password"`
+}
+
+func (l *MoreRandomPassword) Annotate(a infer.Annotator) {
+	a.Describe(&l, "Generate a random password.")
+}
+
+func (l *MoreRandomPasswordArgs) Annotate(a infer.Annotator) {
+	a.Describe(&l.Length, "The desired password length.")
 }
 
 func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
@@ -85,11 +93,13 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPas
 	return comp, nil
 }
 
+type RandomLogin struct{}
+
 type RandomLoginArgs struct {
 	PetName bool `pulumi:"petName"`
 }
 
-type RandomLogin struct {
+type RandomLoginState struct {
 	pulumi.ResourceState
 	RandomLoginArgs
 
@@ -97,9 +107,9 @@ type RandomLogin struct {
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts ...pulumi.ResourceOption) (*RandomLogin, error) {
-	comp := &RandomLogin{}
-	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginState, error) {
+	comp := &RandomLoginState{}
+	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +150,8 @@ func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts
 
 func (l *RandomLogin) Annotate(a infer.Annotator) {
 	a.Describe(&l, "Generate a random login.")
+}
+func (l *RandomLoginArgs) Annotate(a infer.Annotator) {
 	a.Describe(&l.PetName, "Whether to use a memorable pet name or a random string for the Username.")
 }
 
