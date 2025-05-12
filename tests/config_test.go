@@ -142,8 +142,10 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
 	assert.Equal(t, property.NewMap(map[string]property.Value{
-		"__pulumi-go-provider-infer": property.New(true),
-		"field":                      property.New("value").WithSecret(true),
+		"__internal": property.New(property.NewMap(map[string]property.Value{
+			"pulumi-go-provider-infer": property.New(true),
+		})),
+		"field": property.New("value").WithSecret(true),
 		"nested": property.New(map[string]property.Value{
 			"int":        property.New(1.0).WithSecret(true),
 			"not-nested": property.New("not-secret"),
@@ -225,10 +227,12 @@ func TestInferCustomCheckConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, resp.Failures)
 			assert.Equal(t, property.NewMap(map[string]property.Value{
-				"__pulumi-go-provider-infer": property.New(true),
-				"field":                      property.New("value").WithSecret(true),
-				"not":                        property.New("not-secret"),
-				"applyDefaults":              property.New(applyDefaults),
+				"__internal": property.New(property.NewMap(map[string]property.Value{
+					"pulumi-go-provider-infer": property.New(true),
+				})),
+				"field":         property.New("value").WithSecret(true),
+				"not":           property.New("not-secret"),
+				"applyDefaults": property.New(applyDefaults),
 			}), resp.Inputs)
 		})
 	}

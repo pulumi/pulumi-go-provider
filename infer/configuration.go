@@ -81,7 +81,15 @@ func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resource
 
 // markAsInferProvider adds a key to the provider state to indicate that [infer] is being used for this provider.
 func markAsInferProvider(pm resource.PropertyMap) {
-	pm[inferStateKeyName] = resource.NewBoolProperty(true)
+	internal := pm["__internal"]
+	if !internal.IsObject() {
+		newMap := resource.PropertyMap{}
+		internal = resource.NewObjectProperty(newMap)
+		pm["__internal"] = internal
+	}
+
+	m := internal.ObjectValue()
+	m[inferStateKeyName] = resource.NewBoolProperty(true)
 }
 
 func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
