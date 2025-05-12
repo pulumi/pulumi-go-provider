@@ -201,21 +201,22 @@ func (c *config) Check(
 func TestInferCustomCheckConfig(t *testing.T) {
 	t.Parallel()
 
-	s, err := integration.NewServer(t.Context(),
-		"test",
-		semver.MustParse("0.0.0"),
-		integration.WithProvider(infer.Provider(infer.Options{
-			Config: infer.Config(&config{}),
-		})),
-	)
-	require.NoError(t, err)
-
 	// Test that our manual implementation of check works the same as the default
 	// version, and that secrets are applied regardless of if check is used.
 	for _, applyDefaults := range []bool{true, false} {
 		applyDefaults := applyDefaults
 		t.Run(fmt.Sprintf("%t", applyDefaults), func(t *testing.T) {
 			t.Parallel()
+
+			s, err := integration.NewServer(t.Context(),
+				"test",
+				semver.MustParse("0.0.0"),
+				integration.WithProvider(infer.Provider(infer.Options{
+					Config: infer.Config(&config{}),
+				})),
+			)
+			require.NoError(t, err)
+
 			resp, err := s.CheckConfig(p.CheckRequest{
 				Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
 				Inputs: property.NewMap(map[string]property.Value{
