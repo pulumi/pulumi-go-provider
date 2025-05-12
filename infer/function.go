@@ -70,7 +70,7 @@ type derivedInvokeController[F Fn[I, O], I, O any] struct {
 
 func (derivedInvokeController[F, I, O]) isInferredFunction() {}
 
-func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
+func (rc *derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	// By default, we get resource style tokens:
 	//
 	//	pkg:index:FizzBuzz
@@ -79,7 +79,7 @@ func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	//
 	//	pkg:index:fizzBuzz
 	//
-	return getToken[F](fnToken)
+	return getToken(rc.receiver, nil)
 }
 
 func fnToken(tk tokens.Type) tokens.Type {

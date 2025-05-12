@@ -29,7 +29,8 @@ import (
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-func getAnnotated(t reflect.Type) introspect.Annotator {
+func getAnnotated[R any](receiver R) introspect.Annotator {
+	t := reflect.TypeOf(receiver)
 	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get
 	// value(i) = *R{}, so we reinflate the underlying value
 	for t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Pointer {
@@ -79,7 +80,7 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 		}
 	}
 
-	if r, ok := i.Interface().(Annotated); ok {
+	if r, ok := any(receiver).(Annotated); ok {
 		a := introspect.NewAnnotator(r)
 		r.Annotate(&a)
 		merge(&ret, a)
@@ -253,7 +254,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 			return nil, false, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
 		}
 		outputT := toOutMethod.Type.Out(0)
-		//create new object of type outputT
+		// create new object of type outputT
 		strct := reflect.New(outputT).Elem().Interface()
 		out, ok := strct.(pulumi.Output)
 		if !ok {
@@ -270,7 +271,8 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 }
 
 func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propertyType) (
-	props map[string]schema.PropertySpec, required []string, err error) {
+	props map[string]schema.PropertySpec, required []string, err error,
+) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}

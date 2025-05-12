@@ -78,7 +78,8 @@ func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDeri
 }
 
 func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
-	return getToken[R](nil)
+	var r R // TODO: Use a user-provided instance.
+	return getToken(r, nil)
 }
 
 // Construct implements InferredComponent.

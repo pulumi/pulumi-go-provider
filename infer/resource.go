@@ -142,23 +142,20 @@ type CheckResponse[I any] struct {
 
 // CustomCheck describes a resource that understands how to check its inputs.
 //
-// By default, infer handles checks by ensuring that a inputs de-serialize correctly,
+// By default, infer handles checks by ensuring that inputs de-serialize correctly,
 // applying default values and secrets. You can wrap the default behavior of Check by
 // calling [DefaultCheck] inside of your custom Check implementation.
 //
 // This is where you can extend that behavior. The
 // returned input is given to subsequent calls to `Create` and `Update`.
 //
-// Example:
-// TODO - Maybe a resource that has a regex. We could reject invalid regex before the up
-// actually happens.
-// CheckRequest contains all the parameters for a Check operation
+// CheckRequest contains all the parameters for a Check operation.
 type CustomCheck[I any] interface {
 	// Check validates the inputs for a resource.
 	Check(ctx context.Context, req CheckRequest) (CheckResponse[I], error)
 }
 
-// DiffRequest contains all the parameters for a Diff operation
+// DiffRequest contains all the parameters for a Diff operation.
 type DiffRequest[I, O any] struct {
 	// The resource ID.
 	ID string
@@ -956,13 +953,13 @@ func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivati
 	return r, errs.ErrorOrNil()
 }
 
-func getToken[R any](transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
-	var r R
-	return getTokenOf(reflect.TypeOf(r), transform)
+func getToken[R any](r R, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
+	return getTokenOf(r, transform)
 }
 
-func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
-	annotator := getAnnotated(t)
+func getTokenOf[R any](r R, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
+	t := reflect.TypeOf(r)
+	annotator := getAnnotated(r)
 	if annotator.Token != "" {
 		return tokens.Type(annotator.Token), nil
 	}
@@ -975,8 +972,8 @@ func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens
 	return transform(tk), nil
 }
 
-func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
-	return getToken[R](nil)
+func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+	return getToken(*rc.receiver, nil)
 }
 
 func (rc *derivedResourceController[R, I, O]) getInstance() *R {
