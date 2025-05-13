@@ -47,6 +47,19 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.AddAlias("myMod", "MyAlias")
 }
 
+type (
+	MyResource       struct{}
+	MyResourceArgs   struct{}
+	MyResourceOutput struct{}
+)
+
+func (MyResource) Create(
+	ctx context.Context,
+	_ infer.CreateRequest[MyResourceArgs],
+) (infer.CreateResponse[MyResourceOutput], error) {
+	return infer.CreateResponse[MyResourceOutput]{}, nil
+}
+
 type MyComponentArgs struct{}
 
 type MyComponentOutput struct {
@@ -238,15 +251,15 @@ func TestGetToken(t *testing.T) {
 		component := infer.Component(&MyComponent{})
 		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(component))
 		require.NoError(t, err)
-		assert.Equal(t, tokens.TypeName("MyResource"), tok.Name())
+		assert.Equal(t, tokens.TypeName("MyComponentOutput"), tok.Name())
 	})
 
 	t.Run("resource", func(t *testing.T) {
 		t.Parallel()
 
-		resource := infer.Resource(&MyComponentArgs{})
+		resource := infer.Resource(&MyResource{})
 		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(resource))
 		require.NoError(t, err)
-		assert.Equal(t, tokens.TypeName("MyStruct"), tok.Name())
+		assert.Equal(t, tokens.TypeName("MyResourceOutput"), tok.Name())
 	})
 }
