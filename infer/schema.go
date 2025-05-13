@@ -30,7 +30,7 @@ import (
 )
 
 // getAnnotated checks whether a type implements Annotated, and if it does it
-// recursively collections annotations for the type and all of its fields
+// recursively collects annotations for the type and all of its fields
 // (including embeds).
 func getAnnotated(t reflect.Type) introspect.Annotator {
 	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get

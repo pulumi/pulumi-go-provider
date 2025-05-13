@@ -65,7 +65,8 @@ func (c *FnToken) Annotate(a infer.Annotator) { a.SetToken("fn", "TK") }
 
 func (*FnToken) Invoke(
 	ctx context.Context,
-	_ infer.FunctionRequest[TokenArgs]) (output infer.FunctionResponse[TokenResult], err error) {
+	_ infer.FunctionRequest[TokenArgs],
+) (output infer.FunctionResponse[TokenResult], err error) {
 	panic("unimplemented")
 }
 
@@ -202,4 +203,64 @@ func TestTokens(t *testing.T) {
     }
   }
 }`, schema.Schema)
+}
+
+type (
+	MyResource       struct{}
+	MyResourceArgs   struct{}
+	MyResourceOutput struct{}
+)
+
+func (MyResource) Create(
+	ctx context.Context,
+	_ infer.CreateRequest[MyResourceArgs],
+) (infer.CreateResponse[MyResourceOutput], error) {
+	return infer.CreateResponse[MyResourceOutput]{}, nil
+}
+
+type MyComponentArgs struct{}
+
+type MyComponentOutput struct {
+	pulumi.ResourceState
+}
+
+func (MyComponentArgs) Create(
+	ctx context.Context,
+	_ infer.CreateRequest[MyComponentArgs],
+) (infer.CreateResponse[MyComponentOutput], error) {
+	return infer.CreateResponse[MyComponentOutput]{}, nil
+}
+
+type MyComponent struct{}
+
+func (MyComponent) Construct(
+	ctx *pulumi.Context,
+	name string,
+	typ string,
+	args MyComponentArgs,
+	opts pulumi.ResourceOption,
+) (*MyComponentOutput, error) {
+	return &MyComponentOutput{}, nil
+}
+
+func TestGetToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("component", func(t *testing.T) {
+		t.Parallel()
+
+		component := infer.Component(&MyComponent{})
+		tok, err := component.GetToken()
+		require.NoError(t, err)
+		assert.Equal(t, tokens.TypeName("MyComponent"), tok.Name())
+	})
+
+	t.Run("resource", func(t *testing.T) {
+		t.Parallel()
+
+		resource := infer.Resource(&MyResource{})
+		tok, err := resource.GetToken()
+		require.NoError(t, err)
+		assert.Equal(t, tokens.TypeName("MyResource"), tok.Name())
+	})
 }

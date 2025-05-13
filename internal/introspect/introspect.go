@@ -92,15 +92,6 @@ func GetToken(pkg tokens.Package, typ reflect.Type) (tokens.Type, error) {
 	name := typ.Name()
 	mod := strings.Trim(typ.PkgPath(), "*")
 
-	// If our type name is a generic derived type like *dervice[A, B, C], then
-	// pluck out A and use that as our name.
-	if strings.Contains(name, ",") {
-		parts := strings.Split(name, ",")
-		name = parts[len(parts)-1]
-		name = name[strings.LastIndex(name, ".")+1:]
-		name = strings.Replace(name, "]", "", -1)
-	}
-
 	if name == "" {
 		return "", fmt.Errorf("type %s has no name", typ)
 	}
