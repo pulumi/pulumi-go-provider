@@ -59,7 +59,7 @@ func (d *defaultsWalker) apply(v reflect.Value) (bool, error) {
 	defer d.visit(t)()
 
 	// We get the set of default types that could be applied to v.
-	a := getAnnotated(t)
+	a := getAnnotated(reflect.New(t).Elem().Addr().Interface())
 	fields := map[string]reflect.Value{}
 	optional := map[string]bool{}
 	for _, field := range reflect.VisibleFields(v.Type()) {

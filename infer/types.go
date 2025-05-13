@@ -123,7 +123,7 @@ func isEnum(t reflect.Type) (enum, bool) {
 		}
 	}
 
-	tk, err := getTokenOf(t, nil)
+	tk, err := getTokenOf(v.Interface(), nil)
 	contract.AssertNoErrorf(err, "failed to get token for enum: %s", t)
 
 	return enum{
@@ -304,7 +304,7 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 				return false, err
 			}
 
-			tk, err := getTokenOf(t, nil)
+			tk, err := getTokenOf(reflect.New(t).Elem().Addr().Interface(), nil)
 			if err != nil {
 				return false, err
 			}

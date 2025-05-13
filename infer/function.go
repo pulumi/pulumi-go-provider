@@ -122,8 +122,9 @@ func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivati
 }
 
 func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
-	descriptions := getAnnotated(t)
-	props, required, err := propertyListFromType(t, false, inputType)
+	v := reflect.New(t).Elem().Addr().Interface()
+	descriptions := getAnnotated(v)
+	props, required, err := propertyListFromValue(v, false, inputType)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
 	}

@@ -75,8 +75,11 @@ func getAnnotated[R any](receiver R) introspect.Annotator {
 		for _, f := range reflect.VisibleFields(t.Elem()) {
 			if f.Anonymous && f.IsExported() {
 				rval := reflect.ValueOf(receiver)
-				if rval.Kind() == reflect.Ptr {
+				for rval.Kind() == reflect.Ptr {
 					rval = rval.Elem()
+				}
+				if !rval.IsValid() {
+					continue
 				}
 				field := rval.FieldByName(f.Name)
 				r := getAnnotated(field.Addr().Interface())
@@ -98,13 +101,13 @@ func getResourceSchema[I, O any](r any, isComponent bool) (schema.ResourceSpec, 
 	var errs multierror.Error
 	annotations := getAnnotated(r)
 
-	properties, required, err := propertyListFromType(new(O), isComponent, outputType)
+	properties, required, err := propertyListFromValue(new(O), isComponent, outputType)
 	if err != nil {
 		var o O
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType(new(I), isComponent, inputType)
+	inputProperties, requiredInputs, err := propertyListFromValue(new(I), isComponent, inputType)
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
@@ -274,15 +277,15 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromType(r any, indicatePlain bool, propType propertyType) (
+func propertyListFromValue(v any, indicatePlain bool, propType propertyType) (
 	props map[string]schema.PropertySpec, required []string, err error,
 ) {
-	typ := reflect.TypeOf(r)
+	typ := reflect.TypeOf(v)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	props = map[string]schema.PropertySpec{}
-	annotations := getAnnotated(r)
+	annotations := getAnnotated(v)
 
 	for _, field := range reflect.VisibleFields(typ) {
 		fieldType := field.Type
@@ -371,7 +374,7 @@ func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (sche
 		return schema.TypeSpec{}, false, nil
 	}
 
-	tk, err := getTokenOf(t, nil)
+	tk, err := getTokenOf(reflect.New(t).Elem().Addr().Interface(), nil)
 	if err != nil {
 		return schema.TypeSpec{}, true, err
 	}
