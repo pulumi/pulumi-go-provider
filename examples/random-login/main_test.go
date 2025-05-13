@@ -102,7 +102,7 @@ const schema = `{
       ],
       "aliases": [
         {
-          "type": "pkg:other:RandomLogin"
+          "type": "random-login:other:RandomLogin"
         }
       ],
       "isComponent": true
