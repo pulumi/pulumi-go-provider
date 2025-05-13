@@ -84,6 +84,7 @@ type (
 	TestState struct{}
 )
 
+// TestReceivers confirms that we invoke methods on the user-provided instance.
 func TestReceivers(t *testing.T) {
 	t.Parallel()
 
