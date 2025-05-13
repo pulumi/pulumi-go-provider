@@ -79,7 +79,7 @@ func (rc *derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	//
 	//	pkg:index:fizzBuzz
 	//
-	return getToken(rc.receiver, nil)
+	return getToken(rc.receiver, fnToken)
 }
 
 func fnToken(tk tokens.Type) tokens.Type {
