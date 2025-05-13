@@ -52,13 +52,11 @@ type MyResource struct {
 	pulumi.ResourceState
 }
 
-func (MyResource) Create(ctx context.Context, _ infer.CreateRequest[struct{}]) (infer.CreateResponse[struct{}], error) {
-	return infer.CreateResponse[struct{}]{}, nil
+func (MyResource) Create(ctx context.Context, _ infer.CreateRequest[struct{}]) (infer.CreateResponse[MyStruct], error) {
+	return infer.CreateResponse[MyStruct]{}, nil
 }
 
-type MyComponent struct {
-	pulumi.ResourceState
-}
+type MyComponent struct{}
 
 func (MyComponent) Construct(ctx *pulumi.Context, name string, typ string, args MyStruct, opts pulumi.ResourceOption) (*MyResource, error) {
 	return &MyResource{}, nil
@@ -230,7 +228,7 @@ func TestGetToken(t *testing.T) {
 		component := infer.Component(&MyComponent{})
 		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(component))
 		require.NoError(t, err)
-		assert.Equal(t, tokens.TypeName("MyComponent"), tok.Name())
+		assert.Equal(t, tokens.TypeName("MyResource"), tok.Name())
 	})
 
 	t.Run("resource", func(t *testing.T) {
@@ -239,6 +237,6 @@ func TestGetToken(t *testing.T) {
 		resource := infer.Resource(&MyResource{})
 		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(resource))
 		require.NoError(t, err)
-		assert.Equal(t, tokens.TypeName("MyResource"), tok.Name())
+		assert.Equal(t, tokens.TypeName("MyStruct"), tok.Name())
 	})
 }

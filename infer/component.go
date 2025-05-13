@@ -105,7 +105,7 @@ func (rc *derivedComponentController[R, T, I, O]) GetSchema(reg schema.RegisterD
 }
 
 func (rc *derivedComponentController[R, T, I, O]) GetToken() (tokens.Type, error) {
-	return getToken(*rc.receiver, nil)
+	return getToken(hydratedValue(reflect.ValueOf(new(T))).Elem().Interface(), nil)
 }
 
 // Construct implements InferredComponent.

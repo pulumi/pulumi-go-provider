@@ -95,8 +95,10 @@ func GetToken(pkg tokens.Package, typ reflect.Type) (tokens.Type, error) {
 	// If our type name is a generic derived type like *dervice[A, B, C], then
 	// pluck out A and use that as our name.
 	if strings.Contains(name, ",") {
-		name = strings.Split(name, ",")[0]
+		parts := strings.Split(name, ",")
+		name = parts[len(parts)-1]
 		name = name[strings.LastIndex(name, ".")+1:]
+		name = strings.Replace(name, "]", "", -1)
 	}
 
 	if name == "" {
@@ -112,6 +114,7 @@ func GetToken(pkg tokens.Package, typ reflect.Type) (tokens.Type, error) {
 	}
 	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
 	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
+
 	return tk, nil
 }
 
