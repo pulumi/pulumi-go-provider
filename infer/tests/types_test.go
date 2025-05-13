@@ -149,7 +149,9 @@ func TestReceivers(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 
-		r.EXPECT().Create(gomock.Any(), gomock.Any())
+		r.EXPECT().Create(gomock.Any(), gomock.Any()).Return(
+			infer.CreateResponse[TestState]{ID: "id"}, nil,
+		)
 
 		prov, err := infer.NewProviderBuilder().WithResources(
 			infer.Resource(r),
