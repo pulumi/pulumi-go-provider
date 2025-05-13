@@ -105,7 +105,6 @@ func GetToken(pkg tokens.Package, typ reflect.Type) (tokens.Type, error) {
 	}
 	m := tokens.NewModuleToken(pkg, tokens.ModuleName(mod))
 	tk := tokens.NewTypeToken(m, tokens.TypeName(name))
-
 	return tk, nil
 }
 
@@ -226,11 +225,7 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 		if !fType.IsExported() {
 			continue
 		}
-		if f.CanAddr() && f.Addr().Interface() == field {
-			f, err := ParseTag(fType)
-			return f, true, err
-		}
-		if !f.CanAddr() && f.Interface() == field {
+		if f.Addr().Interface() == field {
 			f, err := ParseTag(fType)
 			return f, true, err
 		}

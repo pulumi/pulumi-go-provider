@@ -149,6 +149,7 @@ func TestConstruct(t *testing.T) {
 }
 
 func TestConstructWithMalformedRequest(t *testing.T) {
+
 	jsonLog := `
 {
   "method": "/pulumirpc.ResourceProvider/Construct",
@@ -189,6 +190,7 @@ func TestConstructWithMalformedRequest(t *testing.T) {
 	}
 
 	replay.Replay(t, constructProvider(t, construct), jsonLog)
+
 }
 
 type Component struct {
