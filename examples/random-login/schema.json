@@ -26,6 +26,7 @@
   },
   "resources": {
     "random-login:index:MoreRandomPassword": {
+      "description": "Generate a random password.",
       "properties": {
         "length": {
           "type": "integer"
@@ -41,7 +42,8 @@
       ],
       "inputProperties": {
         "length": {
-          "type": "integer"
+          "type": "integer",
+          "description": "The desired password length."
         }
       },
       "requiredInputs": [
@@ -53,7 +55,8 @@
       "description": "Generate a random login.",
       "properties": {
         "password": {
-          "type": "string"
+          "type": "string",
+          "description": "The generated password."
         },
         "petName": {
           "type": "boolean",
@@ -61,7 +64,8 @@
           "description": "Whether to use a memorable pet name or a random string for the Username."
         },
         "username": {
-          "type": "string"
+          "type": "string",
+          "description": "The generated username."
         }
       },
       "type": "object",
@@ -73,11 +77,17 @@
       "inputProperties": {
         "petName": {
           "type": "boolean",
-          "plain": true
+          "plain": true,
+          "description": "Whether to use a memorable pet name or a random string for the Username."
         }
       },
       "requiredInputs": [
         "petName"
+      ],
+      "aliases": [
+        {
+          "type": "pkg:other:RandomLogin"
+        }
       ],
       "isComponent": true
     },

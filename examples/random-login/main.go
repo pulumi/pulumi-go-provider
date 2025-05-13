@@ -150,9 +150,16 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args Rand
 
 func (l *RandomLogin) Annotate(a infer.Annotator) {
 	a.Describe(&l, "Generate a random login.")
+	a.AddAlias("other", "RandomLogin")
 }
+
 func (l *RandomLoginArgs) Annotate(a infer.Annotator) {
 	a.Describe(&l.PetName, "Whether to use a memorable pet name or a random string for the Username.")
+}
+
+func (l *RandomLoginState) Annotate(a infer.Annotator) {
+	a.Describe(&l.Username, "The generated username.")
+	a.Describe(&l.Password, "The generated password.")
 }
 
 type RandomSalt struct{}
@@ -185,7 +192,7 @@ func (*RandomSalt) Create(ctx context.Context, req infer.CreateRequest[RandomSal
 	}
 	salt := makeSalt(l)
 
-	fmt.Printf("Running the create")
+	fmt.Printf("Running the create\n")
 
 	return infer.CreateResponse[RandomSaltState]{
 		ID: req.Name,
