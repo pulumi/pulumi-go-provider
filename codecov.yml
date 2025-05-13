@@ -9,3 +9,4 @@ coverage:
 ignore:
   # Examples implementation code should not count against coverage.
   - "examples/"
+  - "infer/tests/mocks.gen.go"
