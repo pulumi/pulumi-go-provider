@@ -581,23 +581,23 @@ func providerOpts(config infer.InferredConfig) infer.Options {
 	return infer.Options{
 		Config: config,
 		Resources: []infer.InferredResource{
-			infer.Resource[*Echo](),
-			infer.Resource[*Wired](),
-			infer.Resource[*WiredPlus](),
-			infer.Resource[*Increment](),
-			infer.Resource[*WithDefaults](),
-			infer.Resource[*ReadEnv](),
-			infer.Resource[*Recursive](),
-			infer.Resource[*ReadConfig](),
-			infer.Resource[*ReadConfigCustom](),
-			infer.Resource[*CustomCheckNoDefaults](),
+			infer.Resource(&Echo{}),
+			infer.Resource(&Wired{}),
+			infer.Resource(&WiredPlus{}),
+			infer.Resource(&Increment{}),
+			infer.Resource(&WithDefaults{}),
+			infer.Resource(&ReadEnv{}),
+			infer.Resource(&Recursive{}),
+			infer.Resource(&ReadConfig{}),
+			infer.Resource(&ReadConfigCustom{}),
+			infer.Resource(&CustomCheckNoDefaults{}),
 		},
 		Components: []infer.InferredComponent{
-			infer.Component(NewRandomComponent),
-			infer.Component(NewReadConfigComponent),
+			infer.ComponentF(NewRandomComponent),
+			infer.ComponentF(NewReadConfigComponent),
 		},
 		Functions: []infer.InferredFunction{
-			infer.Function[*GetJoin](),
+			infer.Function(&GetJoin{}),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
 	}
@@ -615,15 +615,15 @@ func provider(t testing.TB) integration.Server {
 	return s
 }
 
-func providerWithConfig[T any](t testing.TB) integration.Server {
-	p := infer.Provider(providerOpts(infer.Config[T]()))
+func providerWithConfig[T any](t testing.TB, cfg T) integration.Server {
+	p := infer.Provider(providerOpts(infer.Config(cfg)))
 	s, err := integration.NewServer(t.Context(), "test", semver.MustParse("1.0.0"), integration.WithProvider(p))
 	require.NoError(t, err)
 	return s
 }
 
-func providerWithMocks[T any](t testing.TB, mocks pulumi.MockResourceMonitor) integration.Server {
-	p := infer.Provider(providerOpts(infer.Config[T]()))
+func providerWithMocks[T any](t testing.TB, cfg T, mocks pulumi.MockResourceMonitor) integration.Server {
+	p := infer.Provider(providerOpts(infer.Config(cfg)))
 	s, err := integration.NewServer(
 		t.Context(),
 		"test",

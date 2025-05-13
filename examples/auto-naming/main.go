@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 // package main shows how a [infer] based provider can implement auto-naming.
 package main
 
@@ -23,7 +25,7 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*User]()},
+		Resources: []infer.InferredResource{infer.Resource(&User{})},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"auto-naming": "index",
 		},

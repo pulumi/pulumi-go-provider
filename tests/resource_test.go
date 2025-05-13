@@ -53,7 +53,7 @@ func TestInferCheckSecrets(t *testing.T) {
 		semver.MustParse("0.0.0"),
 		integration.WithProvider(infer.Provider(infer.Options{
 			Resources: []infer.InferredResource{
-				infer.Resource[res](),
+				infer.Resource(res{}),
 			},
 		})))
 	require.NoError(t, err)

@@ -26,6 +26,7 @@
   },
   "resources": {
     "random-login:index:MoreRandomPassword": {
+      "description": "Generate a random password.",
       "properties": {
         "length": {
           "type": "integer"
@@ -35,25 +36,22 @@
         }
       },
       "type": "object",
-      "required": [
-        "length",
-        "password"
-      ],
+      "required": ["length", "password"],
       "inputProperties": {
         "length": {
-          "type": "integer"
+          "type": "integer",
+          "description": "The desired password length."
         }
       },
-      "requiredInputs": [
-        "length"
-      ],
+      "requiredInputs": ["length"],
       "isComponent": true
     },
     "random-login:index:RandomLogin": {
       "description": "Generate a random login.",
       "properties": {
         "password": {
-          "type": "string"
+          "type": "string",
+          "description": "The generated password."
         },
         "petName": {
           "type": "boolean",
@@ -61,23 +59,24 @@
           "description": "Whether to use a memorable pet name or a random string for the Username."
         },
         "username": {
-          "type": "string"
+          "type": "string",
+          "description": "The generated username."
         }
       },
       "type": "object",
-      "required": [
-        "password",
-        "petName",
-        "username"
-      ],
+      "required": ["password", "petName", "username"],
       "inputProperties": {
         "petName": {
           "type": "boolean",
-          "plain": true
+          "plain": true,
+          "description": "Whether to use a memorable pet name or a random string for the Username."
         }
       },
-      "requiredInputs": [
-        "petName"
+      "requiredInputs": ["petName"],
+      "aliases": [
+        {
+          "type": "random-login:other:RandomLogin"
+        }
       ],
       "isComponent": true
     },
@@ -97,11 +96,7 @@
         }
       },
       "type": "object",
-      "required": [
-        "password",
-        "salt",
-        "saltedPassword"
-      ],
+      "required": ["password", "salt", "saltedPassword"],
       "inputProperties": {
         "password": {
           "type": "string"
@@ -110,9 +105,7 @@
           "type": "integer"
         }
       },
-      "requiredInputs": [
-        "password"
-      ]
+      "requiredInputs": ["password"]
     }
   }
 }

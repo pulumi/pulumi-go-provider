@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 package main
 
 import (
@@ -22,13 +24,13 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*User]()},
+		Resources: []infer.InferredResource{infer.Resource(&User{})},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"credentials": "index",
 		},
-		Config: infer.Config[*Config](),
+		Config: infer.Config(&Config{}),
 		Functions: []infer.InferredFunction{
-			infer.Function[*Sign](),
+			infer.Function(&Sign{}),
 		},
 	})
 }

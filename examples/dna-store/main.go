@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 package main
 
 import (
@@ -204,7 +206,7 @@ func (d *DNAStoreArgs) Annotate(a infer.Annotator) {
 func main() {
 	err := p.RunProvider(context.Background(), "dna-store", "0.1.0",
 		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{infer.Resource[*DNAStore]()},
+			Resources: []infer.InferredResource{infer.Resource(&DNAStore{})},
 		}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())

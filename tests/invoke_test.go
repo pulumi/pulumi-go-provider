@@ -58,7 +58,7 @@ func TestInferInvokeSecrets(t *testing.T) {
 		semver.MustParse("0.0.0"),
 		integration.WithProvider(infer.Provider(infer.Options{
 			Functions: []infer.InferredFunction{
-				infer.Function[inv](),
+				infer.Function(inv{}),
 			},
 		})),
 	)

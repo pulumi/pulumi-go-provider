@@ -27,7 +27,7 @@ import (
 func TestCheckConfig(t *testing.T) {
 	t.Parallel()
 
-	prov := providerWithConfig[Config](t)
+	prov := providerWithConfig(t, Config{})
 	resp, err := prov.CheckConfig(p.CheckRequest{
 		Inputs: property.NewMap(map[string]property.Value{
 			"value":        property.New("foo"),
@@ -51,7 +51,7 @@ func TestCheckConfigCustom(t *testing.T) {
 	t.Parallel()
 
 	test := func(t *testing.T, inputs, expected property.Map) {
-		prov := providerWithConfig[*ConfigCustom](t)
+		prov := providerWithConfig(t, &ConfigCustom{})
 		resp, err := prov.CheckConfig(p.CheckRequest{
 			Urn:    urn("provider", "provider"),
 			Inputs: inputs,

@@ -142,23 +142,20 @@ type CheckResponse[I any] struct {
 
 // CustomCheck describes a resource that understands how to check its inputs.
 //
-// By default, infer handles checks by ensuring that a inputs de-serialize correctly,
+// By default, infer handles checks by ensuring that inputs de-serialize correctly,
 // applying default values and secrets. You can wrap the default behavior of Check by
 // calling [DefaultCheck] inside of your custom Check implementation.
 //
 // This is where you can extend that behavior. The
 // returned input is given to subsequent calls to `Create` and `Update`.
 //
-// Example:
-// TODO - Maybe a resource that has a regex. We could reject invalid regex before the up
-// actually happens.
-// CheckRequest contains all the parameters for a Check operation
+// CheckRequest contains all the parameters for a Check operation.
 type CustomCheck[I any] interface {
 	// Check validates the inputs for a resource.
 	Check(ctx context.Context, req CheckRequest) (CheckResponse[I], error)
 }
 
-// DiffRequest contains all the parameters for a Diff operation
+// DiffRequest contains all the parameters for a Diff operation.
 type DiffRequest[I, O any] struct {
 	// The resource ID.
 	ID string
@@ -933,15 +930,17 @@ type InferredResource interface {
 
 // Resource creates a new InferredResource, where `R` is the resource controller, `I` is
 // the resources inputs and `O` is the resources outputs.
-func Resource[R CustomResource[I, O], I, O any]() InferredResource {
-	return &derivedResourceController[R, I, O]{}
+func Resource[R CustomResource[I, O], I, O any](rsc R) InferredResource {
+	return &derivedResourceController[R, I, O]{receiver: &rsc}
 }
 
-type derivedResourceController[R CustomResource[I, O], I, O any] struct{}
+type derivedResourceController[R CustomResource[I, O], I, O any] struct {
+	receiver *R
+}
 
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
-func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error,
 ) {
 	if err := registerTypes[I](reg); err != nil {
@@ -973,18 +972,26 @@ func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens
 	return transform(tk), nil
 }
 
-func (*derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
+	// If the receiver implements Annotate, run it to see if we have a custom
+	// token set. This doesn't recurse, but that's OK because we only care
+	// about the token.
+	if r, ok := any(*rc.receiver).(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		if a.Token != "" {
+			return tokens.Type(a.Token), nil
+		}
+	}
 	return getToken[R](nil)
 }
 
-func (*derivedResourceController[R, I, O]) getInstance() *R {
-	var r R
-	return &r
+func (rc *derivedResourceController[R, I, O]) getInstance() *R {
+	return rc.receiver
 }
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
-	var r R
-	if r, ok := ((interface{})(r)).(CustomCheck[I]); ok {
+	if r, ok := any(*rc.receiver).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that.
 		//
 		// We do not apply defaults if the user has implemented Check

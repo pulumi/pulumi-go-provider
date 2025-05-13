@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 package main
 
 import (
@@ -24,10 +26,10 @@ func main() {
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
 		Functions: []infer.InferredFunction{
-			infer.Function[*Replace](),
-			infer.Function[*Print](),
-			infer.Function[*GiveMeAString](),
-			infer.Function[*regex.Replace](),
+			infer.Function(&Replace{}),
+			infer.Function(&Print{}),
+			infer.Function(&GiveMeAString{}),
+			infer.Function(&regex.Replace{}),
 		},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"str": "index",

@@ -189,17 +189,10 @@ func GetConfig[T any](ctx context.Context) T {
 	}
 	c := v.(InferredConfig)
 	if c, ok := c.(*config[T]); ok {
-		if c.t == nil {
-			c.t = &t
-		}
-		return *c.t
+		return *c.receiver
 	}
 	if c, ok := c.(*config[*T]); ok {
-		if c.t == nil {
-			refT := &t
-			c.t = &refT
-		}
-		return **c.t
+		return **c.receiver
 	}
 	panic(fmt.Sprintf("Config[%T] called but the correct config type is %s", t, c.underlyingType()))
 }

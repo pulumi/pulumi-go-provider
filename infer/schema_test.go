@@ -22,7 +22,13 @@ import (
 )
 
 type TestResource struct {
+	AnonymousEmbed
+
 	P1 string `pulumi:"p1,optional"`
+}
+
+type AnonymousEmbed struct {
+	P2 string `pulumi:"p2,optional"`
 }
 
 func (r *TestResource) Annotate(a Annotator) {
@@ -34,6 +40,12 @@ func (r *TestResource) Annotate(a Annotator) {
 	a.Describe(&r.P1, "This is a test property.")
 	a.SetDefault(&r.P1, defaultValue)
 	a.Deprecate(&r.P1, "This field is deprecated.")
+}
+
+func (r *AnonymousEmbed) Annotate(a Annotator) {
+	a.Describe(&r.P2, "This is an embedded property.")
+	a.SetDefault(&r.P2, "default2")
+	a.Deprecate(&r.P2, "This field is also deprecated.")
 }
 
 func TestResourceAnnotations(t *testing.T) {
@@ -54,4 +66,10 @@ func TestResourceAnnotations(t *testing.T) {
 	assert.Equal(t, "This is a test property.", p1.Description)
 	assert.Equal(t, defaultValue, p1.Default)
 	assert.Equal(t, "This field is deprecated.", p1.DeprecationMessage)
+
+	p2, p2Exists := spec.Properties["p2"]
+	require.True(t, p2Exists)
+	assert.Equal(t, "This is an embedded property.", p2.Description)
+	assert.Equal(t, "default2", p2.Default)
+	assert.Equal(t, "This field is also deprecated.", p2.DeprecationMessage)
 }
