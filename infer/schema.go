@@ -29,8 +29,10 @@ import (
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
-func getAnnotated[R any](receiver R) introspect.Annotator {
-	t := reflect.TypeOf(receiver)
+// getAnnotated checks whether a type implements Annotated, and if it does it
+// recursively collections annotations for the type and all of its fields
+// (including embeds).
+func getAnnotated(t reflect.Type) introspect.Annotator {
 	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get
 	// value(i) = *R{}, so we reinflate the underlying value
 	for t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Pointer {
@@ -74,21 +76,13 @@ func getAnnotated[R any](receiver R) introspect.Annotator {
 	if t.Elem().Kind() == reflect.Struct {
 		for _, f := range reflect.VisibleFields(t.Elem()) {
 			if f.Anonymous && f.IsExported() {
-				rval := reflect.ValueOf(receiver)
-				for rval.Kind() == reflect.Ptr {
-					rval = rval.Elem()
-				}
-				if !rval.IsValid() {
-					continue
-				}
-				field := rval.FieldByName(f.Name)
-				r := getAnnotated(field.Addr().Interface())
+				r := getAnnotated(f.Type)
 				merge(&ret, r)
 			}
 		}
 	}
 
-	if r, ok := any(receiver).(Annotated); ok {
+	if r, ok := i.Interface().(Annotated); ok {
 		a := introspect.NewAnnotator(r)
 		r.Annotate(&a)
 		merge(&ret, a)
@@ -97,17 +91,18 @@ func getAnnotated[R any](receiver R) introspect.Annotator {
 	return ret
 }
 
-func getResourceSchema[I, O any](r any, isComponent bool) (schema.ResourceSpec, multierror.Error) {
+func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, multierror.Error) {
+	var r R
 	var errs multierror.Error
-	annotations := getAnnotated(r)
+	annotations := getAnnotated(reflect.TypeOf(r))
 
-	properties, required, err := propertyListFromValue(new(O), isComponent, outputType)
+	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent, outputType)
 	if err != nil {
 		var o O
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromValue(new(I), isComponent, inputType)
+	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent, inputType)
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
@@ -277,15 +272,14 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromValue(v any, indicatePlain bool, propType propertyType) (
+func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propertyType) (
 	props map[string]schema.PropertySpec, required []string, err error,
 ) {
-	typ := reflect.TypeOf(v)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	props = map[string]schema.PropertySpec{}
-	annotations := getAnnotated(v)
+	annotations := getAnnotated(typ)
 
 	for _, field := range reflect.VisibleFields(typ) {
 		fieldType := field.Type
@@ -374,7 +368,7 @@ func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (sche
 		return schema.TypeSpec{}, false, nil
 	}
 
-	tk, err := getTokenOf(reflect.New(t).Elem().Addr().Interface(), nil)
+	tk, err := getTokenOf(t, nil)
 	if err != nil {
 		return schema.TypeSpec{}, true, err
 	}

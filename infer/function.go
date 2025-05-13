@@ -25,6 +25,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -79,7 +80,18 @@ func (rc *derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	//
 	//	pkg:index:fizzBuzz
 	//
-	return getToken(rc.receiver, fnToken)
+
+	// If the receiver implements Annotate, run it to see if we have a custom
+	// token set. This doesn't recurse, but that's OK because we only care
+	// about the token.
+	if r, ok := any(rc.receiver).(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		if a.Token != "" {
+			return tokens.Type(a.Token), nil
+		}
+	}
+	return getToken[F](fnToken)
 }
 
 func fnToken(tk tokens.Type) tokens.Type {
@@ -96,7 +108,7 @@ func fnToken(tk tokens.Type) tokens.Type {
 }
 
 func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
-	descriptions := getAnnotated(r.receiver)
+	descriptions := getAnnotated(reflect.TypeOf(new(F)))
 
 	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
@@ -122,9 +134,8 @@ func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivati
 }
 
 func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
-	v := reflect.New(t).Elem().Addr().Interface()
-	descriptions := getAnnotated(v)
-	props, required, err := propertyListFromValue(v, false, inputType)
+	descriptions := getAnnotated(t)
+	props, required, err := propertyListFromType(t, false, inputType)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
 	}

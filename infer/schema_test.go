@@ -51,7 +51,7 @@ func (r *AnonymousEmbed) Annotate(a Annotator) {
 func TestResourceAnnotations(t *testing.T) {
 	t.Parallel()
 
-	spec, err := getResourceSchema[TestResource, TestResource](&TestResource{}, false /* isComponent */)
+	spec, err := getResourceSchema[TestResource, TestResource, TestResource](false /* isComponent */)
 	require.NoError(t, err.ErrorOrNil())
 
 	require.Len(t, spec.Aliases, 1)

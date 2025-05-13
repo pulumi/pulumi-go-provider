@@ -75,7 +75,7 @@ func (c *config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resour
 	if err := registerTypes[T](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r, errs := getResourceSchema[T, T](*c.receiver, false)
+	r, errs := getResourceSchema[T, T, T](false)
 	return r, errs.ErrorOrNil()
 }
 

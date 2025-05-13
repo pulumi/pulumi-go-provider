@@ -95,7 +95,7 @@ type derivedComponentController[R ComponentResource[I, O], T any, I any, O pulum
 func (rc *derivedComponentController[R, T, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error,
 ) {
-	r, err := getResourceSchema[I, O](*rc.receiver, true)
+	r, err := getResourceSchema[T, I, O](true)
 	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
@@ -109,7 +109,7 @@ func (rc *derivedComponentController[R, T, I, O]) GetSchema(reg schema.RegisterD
 }
 
 func (rc *derivedComponentController[R, T, I, O]) GetToken() (tokens.Type, error) {
-	return getToken(hydratedValue(reflect.ValueOf(new(T))).Elem().Interface(), nil)
+	return getToken[T](nil)
 }
 
 // Construct implements InferredComponent.

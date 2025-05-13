@@ -949,17 +949,17 @@ func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDeriv
 	if err := registerTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r, errs := getResourceSchema[I, O](*rc.receiver, false)
+	r, errs := getResourceSchema[R, I, O](false)
 	return r, errs.ErrorOrNil()
 }
 
-func getToken[R any](r R, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
-	return getTokenOf(r, transform)
+func getToken[R any](transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
+	var r R
+	return getTokenOf(reflect.TypeOf(r), transform)
 }
 
-func getTokenOf[R any](r R, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
-	t := reflect.TypeOf(r)
-	annotator := getAnnotated(r)
+func getTokenOf(t reflect.Type, transform func(tokens.Type) tokens.Type) (tokens.Type, error) {
+	annotator := getAnnotated(t)
 	if annotator.Token != "" {
 		return tokens.Type(annotator.Token), nil
 	}
@@ -973,7 +973,17 @@ func getTokenOf[R any](r R, transform func(tokens.Type) tokens.Type) (tokens.Typ
 }
 
 func (rc *derivedResourceController[R, I, O]) GetToken() (tokens.Type, error) {
-	return getToken(*rc.receiver, nil)
+	// If the receiver implements Annotate, run it to see if we have a custom
+	// token set. This doesn't recurse, but that's OK because we only care
+	// about the token.
+	if r, ok := any(*rc.receiver).(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		if a.Token != "" {
+			return tokens.Type(a.Token), nil
+		}
+	}
+	return getToken[R](nil)
 }
 
 func (rc *derivedResourceController[R, I, O]) getInstance() *R {
