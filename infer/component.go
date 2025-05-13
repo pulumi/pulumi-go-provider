@@ -67,7 +67,8 @@ type componentF[I any, O pulumi.ComponentResource] struct {
 	construct ComponentFn[I, O]
 }
 
-func (fn *componentF[I, O]) Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption) (O, error) {
+func (fn *componentF[I, O]) Construct(ctx *pulumi.Context, name, typ string, inputs I, opts pulumi.ResourceOption,
+) (O, error) {
 	return fn.construct(ctx, name, inputs, opts)
 }
 
