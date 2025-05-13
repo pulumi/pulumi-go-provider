@@ -423,6 +423,16 @@ func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens
 				rewritten := fixReference(field.String(), pkg, modMap)
 				field.SetString(rewritten)
 			}
+			if v.Type() == reflect.TypeOf(schema.AliasSpec{}) {
+				field := v.FieldByName("Type")
+				tk, err := tokens.ParseTypeToken(field.String())
+				if err != nil {
+					// Not a valid token, so again we just leave it
+				} else {
+					rewritten := assignTo(tk, pkg, modMap)
+					field.SetString(rewritten.String())
+				}
+			}
 			for _, f := range reflect.VisibleFields(v.Type()) {
 				f := v.FieldByIndex(f.Index)
 				rename(f)

@@ -34,10 +34,16 @@ func TestRenamePackage(t *testing.T) {
 				},
 			},
 		},
+		Aliases: []schema.AliasSpec{
+			{
+				Type: "pkg:other:Buzz",
+			},
+		},
 	}
 
 	p = renamePackage(p, "fizz", map[tokens.ModuleName]tokens.ModuleName{})
 	assert.Equal(t, "#/types/fizz:bar:Buzz", p.ObjectTypeSpec.Properties["foo"].Ref)
+	assert.Equal(t, "fizz:other:Buzz", p.Aliases[0].Type)
 
 	arr := []schema.PropertySpec{
 		{
