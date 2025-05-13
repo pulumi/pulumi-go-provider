@@ -109,7 +109,7 @@ type RandomLoginState struct {
 
 func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginState, error) {
 	comp := &RandomLoginState{}
-	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts)
+	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {
 		return nil, err
 	}
