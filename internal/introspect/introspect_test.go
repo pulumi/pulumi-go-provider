@@ -47,19 +47,29 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.AddAlias("myMod", "MyAlias")
 }
 
-// MyResource is a low-level (non-inferred) resource just for testing components.
-type MyResource struct {
+type MyComponentArgs struct{}
+
+type MyComponentOutput struct {
 	pulumi.ResourceState
 }
 
-func (MyResource) Create(ctx context.Context, _ infer.CreateRequest[struct{}]) (infer.CreateResponse[MyStruct], error) {
-	return infer.CreateResponse[MyStruct]{}, nil
+func (MyComponentArgs) Create(
+	ctx context.Context,
+	_ infer.CreateRequest[MyComponentArgs],
+) (infer.CreateResponse[MyComponentOutput], error) {
+	return infer.CreateResponse[MyComponentOutput]{}, nil
 }
 
 type MyComponent struct{}
 
-func (MyComponent) Construct(ctx *pulumi.Context, name string, typ string, args MyStruct, opts pulumi.ResourceOption) (*MyResource, error) {
-	return &MyResource{}, nil
+func (MyComponent) Construct(
+	ctx *pulumi.Context,
+	name string,
+	typ string,
+	args MyStruct,
+	opts pulumi.ResourceOption,
+) (*MyComponentOutput, error) {
+	return &MyComponentOutput{}, nil
 }
 
 func TestParseTag(t *testing.T) {
@@ -234,7 +244,7 @@ func TestGetToken(t *testing.T) {
 	t.Run("resource", func(t *testing.T) {
 		t.Parallel()
 
-		resource := infer.Resource(&MyResource{})
+		resource := infer.Resource(&MyComponentArgs{})
 		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(resource))
 		require.NoError(t, err)
 		assert.Equal(t, tokens.TypeName("MyStruct"), tok.Name())

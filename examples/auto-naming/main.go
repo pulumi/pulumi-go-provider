@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 // package main shows how a [infer] based provider can implement auto-naming.
 package main
 

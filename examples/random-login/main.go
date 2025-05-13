@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 // This is intended to be an example of the enclosing SDK. Do not use this for
 // cryptography.
 package main

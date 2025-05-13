@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 // This example shows using [github.com/pulumi/pulumi-go-provider] without any middleware.
 //
 // It defines one resource: `echo:index:Echo` with a single string value, which it repeats
