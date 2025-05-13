@@ -153,9 +153,7 @@ func TestSchema(t *testing.T) {
 	blob := json.RawMessage{}
 	err = json.Unmarshal([]byte(s.Schema), &blob)
 	assert.NoError(t, err)
-	encoded, err := json.MarshalIndent(blob, "", "  ")
-	assert.NoError(t, err)
-	assert.JSONEq(t, schema, string(encoded))
+	assert.JSONEq(t, schema, string(blob))
 }
 
 func TestRandomSalt(t *testing.T) {
