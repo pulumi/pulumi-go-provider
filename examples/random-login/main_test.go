@@ -42,6 +42,7 @@ const schema = `{
   },
   "resources": {
     "random-login:index:MoreRandomPassword": {
+      "description": "Generate a random password.",
       "properties": {
         "length": {
           "type": "integer"
@@ -56,7 +57,8 @@ const schema = `{
       ],
       "inputProperties": {
         "length": {
-          "type": "integer"
+          "type": "integer",
+          "description": "The desired password length."
         }
       },
       "requiredInputs": [
@@ -68,7 +70,8 @@ const schema = `{
       "description": "Generate a random login.",
       "properties": {
         "password": {
-          "type": "string"
+          "type": "string",
+          "description": "The generated password."
         },
         "petName": {
           "type": "boolean",
@@ -76,7 +79,8 @@ const schema = `{
           "description": "Whether to use a memorable pet name or a random string for the Username."
         },
         "username": {
-          "type": "string"
+          "type": "string",
+          "description": "The generated username."
         }
       },
       "required": [
@@ -87,11 +91,17 @@ const schema = `{
       "inputProperties": {
         "petName": {
           "type": "boolean",
-          "plain": true
+          "plain": true,
+          "description": "Whether to use a memorable pet name or a random string for the Username."
         }
       },
       "requiredInputs": [
         "petName"
+      ],
+      "aliases": [
+        {
+          "type": "pkg:other:RandomLogin"
+        }
       ],
       "isComponent": true
     },
@@ -145,7 +155,7 @@ func TestSchema(t *testing.T) {
 	assert.NoError(t, err)
 	encoded, err := json.MarshalIndent(blob, "", "  ")
 	assert.NoError(t, err)
-	assert.Equal(t, schema, string(encoded))
+	assert.JSONEq(t, schema, string(encoded))
 }
 
 func TestRandomSalt(t *testing.T) {
