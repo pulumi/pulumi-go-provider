@@ -15,6 +15,7 @@
 package introspect_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -23,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -43,6 +45,23 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 	a.SetToken("myMod", "MyToken")
 	a.Deprecate(&m, "This resource is deprecated.")
 	a.AddAlias("myMod", "MyAlias")
+}
+
+// MyResource is a low-level (non-inferred) resource just for testing components.
+type MyResource struct {
+	pulumi.ResourceState
+}
+
+func (MyResource) Create(ctx context.Context, _ infer.CreateRequest[struct{}]) (infer.CreateResponse[struct{}], error) {
+	return infer.CreateResponse[struct{}]{}, nil
+}
+
+type MyComponent struct {
+	pulumi.ResourceState
+}
+
+func (MyComponent) Construct(ctx *pulumi.Context, name string, typ string, args MyStruct, opts pulumi.ResourceOption) (*MyResource, error) {
+	return &MyResource{}, nil
 }
 
 func TestParseTag(t *testing.T) {
@@ -200,4 +219,26 @@ func TestAllFieldsMiss(t *testing.T) {
 	_, ok, err := fm.TargetStructFields(&s.Fizz)
 	require.False(t, ok)
 	assert.NoError(t, err)
+}
+
+func TestGetToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("component", func(t *testing.T) {
+		t.Parallel()
+
+		component := infer.Component(&MyComponent{})
+		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(component))
+		require.NoError(t, err)
+		assert.Equal(t, tokens.TypeName("MyComponent"), tok.Name())
+	})
+
+	t.Run("resource", func(t *testing.T) {
+		t.Parallel()
+
+		resource := infer.Resource(&MyResource{})
+		tok, err := introspect.GetToken(tokens.NewPackageToken("pkg"), reflect.TypeOf(resource))
+		require.NoError(t, err)
+		assert.Equal(t, tokens.TypeName("MyResource"), tok.Name())
+	})
 }
