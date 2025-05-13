@@ -96,7 +96,7 @@ func fnToken(tk tokens.Type) tokens.Type {
 }
 
 func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
-	descriptions := getAnnotated(reflect.TypeOf(r.receiver))
+	descriptions := getAnnotated(r.receiver)
 
 	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {

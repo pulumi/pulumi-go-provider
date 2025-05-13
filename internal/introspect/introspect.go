@@ -225,7 +225,11 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 		if !fType.IsExported() {
 			continue
 		}
-		if f.Addr().Interface() == field {
+		if f.CanAddr() && f.Addr().Interface() == field {
+			f, err := ParseTag(fType)
+			return f, true, err
+		}
+		if !f.CanAddr() && f.Interface() == field {
 			f, err := ParseTag(fType)
 			return f, true, err
 		}

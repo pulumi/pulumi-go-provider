@@ -54,17 +54,18 @@ type ComponentFn[A any, R pulumi.ComponentResource] = func(
 //
 // See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
 func ComponentF[A any, R pulumi.ComponentResource, F ComponentFn[A, R]](fn F) InferredComponent {
-	return &derivedComponentController[R, A, R]{construct: fn}
+	return &derivedComponentController[R, A, R]{construct: fn, receiver: nil}
 }
 
 type derivedComponentController[R any, I any, O pulumi.ComponentResource] struct {
 	construct ComponentFn[I, O]
+	receiver  *R
 }
 
 func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error,
 ) {
-	r, err := getResourceSchema[R, I, O](true)
+	r, err := getResourceSchema[I, O](*rc.receiver, true)
 	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
@@ -78,8 +79,7 @@ func (rc *derivedComponentController[R, I, O]) GetSchema(reg schema.RegisterDeri
 }
 
 func (rc *derivedComponentController[R, I, O]) GetToken() (tokens.Type, error) {
-	var r R // TODO: Use a user-provided instance.
-	return getToken(r, nil)
+	return getToken(*rc.receiver, nil)
 }
 
 // Construct implements InferredComponent.

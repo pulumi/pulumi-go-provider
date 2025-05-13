@@ -940,7 +940,7 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
 
-func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
+func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error,
 ) {
 	if err := registerTypes[I](reg); err != nil {
@@ -949,7 +949,7 @@ func (*derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivati
 	if err := registerTypes[O](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r, errs := getResourceSchema[R, I, O](false)
+	r, errs := getResourceSchema[I, O](*rc.receiver, false)
 	return r, errs.ErrorOrNil()
 }
 

@@ -71,11 +71,11 @@ func (*config[T]) underlyingType() reflect.Type {
 }
 
 func (*config[T]) GetToken() (tokens.Type, error) { return "pulumi:providers:pkg", nil }
-func (*config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
+func (c *config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
 	if err := registerTypes[T](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
-	r, errs := getResourceSchema[T, T, T](false)
+	r, errs := getResourceSchema[T, T](*c.receiver, false)
 	return r, errs.ErrorOrNil()
 }
 

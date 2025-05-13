@@ -74,7 +74,12 @@ func getAnnotated[R any](receiver R) introspect.Annotator {
 	if t.Elem().Kind() == reflect.Struct {
 		for _, f := range reflect.VisibleFields(t.Elem()) {
 			if f.Anonymous && f.IsExported() {
-				r := getAnnotated(f.Type)
+				rval := reflect.ValueOf(receiver)
+				if rval.Kind() == reflect.Ptr {
+					rval = rval.Elem()
+				}
+				field := rval.FieldByName(f.Name)
+				r := getAnnotated(field.Addr().Interface())
 				merge(&ret, r)
 			}
 		}
@@ -89,18 +94,17 @@ func getAnnotated[R any](receiver R) introspect.Annotator {
 	return ret
 }
 
-func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, multierror.Error) {
-	var r R
+func getResourceSchema[I, O any](r any, isComponent bool) (schema.ResourceSpec, multierror.Error) {
 	var errs multierror.Error
-	annotations := getAnnotated(reflect.TypeOf(r))
+	annotations := getAnnotated(r)
 
-	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent, outputType)
+	properties, required, err := propertyListFromType(new(O), isComponent, outputType)
 	if err != nil {
 		var o O
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent, inputType)
+	inputProperties, requiredInputs, err := propertyListFromType(new(I), isComponent, inputType)
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
@@ -270,14 +274,15 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	return t, isOutputType || isInputType, nil
 }
 
-func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propertyType) (
+func propertyListFromType(r any, indicatePlain bool, propType propertyType) (
 	props map[string]schema.PropertySpec, required []string, err error,
 ) {
+	typ := reflect.TypeOf(r)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	props = map[string]schema.PropertySpec{}
-	annotations := getAnnotated(typ)
+	annotations := getAnnotated(r)
 
 	for _, field := range reflect.VisibleFields(typ) {
 		fieldType := field.Type
