@@ -16,25 +16,31 @@ import (
 )
 
 func main() {
-	err := p.RunProvider(context.Background(), "str", "0.1.0", provider())
+	provider, err := provider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+	err = provider.Run(context.Background(), "str", "0.1.0")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 }
 
-func provider() p.Provider {
-	return infer.Provider(infer.Options{
-		Functions: []infer.InferredFunction{
+func provider() (p.Provider, error) {
+	return infer.NewProviderBuilder().
+		WithNamespace("examples").
+		WithFunctions(
 			infer.Function(&Replace{}),
 			infer.Function(&Print{}),
 			infer.Function(&GiveMeAString{}),
 			infer.Function(&regex.Replace{}),
-		},
-		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
+		).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"str": "index",
-		},
-	})
+		}).
+		Build()
 }
 
 type Replace struct{}

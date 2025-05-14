@@ -11,6 +11,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
 type HasAssets struct{}
@@ -21,17 +22,28 @@ type HasAssetsArgs struct {
 }
 
 func main() {
-	err := p.RunProvider(context.Background(), "assets", "0.1.0", provider())
+	provider, err := provider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+	err = provider.Run(context.Background(), "assets", "0.1.0")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
-func provider() p.Provider {
-	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource(&HasAssets{})},
-	})
+func provider() (p.Provider, error) {
+	return infer.NewProviderBuilder().
+		WithNamespace("examples").
+		WithResources(
+			infer.Resource(&HasAssets{}),
+		).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
+			"assets": "index",
+		}).
+		Build()
 }
 
 // assertState asserts invariants about the state of the resource defined in consumer/Pulumi.yaml.

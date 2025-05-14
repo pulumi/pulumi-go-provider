@@ -15,24 +15,32 @@ import (
 )
 
 func main() {
-	err := p.RunProvider(context.Background(), "credentials", "0.1.0", provider())
+	provider, err := provider()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+		os.Exit(1)
+	}
+	err = provider.Run(context.Background(), "credentials", "0.1.0")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
-func provider() p.Provider {
-	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource(&User{})},
-		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
+func provider() (p.Provider, error) {
+	return infer.NewProviderBuilder().
+		WithNamespace("examples").
+		WithResources(
+			infer.Resource(&User{}),
+		).
+		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"credentials": "index",
-		},
-		Config: infer.Config(&Config{}),
-		Functions: []infer.InferredFunction{
+		}).
+		WithConfig(infer.Config(&Config{})).
+		WithFunctions(
 			infer.Function(&Sign{}),
-		},
-	})
+		).
+		Build()
 }
 
 type Config struct {
