@@ -109,6 +109,13 @@ func (rc *derivedComponentController[R, T, I, O]) GetSchema(reg schema.RegisterD
 }
 
 func (rc *derivedComponentController[R, T, I, O]) GetToken() (tokens.Type, error) {
+	if r, ok := any(*rc.receiver).(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		if a.Token != "" {
+			return tokens.Type(a.Token), nil
+		}
+	}
 	return getToken[T](nil)
 }
 

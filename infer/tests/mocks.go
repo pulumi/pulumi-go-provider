@@ -17,7 +17,9 @@ package tests
 import (
 	context "context"
 
+	pgp "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 type TestFunction[I, O any] interface {
@@ -44,4 +46,13 @@ type TestResource[I, O any] interface {
 	infer.CustomDiff[I, O]
 	infer.CustomRead[I, O]
 	infer.CustomUpdate[I, O]
+}
+
+type TestComponent[I any, O pulumi.ComponentResource] interface {
+	infer.Annotated
+	infer.ComponentResource[I, O]
+}
+
+type TestHost interface {
+	pgp.Host
 }

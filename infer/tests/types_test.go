@@ -27,7 +27,10 @@ import (
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/integration"
+	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
 
 type HasAssets struct{}
@@ -89,125 +92,210 @@ func TestReceivers(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
-	r := NewMockTestResource[TestArgs, TestState](ctrl)
 
-	r.EXPECT().Annotate(gomock.Any()).DoAndReturn(func(a infer.Annotator) {
-		a.SetToken("index", "TestReceivers")
-	}).AnyTimes()
+	mockResource := func(ctrl *gomock.Controller) *MockTestResource[TestArgs, TestState] {
+		r := NewMockTestResource[TestArgs, TestState](ctrl)
+		r.EXPECT().Annotate(gomock.Any()).DoAndReturn(func(a infer.Annotator) {
+			a.SetToken("index", "TestReceivers")
+		}).AnyTimes()
+		return r
+	}
 
-	t.Run("Check", func(t *testing.T) {
-		t.Parallel()
+	t.Run("Resource", func(t *testing.T) {
+		r := mockResource(ctrl)
 
-		r.EXPECT().Check(gomock.Any(), gomock.Any()).Return(
-			infer.CheckResponse[TestArgs]{}, nil,
-		)
+		t.Run("Check", func(t *testing.T) {
+			t.Parallel()
 
-		prov, err := infer.NewProviderBuilder().WithResources(
-			infer.Resource(r),
-		).Build()
-		require.NoError(t, err)
+			r.EXPECT().Check(gomock.Any(), gomock.Any()).Return(
+				infer.CheckResponse[TestArgs]{}, nil,
+			)
 
-		_, err = prov.Check(t.Context(), pgp.CheckRequest{Urn: urn("TestReceivers", "check")})
-		assert.NoError(t, err)
-	})
-
-	t.Run("CheckConfig", func(t *testing.T) {
-		t.Parallel()
-
-		c := NewMockTestConfig(ctrl)
-		c.EXPECT().Check(gomock.Any(), gomock.Any()).Return(
-			infer.CheckResponse[*MockTestConfig]{}, nil,
-		)
-
-		prov, err := infer.NewProviderBuilder().
-			WithResources(infer.Resource(r)).
-			WithConfig(
-				infer.Config(c),
+			prov, err := infer.NewProviderBuilder().WithResources(
+				infer.Resource(r),
 			).Build()
-		require.NoError(t, err)
+			require.NoError(t, err)
 
-		_, err = prov.CheckConfig(t.Context(), pgp.CheckRequest{Urn: urn("provider", "provider")})
-		assert.NoError(t, err)
-	})
+			_, err = prov.Check(t.Context(), pgp.CheckRequest{Urn: urn("TestReceivers", "check")})
+			assert.NoError(t, err)
+		})
 
-	t.Run("Configure", func(t *testing.T) {
-		t.Parallel()
+		t.Run("Create", func(t *testing.T) {
+			t.Parallel()
 
-		c := NewMockTestConfig(ctrl)
-		c.EXPECT().Configure(gomock.Any()).Return(nil)
+			r.EXPECT().Create(gomock.Any(), gomock.Any()).Return(
+				infer.CreateResponse[TestState]{ID: "id"}, nil,
+			)
 
-		prov, err := infer.NewProviderBuilder().
-			WithResources(infer.Resource(r)).
-			WithConfig(
-				infer.Config(c),
+			prov, err := infer.NewProviderBuilder().WithResources(
+				infer.Resource(r),
 			).Build()
-		require.NoError(t, err)
+			require.NoError(t, err)
 
-		err = prov.Configure(t.Context(), pgp.ConfigureRequest{})
-		assert.NoError(t, err)
+			_, err = prov.Create(t.Context(), pgp.CreateRequest{Urn: urn("TestReceivers", "create")})
+			assert.NoError(t, err)
+		})
+
+		t.Run("Read", func(t *testing.T) {
+			t.Parallel()
+
+			r.EXPECT().Read(gomock.Any(), gomock.Any()).Return(
+				infer.ReadResponse[TestArgs, TestState]{ID: "id"}, nil,
+			)
+
+			prov, err := infer.NewProviderBuilder().WithResources(
+				infer.Resource(r),
+			).Build()
+			require.NoError(t, err)
+
+			_, err = prov.Read(t.Context(), pgp.ReadRequest{Urn: urn("TestReceivers", "read")})
+			assert.NoError(t, err)
+		})
+
+		t.Run("Update", func(t *testing.T) {
+			t.Parallel()
+
+			r.EXPECT().Update(gomock.Any(), gomock.Any())
+
+			prov, err := infer.NewProviderBuilder().WithResources(
+				infer.Resource(r),
+			).Build()
+			require.NoError(t, err)
+
+			_, err = prov.Update(t.Context(), pgp.UpdateRequest{Urn: urn("TestReceivers", "update")})
+			assert.NoError(t, err)
+		})
+
+		t.Run("Delete", func(t *testing.T) {
+			t.Parallel()
+
+			r.EXPECT().Delete(gomock.Any(), gomock.Any())
+
+			prov, err := infer.NewProviderBuilder().WithResources(
+				infer.Resource(r),
+			).Build()
+			require.NoError(t, err)
+
+			err = prov.Delete(t.Context(), pgp.DeleteRequest{Urn: urn("TestReceivers", "delete")})
+			assert.NoError(t, err)
+		})
 	})
 
-	t.Run("Create", func(t *testing.T) {
-		t.Parallel()
-
-		r.EXPECT().Create(gomock.Any(), gomock.Any()).Return(
-			infer.CreateResponse[TestState]{ID: "id"}, nil,
-		)
-
-		prov, err := infer.NewProviderBuilder().WithResources(
-			infer.Resource(r),
-		).Build()
-		require.NoError(t, err)
-
-		_, err = prov.Create(t.Context(), pgp.CreateRequest{Urn: urn("TestReceivers", "create")})
-		assert.NoError(t, err)
-	})
-
-	t.Run("Invoke", func(t *testing.T) {
+	t.Run("Function", func(t *testing.T) {
 		t.Parallel()
 
 		f := NewMockTestFunction[TestArgs, TestState](ctrl)
-		f.EXPECT().Invoke(gomock.Any(), gomock.Any())
 		f.EXPECT().Annotate(gomock.Any()).DoAndReturn(func(a infer.Annotator) {
 			a.SetToken("index", "TestFunction")
 		}).AnyTimes()
 
-		prov, err := infer.NewProviderBuilder().WithResources(
-			infer.Resource(r),
-		).WithFunctions(
-			infer.Function(f),
-		).Build()
-		require.NoError(t, err)
+		t.Run("Invoke", func(t *testing.T) {
+			t.Parallel()
 
-		_, err = prov.Invoke(t.Context(), pgp.InvokeRequest{Token: "foo:index:TestFunction"})
-		assert.NoError(t, err)
+			f.EXPECT().Invoke(gomock.Any(), gomock.Any())
+
+			prov, err := infer.NewProviderBuilder().WithResources(
+				infer.Resource(mockResource(ctrl)),
+			).WithFunctions(
+				infer.Function(f),
+			).Build()
+			require.NoError(t, err)
+
+			_, err = prov.Invoke(t.Context(), pgp.InvokeRequest{Token: "foo:index:TestFunction"})
+			assert.NoError(t, err)
+		})
 	})
 
-	t.Run("Update", func(t *testing.T) {
+	t.Run("Config", func(t *testing.T) {
 		t.Parallel()
 
-		r.EXPECT().Update(gomock.Any(), gomock.Any())
+		c := NewMockTestConfig(ctrl)
 
-		prov, err := infer.NewProviderBuilder().WithResources(
-			infer.Resource(r),
-		).Build()
-		require.NoError(t, err)
+		t.Run("CheckConfig", func(t *testing.T) {
+			t.Parallel()
 
-		_, err = prov.Update(t.Context(), pgp.UpdateRequest{Urn: urn("TestReceivers", "update")})
-		assert.NoError(t, err)
+			c.EXPECT().Check(gomock.Any(), gomock.Any()).Return(
+				infer.CheckResponse[*MockTestConfig]{}, nil,
+			)
+
+			prov, err := infer.NewProviderBuilder().
+				WithResources(
+					infer.Resource(mockResource(ctrl)),
+				).
+				WithConfig(
+					infer.Config(c),
+				).Build()
+			require.NoError(t, err)
+
+			_, err = prov.CheckConfig(t.Context(), pgp.CheckRequest{Urn: urn("provider", "provider")})
+			assert.NoError(t, err)
+		})
+
+		t.Run("Configure", func(t *testing.T) {
+			t.Parallel()
+
+			c.EXPECT().Configure(gomock.Any()).Return(nil)
+
+			prov, err := infer.NewProviderBuilder().
+				WithResources(
+					infer.Resource(mockResource(ctrl)),
+				).
+				WithConfig(
+					infer.Config(c),
+				).Build()
+			require.NoError(t, err)
+
+			err = prov.Configure(t.Context(), pgp.ConfigureRequest{})
+			assert.NoError(t, err)
+		})
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("Component", func(t *testing.T) {
 		t.Parallel()
 
-		r.EXPECT().Delete(gomock.Any(), gomock.Any())
+		c := NewMockTestComponent[TestArgs, *pulumi.ResourceState](ctrl)
+		c.EXPECT().Annotate(gomock.Any()).DoAndReturn(func(a infer.Annotator) {
+			a.SetToken("index", "TestComponent")
+		}).AnyTimes()
 
-		prov, err := infer.NewProviderBuilder().WithResources(
-			infer.Resource(r),
-		).Build()
-		require.NoError(t, err)
+		h := NewMockTestHost(ctrl)
+		ctx := context.WithValue(t.Context(), key.ProviderHost, h)
+		pctx, err := pulumi.NewContext(ctx, pulumi.RunInfo{
+			Mocks: &integration.MockResourceMonitor{},
+		})
 
-		err = prov.Delete(t.Context(), pgp.DeleteRequest{Urn: urn("TestReceivers", "delete")})
-		assert.NoError(t, err)
+		t.Run("Construct", func(t *testing.T) {
+			t.Parallel()
+
+			// Components require a lot of additional setup typically handled
+			// by the integration harness, so unit testing like this is messy.
+			h.EXPECT().Construct(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(
+					ctx context.Context,
+					req pgp.ConstructRequest,
+					constructF pprovider.ConstructFunc,
+				) (pgp.ConstructResponse, error) {
+					require.NoError(t, err)
+					_, err := constructF(pctx, "type", "name", pprovider.ConstructInputs{}, nil)
+					assert.NoError(t, err)
+					return pgp.ConstructResponse{}, nil
+				})
+
+			c.EXPECT().Construct(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
+				&pulumi.ResourceState{}, nil,
+			)
+
+			prov, err := infer.NewProviderBuilder().
+				WithResources(
+					infer.Resource(mockResource(ctrl)),
+				).
+				WithComponents(
+					infer.Component(c),
+				).Build()
+			require.NoError(t, err)
+
+			_, err = prov.Construct(ctx, pgp.ConstructRequest{Urn: urn("TestComponent", "component")})
+			assert.NoError(t, err)
+		})
 	})
 }
