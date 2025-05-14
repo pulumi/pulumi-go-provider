@@ -1,3 +1,5 @@
+// Copyright 2025, Pulumi Corporation.  All rights reserved.
+
 // This is intended to be an example of the enclosing SDK. Do not use this for
 // cryptography.
 package main
@@ -29,12 +31,12 @@ func main() {
 
 func provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*RandomSalt]()},
+		Resources: []infer.InferredResource{infer.Resource(&RandomSalt{})},
 		Components: []infer.InferredComponent{
-			infer.Component(NewRandomLogin),
-			infer.Component(NewMoreRandomPassword),
+			infer.Component(&RandomLogin{}),
+			infer.ComponentF(NewMoreRandomPassword),
 		},
-		Config: infer.Config[Config](),
+		Config: infer.Config(Config{}),
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
 		},
@@ -56,6 +58,14 @@ type MoreRandomPassword struct {
 	pulumi.ResourceState
 	Length   pulumi.IntOutput    `pulumi:"length"`
 	Password pulumi.StringOutput `pulumi:"password"`
+}
+
+func (l *MoreRandomPassword) Annotate(a infer.Annotator) {
+	a.Describe(&l, "Generate a random password.")
+}
+
+func (l *MoreRandomPasswordArgs) Annotate(a infer.Annotator) {
+	a.Describe(&l.Length, "The desired password length.")
 }
 
 func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPasswordArgs, opts ...pulumi.ResourceOption) (*MoreRandomPassword, error) {
@@ -85,11 +95,13 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPas
 	return comp, nil
 }
 
+type RandomLogin struct{}
+
 type RandomLoginArgs struct {
 	PetName bool `pulumi:"petName"`
 }
 
-type RandomLogin struct {
+type RandomLoginState struct {
 	pulumi.ResourceState
 	RandomLoginArgs
 
@@ -97,9 +109,9 @@ type RandomLogin struct {
 	Password pulumi.StringOutput `pulumi:"password"`
 }
 
-func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts ...pulumi.ResourceOption) (*RandomLogin, error) {
-	comp := &RandomLogin{}
-	err := ctx.RegisterComponentResource(p.GetTypeToken(ctx), name, comp, opts...)
+func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args RandomLoginArgs, opts pulumi.ResourceOption) (*RandomLoginState, error) {
+	comp := &RandomLoginState{}
+	err := ctx.RegisterComponentResource(typ, name, comp, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +152,16 @@ func NewRandomLogin(ctx *pulumi.Context, name string, args RandomLoginArgs, opts
 
 func (l *RandomLogin) Annotate(a infer.Annotator) {
 	a.Describe(&l, "Generate a random login.")
+	a.AddAlias("other", "RandomLogin")
+}
+
+func (l *RandomLoginArgs) Annotate(a infer.Annotator) {
 	a.Describe(&l.PetName, "Whether to use a memorable pet name or a random string for the Username.")
+}
+
+func (l *RandomLoginState) Annotate(a infer.Annotator) {
+	a.Describe(&l.Username, "The generated username.")
+	a.Describe(&l.Password, "The generated password.")
 }
 
 type RandomSalt struct{}
@@ -173,7 +194,7 @@ func (*RandomSalt) Create(ctx context.Context, req infer.CreateRequest[RandomSal
 	}
 	salt := makeSalt(l)
 
-	fmt.Printf("Running the create")
+	fmt.Printf("Running the create\n")
 
 	return infer.CreateResponse[RandomSaltState]{
 		ID: req.Name,

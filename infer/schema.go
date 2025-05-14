@@ -29,6 +29,9 @@ import (
 	sch "github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
 
+// getAnnotated checks whether a type implements Annotated, and if it does it
+// recursively collects annotations for the type and all of its fields
+// (including embeds).
 func getAnnotated(t reflect.Type) introspect.Annotator {
 	// If we have type *R with value(i) = nil, NewAnnotator will fail. We need to get
 	// value(i) = *R{}, so we reinflate the underlying value
@@ -253,7 +256,7 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 			return nil, false, fmt.Errorf("%v is an input type, but does not have a To%vOutput method", t.Name(), T)
 		}
 		outputT := toOutMethod.Type.Out(0)
-		//create new object of type outputT
+		// create new object of type outputT
 		strct := reflect.New(outputT).Elem().Interface()
 		out, ok := strct.(pulumi.Output)
 		if !ok {
@@ -270,7 +273,8 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 }
 
 func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propertyType) (
-	props map[string]schema.PropertySpec, required []string, err error) {
+	props map[string]schema.PropertySpec, required []string, err error,
+) {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}

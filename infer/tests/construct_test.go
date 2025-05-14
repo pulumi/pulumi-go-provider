@@ -28,7 +28,7 @@ import (
 func TestConstruct(t *testing.T) {
 	t.Parallel()
 
-	prov := providerWithMocks[Config](t, &integration.MockResourceMonitor{
+	prov := providerWithMocks(t, Config{}, &integration.MockResourceMonitor{
 		NewResourceF: func(args integration.MockResourceArgs) (string, property.Map, error) {
 			return args.ID, property.Map{}, nil
 		},

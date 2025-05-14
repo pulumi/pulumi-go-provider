@@ -25,11 +25,11 @@ import (
 
 func Provider() p.Provider {
 	return infer.Provider(infer.Options{
-		Resources: []infer.InferredResource{infer.Resource[*Get, GetArgs, GetState]()},
+		Resources: []infer.InferredResource{infer.Resource(&Get{})},
 		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{
 			"provider": "index",
 		},
-		Config: infer.Config[*Config](),
+		Config: infer.Config(&Config{}),
 	})
 }
 

@@ -58,7 +58,7 @@ type ProviderBuilder struct {
 //	func main() {
 //	    p, _ := infer.NewProviderBuilder().
 //	        WithComponents(
-//	            infer.Component(NewMyComponent),
+//	            infer.ComponentF(NewMyComponent),
 //	        ).
 //	        Build()
 //	    p.Run(context.Background(), "go-components", "v0.0.1")

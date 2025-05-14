@@ -27,7 +27,7 @@ import (
 func TestConfigure(t *testing.T) {
 	t.Parallel()
 
-	prov := providerWithConfig[Config](t)
+	prov := providerWithConfig(t, Config{})
 	err := prov.Configure(p.ConfigureRequest{
 		Args: property.NewMap(map[string]property.Value{
 			"value":        property.New("foo"),
@@ -52,7 +52,7 @@ func TestConfigureCustom(t *testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
 
-			prov := providerWithConfig[*ConfigCustom](t)
+			prov := providerWithConfig(t, &ConfigCustom{})
 			err := prov.Configure(p.ConfigureRequest{
 				Args: inputs,
 			})

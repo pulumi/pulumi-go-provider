@@ -67,7 +67,7 @@ func TestCheckAsset(t *testing.T) {
 func assetProvider(t *testing.T) pulumirpc.ResourceProviderServer {
 	s, err := p.RawServer("asset", "v0.1.0",
 		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{infer.Resource[*A]()},
+			Resources: []infer.InferredResource{infer.Resource(&A{})},
 		}))(nil)
 	require.NoError(t, err)
 	return s
@@ -112,7 +112,7 @@ func TestSchemaGenError(t *testing.T) {
 	// Ensure that we don't fail if the raw resource type is an output field.
 	s, err = p.RawServer("asset", "v0.1.0",
 		infer.Provider(infer.Options{
-			Resources: []infer.InferredResource{infer.Resource[*B]()},
+			Resources: []infer.InferredResource{infer.Resource(&B{})},
 		}))(nil)
 	require.NoError(t, err)
 	_, err = s.GetSchema(t.Context(), &pulumirpc.GetSchemaRequest{})

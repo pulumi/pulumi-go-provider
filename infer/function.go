@@ -25,6 +25,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
+	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
 )
@@ -60,15 +61,17 @@ type InferredFunction interface {
 }
 
 // Function infers a function from `F`, which maps `I` to `O`.
-func Function[F Fn[I, O], I, O any]() InferredFunction {
-	return &derivedInvokeController[F, I, O]{}
+func Function[F Fn[I, O], I, O any](fnc F) InferredFunction {
+	return &derivedInvokeController[F, I, O]{receiver: fnc}
 }
 
-type derivedInvokeController[F Fn[I, O], I, O any] struct{}
+type derivedInvokeController[F Fn[I, O], I, O any] struct {
+	receiver F
+}
 
 func (derivedInvokeController[F, I, O]) isInferredFunction() {}
 
-func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
+func (rc *derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	// By default, we get resource style tokens:
 	//
 	//	pkg:index:FizzBuzz
@@ -77,6 +80,17 @@ func (*derivedInvokeController[F, I, O]) GetToken() (tokens.Type, error) {
 	//
 	//	pkg:index:fizzBuzz
 	//
+
+	// If the receiver implements Annotate, run it to see if we have a custom
+	// token set. This doesn't recurse, but that's OK because we only care
+	// about the token.
+	if r, ok := any(rc.receiver).(Annotated); ok {
+		a := introspect.NewAnnotator(r)
+		r.Annotate(&a)
+		if a.Token != "" {
+			return tokens.Type(a.Token), nil
+		}
+	}
 	return getToken[F](fnToken)
 }
 
@@ -93,9 +107,8 @@ func fnToken(tk tokens.Type) tokens.Type {
 	return tokens.NewTypeToken(tk.Module(), tokens.TypeName(name))
 }
 
-func (*derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
-	var f F
-	descriptions := getAnnotated(reflect.TypeOf(f))
+func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
+	descriptions := getAnnotated(reflect.TypeOf(new(F)))
 
 	input, err := objectSchema(reflect.TypeOf(new(I)))
 	if err != nil {
@@ -154,12 +167,7 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 		return p.InvokeResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
 	}
 
-	var f F
-	// If F is a *struct, we need to rehydrate the underlying struct
-	if v := reflect.ValueOf(f); v.Kind() == reflect.Pointer && v.IsNil() {
-		f = reflect.New(v.Type().Elem()).Interface().(F)
-	}
-	o, err := f.Invoke(ctx, FunctionRequest[I]{Input: i})
+	o, err := r.receiver.Invoke(ctx, FunctionRequest[I]{Input: i})
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
