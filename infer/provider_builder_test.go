@@ -16,6 +16,7 @@ package infer
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	gogen "github.com/pulumi/pulumi/pkg/v3/codegen/go"
 )
 
 // MockComponentResource is a minimal implementation of pulumi.ComponentResource for testing
@@ -289,6 +292,68 @@ func TestWithWrapped(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", resp.ID)
+}
+
+func TestWithGoImportPath(t *testing.T) {
+	t.Parallel()
+
+	path := func(opts Options) string {
+		lm := opts.LanguageMap
+		gpi := lm["go"]
+
+		bytes, err := json.Marshal(gpi)
+		require.NoError(t, err)
+
+		var g gogen.GoPackageInfo
+		err = json.Unmarshal(bytes, &g)
+		require.NoError(t, err)
+
+		return g.ImportBasePath
+	}
+
+	t.Run("with namespace", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithNamespace("pulumi")
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "github.com/pulumi/yourdisplayname/sdk/go/yourdisplayname", path(opts))
+	})
+	t.Run("with displayname", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithDisplayName("xyz")
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "github.com/yournamespace/xyz/sdk/go/xyz", path(opts))
+	})
+	t.Run("with namespace and displayname", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithDisplayName("xyz")
+		pb.WithNamespace("pulumi")
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "github.com/pulumi/xyz/sdk/go/xyz", path(opts))
+	})
+	t.Run("with go import path", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithGoImportPath("github.com/custom/sdk/path")
+		pb.WithNamespace("ignored")
+		pb.WithDisplayName("ignored")
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "github.com/custom/sdk/path", path(opts))
+	})
+	t.Run("empty language map", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithLanguageMap(nil)
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "github.com/yournamespace/yourdisplayname/sdk/go/yourdisplayname", path(opts))
+	})
 }
 
 func TestBuild(t *testing.T) {

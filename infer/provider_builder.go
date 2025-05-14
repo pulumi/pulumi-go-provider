@@ -74,12 +74,17 @@ func NewProviderBuilder() *ProviderBuilder {
 			"nodejs": map[string]any{
 				"respectSchemaVersion": true,
 			},
+			// See [github.com/pulumi/pulumi/pkg/v3/codegen/go.GoPackageInfo].
 			"go": map[string]any{
 				"generateResourceContainerTypes": true,
 				"respectSchemaVersion":           true,
 			},
+			// See [github.com/pulumi/pulumi/pkg/v3/codegen/python.PackageInfo].
 			"python": map[string]any{
 				"respectSchemaVersion": true,
+				"pyproject": map[string]any{
+					"enabled": true,
+				},
 			},
 			"csharp": map[string]any{
 				"respectSchemaVersion": true,
@@ -191,6 +196,29 @@ func (pb *ProviderBuilder) WithPluginDownloadURL(pluginDownloadURL string) *Prov
 	return pb
 }
 
+// WithGoImportPath sets the base import path for the provider's generated SDK.
+func (pb *ProviderBuilder) WithGoImportPath(path string) *ProviderBuilder {
+	gpi := pb.getGoPackageInfo()
+	gpi["importBasePath"] = path
+	return pb
+}
+
+func (pb *ProviderBuilder) getGoPackageInfo() map[string]any {
+	lm := pb.metadata.LanguageMap
+	if lm == nil {
+		lm = map[string]any{}
+		pb.metadata.LanguageMap = lm
+	}
+
+	gpi, ok := lm["go"]
+	if !ok {
+		gpi = map[string]any{}
+		lm["go"] = gpi
+	}
+
+	return gpi.(map[string]any)
+}
+
 // WithNamespace sets the provider namespace.
 func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
 	pb.metadata.Namespace = namespace
@@ -200,6 +228,24 @@ func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
 // BuildOptions builds an [Options] object from the provider builder configuration. This
 // is useful when a user wants to have more control over the provider creation process.
 func (pb *ProviderBuilder) BuildOptions() Options {
+	if pb.metadata.DisplayName == "" {
+		pb.metadata.DisplayName = "yourdisplayname"
+	}
+	if pb.metadata.Namespace == "" {
+		pb.metadata.Namespace = "yournamespace"
+	}
+
+	gpi := pb.getGoPackageInfo()
+	if _, ok := gpi["importBasePath"]; !ok {
+		path := fmt.Sprintf(
+			"github.com/%s/%s/sdk/go/%s",
+			pb.metadata.Namespace,
+			pb.metadata.DisplayName,
+			pb.metadata.DisplayName,
+		)
+		gpi["importBasePath"] = path
+	}
+
 	return Options{
 		Metadata:   pb.metadata,
 		Resources:  pb.resources,
@@ -227,5 +273,6 @@ func (pb *ProviderBuilder) Build() (provider.Provider, error) {
 	}
 
 	opts := pb.BuildOptions()
+
 	return Provider(opts), nil
 }
