@@ -19,6 +19,7 @@ const schema = `{
   "name": "random-login",
   "version": "0.1.0",
   "namespace": "examples",
+  "displayName": "yourdisplayname",
   "language": {
     "go": {
       "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
