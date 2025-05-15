@@ -354,6 +354,34 @@ func TestWithGoImportPath(t *testing.T) {
 		opts := pb.BuildOptions()
 		assert.Equal(t, "github.com/yournamespace/yourdisplayname/sdk/go/yourdisplayname", path(opts))
 	})
+
+	t.Run("GoPackageInfo language map", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithLanguageMap(map[string]any{
+			"go": gogen.GoPackageInfo{
+				ImportBasePath: "foo",
+			},
+		})
+		pb.WithGoImportPath("override")
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "override", path(opts))
+	})
+
+	t.Run("map[string]any language map", func(t *testing.T) {
+		t.Parallel()
+		pb := NewProviderBuilder()
+		pb.WithLanguageMap(map[string]any{
+			"go": map[string]string{
+				"importBasePath": "foo",
+			},
+		})
+		pb.WithGoImportPath("override")
+
+		opts := pb.BuildOptions()
+		assert.Equal(t, "override", path(opts))
+	})
 }
 
 func TestBuild(t *testing.T) {

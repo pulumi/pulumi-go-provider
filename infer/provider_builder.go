@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"encoding/json"
 	"fmt"
 
 	provider "github.com/pulumi/pulumi-go-provider"
@@ -211,12 +212,27 @@ func (pb *ProviderBuilder) getGoPackageInfo() map[string]any {
 	}
 
 	gpi, ok := lm["go"]
-	if !ok {
-		gpi = map[string]any{}
-		lm["go"] = gpi
+	if m, isMap := gpi.(map[string]any); ok && isMap {
+		return m
+	}
+	if gpi == nil {
+		m := map[string]any{}
+		lm["go"] = m
+		return m
 	}
 
-	return gpi.(map[string]any)
+	// The user could have given us a GoPackageInfo struct or an arbitrary map.
+	// We don't want to take on a gogen dependency here, so round-trip the data
+	// via JSON to get a map out the other side.
+	bytes, err := json.Marshal(gpi)
+	if err != nil {
+		panic("invalid go package info: " + err.Error())
+	}
+	var m map[string]any
+	_ = json.Unmarshal(bytes, &m)
+
+	lm["go"] = m
+	return m
 }
 
 // WithNamespace sets the provider namespace.
