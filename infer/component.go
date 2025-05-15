@@ -77,9 +77,6 @@ func (fn *componentF[I, O]) Construct(ctx *pulumi.Context, name, typ string, inp
 //
 // fn is the function you would use to construct the program.
 //
-// Note that this syntax doesn't allow annotating the component. Use
-// [infer.Component] for more control over the component's generated schema.
-//
 // See: https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource.
 func ComponentF[A any, O pulumi.ComponentResource, F ComponentFn[A, O]](fn F) InferredComponent {
 	rsc := &componentF[A, O]{
