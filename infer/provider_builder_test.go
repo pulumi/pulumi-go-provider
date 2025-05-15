@@ -101,6 +101,9 @@ func TestNewDefaultProvider(t *testing.T) {
 			"respectSchemaVersion":           true,
 		},
 		"python": map[string]any{
+			"pyproject": map[string]any{
+				"enabled": true,
+			},
 			"respectSchemaVersion": true,
 		},
 		"csharp": map[string]any{
