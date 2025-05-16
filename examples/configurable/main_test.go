@@ -45,12 +45,13 @@ func TestWidget(t *testing.T) {
 	require.NoError(t, err)
 
 	// Configure the provider with a fake client key and secret.
-	server.Configure(p.ConfigureRequest{
+	err = server.Configure(p.ConfigureRequest{
 		Args: property.NewMap(map[string]property.Value{
 			"clientKey":    property.New("mykey"),
 			"clientSecret": property.New("mysecret").WithSecret(true),
 		}),
 	})
+	require.NoError(t, err)
 
 	// Test the lifecycle methods of the Widget resource, expecting it to use the mock client.
 	integration.LifeCycleTest{
