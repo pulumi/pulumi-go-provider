@@ -18,6 +18,8 @@ To run the `echo` example, you would run `make examples/echo/test`.
 - [assets](./assets/main.go) provides an example for returning [Pulumi assets](https://www.pulumi.com/docs/iac/concepts/assets-archives/) in [`infer`][infer] based providers.
 - [component-program](./component-program/main.go) shows an example of how to use [`infer`][infer] to create a simple provider using a [Pulumi component resource program](https://www.pulumi.com/docs/iac/concepts/resources/components/#authoring-a-new-component-resource).
 - [auto-naming](./auto-naming/main.go) shows an example of naive [auto-naming](https://www.pulumi.com/docs/iac/concepts/resources/names/#autonaming) for an [`infer`][infer] based resource.
+- [configurable](./configurable/main.go) shows using [`infer`][infer] to define a configurable provider that
+  uses a client to connect to an external system.
 - [credentials](./credentials/main.go) shows using [`infer`][infer] to define, accept and return an enum. It also
   has a custom `Configure` workflow.
 - [dna-store](./dna-store/main.go) shows using [`infer`][infer] to implement `Read`.

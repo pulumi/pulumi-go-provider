@@ -93,6 +93,16 @@ The `LifeCycleTest` struct enables testing the full lifecycle of a custom resour
 
 It supports hooks for custom validation and assertions on resource outputs.
 
+## Client Injection
+
+Most providers connect to external systems using a client library of some kind. To test your provider code,
+you'll need to make a suitable mock client. This section addresses how to inject a client into an infer-style provider.
+
+The provider build syntax allows you to pre-initialize the various receivers. Use this to supply your resources, 
+components, and functions with a logger, client factory, or other variables.
+
+See `examples/configurable` for a demonstration.
+
 ### Example
 
 ```go
