@@ -28,12 +28,12 @@ func TestWidget(t *testing.T) {
 	}).AnyTimes()
 
 	// Create the provider such that it uses the mock client.
-	getMockClient := func(ctx context.Context, config Config) (client, error) {
+	newMockClient := func(ctx context.Context, config Config) (client, error) {
 		assert.Equal(t, "mykey", config.ClientKey)
 		assert.Equal(t, "mysecret", config.ClientSecret)
 		return mockClient, nil
 	}
-	provider, err := provider(getMockClient)
+	provider, err := provider(newMockClient)
 	require.NoError(t, err)
 
 	// Create the integration server.
