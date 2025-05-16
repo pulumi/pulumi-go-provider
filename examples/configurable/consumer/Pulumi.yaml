@@ -1,0 +1,20 @@
+name: consume-configurable
+runtime: yaml
+
+packages:
+  configurable: ../
+
+resources:
+  myprovider:
+    type: pulumi:providers:configurable
+    properties:
+      clientKey: "abcdef"
+      clientSecret:
+        fn::secret: "123456"
+  mywidget:
+    type: configurable:Widget
+    options:
+      provider: ${myprovider}
+
+outputs:
+  widget: ${mywidget.id}
