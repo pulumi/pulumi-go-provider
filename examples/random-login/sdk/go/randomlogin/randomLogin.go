@@ -16,9 +16,11 @@ import (
 type RandomLogin struct {
 	pulumi.ResourceState
 
+	// The generated password.
 	Password pulumi.StringOutput `pulumi:"password"`
 	// Whether to use a memorable pet name or a random string for the Username.
-	PetName  pulumi.BoolOutput   `pulumi:"petName"`
+	PetName pulumi.BoolOutput `pulumi:"petName"`
+	// The generated username.
 	Username pulumi.StringOutput `pulumi:"username"`
 }
 
@@ -29,6 +31,12 @@ func NewRandomLogin(ctx *pulumi.Context,
 		return nil, errors.New("missing one or more required arguments")
 	}
 
+	aliases := pulumi.Aliases([]pulumi.Alias{
+		{
+			Type: pulumi.String("random-login:other:RandomLogin"),
+		},
+	})
+	opts = append(opts, aliases)
 	opts = internal.PkgResourceDefaultOpts(opts)
 	var resource RandomLogin
 	err := ctx.RegisterRemoteComponentResource("random-login:index:RandomLogin", name, args, &resource, opts...)
@@ -39,11 +47,13 @@ func NewRandomLogin(ctx *pulumi.Context,
 }
 
 type randomLoginArgs struct {
+	// Whether to use a memorable pet name or a random string for the Username.
 	PetName bool `pulumi:"petName"`
 }
 
 // The set of arguments for constructing a RandomLogin resource.
 type RandomLoginArgs struct {
+	// Whether to use a memorable pet name or a random string for the Username.
 	PetName bool
 }
 
@@ -84,6 +94,7 @@ func (o RandomLoginOutput) ToRandomLoginOutputWithContext(ctx context.Context) R
 	return o
 }
 
+// The generated password.
 func (o RandomLoginOutput) Password() pulumi.StringOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.StringOutput { return v.Password }).(pulumi.StringOutput)
 }
@@ -93,6 +104,7 @@ func (o RandomLoginOutput) PetName() pulumi.BoolOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.BoolOutput { return v.PetName }).(pulumi.BoolOutput)
 }
 
+// The generated username.
 func (o RandomLoginOutput) Username() pulumi.StringOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.StringOutput { return v.Username }).(pulumi.StringOutput)
 }

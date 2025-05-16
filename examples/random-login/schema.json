@@ -1,5 +1,6 @@
 {
   "name": "random-login",
+  "displayName": "yourdisplayname",
   "version": "0.1.0",
   "namespace": "examples",
   "meta": {
@@ -37,14 +38,19 @@
         }
       },
       "type": "object",
-      "required": ["length", "password"],
+      "required": [
+        "length",
+        "password"
+      ],
       "inputProperties": {
         "length": {
           "type": "integer",
           "description": "The desired password length."
         }
       },
-      "requiredInputs": ["length"],
+      "requiredInputs": [
+        "length"
+      ],
       "isComponent": true
     },
     "random-login:index:RandomLogin": {
@@ -65,7 +71,11 @@
         }
       },
       "type": "object",
-      "required": ["password", "petName", "username"],
+      "required": [
+        "password",
+        "petName",
+        "username"
+      ],
       "inputProperties": {
         "petName": {
           "type": "boolean",
@@ -73,7 +83,9 @@
           "description": "Whether to use a memorable pet name or a random string for the Username."
         }
       },
-      "requiredInputs": ["petName"],
+      "requiredInputs": [
+        "petName"
+      ],
       "aliases": [
         {
           "type": "random-login:other:RandomLogin"
@@ -97,7 +109,11 @@
         }
       },
       "type": "object",
-      "required": ["password", "salt", "saltedPassword"],
+      "required": [
+        "password",
+        "salt",
+        "saltedPassword"
+      ],
       "inputProperties": {
         "password": {
           "type": "string"
@@ -106,7 +122,9 @@
           "type": "integer"
         }
       },
-      "requiredInputs": ["password"]
+      "requiredInputs": [
+        "password"
+      ]
     }
   }
 }
