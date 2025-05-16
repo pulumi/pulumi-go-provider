@@ -12,6 +12,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// Generate a random password.
 type MoreRandomPassword struct {
 	pulumi.ResourceState
 
@@ -39,11 +40,13 @@ func NewMoreRandomPassword(ctx *pulumi.Context,
 }
 
 type moreRandomPasswordArgs struct {
+	// The desired password length.
 	Length int `pulumi:"length"`
 }
 
 // The set of arguments for constructing a MoreRandomPassword resource.
 type MoreRandomPasswordArgs struct {
+	// The desired password length.
 	Length pulumi.IntInput
 }
 

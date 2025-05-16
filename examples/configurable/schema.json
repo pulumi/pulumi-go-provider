@@ -1,0 +1,91 @@
+{
+  "name": "configurable",
+  "displayName": "yourdisplayname",
+  "version": "0.1.0",
+  "namespace": "examples",
+  "meta": {
+    "moduleFormat": "(.*)"
+  },
+  "language": {
+    "csharp": {
+      "respectSchemaVersion": true
+    },
+    "go": {
+      "generateResourceContainerTypes": true,
+      "importBasePath": "github.com/examples/yourdisplayname/sdk/go/yourdisplayname",
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "pyproject": {
+        "enabled": true
+      },
+      "respectSchemaVersion": true
+    }
+  },
+  "config": {
+    "variables": {
+      "clientKey": {
+        "type": "string",
+        "description": "The client key to connect to the external system."
+      },
+      "clientSecret": {
+        "type": "string",
+        "description": "The client secret to connect to the external system.",
+        "secret": true
+      }
+    },
+    "defaults": [
+      "clientKey",
+      "clientSecret"
+    ]
+  },
+  "provider": {
+    "properties": {
+      "clientKey": {
+        "type": "string",
+        "description": "The client key to connect to the external system."
+      },
+      "clientSecret": {
+        "type": "string",
+        "description": "The client secret to connect to the external system.",
+        "secret": true
+      }
+    },
+    "type": "object",
+    "required": [
+      "clientKey",
+      "clientSecret"
+    ],
+    "inputProperties": {
+      "clientKey": {
+        "type": "string",
+        "description": "The client key to connect to the external system."
+      },
+      "clientSecret": {
+        "type": "string",
+        "description": "The client secret to connect to the external system.",
+        "secret": true
+      }
+    },
+    "requiredInputs": [
+      "clientKey",
+      "clientSecret"
+    ]
+  },
+  "resources": {
+    "configurable:index:Widget": {
+      "properties": {
+        "color": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "color"
+      ]
+    }
+  }
+}
