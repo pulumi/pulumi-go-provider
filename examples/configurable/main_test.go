@@ -17,10 +17,11 @@ import (
 
 //go:generate go tool mockgen -typed -package main -destination mocks.gen.go -imports goprovider=github.com/pulumi/pulumi-go-provider . client
 
+// TestWidget tests the Widget resource.
+//
+// This test demonstrates the use of mock client injection for testing your provider code.
 func TestWidget(t *testing.T) {
-
-	// This test demonstrates the use of mock client injection for testing your provider code.
-	// Here we configure a mock client to return a fake widget ID when CreateWidget is called.
+	// Configure a mock client to return a fake widget ID when CreateWidget is called.
 	ctrl := gomock.NewController(t)
 	mockClient := NewMockclient(ctrl)
 	mockClient.EXPECT().CreateWidget(gomock.Any()).DoAndReturn(func(name string) (string, error) {

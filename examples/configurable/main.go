@@ -71,11 +71,14 @@ type Config struct {
 	ClientSecret string `pulumi:"clientSecret" provider:"secret"`
 }
 
-var _ = (infer.Annotated)((*Config)(nil))
-
 func (c *Config) Annotate(a infer.Annotator) {
 	a.Describe(&c.ClientKey, "The client key to connect to the external system.")
 	a.Describe(&c.ClientSecret, "The client secret to connect to the external system.")
+}
+
+func (c *Config) Configure(ctx context.Context) error {
+	// post-process the config here if necessary
+	return nil
 }
 
 type Widget struct {
