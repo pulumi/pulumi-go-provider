@@ -97,6 +97,56 @@ func (i *RandomSalt) ToRandomSaltOutputWithContext(ctx context.Context) RandomSa
 	return pulumi.ToOutputWithContext(ctx, i).(RandomSaltOutput)
 }
 
+// RandomSaltArrayInput is an input type that accepts RandomSaltArray and RandomSaltArrayOutput values.
+// You can construct a concrete instance of `RandomSaltArrayInput` via:
+//
+//	RandomSaltArray{ RandomSaltArgs{...} }
+type RandomSaltArrayInput interface {
+	pulumi.Input
+
+	ToRandomSaltArrayOutput() RandomSaltArrayOutput
+	ToRandomSaltArrayOutputWithContext(context.Context) RandomSaltArrayOutput
+}
+
+type RandomSaltArray []RandomSaltInput
+
+func (RandomSaltArray) ElementType() reflect.Type {
+	return reflect.TypeOf((*[]*RandomSalt)(nil)).Elem()
+}
+
+func (i RandomSaltArray) ToRandomSaltArrayOutput() RandomSaltArrayOutput {
+	return i.ToRandomSaltArrayOutputWithContext(context.Background())
+}
+
+func (i RandomSaltArray) ToRandomSaltArrayOutputWithContext(ctx context.Context) RandomSaltArrayOutput {
+	return pulumi.ToOutputWithContext(ctx, i).(RandomSaltArrayOutput)
+}
+
+// RandomSaltMapInput is an input type that accepts RandomSaltMap and RandomSaltMapOutput values.
+// You can construct a concrete instance of `RandomSaltMapInput` via:
+//
+//	RandomSaltMap{ "key": RandomSaltArgs{...} }
+type RandomSaltMapInput interface {
+	pulumi.Input
+
+	ToRandomSaltMapOutput() RandomSaltMapOutput
+	ToRandomSaltMapOutputWithContext(context.Context) RandomSaltMapOutput
+}
+
+type RandomSaltMap map[string]RandomSaltInput
+
+func (RandomSaltMap) ElementType() reflect.Type {
+	return reflect.TypeOf((*map[string]*RandomSalt)(nil)).Elem()
+}
+
+func (i RandomSaltMap) ToRandomSaltMapOutput() RandomSaltMapOutput {
+	return i.ToRandomSaltMapOutputWithContext(context.Background())
+}
+
+func (i RandomSaltMap) ToRandomSaltMapOutputWithContext(ctx context.Context) RandomSaltMapOutput {
+	return pulumi.ToOutputWithContext(ctx, i).(RandomSaltMapOutput)
+}
+
 type RandomSaltOutput struct{ *pulumi.OutputState }
 
 func (RandomSaltOutput) ElementType() reflect.Type {
@@ -127,7 +177,51 @@ func (o RandomSaltOutput) SaltedPassword() pulumi.StringOutput {
 	return o.ApplyT(func(v *RandomSalt) pulumi.StringOutput { return v.SaltedPassword }).(pulumi.StringOutput)
 }
 
+type RandomSaltArrayOutput struct{ *pulumi.OutputState }
+
+func (RandomSaltArrayOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*[]*RandomSalt)(nil)).Elem()
+}
+
+func (o RandomSaltArrayOutput) ToRandomSaltArrayOutput() RandomSaltArrayOutput {
+	return o
+}
+
+func (o RandomSaltArrayOutput) ToRandomSaltArrayOutputWithContext(ctx context.Context) RandomSaltArrayOutput {
+	return o
+}
+
+func (o RandomSaltArrayOutput) Index(i pulumi.IntInput) RandomSaltOutput {
+	return pulumi.All(o, i).ApplyT(func(vs []interface{}) *RandomSalt {
+		return vs[0].([]*RandomSalt)[vs[1].(int)]
+	}).(RandomSaltOutput)
+}
+
+type RandomSaltMapOutput struct{ *pulumi.OutputState }
+
+func (RandomSaltMapOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*map[string]*RandomSalt)(nil)).Elem()
+}
+
+func (o RandomSaltMapOutput) ToRandomSaltMapOutput() RandomSaltMapOutput {
+	return o
+}
+
+func (o RandomSaltMapOutput) ToRandomSaltMapOutputWithContext(ctx context.Context) RandomSaltMapOutput {
+	return o
+}
+
+func (o RandomSaltMapOutput) MapIndex(k pulumi.StringInput) RandomSaltOutput {
+	return pulumi.All(o, k).ApplyT(func(vs []interface{}) *RandomSalt {
+		return vs[0].(map[string]*RandomSalt)[vs[1].(string)]
+	}).(RandomSaltOutput)
+}
+
 func init() {
 	pulumi.RegisterInputType(reflect.TypeOf((*RandomSaltInput)(nil)).Elem(), &RandomSalt{})
+	pulumi.RegisterInputType(reflect.TypeOf((*RandomSaltArrayInput)(nil)).Elem(), RandomSaltArray{})
+	pulumi.RegisterInputType(reflect.TypeOf((*RandomSaltMapInput)(nil)).Elem(), RandomSaltMap{})
 	pulumi.RegisterOutputType(RandomSaltOutput{})
+	pulumi.RegisterOutputType(RandomSaltArrayOutput{})
+	pulumi.RegisterOutputType(RandomSaltMapOutput{})
 }

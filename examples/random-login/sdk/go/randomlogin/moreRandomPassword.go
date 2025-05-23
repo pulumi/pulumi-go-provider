@@ -73,6 +73,56 @@ func (i *MoreRandomPassword) ToMoreRandomPasswordOutputWithContext(ctx context.C
 	return pulumi.ToOutputWithContext(ctx, i).(MoreRandomPasswordOutput)
 }
 
+// MoreRandomPasswordArrayInput is an input type that accepts MoreRandomPasswordArray and MoreRandomPasswordArrayOutput values.
+// You can construct a concrete instance of `MoreRandomPasswordArrayInput` via:
+//
+//	MoreRandomPasswordArray{ MoreRandomPasswordArgs{...} }
+type MoreRandomPasswordArrayInput interface {
+	pulumi.Input
+
+	ToMoreRandomPasswordArrayOutput() MoreRandomPasswordArrayOutput
+	ToMoreRandomPasswordArrayOutputWithContext(context.Context) MoreRandomPasswordArrayOutput
+}
+
+type MoreRandomPasswordArray []MoreRandomPasswordInput
+
+func (MoreRandomPasswordArray) ElementType() reflect.Type {
+	return reflect.TypeOf((*[]*MoreRandomPassword)(nil)).Elem()
+}
+
+func (i MoreRandomPasswordArray) ToMoreRandomPasswordArrayOutput() MoreRandomPasswordArrayOutput {
+	return i.ToMoreRandomPasswordArrayOutputWithContext(context.Background())
+}
+
+func (i MoreRandomPasswordArray) ToMoreRandomPasswordArrayOutputWithContext(ctx context.Context) MoreRandomPasswordArrayOutput {
+	return pulumi.ToOutputWithContext(ctx, i).(MoreRandomPasswordArrayOutput)
+}
+
+// MoreRandomPasswordMapInput is an input type that accepts MoreRandomPasswordMap and MoreRandomPasswordMapOutput values.
+// You can construct a concrete instance of `MoreRandomPasswordMapInput` via:
+//
+//	MoreRandomPasswordMap{ "key": MoreRandomPasswordArgs{...} }
+type MoreRandomPasswordMapInput interface {
+	pulumi.Input
+
+	ToMoreRandomPasswordMapOutput() MoreRandomPasswordMapOutput
+	ToMoreRandomPasswordMapOutputWithContext(context.Context) MoreRandomPasswordMapOutput
+}
+
+type MoreRandomPasswordMap map[string]MoreRandomPasswordInput
+
+func (MoreRandomPasswordMap) ElementType() reflect.Type {
+	return reflect.TypeOf((*map[string]*MoreRandomPassword)(nil)).Elem()
+}
+
+func (i MoreRandomPasswordMap) ToMoreRandomPasswordMapOutput() MoreRandomPasswordMapOutput {
+	return i.ToMoreRandomPasswordMapOutputWithContext(context.Background())
+}
+
+func (i MoreRandomPasswordMap) ToMoreRandomPasswordMapOutputWithContext(ctx context.Context) MoreRandomPasswordMapOutput {
+	return pulumi.ToOutputWithContext(ctx, i).(MoreRandomPasswordMapOutput)
+}
+
 type MoreRandomPasswordOutput struct{ *pulumi.OutputState }
 
 func (MoreRandomPasswordOutput) ElementType() reflect.Type {
@@ -95,7 +145,51 @@ func (o MoreRandomPasswordOutput) Password() pulumi.StringOutput {
 	return o.ApplyT(func(v *MoreRandomPassword) pulumi.StringOutput { return v.Password }).(pulumi.StringOutput)
 }
 
+type MoreRandomPasswordArrayOutput struct{ *pulumi.OutputState }
+
+func (MoreRandomPasswordArrayOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*[]*MoreRandomPassword)(nil)).Elem()
+}
+
+func (o MoreRandomPasswordArrayOutput) ToMoreRandomPasswordArrayOutput() MoreRandomPasswordArrayOutput {
+	return o
+}
+
+func (o MoreRandomPasswordArrayOutput) ToMoreRandomPasswordArrayOutputWithContext(ctx context.Context) MoreRandomPasswordArrayOutput {
+	return o
+}
+
+func (o MoreRandomPasswordArrayOutput) Index(i pulumi.IntInput) MoreRandomPasswordOutput {
+	return pulumi.All(o, i).ApplyT(func(vs []interface{}) *MoreRandomPassword {
+		return vs[0].([]*MoreRandomPassword)[vs[1].(int)]
+	}).(MoreRandomPasswordOutput)
+}
+
+type MoreRandomPasswordMapOutput struct{ *pulumi.OutputState }
+
+func (MoreRandomPasswordMapOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*map[string]*MoreRandomPassword)(nil)).Elem()
+}
+
+func (o MoreRandomPasswordMapOutput) ToMoreRandomPasswordMapOutput() MoreRandomPasswordMapOutput {
+	return o
+}
+
+func (o MoreRandomPasswordMapOutput) ToMoreRandomPasswordMapOutputWithContext(ctx context.Context) MoreRandomPasswordMapOutput {
+	return o
+}
+
+func (o MoreRandomPasswordMapOutput) MapIndex(k pulumi.StringInput) MoreRandomPasswordOutput {
+	return pulumi.All(o, k).ApplyT(func(vs []interface{}) *MoreRandomPassword {
+		return vs[0].(map[string]*MoreRandomPassword)[vs[1].(string)]
+	}).(MoreRandomPasswordOutput)
+}
+
 func init() {
 	pulumi.RegisterInputType(reflect.TypeOf((*MoreRandomPasswordInput)(nil)).Elem(), &MoreRandomPassword{})
+	pulumi.RegisterInputType(reflect.TypeOf((*MoreRandomPasswordArrayInput)(nil)).Elem(), MoreRandomPasswordArray{})
+	pulumi.RegisterInputType(reflect.TypeOf((*MoreRandomPasswordMapInput)(nil)).Elem(), MoreRandomPasswordMap{})
 	pulumi.RegisterOutputType(MoreRandomPasswordOutput{})
+	pulumi.RegisterOutputType(MoreRandomPasswordArrayOutput{})
+	pulumi.RegisterOutputType(MoreRandomPasswordMapOutput{})
 }

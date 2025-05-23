@@ -22,7 +22,21 @@ const schema = `{
   "displayName": "yourdisplayname",
   "language": {
     "go": {
-      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
+      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin",
+      "generateResourceContainerTypes": true,
+			"respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "respectSchemaVersion": true,
+      "pyproject": {
+        "enabled": true
+      }
+    },
+    "csharp": {
+      "respectSchemaVersion": true
     }
   },
   "config": {
