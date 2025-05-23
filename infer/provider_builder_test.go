@@ -207,6 +207,7 @@ func TestWithModuleMap(t *testing.T) {
 func TestWithLanguageMap(t *testing.T) {
 	t.Parallel()
 	dp := NewProviderBuilder()
+	expected := dp.metadata.LanguageMap
 
 	languageMap := map[string]any{
 		"go": map[string]any{
@@ -215,8 +216,9 @@ func TestWithLanguageMap(t *testing.T) {
 	}
 
 	dp.WithLanguageMap(languageMap)
+	expected["go"].(map[string]any)["importBasePath"] = "github.com/example/package"
 
-	assert.Equal(t, languageMap, dp.metadata.LanguageMap)
+	assert.Equal(t, expected, dp.metadata.LanguageMap)
 }
 
 func TestWithMetadataFields(t *testing.T) {
