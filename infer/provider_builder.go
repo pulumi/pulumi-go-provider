@@ -285,9 +285,6 @@ func (pb *ProviderBuilder) validate() error {
 
 // structToMap roundtrips to json so package info types can be merged as maps
 func structToMap(obj any) map[string]any {
-	if obj == nil {
-		return nil
-	}
 	bytes, err := json.Marshal(obj)
 	if err != nil {
 		panic("invalid struct: " + err.Error())
