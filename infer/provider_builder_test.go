@@ -256,6 +256,24 @@ func TestWithLanguageMap(t *testing.T) {
 		assert.Equal(t, expected, dp.metadata.LanguageMap)
 	})
 
+	t.Run("value in both merge source and merge dest, using gogen.GoPackageInfo", func(t *testing.T) {
+		t.Parallel()
+		dp := NewProviderBuilder()
+		languageMap := map[string]any{
+			"go": gogen.GoPackageInfo{
+				GenerateResourceContainerTypes: false,
+			},
+		}
+
+		dp.WithLanguageMap(languageMap)
+
+		expected := NewProviderBuilder().metadata.LanguageMap
+		expected["go"].(map[string]any)["generateResourceContainerTypes"] = false
+
+		//this currently fails because json.Marshal throws out the false value in GoPackageInfo since it is omitempty
+		assert.Equal(t, expected, dp.metadata.LanguageMap)
+	})
+
 	t.Run("panics with a func field", func(t *testing.T) {
 		t.Parallel()
 		dp := NewProviderBuilder()
@@ -264,7 +282,10 @@ func TestWithLanguageMap(t *testing.T) {
 				"generateResourceContainerTypes": func(foo int) {},
 			},
 		}
-		assert.Panicsf(t, func() { dp.WithLanguageMap(languageMap) }, "invalid struct: %s", "json: unsupported type: func(int)")
+		assert.Panicsf(
+			t,
+			func() { dp.WithLanguageMap(languageMap) },
+			"invalid struct: %s", "json: unsupported type: func(int)")
 	})
 
 }
