@@ -204,19 +204,90 @@ func TestWithModuleMap(t *testing.T) {
 	assert.Equal(t, moduleMap, dp.moduleMap)
 }
 
+// func TestWithLanguageMap(t *testing.T) {
+// 	t.Parallel()
+// 	dp := NewProviderBuilder()
+// 	expected := dp.metadata.LanguageMap
+
+// 	languageMap := map[string]any{
+// 		"go": map[string]any{
+// 			"importBasePath": "github.com/example/package",
+// 		},
+// 	}
+
+// 	dp.WithLanguageMap(languageMap)
+// 	expected["go"].(map[string]any)["importBasePath"] = "github.com/example/package"
+
+// 	assert.Equal(t, expected, dp.metadata.LanguageMap)
+// }
+
 func TestWithLanguageMap(t *testing.T) {
-	t.Parallel()
-	dp := NewProviderBuilder()
+	t.Run("value in merge source, not in dest", func(t *testing.T) {
+		t.Parallel()
+		dp := NewProviderBuilder()
+		languageMap := map[string]any{
+			"go": map[string]any{
+				"importBasePath": "github.com/example/package",
+			},
+		}
 
-	languageMap := map[string]any{
-		"go": map[string]any{
-			"importBasePath": "github.com/example/package",
-		},
-	}
+		dp.WithLanguageMap(languageMap)
 
-	dp.WithLanguageMap(languageMap)
+		expected := NewProviderBuilder().metadata.LanguageMap
+		expected["go"].(map[string]any)["importBasePath"] = "github.com/example/package"
 
-	assert.Equal(t, languageMap, dp.metadata.LanguageMap)
+		assert.Equal(t, expected, dp.metadata.LanguageMap)
+	})
+
+	t.Run("value in both merge source and merge dest", func(t *testing.T) {
+		t.Parallel()
+		dp := NewProviderBuilder()
+		languageMap := map[string]any{
+			"go": map[string]any{
+				"generateResourceContainerTypes": false,
+			},
+		}
+
+		dp.WithLanguageMap(languageMap)
+
+		expected := NewProviderBuilder().metadata.LanguageMap
+		expected["go"].(map[string]any)["generateResourceContainerTypes"] = false
+
+		assert.Equal(t, expected, dp.metadata.LanguageMap)
+	})
+
+	t.Run("value in both merge source and merge dest, using gogen.GoPackageInfo", func(t *testing.T) {
+		t.Parallel()
+		dp := NewProviderBuilder()
+		languageMap := map[string]any{
+			"go": gogen.GoPackageInfo{
+				GenerateResourceContainerTypes: false,
+			},
+		}
+
+		dp.WithLanguageMap(languageMap)
+
+		expected := NewProviderBuilder().metadata.LanguageMap
+		expected["go"].(map[string]any)["generateResourceContainerTypes"] = false
+
+		//this currently fails because json.Marshal throws out the false value in GoPackageInfo since it is omitempty
+		assert.Equal(t, expected, dp.metadata.LanguageMap)
+	})
+
+	t.Run("panics with a func field", func(t *testing.T) {
+		t.Parallel()
+		dp := NewProviderBuilder()
+		languageMap := map[string]any{
+			"go": map[string]any{
+				"generateResourceContainerTypes": func(foo int) {},
+			},
+		}
+		assert.Panicsf(
+			t,
+			func() { dp.WithLanguageMap(languageMap) },
+			"invalid struct: %s", "json: unsupported type: func(int)")
+	})
+
 }
 
 func TestWithMetadataFields(t *testing.T) {

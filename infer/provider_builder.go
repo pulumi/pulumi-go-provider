@@ -132,7 +132,8 @@ func (pb *ProviderBuilder) WithModuleMap(moduleMap map[tokens.ModuleName]tokens.
 // The language map is a mapping of language names to language-specific metadata.
 // This is used to customize how the provider is exposed in different languages.
 func (pb *ProviderBuilder) WithLanguageMap(languageMap map[string]any) *ProviderBuilder {
-	pb.metadata.LanguageMap = languageMap
+	languageMap = structToMap(languageMap)
+	pb.metadata.LanguageMap = deepMerge(pb.metadata.LanguageMap, languageMap)
 	return pb
 }
 
@@ -280,6 +281,37 @@ func (pb *ProviderBuilder) validate() error {
 	}
 
 	return nil
+}
+
+// structToMap roundtrips to json so package info types can be merged as maps
+func structToMap(obj any) map[string]any {
+	bytes, err := json.Marshal(obj)
+	if err != nil {
+		panic("invalid struct: " + err.Error())
+	}
+	var m map[string]any
+	_ = json.Unmarshal(bytes, &m)
+	return m
+}
+
+// deepMerge merges source map[string]any into destination map[string]any
+func deepMerge(dst, src map[string]any) map[string]any {
+	for k, v := range src {
+		if _, ok := dst[k]; ok {
+			if nestedDst, ok := dst[k].(map[string]any); ok {
+				if nestedSrc, ok := v.(map[string]any); ok {
+					dst[k] = deepMerge(nestedDst, nestedSrc)
+				} else {
+					dst[k] = v
+				}
+			} else {
+				dst[k] = v
+			}
+		} else {
+			dst[k] = v
+		}
+	}
+	return dst
 }
 
 // Build builds the provider options and validates them., and runs the provider.
