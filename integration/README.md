@@ -125,8 +125,8 @@ func TestMyResourceLifecycle(t *testing.T) {
 	test := integration.LifeCycleTest{
 		Resource: "my:module:MyResource",
 		Create: integration.Operation{
-			Inputs: property.Map{"key": property.NewStringProperty("value")},
-			ExpectedOutput: &property.Map{"key": property.NewStringProperty("value")},
+			Inputs: property.Map{"key": property.New("value")},
+			ExpectedOutput: &property.Map{"key": property.New("value")},
 		},
 	}
 	test.Run(t, server)

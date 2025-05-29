@@ -350,6 +350,7 @@ type LifeCycleTest struct {
 // 2. Previewed and Updated for each update in the Updates list.
 // 3. Deleted.
 func (l LifeCycleTest) Run(t *testing.T, server Server) {
+	t.Helper()
 	urn := presource.NewURN("test", "provider", "", l.Resource, "test")
 
 	runCreate := func(op Operation) (p.CreateResponse, bool) {
@@ -391,7 +392,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 			op.Hook(checkResponse.Inputs, createResponse.Properties)
 		}
 		if op.ExpectedOutput != nil {
-			assert.EqualValues(t, op.ExpectedOutput, createResponse.Properties, "create outputs")
+			assert.EqualValues(t, *op.ExpectedOutput, createResponse.Properties, "create outputs")
 		}
 		return createResponse, true
 	}
@@ -507,7 +508,7 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 				update.Hook(check.Inputs, result.Properties)
 			}
 			if update.ExpectedOutput != nil {
-				assert.EqualValues(t, update.ExpectedOutput, result.Properties, "expected output on update %d", i)
+				assert.EqualValues(t, *update.ExpectedOutput, result.Properties, "expected output on update %d", i)
 			}
 			olds = result.Properties
 		}
