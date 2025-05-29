@@ -242,7 +242,7 @@ func TestWalk(t *testing.T) {
 			t.Run(tc.v.GoString(), func(t *testing.T) {
 				t.Parallel()
 				continueWalking := putil.Walk(tc.v, func(v property.Value) (continueWalking bool) {
-					return !(v.IsString() && v.AsString() == "stop")
+					return !v.IsString() || v.AsString() != "stop"
 				})
 				assert.False(t, continueWalking)
 			})

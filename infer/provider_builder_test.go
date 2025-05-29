@@ -273,7 +273,7 @@ func TestWithNamespace(t *testing.T) {
 	assert.Equal(t, finalNamespace, dp.metadata.Namespace)
 
 	opts := dp.BuildOptions()
-	assert.Equal(t, finalNamespace, opts.Metadata.Namespace)
+	assert.Equal(t, finalNamespace, opts.Namespace)
 }
 
 func TestWithWrapped(t *testing.T) {
