@@ -1,40 +1,39 @@
-run:
-  timeout: 10m
-issues:
-  # Enable checking the by default skipped "examples" dirs
-  exclude-dirs-use-default: false
-  exclude-use-default: false
-  exclude-dirs:
-    - vendor$
-    - third_party$
-    - testdata$
-    - Godeps$
-    - builtin$
+version: "2"
 linters:
-  enable-all: false
   enable:
-    - errcheck
     - goconst
-    - gofmt
-    - revive
     - gosec
-    - gosimple
-    - govet
-    - ineffassign
     - lll
     - misspell
     - nakedret
-    - unconvert
     - paralleltest
+    - revive
     - staticcheck
-    - stylecheck
-    - unused
+    - unconvert
   disable:
     - godot
-linters-settings:
-  revive:
-    rules:
-      # Require that exported types and functions have comments.
-      - name: package-comments
-        # We do not require this for internal types.
-        exclude: ["**/internal/**"]
+  settings:
+    revive:
+      rules:
+        - name: package-comments
+          exclude:
+            - '**/internal/**'
+  exclusions:
+    generated: lax
+    paths:
+      - vendor$
+      - third_party$
+      - testdata$
+      - Godeps$
+      - builtin$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - vendor$
+      - third_party$
+      - testdata$
+      - Godeps$
+      - builtin$
