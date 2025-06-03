@@ -7,8 +7,22 @@
     "moduleFormat": "(.*)"
   },
   "language": {
+    "csharp": {
+      "respectSchemaVersion": true
+    },
     "go": {
-      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
+      "generateResourceContainerTypes": true,
+      "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin",
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "pyproject": {
+        "enabled": true
+      },
+      "respectSchemaVersion": true
     }
   },
   "config": {

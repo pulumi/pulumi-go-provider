@@ -80,6 +80,56 @@ func (i *RandomLogin) ToRandomLoginOutputWithContext(ctx context.Context) Random
 	return pulumi.ToOutputWithContext(ctx, i).(RandomLoginOutput)
 }
 
+// RandomLoginArrayInput is an input type that accepts RandomLoginArray and RandomLoginArrayOutput values.
+// You can construct a concrete instance of `RandomLoginArrayInput` via:
+//
+//	RandomLoginArray{ RandomLoginArgs{...} }
+type RandomLoginArrayInput interface {
+	pulumi.Input
+
+	ToRandomLoginArrayOutput() RandomLoginArrayOutput
+	ToRandomLoginArrayOutputWithContext(context.Context) RandomLoginArrayOutput
+}
+
+type RandomLoginArray []RandomLoginInput
+
+func (RandomLoginArray) ElementType() reflect.Type {
+	return reflect.TypeOf((*[]*RandomLogin)(nil)).Elem()
+}
+
+func (i RandomLoginArray) ToRandomLoginArrayOutput() RandomLoginArrayOutput {
+	return i.ToRandomLoginArrayOutputWithContext(context.Background())
+}
+
+func (i RandomLoginArray) ToRandomLoginArrayOutputWithContext(ctx context.Context) RandomLoginArrayOutput {
+	return pulumi.ToOutputWithContext(ctx, i).(RandomLoginArrayOutput)
+}
+
+// RandomLoginMapInput is an input type that accepts RandomLoginMap and RandomLoginMapOutput values.
+// You can construct a concrete instance of `RandomLoginMapInput` via:
+//
+//	RandomLoginMap{ "key": RandomLoginArgs{...} }
+type RandomLoginMapInput interface {
+	pulumi.Input
+
+	ToRandomLoginMapOutput() RandomLoginMapOutput
+	ToRandomLoginMapOutputWithContext(context.Context) RandomLoginMapOutput
+}
+
+type RandomLoginMap map[string]RandomLoginInput
+
+func (RandomLoginMap) ElementType() reflect.Type {
+	return reflect.TypeOf((*map[string]*RandomLogin)(nil)).Elem()
+}
+
+func (i RandomLoginMap) ToRandomLoginMapOutput() RandomLoginMapOutput {
+	return i.ToRandomLoginMapOutputWithContext(context.Background())
+}
+
+func (i RandomLoginMap) ToRandomLoginMapOutputWithContext(ctx context.Context) RandomLoginMapOutput {
+	return pulumi.ToOutputWithContext(ctx, i).(RandomLoginMapOutput)
+}
+
 type RandomLoginOutput struct{ *pulumi.OutputState }
 
 func (RandomLoginOutput) ElementType() reflect.Type {
@@ -109,7 +159,51 @@ func (o RandomLoginOutput) Username() pulumi.StringOutput {
 	return o.ApplyT(func(v *RandomLogin) pulumi.StringOutput { return v.Username }).(pulumi.StringOutput)
 }
 
+type RandomLoginArrayOutput struct{ *pulumi.OutputState }
+
+func (RandomLoginArrayOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*[]*RandomLogin)(nil)).Elem()
+}
+
+func (o RandomLoginArrayOutput) ToRandomLoginArrayOutput() RandomLoginArrayOutput {
+	return o
+}
+
+func (o RandomLoginArrayOutput) ToRandomLoginArrayOutputWithContext(ctx context.Context) RandomLoginArrayOutput {
+	return o
+}
+
+func (o RandomLoginArrayOutput) Index(i pulumi.IntInput) RandomLoginOutput {
+	return pulumi.All(o, i).ApplyT(func(vs []interface{}) *RandomLogin {
+		return vs[0].([]*RandomLogin)[vs[1].(int)]
+	}).(RandomLoginOutput)
+}
+
+type RandomLoginMapOutput struct{ *pulumi.OutputState }
+
+func (RandomLoginMapOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*map[string]*RandomLogin)(nil)).Elem()
+}
+
+func (o RandomLoginMapOutput) ToRandomLoginMapOutput() RandomLoginMapOutput {
+	return o
+}
+
+func (o RandomLoginMapOutput) ToRandomLoginMapOutputWithContext(ctx context.Context) RandomLoginMapOutput {
+	return o
+}
+
+func (o RandomLoginMapOutput) MapIndex(k pulumi.StringInput) RandomLoginOutput {
+	return pulumi.All(o, k).ApplyT(func(vs []interface{}) *RandomLogin {
+		return vs[0].(map[string]*RandomLogin)[vs[1].(string)]
+	}).(RandomLoginOutput)
+}
+
 func init() {
 	pulumi.RegisterInputType(reflect.TypeOf((*RandomLoginInput)(nil)).Elem(), &RandomLogin{})
+	pulumi.RegisterInputType(reflect.TypeOf((*RandomLoginArrayInput)(nil)).Elem(), RandomLoginArray{})
+	pulumi.RegisterInputType(reflect.TypeOf((*RandomLoginMapInput)(nil)).Elem(), RandomLoginMap{})
 	pulumi.RegisterOutputType(RandomLoginOutput{})
+	pulumi.RegisterOutputType(RandomLoginArrayOutput{})
+	pulumi.RegisterOutputType(RandomLoginMapOutput{})
 }
