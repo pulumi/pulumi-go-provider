@@ -9,7 +9,7 @@ A framework for building Providers for Pulumi in Go.
 The highest level of `pulumi-go-provider` is `infer`, which derives as much possible from
 your Go code. The "Hello, Pulumi" example below uses `infer`. For detailed instructions on
 building providers with `infer`, click
-[here](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider).
+[here](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider@v1.0.2/infer#section-readme).
 
 ## The "Hello, Pulumi" Provider
 
