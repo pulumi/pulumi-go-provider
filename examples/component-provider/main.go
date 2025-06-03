@@ -24,6 +24,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/examples/component-provider/nested"
 	"github.com/pulumi/pulumi-go-provider/infer"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func main() {
@@ -46,6 +47,23 @@ func provider() (p.Provider, error) {
 		WithComponents(
 			infer.ComponentF(NewMyComponent),
 			infer.ComponentF(nested.NewNestedRandomComponent),
+			infer.ComponentF(func(ctx *pulumi.Context, name string, args DemoArgs, opts ...pulumi.ResourceOption) (*Repro, error) {
+				var comp Repro
+				err := ctx.RegisterComponentResource(p.GetTypeToken(ctx.Context()), name, &comp, opts...)
+				if err != nil {
+					return nil, err
+				}
+				comp.NilOutputString = pulumi.StringPtrOutput{}
+				return &comp, nil
+			}),
 		).
 		Build()
+}
+
+type DemoArgs struct{}
+
+type Repro struct {
+	pulumi.ResourceState
+
+	NilOutputString pulumi.StringPtrOutput `pulumi:"s,optional"`
 }
