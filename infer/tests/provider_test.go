@@ -396,6 +396,12 @@ type Config struct {
 	Value *string `pulumi:"value,optional"`
 }
 
+func (c *Config) Annotate(a infer.Annotator) {
+	a.Describe(&c, "The provider configuration.")
+	a.Describe(&c.Value, "A value that is set in the provider config.")
+	a.Deprecate(&c.Value, "A deprecation message.")
+}
+
 type (
 	ReadConfig       struct{}
 	ReadConfigArgs   struct{}
