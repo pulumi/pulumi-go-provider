@@ -7,47 +7,29 @@ plugins:
       path: ../../../bin/examples
 
 resources:
-  random-login:
-    type: pulumi:providers:random-login
-    properties:
-      scream: true
   generator:
     type: random-login:RandomLogin
     properties:
       petName: true
-    options:
-      providers:
-        - ${random-login}
   salter:
     type: random-login:RandomSalt
     properties:
       password: ${generator.password}
       saltedLength: 4
-    options:
-      providers:
-        - ${random-login}
   badPasswordLength:
     type: random:RandomInteger
     properties:
-      min: 10
-      max: 16
-    options:
-      providers:
-        - ${random-login}
+      min: 3
+      max: 8
   badPassword:
     type: random-login:MoreRandomPassword
     properties:
       length: ${badPasswordLength.result}
-    options:
-      providers:
-        - ${random-login}
 
 outputs:
   username:
     ${generator.username}
   password:
     ${salter.saltedPassword}
-  rawPassword:
+  rawPassowrd:
     ${salter.password}
-  badPassword:
-    ${badPassword.password}

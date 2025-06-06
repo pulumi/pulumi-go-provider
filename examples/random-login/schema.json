@@ -128,19 +128,27 @@
     }
   },
   "functions": {
-    "random-login:index:getScream": {
-      "description": "GetScream returns the Scream provider config setting",
+    "random-login:index:usernameIsUnique": {
+      "description": "UsernameIsUnique checks whether the passed username exists in the (imaginary) database",
       "inputs": {
-        "type": "object"
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ]
       },
       "outputs": {
         "properties": {
-          "scream": {
+          "isUnique": {
             "type": "boolean"
           }
         },
         "required": [
-          "scream"
+          "isUnique"
         ],
         "type": "object"
       }
