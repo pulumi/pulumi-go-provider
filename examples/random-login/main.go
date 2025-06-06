@@ -43,6 +43,9 @@ func provider() (p.Provider, error) {
 			infer.Component(&RandomLogin{}),
 			infer.ComponentF(NewMoreRandomPassword),
 		).
+		WithFunctions(
+			infer.Function(&UsernameIsUnique{}),
+		).
 		WithConfig(infer.Config(Config{})).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
@@ -120,6 +123,7 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args Rand
 	if err != nil {
 		return nil, err
 	}
+
 	if args.PetName {
 		pet, err := random.NewRandomPet(ctx, name+"-pet", &random.RandomPetArgs{}, pulumi.Parent(comp))
 		if err != nil {
@@ -135,6 +139,19 @@ func (r *RandomLogin) Construct(ctx *pulumi.Context, name, typ string, args Rand
 		}
 		comp.Username = id.ID().ToStringOutput()
 	}
+
+	comp.Username = comp.Username.ApplyT(func(username string) (string, error) {
+		usernameIsUnique, err := randomlogin.UsernameIsUnique(ctx, &randomlogin.UsernameIsUniqueArgs{Username: username})
+		if err != nil {
+			return "", err
+		} else if usernameIsUnique == nil {
+			return "", fmt.Errorf("internal error 500")
+		} else if !usernameIsUnique.IsUnique {
+			return "", fmt.Errorf("username %s is already in use", username)
+		} else {
+			return username, nil
+		}
+	}).(pulumi.StringOutput)
 
 	// create a variable-length password using a nested component
 	length, err := random.NewRandomInteger(ctx, name+"-length", &random.RandomIntegerArgs{
@@ -252,5 +269,29 @@ func (r *RandomSalt) WireDependencies(f infer.FieldSelector, args *RandomSaltArg
 }
 
 type Config struct {
-	Scream *bool `pulumi:"itsasecret,optional"`
+	Scream *bool `pulumi:"scream,optional"`
+}
+
+type UsernameIsUnique struct{}
+
+func (UsernameIsUnique) Invoke(ctx context.Context, req infer.FunctionRequest[UsernameIsUniqueArgs]) (infer.FunctionResponse[UsernameIsUniqueRes], error) {
+	return infer.FunctionResponse[UsernameIsUniqueRes]{
+		// Here we would call the database to check if the username already exists.
+		// For now we will always return true, but we will mock different return values in the tests.
+		Output: UsernameIsUniqueRes{
+			IsUnique: true,
+		},
+	}, nil
+}
+
+func (r *UsernameIsUnique) Annotate(a infer.Annotator) {
+	a.Describe(r, "UsernameIsUnique checks whether the passed username exists in the (imaginary) database")
+}
+
+type UsernameIsUniqueArgs struct {
+	Username string `pulumi:"username"`
+}
+
+type UsernameIsUniqueRes struct {
+	IsUnique bool `pulumi:"isUnique"`
 }

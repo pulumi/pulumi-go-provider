@@ -13,7 +13,7 @@
   },
   "config": {
     "variables": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     }
@@ -21,7 +21,7 @@
   "provider": {
     "type": "object",
     "inputProperties": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     }
@@ -125,6 +125,33 @@
       "requiredInputs": [
         "password"
       ]
+    }
+  },
+  "functions": {
+    "random-login:index:usernameIsUnique": {
+      "description": "UsernameIsUnique checks whether the passed username exists in the (imaginary) database",
+      "inputs": {
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ]
+      },
+      "outputs": {
+        "properties": {
+          "isUnique": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "isUnique"
+        ],
+        "type": "object"
+      }
     }
   }
 }

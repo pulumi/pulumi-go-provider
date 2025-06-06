@@ -129,6 +129,41 @@ func (m *ResourceMonitorServer) RegisterResourceOutputs(context.Context, *pulumi
 	return &emptypb.Empty{}, nil
 }
 
+func (m *ResourceMonitorServer) Invoke(ctx context.Context, req *pulumirpc.ResourceInvokeRequest,
+) (*pulumirpc.InvokeResponse, error) {
+	args, err := plugin.UnmarshalProperties(req.GetArgs(), plugin.MarshalOptions{
+		SkipNulls:        false,
+		KeepUnknowns:     true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+		KeepResources:    true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := m.mocks.Call(pulumi.MockCallArgs{
+		Token:    req.GetTok(),
+		Args:     args,
+		Provider: req.Provider,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resultOut, err := plugin.MarshalProperties(result, plugin.MarshalOptions{
+		KeepSecrets:   true,
+		KeepResources: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pulumirpc.InvokeResponse{
+		Return: resultOut,
+	}, nil
+}
+
 func (m *ResourceMonitorServer) RegisterResource(ctx context.Context, in *pulumirpc.RegisterResourceRequest,
 ) (*pulumirpc.RegisterResourceResponse, error) {
 	if in.GetType() == string(resource.RootStackType) && in.GetParent() == "" {
