@@ -91,7 +91,7 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPas
 
 	config := infer.GetConfig[Config](ctx.Context())
 	if config.Scream != nil {
-		pArgs.Lower = pulumi.Bool(*config.Scream)
+		pArgs.Lower = pulumi.BoolPtr(*config.Scream)
 	}
 
 	password, err := random.NewRandomPassword(ctx, name+"-password", pArgs, pulumi.Parent(comp))
