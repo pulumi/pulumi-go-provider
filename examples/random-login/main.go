@@ -43,6 +43,9 @@ func provider() (p.Provider, error) {
 			infer.Component(&RandomLogin{}),
 			infer.ComponentF(NewMoreRandomPassword),
 		).
+		WithFunctions(
+			infer.Function(&GetScream{}),
+		).
 		WithConfig(infer.Config(Config{})).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{
 			"random-login": "index",
@@ -86,9 +89,12 @@ func NewMoreRandomPassword(ctx *pulumi.Context, name string, args *MoreRandomPas
 		Length: args.Length,
 	}
 
-	config := infer.GetConfig[Config](ctx.Context())
-	if config.Scream != nil {
-		pArgs.Lower = pulumi.BoolPtr(*config.Scream)
+	scream, err := randomlogin.GetScream(ctx, &randomlogin.GetScreamArgs{})
+	if err != nil {
+		return nil, err
+	}
+	if scream != nil {
+		pArgs.Lower = pulumi.Bool(!scream.Scream)
 	}
 
 	password, err := random.NewRandomPassword(ctx, name+"-password", pArgs, pulumi.Parent(comp))
@@ -252,5 +258,26 @@ func (r *RandomSalt) WireDependencies(f infer.FieldSelector, args *RandomSaltArg
 }
 
 type Config struct {
-	Scream *bool `pulumi:"itsasecret,optional"`
+	Scream *bool `pulumi:"scream,optional"`
+}
+
+type GetScream struct{}
+
+func (GetScream) Invoke(ctx context.Context, req infer.FunctionRequest[GetScreamArgs]) (infer.FunctionResponse[GetScreamRes], error) {
+	config := infer.GetConfig[Config](ctx)
+	return infer.FunctionResponse[GetScreamRes]{
+		Output: GetScreamRes{
+			Scream: config.Scream,
+		},
+	}, nil
+}
+
+func (r *GetScream) Annotate(a infer.Annotator) {
+	a.Describe(r, "GetScream returns the Scream provider config setting")
+}
+
+type GetScreamArgs struct{}
+
+type GetScreamRes struct {
+	Scream *bool `pulumi:"scream"`
 }

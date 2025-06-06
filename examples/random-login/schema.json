@@ -13,7 +13,7 @@
   },
   "config": {
     "variables": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     }
@@ -21,7 +21,7 @@
   "provider": {
     "type": "object",
     "inputProperties": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     }
@@ -125,6 +125,25 @@
       "requiredInputs": [
         "password"
       ]
+    }
+  },
+  "functions": {
+    "random-login:index:getScream": {
+      "description": "GetScream returns the Scream provider config setting",
+      "inputs": {
+        "type": "object"
+      },
+      "outputs": {
+        "properties": {
+          "scream": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scream"
+        ],
+        "type": "object"
+      }
     }
   }
 }

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -17,9 +18,9 @@ import (
 
 const schema = `{
   "name": "random-login",
+  "displayName": "yourdisplayname",
   "version": "0.1.0",
   "namespace": "examples",
-  "displayName": "yourdisplayname",
   "language": {
     "go": {
       "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
@@ -27,19 +28,19 @@ const schema = `{
   },
   "config": {
     "variables": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     }
   },
   "provider": {
     "properties": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     },
     "inputProperties": {
-      "itsasecret": {
+      "scream": {
         "type": "boolean"
       }
     }
@@ -141,6 +142,25 @@ const schema = `{
         "password"
       ]
     }
+  },
+  "functions": {
+    "random-login:index:getScream": {
+      "description": "GetScream returns the Scream provider config setting",
+      "inputs": {
+        "type": "object"
+      },
+      "outputs": {
+        "properties": {
+          "scream": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scream"
+        ]
+      }
+    }
   }
 }`
 
@@ -158,6 +178,13 @@ func TestSchema(t *testing.T) {
 	require.NoError(t, err)
 	blob := json.RawMessage{}
 	err = json.Unmarshal([]byte(s.Schema), &blob)
+	require.NoError(t, err)
+
+	var prettyJSON bytes.Buffer
+	err = json.Indent(&prettyJSON, blob, "", "  ")
+	require.NoError(t, err)
+	// t.Log(&prettyJSON)
+
 	assert.NoError(t, err)
 	assert.JSONEq(t, schema, string(blob))
 }
@@ -249,4 +276,55 @@ func TestRandomLogin(t *testing.T) {
 		"username": property.New("user"),
 		"password": property.New("12345").WithSecret(true),
 	}), resp.State)
+
+}
+
+func TestMoreRandomPassword(t *testing.T) {
+	provider, err := provider()
+	require.NoError(t, err)
+	server, err := integration.NewServer(t.Context(),
+		"random-login",
+		semver.Version{Minor: 1},
+		integration.WithProvider(provider),
+		integration.WithMocks(&integration.MockResourceMonitor{
+			NewResourceF: func(args integration.MockResourceArgs) (string, property.Map, error) {
+				// mock the registration of the component's resources
+				switch {
+				case args.TypeToken == "random:index/randomPassword:RandomPassword":
+					// a mock implementation of RandomPassword that creates predictable passwords
+					// based on the length and lower args. `lower` value comes from the value of `getScream`
+					// mocked below
+					t.Log("called RandomPassword")
+					char := "a"
+					if !args.Inputs.Get("lower").AsBool() {
+						char = "A"
+					}
+					return "password", property.NewMap(map[string]property.Value{
+						"result": property.New(strings.Repeat(char, int(args.Inputs.Get("length").AsNumber()))),
+					}), nil
+				}
+				return "", property.Map{}, nil
+			},
+			CallF: func(args integration.MockCallArgs) (property.Map, error) {
+				switch {
+				case args.Token == "random-login:index:getScream":
+					t.Log("called GetScream")
+					return property.NewMap(map[string]property.Value{
+						"scream": property.New(true),
+					}), nil
+				}
+				return property.Map{}, nil
+			},
+		}),
+	)
+	require.NoError(t, err)
+
+	resp, err := server.Construct(p.ConstructRequest{
+		Urn: "urn:pulumi:stack::project::random-login:index:MoreRandomPassword::password",
+		Inputs: property.NewMap(map[string]property.Value{
+			"length": property.New(5.0),
+		}),
+	})
+	require.NoError(t, err)
+	require.Equal(t, property.New("AAAAA"), resp.State.Get("password"))
 }

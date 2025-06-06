@@ -11,6 +11,6 @@ import (
 
 var _ = internal.GetEnvOrDefault
 
-func GetItsasecret(ctx *pulumi.Context) bool {
-	return config.GetBool(ctx, "random-login:itsasecret")
+func GetScream(ctx *pulumi.Context) bool {
+	return config.GetBool(ctx, "random-login:scream")
 }

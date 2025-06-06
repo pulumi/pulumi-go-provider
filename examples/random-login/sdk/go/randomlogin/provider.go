@@ -32,12 +32,12 @@ func NewProvider(ctx *pulumi.Context,
 }
 
 type providerArgs struct {
-	Itsasecret *bool `pulumi:"itsasecret"`
+	Scream *bool `pulumi:"scream"`
 }
 
 // The set of arguments for constructing a Provider resource.
 type ProviderArgs struct {
-	Itsasecret pulumi.BoolPtrInput
+	Scream pulumi.BoolPtrInput
 }
 
 func (ProviderArgs) ElementType() reflect.Type {
