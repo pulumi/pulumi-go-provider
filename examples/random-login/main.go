@@ -289,7 +289,7 @@ func (r *UsernameIsUnique) Annotate(a infer.Annotator) {
 }
 
 type UsernameIsUniqueArgs struct {
-	Username pulumi.StringInput `pulumi:"username"`
+	Username string `pulumi:"username"`
 }
 
 type UsernameIsUniqueRes struct {
