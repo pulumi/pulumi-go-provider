@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -188,11 +187,6 @@ func TestSchema(t *testing.T) {
 	blob := json.RawMessage{}
 	err = json.Unmarshal([]byte(s.Schema), &blob)
 	require.NoError(t, err)
-
-	var prettyJSON bytes.Buffer
-	err = json.Indent(&prettyJSON, blob, "", "  ")
-	require.NoError(t, err)
-	// t.Log(&prettyJSON)
 
 	assert.NoError(t, err)
 	assert.JSONEq(t, schema, string(blob))
