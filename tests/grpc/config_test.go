@@ -142,7 +142,8 @@ func TestBasicConfig(t *testing.T) {
           },
           "s": "foo"
         },
-        "s": "foo"
+        "s": "foo",
+        "version": "1.0.0"
       }
     },
     "metadata": {
@@ -368,7 +369,8 @@ func TestConfigWithSecrets(t *testing.T) {
           },
           "s": "foo"
         },
-        "s": "foo"
+        "s": "foo",
+        "version": "1.0.0"
       }
     },
     "metadata": {
@@ -598,7 +600,8 @@ func TestJSONEncodedConfig(t *testing.T) {
                 },
                 "s": "foo"
             },
-            "s": "foo"
+            "s": "foo",
+            "version": "1.0.0"
         }
     },
     "metadata": {

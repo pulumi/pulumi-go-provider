@@ -575,9 +575,24 @@ func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (
 			name:    name,
 			version: version,
 			host:    host,
-			client:  p,
+			client:  versioned(p, version),
 		}, nil
 	}
+}
+
+// versioned wraps the provider to automatically include its version as part of
+// its config inputs for consistency with our bridged and other native
+// providers.
+func versioned(provider Provider, version string) Provider {
+	versioned := provider
+	versioned.CheckConfig = func(ctx context.Context, r CheckRequest) (CheckResponse, error) {
+		resp, err := provider.CheckConfig(ctx, r)
+		if _, ok := resp.Inputs.GetOk("version"); !ok {
+			resp.Inputs = resp.Inputs.Set("version", property.New(version))
+		}
+		return resp, err
+	}
+	return versioned
 }
 
 // Hosts a [Provider] and implements the [pulumirpc.ResourceProviderServer] interface of the Pulumi Go SDK.
