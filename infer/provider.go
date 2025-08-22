@@ -31,8 +31,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const inferStateKeyName = "pulumi-go-provider-infer"
-
 type configKeyType struct{}
 
 var configKey configKeyType

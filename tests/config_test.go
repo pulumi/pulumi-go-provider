@@ -142,9 +142,6 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
 	assert.Equal(t, property.NewMap(map[string]property.Value{
-		"__internal": property.New(property.NewMap(map[string]property.Value{
-			"pulumi-go-provider-infer": property.New(true),
-		})),
 		"field": property.New("value").WithSecret(true),
 		"nested": property.New(map[string]property.Value{
 			"int":        property.New(1.0).WithSecret(true),

@@ -41,9 +41,6 @@ func TestCheckConfig(t *testing.T) {
 	// fields so that diff doesn't trigger on changes to unwatched arguments.
 	assert.Equal(t, property.NewMap(map[string]property.Value{
 		"value": property.New("foo"),
-		"__internal": property.New(property.NewMap(map[string]property.Value{
-			"pulumi-go-provider-infer": property.New(true),
-		})),
 	}), resp.Inputs)
 }
 
