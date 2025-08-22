@@ -706,16 +706,6 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 		return nil, err
 	}
 
-	internal, ok := r.Inputs.GetOk("__internal")
-	if !ok {
-		internal = property.New(property.NewMap(nil))
-	}
-	m := internal.AsMap()
-	m = m.Set(frameworkStateKeyName, property.New(frameworkVersion.String()))
-
-	// Inject the version of pulumi-go-provider into the news map to store in state.
-	r.Inputs = r.Inputs.Set("__internal", property.New(m))
-
 	inputs, err := p.asStruct(r.Inputs)
 	if err != nil {
 		return nil, err

@@ -61,22 +61,14 @@ func TestCheckConfigCustom(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
 		test(t, property.Map{},
-			property.NewMap(map[string]property.Value{
-				"__internal": property.New(property.NewMap(map[string]property.Value{
-					"pulumi-go-provider-infer": property.New(true),
-				})),
-			}),
+			property.NewMap(map[string]property.Value{}),
 		)
 	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
 		test(t,
 			property.NewMap(map[string]property.Value{"unknownField": property.New("bar")}),
-			property.NewMap(map[string]property.Value{
-				"__internal": property.New(property.NewMap(map[string]property.Value{
-					"pulumi-go-provider-infer": property.New(true),
-				}))},
-			),
+			property.NewMap(map[string]property.Value{}),
 		)
 	})
 	t.Run("number", func(t *testing.T) {
@@ -85,9 +77,6 @@ func TestCheckConfigCustom(t *testing.T) {
 			property.NewMap(map[string]property.Value{"number": property.New(42.0)}),
 			property.NewMap(map[string]property.Value{
 				"number": property.New(42.5),
-				"__internal": property.New(property.NewMap(map[string]property.Value{
-					"pulumi-go-provider-infer": property.New(true),
-				})),
 			}),
 		)
 	})
