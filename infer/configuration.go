@@ -148,7 +148,10 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 }
 
 func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	return diff[T, T, T](ctx, req, c.receiver, func(string) bool { return true })
+	// We currently replace the provider on any changes
+	// (https://github.com/pulumi/pulumi-go-provider/issues/409) except for
+	// version.
+	return diff[T, T, T](ctx, req, c.receiver, func(field string) bool { return field != "version" })
 }
 
 func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
