@@ -1,3 +1,4 @@
+permissions: write-all # Equivalent to default permissions plus id-token: write
 name: Test
 
 on:
@@ -31,23 +32,29 @@ on:
         required: false
         type: string
     secrets:
-      PULUMI_ACCESS_TOKEN: { required: false }
-      CODECOV_TOKEN: { required: false }
+      PULUMI_ACCESS_TOKEN: {required: false}
+      CODECOV_TOKEN: {required: false}
 
 env:
   PULUMI_LIVE_TEST: ${{ inputs.live-test }}
   PULUMI_API: https://api.pulumi-staging.io
-  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   PULUMI_TEST_PARALLEL: false
   NODE_OPTIONS: --max-old-space-size=3072
+  ESC_ACTION_OIDC_AUTH: true
+  ESC_ACTION_OIDC_ORGANIZATION: pulumi
+  ESC_ACTION_OIDC_REQUESTED_TOKEN_TYPE: urn:pulumi:token-type:access_token:organization
+  ESC_ACTION_ENVIRONMENT: imports/github-secrets
+  ESC_ACTION_EXPORT_ENVIRONMENT_VARIABLES: PULUMI_ACCESS_TOKEN,CODECOV_TOKEN
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
+      - name: Fetch secrets from ESC
+        id: esc-secrets
+        uses: pulumi/esc-action@v1
       - name: Checkout Repo
         uses: actions/checkout@v2
         with:
@@ -64,7 +71,7 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_TOKEN: ${{ steps.esc-secrets.outputs.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
