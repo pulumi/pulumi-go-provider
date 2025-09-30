@@ -1162,7 +1162,7 @@ func diff[R, I, O any](
 		}
 	}
 
-	for k, _ := range req.Inputs.AsMap() {
+	for k := range req.Inputs.AsMap() {
 		// We ignore version input from the engine and any underscore-prefixed
 		// properties as they're assumed to be internal.
 		if k == "version" || strings.HasPrefix(k, "__") {
