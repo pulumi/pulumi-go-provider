@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
 
@@ -78,6 +79,11 @@ func (c *config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.Resour
 	return r, errs.ErrorOrNil()
 }
 
+// markAsInferProvider adds a key to the provider state to indicate that [infer] is being used for this provider.
+func markAsInferProvider(pm resource.PropertyMap) {
+	pm[inferStateKeyName] = resource.NewBoolProperty(true)
+}
+
 func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
 	encoder, decodeError := ende.DecodeConfig(req.Inputs, c.receiver)
 	if t, ok := any(*c.receiver).(CustomCheck[T]); ok {
@@ -102,6 +108,8 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 			return p.CheckResponse{}, err
 		}
 
+		markAsInferProvider(inputs)
+
 		return p.CheckResponse{
 			Inputs:   applySecrets[T](inputs),
 			Failures: failures,
@@ -123,6 +131,8 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 		return p.CheckResponse{}, err
 	}
 
+	markAsInferProvider(news)
+
 	return p.CheckResponse{
 		Inputs:   applySecrets[T](news),
 		Failures: failures,
@@ -130,7 +140,10 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 }
 
 func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	return diff[T, T, T](ctx, req, c.receiver, func(string) bool { return true })
+	// We currently replace the provider on any changes
+	// (https://github.com/pulumi/pulumi-go-provider/issues/409) except for
+	// version.
+	return diff[T, T, T](ctx, req, c.receiver, func(field string) bool { return field != "version" })
 }
 
 func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
