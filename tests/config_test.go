@@ -142,10 +142,8 @@ func TestInferCheckConfigSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resp.Failures)
 	assert.Equal(t, property.NewMap(map[string]property.Value{
-		"__internal": property.New(property.NewMap(map[string]property.Value{
-			"pulumi-go-provider-infer": property.New(true),
-		})),
-		"field": property.New("value").WithSecret(true),
+		"__pulumi-go-provider-infer": property.New(true),
+		"field":                      property.New("value").WithSecret(true),
 		"nested": property.New(map[string]property.Value{
 			"int":        property.New(1.0).WithSecret(true),
 			"not-nested": property.New("not-secret"),
@@ -228,13 +226,37 @@ func TestInferCustomCheckConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, resp.Failures)
 			assert.Equal(t, property.NewMap(map[string]property.Value{
-				"__internal": property.New(property.NewMap(map[string]property.Value{
-					"pulumi-go-provider-infer": property.New(true),
-				})),
-				"field":         property.New("value").WithSecret(true),
-				"not":           property.New("not-secret"),
-				"applyDefaults": property.New(applyDefaults),
+				"__pulumi-go-provider-infer": property.New(true),
+				"field":                      property.New("value").WithSecret(true),
+				"not":                        property.New("not-secret"),
+				"applyDefaults":              property.New(applyDefaults),
 			}), resp.Inputs)
 		})
 	}
+}
+
+func TestInferCustomDiffConfig(t *testing.T) {
+	t.Parallel()
+
+	// Test that we don't return spurious diffs.
+
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Config: infer.Config(&config{}),
+		})),
+	)
+	require.NoError(t, err)
+
+	resp, err := s.DiffConfig(p.DiffRequest{
+		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+		Inputs: property.NewMap(map[string]property.Value{
+			"version": property.New("1.2.3"),
+		}),
+	})
+	require.NoError(t, err)
+
+	assert.False(t, resp.HasChanges)
+	assert.Empty(t, resp.DetailedDiff)
 }

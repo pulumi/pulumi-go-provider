@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -1158,6 +1159,14 @@ func diff[R, I, O any](
 		v, ok := req.State.GetOk(ignoredChange)
 		if ok {
 			req.Inputs = req.Inputs.Set(ignoredChange, v)
+		}
+	}
+
+	for k := range req.Inputs.AsMap() {
+		// We ignore version input from the engine and any underscore-prefixed
+		// properties as they're assumed to be internal.
+		if k == "version" || strings.HasPrefix(k, "__") {
+			req.Inputs = req.Inputs.Delete(k)
 		}
 	}
 

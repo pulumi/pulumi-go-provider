@@ -24,7 +24,7 @@ import (
 const (
 	// frameworkStateKeyName is the key name used to store the framework version in
 	// a program's state.
-	frameworkStateKeyName = "pulumi-go-provider-version"
+	frameworkStateKeyName = "__pulumi-go-provider-version"
 )
 
 //go:embed .version
