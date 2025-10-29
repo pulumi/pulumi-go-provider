@@ -40,6 +40,8 @@ func (r *TestResource) Annotate(a Annotator) {
 	a.Describe(&r.P1, "This is a test property.")
 	a.SetDefault(&r.P1, defaultValue)
 	a.Deprecate(&r.P1, "This field is deprecated.")
+
+	a.WillReplaceOnChanges(&r.P1, true)
 }
 
 func (r *AnonymousEmbed) Annotate(a Annotator) {
@@ -72,4 +74,7 @@ func TestResourceAnnotations(t *testing.T) {
 	assert.Equal(t, "This is an embedded property.", p2.Description)
 	assert.Equal(t, "default2", p2.Default)
 	assert.Equal(t, "This field is also deprecated.", p2.DeprecationMessage)
+
+	assert.True(t, p1.WillReplaceOnChanges)
+	assert.False(t, p2.WillReplaceOnChanges)
 }

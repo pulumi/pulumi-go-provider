@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 
@@ -51,27 +52,21 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 	t = i.Type()
 
 	merge := func(dst *introspect.Annotator, src introspect.Annotator) {
-		for k, v := range src.Descriptions {
-			(*dst).Descriptions[k] = v
-		}
-		for k, v := range src.Defaults {
-			(*dst).Defaults[k] = v
-		}
-		for k, v := range src.DefaultEnvs {
-			(*dst).DefaultEnvs[k] = v
-		}
-		for k, v := range src.DeprecationMessages {
-			(*dst).DeprecationMessages[k] = v
-		}
+		maps.Copy((*dst).Descriptions, src.Descriptions)
+		maps.Copy((*dst).Defaults, src.Defaults)
+		maps.Copy((*dst).DefaultEnvs, src.DefaultEnvs)
+		maps.Copy((*dst).DeprecationMessages, src.DeprecationMessages)
+		maps.Copy((*dst).WillReplaceOnChangesFields, src.WillReplaceOnChangesFields)
 		dst.Token = src.Token
 		dst.Aliases = append(dst.Aliases, src.Aliases...)
 	}
 
 	ret := introspect.Annotator{
-		Descriptions:        map[string]string{},
-		Defaults:            map[string]any{},
-		DefaultEnvs:         map[string][]string{},
-		DeprecationMessages: map[string]string{},
+		Descriptions:               map[string]string{},
+		Defaults:                   map[string]any{},
+		DefaultEnvs:                map[string][]string{},
+		DeprecationMessages:        map[string]string{},
+		WillReplaceOnChangesFields: map[string]bool{},
 	}
 	if t.Elem().Kind() == reflect.Struct {
 		for _, f := range reflect.VisibleFields(t.Elem()) {
@@ -301,12 +296,13 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propert
 			required = append(required, tags.Name)
 		}
 		spec := &schema.PropertySpec{
-			TypeSpec:           serialized,
-			Secret:             tags.Secret,
-			ReplaceOnChanges:   tags.ReplaceOnChanges,
-			Description:        annotations.Descriptions[tags.Name],
-			Default:            annotations.Defaults[tags.Name],
-			DeprecationMessage: annotations.DeprecationMessages[tags.Name],
+			TypeSpec:             serialized,
+			Secret:               tags.Secret,
+			ReplaceOnChanges:     tags.ReplaceOnChanges,
+			Description:          annotations.Descriptions[tags.Name],
+			Default:              annotations.Defaults[tags.Name],
+			DeprecationMessage:   annotations.DeprecationMessages[tags.Name],
+			WillReplaceOnChanges: annotations.WillReplaceOnChangesFields[tags.Name],
 		}
 		if envs := annotations.DefaultEnvs[tags.Name]; len(envs) > 0 {
 			spec.DefaultInfo = &schema.DefaultSpec{

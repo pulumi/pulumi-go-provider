@@ -410,6 +410,15 @@ type Annotator interface {
 	//		a.Deprecate(&s, "Struct is deprecated")
 	//	}
 	Deprecate(i any, message string)
+
+	// WillReplaceOnChanges sets the willReplaceOnChanges flag on a field.
+	//
+	// For example:
+	//
+	//	func (*s Struct) Annotated(a Annotator) {
+	//		a.WillReplaceOnChanges(&s.Field, true)
+	//
+	WillReplaceOnChanges(i any, willReplaceOnChanges bool)
 }
 
 // Annotated is used to describe the fields of an object or a resource. Annotated can be
