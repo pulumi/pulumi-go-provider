@@ -89,6 +89,13 @@ func (m *mockResourceProviderServer) Delete(
 	return m.cannedResp.(*emptypb.Empty), nil
 }
 
+func (m *mockResourceProviderServer) Create(
+	ctx context.Context, req *pulumirpc.CreateRequest,
+) (*pulumirpc.CreateResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.CreateResponse), nil
+}
+
 // wrapProvider wraps a raw RPC provider in a p.Provider and converts it back to an RPC server
 func wrapProvider(t *testing.T, mock pulumirpc.ResourceProviderServer) pulumirpc.ResourceProviderServer {
 	wrapped := Provider(mock)
@@ -250,4 +257,106 @@ func TestDeletePassthrough(t *testing.T) {
 			return s.Delete
 		},
 	)
+}
+
+func TestCreatePreviewWithoutSupport(t *testing.T) {
+	t.Parallel()
+
+	// Set up mock that doesn't support preview
+	mock := &mockResourceProviderServer{
+		cannedResp: &pulumirpc.ConfigureResponse{
+			SupportsPreview: false,
+			AcceptSecrets:   true,
+			AcceptResources: true,
+			AcceptOutputs:   true,
+		},
+	}
+	server := wrapProvider(t, mock)
+
+	// Configure the provider
+	_, err := server.Configure(t.Context(), &pulumirpc.ConfigureRequest{
+		Variables: map[string]string{},
+		Args:      &structpb.Struct{},
+	})
+	require.NoError(t, err)
+
+	// Reset captured request after configuration
+	mock.capturedReq = nil
+
+	// Call Create with Preview=true
+	inputProperties := &structpb.Struct{Fields: map[string]*structpb.Value{
+		"name":  {Kind: &structpb.Value_StringValue{StringValue: "test-resource"}},
+		"count": {Kind: &structpb.Value_NumberValue{NumberValue: 42}},
+	}}
+
+	resp, err := server.Create(t.Context(), &pulumirpc.CreateRequest{
+		Urn:        "urn:pulumi:stack::project::pkg:type:Resource::myres",
+		Properties: inputProperties,
+		Preview:    true,
+		Name:       "myres",
+		Type:       "pkg:type:Resource",
+	})
+	require.NoError(t, err)
+
+	// Verify the response returns inputs as properties
+	assert.Equal(t, "", resp.Id, "ID should be empty during preview")
+	assert.Equal(t, inputProperties, resp.Properties,
+		"Properties should match inputs during preview when provider doesn't support preview")
+
+	// Verify the underlying provider was NOT called
+	assert.Nil(t, mock.capturedReq,
+		"Underlying provider should not be called during preview when it doesn't support preview")
+}
+
+func TestUpdatePreviewWithoutSupport(t *testing.T) {
+	t.Parallel()
+
+	// Set up mock that doesn't support preview
+	mock := &mockResourceProviderServer{
+		cannedResp: &pulumirpc.ConfigureResponse{
+			SupportsPreview: false,
+			AcceptSecrets:   true,
+			AcceptResources: true,
+			AcceptOutputs:   true,
+		},
+	}
+	server := wrapProvider(t, mock)
+
+	// Configure the provider
+	_, err := server.Configure(t.Context(), &pulumirpc.ConfigureRequest{
+		Variables: map[string]string{},
+		Args:      &structpb.Struct{},
+	})
+	require.NoError(t, err)
+
+	// Reset captured request after configuration
+	mock.capturedReq = nil
+
+	// Call Update with Preview=true
+	inputProperties := &structpb.Struct{Fields: map[string]*structpb.Value{
+		"name":    {Kind: &structpb.Value_StringValue{StringValue: "updated-resource"}},
+		"version": {Kind: &structpb.Value_NumberValue{NumberValue: 2}},
+	}}
+
+	resp, err := server.Update(t.Context(), &pulumirpc.UpdateRequest{
+		Id:  "resource-123",
+		Urn: "urn:pulumi:stack::project::pkg:type:Resource::myres",
+		Olds: &structpb.Struct{Fields: map[string]*structpb.Value{
+			"version": {Kind: &structpb.Value_NumberValue{NumberValue: 1}},
+		}},
+		News:      inputProperties,
+		Preview:   true,
+		Name:      "myres",
+		Type:      "pkg:type:Resource",
+		OldInputs: &structpb.Struct{},
+	})
+	require.NoError(t, err)
+
+	// Verify the response returns inputs as properties
+	assert.Equal(t, inputProperties, resp.Properties,
+		"Properties should match inputs during preview when provider doesn't support preview")
+
+	// Verify the underlying provider was NOT called
+	assert.Nil(t, mock.capturedReq,
+		"Underlying provider should not be called during preview when it doesn't support preview")
 }
