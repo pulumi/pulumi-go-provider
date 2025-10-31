@@ -199,7 +199,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 		},
 		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
 			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
-				return p.CreateResponse{}, nil
+				// Mirror the default preview behavior: assume inputs are state.
+				return p.CreateResponse{Properties: req.Properties}, nil
 			}
 
 			inProperties, err := runtime.propertyToRPC(req.Properties)
@@ -249,7 +250,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 		},
 		Update: func(ctx context.Context, req p.UpdateRequest) (p.UpdateResponse, error) {
 			if req.DryRun && runtime.configuration != nil && !runtime.configuration.SupportsPreview {
-				return p.UpdateResponse{}, nil
+				// Mirror the default preview behavior: assume that inputs
+				// are state.
+				return p.UpdateResponse{Properties: req.Inputs}, nil
 			}
 
 			inOlds, err := runtime.propertyToRPC(req.State)
