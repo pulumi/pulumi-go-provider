@@ -64,7 +64,7 @@ type HelloWorldState struct {
 	Message string `pulumi:"message"`
 }
 
-// All resources must implement Create at a minumum.
+// All resources must implement Create at a minimum.
 func (HelloWorld) Create(
 	ctx context.Context, req infer.CreateRequest[HelloWorldArgs],
 ) (infer.CreateResponse[HelloWorldState], error) {
@@ -211,7 +211,7 @@ func (c *Config) Annotate(a infer.Annotator) {
 	a.Describe(&c.AccessKey, "The access key for the provider's backend")
 }
 
-// All resources must implement Create at a minumum.
+// All resources must implement Create at a minimum.
 func (HelloWorld) Create(
 	ctx context.Context, req infer.CreateRequest[HelloWorldArgs],
 ) (infer.CreateResponse[HelloWorldState], error) {
