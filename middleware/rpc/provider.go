@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
@@ -41,6 +42,15 @@ import (
 // It is intended that Provider is used to wrap legacy native provider implementations
 // while they are gradually transferred over to pulumi-go-provider based implementations.
 func Provider(server rpc.ResourceProviderServer) p.Provider {
+
+	if logFile := os.Getenv("PULUMI_GO_PROVIDER_DEBUG_GRPC"); logFile != "" {
+		var err error
+		server, err = newDebugServer(server, logFile)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var runtime runtime // the runtime configuration of the server
 	return p.Provider{
 		GetSchema: func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
