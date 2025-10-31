@@ -80,6 +80,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Olds:       olds,
 				News:       news,
 				RandomSeed: req.RandomSeed,
+				Name:       req.Urn.Name(),
+				Type:       req.Urn.Type().String(),
 			}))
 		},
 		DiffConfig: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
@@ -92,12 +94,20 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.DiffResponse{}, err
 			}
 
+			oldInputs, err := runtime.propertyToRPC(req.OldInputs)
+			if err != nil {
+				return p.DiffResponse{}, err
+			}
+
 			return diffResponse(server.DiffConfig(ctx, &rpc.DiffRequest{
 				Id:            req.ID,
 				Urn:           string(req.Urn),
 				Olds:          olds,
 				News:          news,
 				IgnoreChanges: req.IgnoreChanges,
+				OldInputs:     oldInputs,
+				Name:          req.Urn.Name(),
+				Type:          req.Urn.Type().String(),
 			}))
 		},
 		Configure: func(ctx context.Context, req p.ConfigureRequest) error {
@@ -146,6 +156,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Olds:       olds,
 				News:       news,
 				RandomSeed: req.RandomSeed,
+				Name:       req.Urn.Name(),
+				Type:       req.Urn.Type().String(),
 			}))
 		},
 		Diff: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
@@ -159,12 +171,20 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.DiffResponse{}, err
 			}
 
+			oldInputs, err := runtime.propertyToRPC(req.OldInputs)
+			if err != nil {
+				return p.DiffResponse{}, err
+			}
+
 			return diffResponse(server.Diff(ctx, &rpc.DiffRequest{
 				Id:            req.ID,
 				Urn:           string(req.Urn),
 				Olds:          olds,
 				News:          news,
 				IgnoreChanges: req.IgnoreChanges,
+				OldInputs:     oldInputs,
+				Name:          req.Urn.Name(),
+				Type:          req.Urn.Type().String(),
 			}))
 		},
 		Create: func(ctx context.Context, req p.CreateRequest) (p.CreateResponse, error) {
@@ -182,6 +202,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Properties: inProperties,
 				Timeout:    req.Timeout,
 				Preview:    req.DryRun,
+				Name:       req.Urn.Name(),
+				Type:       req.Urn.Type().String(),
 			})
 			properties, err := rpcToProperty(resp.GetProperties(), err)
 			return p.CreateResponse{
@@ -204,6 +226,8 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Urn:        string(req.Urn),
 				Properties: inProperties,
 				Inputs:     inInputs,
+				Name:       req.Urn.Name(),
+				Type:       req.Urn.Type().String(),
 			})
 			properties, err := rpcToProperty(resp.GetProperties(), err)
 			inputs, err := rpcToProperty(resp.GetInputs(), err)
@@ -227,6 +251,10 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			if err != nil {
 				return p.UpdateResponse{}, err
 			}
+			oldInputs, err := runtime.propertyToRPC(req.OldInputs)
+			if err != nil {
+				return p.UpdateResponse{}, err
+			}
 
 			resp, err := server.Update(ctx, &rpc.UpdateRequest{
 				Id:            req.ID,
@@ -236,6 +264,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				Timeout:       req.Timeout,
 				IgnoreChanges: req.IgnoreChanges,
 				Preview:       req.DryRun,
+				Name:          req.Urn.Name(),
+				Type:          req.Urn.Type().String(),
+				OldInputs:     oldInputs,
 			})
 
 			properties, err := rpcToProperty(resp.GetProperties(), err)
@@ -248,11 +279,18 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			if err != nil {
 				return err
 			}
+			oldInputs, err := runtime.propertyToRPC(req.OldInputs)
+			if err != nil {
+				return err
+			}
 			_, err = server.Delete(ctx, &rpc.DeleteRequest{
 				Id:         req.ID,
 				Urn:        string(req.Urn),
 				Properties: properties,
 				Timeout:    req.Timeout,
+				Name:       req.Urn.Name(),
+				Type:       req.Urn.Type().String(),
+				OldInputs:  oldInputs,
 			})
 			return err
 		},
