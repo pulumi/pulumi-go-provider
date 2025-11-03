@@ -1190,16 +1190,27 @@ func diff[R, I, O any](
 		return resp, nil
 	}
 
-	inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
-	if err != nil {
-		return p.DiffResponse{}, err
+	var oldInputs property.Map
+	if p.GetRunInfo(ctx).SupportsOldInputs {
+		// If old inputs are directly available from the engine, we should use them.
+		oldInputs = req.OldInputs
+	} else {
+		// Otherwise we need to fabricate them from state. This will fail when a
+		// resource has an input and output with the same path but a different
+		// value.
+		inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
+		if err != nil {
+			return p.DiffResponse{}, err
+		}
+		// Olds is an Output, but news is an Input. Output should be a superset of Input,
+		// so we need to filter out fields that are in Output but not Input.
+		oldInputMap := map[string]property.Value{}
+		for k := range inputProps {
+			oldInputMap[k] = req.State.Get(k)
+		}
+		oldInputs = property.NewMap(oldInputMap)
 	}
-	// Olds is an Output, but news is an Input. Output should be a superset of Input,
-	// so we need to filter out fields that are in Output but not Input.
-	oldInputs := map[string]property.Value{}
-	for k := range inputProps {
-		oldInputs[k] = req.State.Get(k)
-	}
+
 	objDiff := resource.ToResourcePropertyValue(property.New(oldInputs)).ObjectValue().Diff(
 		resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue(),
 	)

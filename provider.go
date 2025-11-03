@@ -575,10 +575,12 @@ func GetSchema(ctx context.Context, name, version string, provider Provider) (sc
 func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 	return func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
 		return &provider{
-			name:    name,
-			version: version,
-			host:    host,
-			client:  p,
+			info: RunInfo{
+				PackageName: name,
+				Version:     version,
+			},
+			host:   host,
+			client: p,
 		}, nil
 	}
 }
@@ -587,10 +589,9 @@ func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (
 type provider struct {
 	rpc.UnimplementedResourceProviderServer
 
-	name    string
-	version string
-	host    *pprovider.HostClient
-	client  Provider
+	info   RunInfo
+	host   *pprovider.HostClient
+	client Provider
 }
 
 var _ rpc.ResourceProviderServer = (*provider)(nil)
@@ -605,6 +606,15 @@ var _ Host = (*host)(nil)
 type RunInfo struct {
 	PackageName string
 	Version     string
+
+	// If the engine talking to the provider supports sending old inputs to update,
+	// diff and delete.
+	//
+	// This feature was added to the engine in
+	// https://github.com/pulumi/pulumi/releases/tag/v3.74.0, then augmented in
+	// https://github.com/pulumi/pulumi/releases/tag/v3.89.0. The engine has sent this
+	// information since October 2023.
+	SupportsOldInputs bool
 }
 
 func GetRunInfo(ctx context.Context) RunInfo { return ctx.Value(key.RuntimeInfo).(RunInfo) }
@@ -617,10 +627,7 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 		ctx = context.WithValue(ctx, key.ProviderHost, &host{p, p.host})
 	}
 	ctx = context.WithValue(ctx, key.URN, urn)
-	return context.WithValue(ctx, key.RuntimeInfo, RunInfo{
-		PackageName: p.name,
-		Version:     p.version,
-	})
+	return context.WithValue(ctx, key.RuntimeInfo, p.info)
 }
 
 func (p *provider) getMap(s *structpb.Struct) (property.Map, error) {
@@ -752,6 +759,9 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 }
 
 func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*rpc.ConfigureResponse, error) {
+	// Set SupportsOldInputs before p.ctx so the context returned by p.ctx observes
+	// the configuration change.
+	p.info.SupportsOldInputs = req.GetSendsOldInputs() && req.GetSendsOldInputsToDelete()
 	ctx = p.ctx(ctx, "")
 	argMap, err := p.getMap(req.GetArgs())
 	if err != nil {
@@ -761,6 +771,7 @@ func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*r
 		Variables: req.GetVariables(),
 		Args:      argMap,
 	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -1617,7 +1628,7 @@ func (p *provider) Parameterize(ctx context.Context, req *rpc.ParameterizeReques
 
 func (p *provider) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginInfo, error) {
 	return &rpc.PluginInfo{
-		Version: p.version,
+		Version: p.info.Version,
 	}, nil
 }
 
