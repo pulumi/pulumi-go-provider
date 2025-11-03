@@ -17,6 +17,7 @@ package ende
 
 import (
 	"reflect"
+	"strings"
 
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
@@ -239,12 +240,14 @@ func (e *ende) walk(
 		if v.IsObject() {
 			result = v.ObjectValue().Copy()
 		}
+		fields := map[string]struct{}{}
 		for _, field := range reflect.VisibleFields(typ) {
 			tag, err := introspect.ParseTag(field)
 			if err != nil || tag.Internal {
 				continue
 			}
 			pName := resource.PropertyKey(tag.Name)
+			fields[tag.Name] = struct{}{}
 			path := append(path, tag.Name)
 			if vInner, ok := result[pName]; ok {
 				result[pName] = e.walk(vInner, path, field.Type, alignTypes)
@@ -255,6 +258,16 @@ func (e *ende) walk(
 				// Create a new unknown output, which we will then type
 				result[pName] = e.walk(resource.NewNullProperty(),
 					path, field.Type, true)
+			}
+		}
+
+		// If a field is not present on the underlying struct and it is prefixed
+		// with __ (to signify internal), remove it before attempting to
+		// deserialize.
+		for k := range result {
+			_, ok := fields[string(k)]
+			if !ok && strings.HasPrefix(string(k), "__") {
+				delete(result, k)
 			}
 		}
 		return resource.NewObjectProperty(result)
