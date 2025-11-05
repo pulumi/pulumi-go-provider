@@ -23,8 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"time"
 
 	"github.com/blang/semver"
@@ -508,40 +506,26 @@ func RawServer(
 	return newProvider(name, version, provider.WithDefaults())
 }
 
-// A context which prints its diagnostics, collecting all errors.
-type errCollectingContext struct {
-	context.Context
-	errs   multierror.Error
-	info   RunInfo
-	stderr io.Writer
+var _ logSink = &errorPreservingLogger{}
+
+// A logger which collects errors.
+type errorPreservingLogger struct {
+	errs multierror.Error
+	sink logSink
 }
 
-func (e *errCollectingContext) Log(severity diag.Severity, msg string) {
-	if severity == diag.Error {
+func (e *errorPreservingLogger) Log(ctx context.Context, urn presource.URN, sev diag.Severity, msg string) {
+	if sev == diag.Error {
 		e.errs.Errors = append(e.errs.Errors, errors.New(msg))
 	}
-	_, err := fmt.Fprintf(e.stderr, "Log(%s): %s\n", severity, msg)
-	contract.IgnoreError(err)
+	e.sink.Log(ctx, urn, sev, msg)
 }
 
-func (e *errCollectingContext) Logf(severity diag.Severity, msg string, args ...any) {
-	e.Log(severity, fmt.Sprintf(msg, args...))
-}
-
-func (e *errCollectingContext) LogStatus(severity diag.Severity, msg string) {
-	if severity == diag.Error {
+func (e *errorPreservingLogger) LogStatus(ctx context.Context, urn presource.URN, sev diag.Severity, msg string) {
+	if sev == diag.Error {
 		e.errs.Errors = append(e.errs.Errors, errors.New(msg))
 	}
-	_, err := fmt.Fprintf(e.stderr, "LogStatus(%s): %s\n", severity, msg)
-	contract.IgnoreError(err)
-}
-
-func (e *errCollectingContext) LogStatusf(severity diag.Severity, msg string, args ...any) {
-	e.LogStatus(severity, fmt.Sprintf(msg, args...))
-}
-
-func (e *errCollectingContext) RuntimeInformation() RunInfo {
-	return e.info
+	e.sink.LogStatus(ctx, urn, sev, msg)
 }
 
 // GetSchema retrieves the schema from the provider by invoking GetSchema on the provider.
@@ -553,22 +537,31 @@ func (e *errCollectingContext) RuntimeInformation() RunInfo {
 //
 //	pulumi package get-schema ./pulumi-resource-MYPROVIDER
 func GetSchema(ctx context.Context, name, version string, provider Provider) (schema.PackageSpec, error) {
-	collectingDiag := errCollectingContext{Context: ctx, stderr: os.Stderr, info: RunInfo{
-		PackageName: name,
-		Version:     version,
-	}}
-	s, err := provider.GetSchema(&collectingDiag, GetSchemaRequest{Version: 0})
-	var errs multierror.Error
-	if err != nil {
-		errs.Errors = append(errs.Errors, err)
+
+	// Wrap GetSchema with a special logger that will extract errors.
+	getSchema := provider.GetSchema
+	provider.GetSchema = func(ctx context.Context, req GetSchemaRequest) (GetSchemaResponse, error) {
+		collectingDiag := &errorPreservingLogger{sink: GetLogger(ctx).inner}
+		ctx = context.WithValue(ctx, key.Logger, collectingDiag)
+		resp, err := getSchema(ctx, req)
+		if err != nil {
+			collectingDiag.errs.Errors = append(collectingDiag.errs.Errors, fmt.Errorf("GetSchema failed: %w", err))
+		}
+		return resp, collectingDiag.errs.ErrorOrNil()
 	}
-	errs.Errors = append(errs.Errors, collectingDiag.errs.Errors...)
+
+	p, err := RawServer(name, version, provider)(nil)
+	if err != nil {
+		return schema.PackageSpec{}, fmt.Errorf("constructing provider: %w", err)
+	}
+
+	response, err := p.GetSchema(ctx, &rpc.GetSchemaRequest{})
+	if err != nil {
+		return schema.PackageSpec{}, err
+	}
 
 	spec := schema.PackageSpec{}
-	if err := errs.ErrorOrNil(); err != nil {
-		return spec, err
-	}
-	err = json.Unmarshal([]byte(s.Schema), &spec)
+	err = json.Unmarshal([]byte(response.Schema), &spec)
 	return spec, err
 }
 
