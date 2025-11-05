@@ -33,6 +33,34 @@ type mockResourceProviderServer struct {
 	capturedReq, cannedResp any
 }
 
+func (m *mockResourceProviderServer) GetSchema(
+	ctx context.Context, req *pulumirpc.GetSchemaRequest,
+) (*pulumirpc.GetSchemaResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.GetSchemaResponse), nil
+}
+
+func (m *mockResourceProviderServer) CheckConfig(
+	ctx context.Context, req *pulumirpc.CheckRequest,
+) (*pulumirpc.CheckResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.CheckResponse), nil
+}
+
+func (m *mockResourceProviderServer) Configure(
+	ctx context.Context, req *pulumirpc.ConfigureRequest,
+) (*pulumirpc.ConfigureResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.ConfigureResponse), nil
+}
+
+func (m *mockResourceProviderServer) Cancel(
+	ctx context.Context, req *emptypb.Empty,
+) (*emptypb.Empty, error) {
+	m.capturedReq = req
+	return &emptypb.Empty{}, nil
+}
+
 func (m *mockResourceProviderServer) Diff(
 	ctx context.Context, req *pulumirpc.DiffRequest,
 ) (*pulumirpc.DiffResponse, error) {
