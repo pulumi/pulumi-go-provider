@@ -83,6 +83,7 @@ type DiffRequest struct {
 	Urn           presource.URN
 	State         property.Map
 	Inputs        property.Map
+	OldInputs     property.Map
 	IgnoreChanges []string
 }
 
@@ -263,6 +264,7 @@ type UpdateRequest struct {
 	Urn           presource.URN // the Pulumi URN for this resource.
 	State         property.Map  // the old state of the resource to update.
 	Inputs        property.Map  // the new values of provider inputs for the resource to update.
+	OldInputs     property.Map  // the old values of provider inputs for the resource to update.
 	Timeout       float64       // the update request timeout represented in seconds.
 	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
 	DryRun        bool          // true if the provider should not actually create the resource.
@@ -283,6 +285,7 @@ type DeleteRequest struct {
 	ID         string        // the ID of the resource to delete.
 	Urn        presource.URN // the Pulumi URN for this resource.
 	Properties property.Map  // the current properties on the resource.
+	OldInputs  property.Map  // the previous input properties on the resource.
 	Timeout    float64       // the delete request timeout represented in seconds.
 }
 
@@ -730,12 +733,17 @@ func (p *provider) DiffConfig(ctx context.Context, req *rpc.DiffRequest) (*rpc.D
 	if err != nil {
 		return nil, err
 	}
+	oldInputs, err := p.getMap(req.GetOldInputs())
+	if err != nil {
+		return nil, err
+	}
 	r, err := p.client.DiffConfig(ctx, DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		State:         olds,
 		Inputs:        news,
 		IgnoreChanges: req.GetIgnoreChanges(),
+		OldInputs:     oldInputs,
 	})
 	if err != nil {
 		return nil, err
@@ -1016,12 +1024,17 @@ func (p *provider) Diff(ctx context.Context, req *rpc.DiffRequest) (*rpc.DiffRes
 	if err != nil {
 		return nil, err
 	}
+	oldInputs, err := p.getMap(req.GetOldInputs())
+	if err != nil {
+		return nil, err
+	}
 	r, err := p.client.Diff(ctx, DiffRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		State:         olds,
 		Inputs:        news,
 		IgnoreChanges: req.GetIgnoreChanges(),
+		OldInputs:     oldInputs,
 	})
 	if err != nil {
 		return nil, err
@@ -1123,11 +1136,16 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	if err != nil {
 		return nil, err
 	}
+	oldInputs, err := p.getMap(req.GetOldInputs())
+	if err != nil {
+		return nil, err
+	}
 	r, err := p.client.Update(ctx, UpdateRequest{
 		ID:            req.GetId(),
 		Urn:           presource.URN(req.GetUrn()),
 		State:         oldsMap,
 		Inputs:        newsMap,
+		OldInputs:     oldInputs,
 		Timeout:       req.GetTimeout(),
 		IgnoreChanges: req.GetIgnoreChanges(),
 		DryRun:        req.GetPreview(),
@@ -1160,10 +1178,15 @@ func (p *provider) Delete(ctx context.Context, req *rpc.DeleteRequest) (*emptypb
 	if err != nil {
 		return nil, err
 	}
+	oldInputs, err := p.getMap(req.GetOldInputs())
+	if err != nil {
+		return nil, err
+	}
 	err = p.client.Delete(ctx, DeleteRequest{
 		ID:         req.GetId(),
 		Urn:        presource.URN(req.GetUrn()),
 		Properties: props,
+		OldInputs:  oldInputs,
 		Timeout:    req.GetTimeout(),
 	})
 	if err != nil {

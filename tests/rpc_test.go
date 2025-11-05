@@ -201,6 +201,7 @@ func TestRPCConfigure(t *testing.T) {
 
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				resp, err := s.Create(p.CreateRequest{
+					Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 					Properties: property.NewMap(map[string]property.Value{
 						"secret": property.New("v").WithSecret(true),
 					}),
@@ -263,6 +264,7 @@ func TestRPCConfigure(t *testing.T) {
 
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				resp, err := s.Create(p.CreateRequest{
+					Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 					Properties: property.NewMap(map[string]property.Value{
 						"output": property.New(property.Computed).WithSecret(true),
 						"known": property.New("v1").WithDependencies([]resource.URN{
@@ -303,13 +305,16 @@ func TestRPCConfigure(t *testing.T) {
 
 				require.NoError(t, s.Configure(p.ConfigureRequest{}))
 				resp, err := s.Create(p.CreateRequest{
+					Urn:    "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 					DryRun: true,
 				})
 				require.NoError(t, err)
 				if preview {
 					assert.Equal(t, p.CreateResponse{ID: "preview-id"}, resp)
 				}
-				resp, err = s.Create(p.CreateRequest{})
+				resp, err = s.Create(p.CreateRequest{
+					Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+				})
 				require.NoError(t, err)
 				assert.Equal(t, p.CreateResponse{ID: "some-id"}, resp)
 			})
@@ -405,7 +410,7 @@ func TestRPCCreate(t *testing.T) {
 		resp, err := rpcServer(t, rpcTestServer{
 			onCreate: func(_ context.Context, req *rpc.CreateRequest) (*rpc.CreateResponse, error) {
 
-				assert.Equal(t, "some-urn", req.GetUrn())
+				assert.Equal(t, "urn:pulumi:stack::project::pkg:type:Resource::my-resource", req.GetUrn())
 				assert.Equal(t, 123.0, req.GetTimeout())
 				assert.Equal(t, true, req.GetPreview())
 				assert.Equal(t, expectedArgs, req.GetProperties().AsMap())
@@ -413,7 +418,7 @@ func TestRPCCreate(t *testing.T) {
 				return &rpc.CreateResponse{Id: "some-id"}, nil
 			},
 		}).Create(p.CreateRequest{
-			Urn:        "some-urn",
+			Urn:        "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 			Properties: resource.FromResourcePropertyValue(resource.NewProperty(args)).AsMap(),
 			Timeout:    123,
 			DryRun:     true,
@@ -434,7 +439,9 @@ func TestRPCCreate(t *testing.T) {
 					Properties: must(structpb.NewStruct(mapProps)),
 				}, nil
 			},
-		}).Create(p.CreateRequest{})
+		}).Create(p.CreateRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		require.NoError(t, err)
 		assert.Equal(t, p.CreateResponse{
@@ -458,7 +465,7 @@ func TestRPCRead(t *testing.T) {
 		_, err := rpcServer(t, rpcTestServer{
 			onRead: func(_ context.Context, req *rpc.ReadRequest) (*rpc.ReadResponse, error) {
 				assert.Equal(t, "some-id", req.GetId())
-				assert.Equal(t, "some-urn", req.GetUrn())
+				assert.Equal(t, "urn:pulumi:stack::project::pkg:type:Resource::my-resource", req.GetUrn())
 				assert.Equal(t, expectedProps, req.GetProperties().AsMap())
 				assert.Equal(t, expectedInputs, req.GetInputs().AsMap())
 				wasCalled = true
@@ -466,7 +473,7 @@ func TestRPCRead(t *testing.T) {
 			},
 		}).Read(p.ReadRequest{
 			ID:         "some-id",
-			Urn:        "some-urn",
+			Urn:        "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
 			Inputs:     resource.FromResourcePropertyValue(resource.NewProperty(inputs)).AsMap(),
 		})
@@ -489,7 +496,9 @@ func TestRPCRead(t *testing.T) {
 					Inputs:     must(structpb.NewStruct(expectedInputs)),
 				}, nil
 			},
-		}).Read(p.ReadRequest{})
+		}).Read(p.ReadRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 		require.NoError(t, err)
 		assert.Equal(t, p.ReadResponse{
 			ID:         "some-id",
@@ -505,7 +514,9 @@ func TestRPCRead(t *testing.T) {
 			onRead: func(context.Context, *rpc.ReadRequest) (*rpc.ReadResponse, error) {
 				return nil, fmt.Errorf("on-error")
 			},
-		}).Read(p.ReadRequest{})
+		}).Read(p.ReadRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		assert.ErrorContains(t, err, "on-error")
 	})
@@ -526,7 +537,7 @@ func TestRPCUpdate(t *testing.T) {
 		_, err := rpcServer(t, rpcTestServer{
 			onUpdate: func(_ context.Context, req *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 				assert.Equal(t, "some-id", req.GetId())
-				assert.Equal(t, "some-urn", req.GetUrn())
+				assert.Equal(t, "urn:pulumi:stack::project::pkg:type:Resource::my-resource", req.GetUrn())
 				assert.Equal(t, expectedOlds, req.GetOlds().AsMap())
 				assert.Equal(t, expectedNews, req.GetNews().AsMap())
 				assert.Equal(t, 1.23, req.GetTimeout())
@@ -537,7 +548,7 @@ func TestRPCUpdate(t *testing.T) {
 			},
 		}).Update(p.UpdateRequest{
 			ID:            "some-id",
-			Urn:           "some-urn",
+			Urn:           "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 			State:         resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
 			Inputs:        resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			Timeout:       1.23,
@@ -560,7 +571,9 @@ func TestRPCUpdate(t *testing.T) {
 					Properties: must(structpb.NewStruct(propsMap)),
 				}, nil
 			},
-		}).Update(p.UpdateRequest{})
+		}).Update(p.UpdateRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 		require.NoError(t, err)
 		assert.Equal(t, p.UpdateResponse{
 			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
@@ -574,7 +587,9 @@ func TestRPCUpdate(t *testing.T) {
 			onUpdate: func(context.Context, *rpc.UpdateRequest) (*rpc.UpdateResponse, error) {
 				return nil, fmt.Errorf("on-error")
 			},
-		}).Update(p.UpdateRequest{})
+		}).Update(p.UpdateRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		assert.ErrorContains(t, err, "on-error")
 	})
@@ -591,7 +606,7 @@ func TestRPCDelete(t *testing.T) {
 		err := rpcServer(t, rpcTestServer{
 			onDelete: func(_ context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
 				assert.Equal(t, "my-id", req.GetId())
-				assert.Equal(t, "my-urn", req.GetUrn())
+				assert.Equal(t, "urn:pulumi:stack::project::pkg:type:Resource::my-resource", req.GetUrn())
 				assert.Equal(t, expectedProps, req.GetProperties().AsMap())
 				assert.Equal(t, 7.3, req.GetTimeout())
 				wasCalled = true
@@ -599,7 +614,7 @@ func TestRPCDelete(t *testing.T) {
 			},
 		}).Delete(p.DeleteRequest{
 			ID:         "my-id",
-			Urn:        "my-urn",
+			Urn:        "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 			Properties: resource.FromResourcePropertyValue(resource.NewProperty(props)).AsMap(),
 			Timeout:    7.3,
 		})
@@ -614,7 +629,9 @@ func TestRPCDelete(t *testing.T) {
 			onDelete: func(_ context.Context, req *rpc.DeleteRequest) (*emptypb.Empty, error) {
 				return &emptypb.Empty{}, fmt.Errorf("my-error")
 			},
-		}).Delete(p.DeleteRequest{})
+		}).Delete(p.DeleteRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		assert.ErrorContains(t, err, "my-error")
 	})
@@ -1025,7 +1042,7 @@ func testRPCCheck(
 		olds, expectedOlds := exampleOlds()
 		news, expectedNews := exampleNews()
 		resp, err := setup(func(_ context.Context, req *rpc.CheckRequest) (*rpc.CheckResponse, error) {
-			assert.Equal(t, "some-urn", req.GetUrn())
+			assert.Equal(t, "urn:pulumi:stack::project::pkg:type:Resource::my-resource", req.GetUrn())
 			assert.Equal(t, []byte("12345"), req.GetRandomSeed())
 			assert.Equal(t, expectedOlds, req.GetOlds().AsMap())
 			assert.Equal(t, expectedNews, req.GetNews().AsMap())
@@ -1039,7 +1056,7 @@ func testRPCCheck(
 				})),
 			}, nil
 		})(p.CheckRequest{
-			Urn:        "some-urn",
+			Urn:        "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 			State:      resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
 			Inputs:     resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			RandomSeed: []byte("12345"),
@@ -1066,7 +1083,7 @@ func testRPCCheck(
 				},
 			}, nil
 		})(p.CheckRequest{
-			Urn: "some-urn",
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, p.CheckResponse{
@@ -1082,7 +1099,7 @@ func testRPCCheck(
 		_, err := setup(func(context.Context, *rpc.CheckRequest) (*rpc.CheckResponse, error) {
 			return nil, fmt.Errorf("check didn't work")
 		})(p.CheckRequest{
-			Urn: "some-urn",
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 		})
 		assert.ErrorContains(t, err, "check didn't work")
 	})
@@ -1111,7 +1128,7 @@ func testRPCDiff(
 
 		resp, err := setup(func(_ context.Context, req *rpc.DiffRequest) (*rpc.DiffResponse, error) {
 			assert.Equal(t, "some-id", req.GetId())
-			assert.Equal(t, "my-urn", req.GetUrn())
+			assert.Equal(t, "urn:pulumi:stack::project::pkg:type:Resource::my-resource", req.GetUrn())
 			assert.Equal(t, expectedOlds, req.GetOlds().AsMap())
 			assert.Equal(t, expectedNews, req.GetNews().AsMap())
 			assert.Equal(t, []string{"field1", "field2"}, req.GetIgnoreChanges())
@@ -1119,7 +1136,7 @@ func testRPCDiff(
 			return &rpc.DiffResponse{DeleteBeforeReplace: true}, nil
 		})(p.DiffRequest{
 			ID:            "some-id",
-			Urn:           "my-urn",
+			Urn:           "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 			State:         resource.FromResourcePropertyValue(resource.NewProperty(olds)).AsMap(),
 			Inputs:        resource.FromResourcePropertyValue(resource.NewProperty(news)).AsMap(),
 			IgnoreChanges: []string{"field1", "field2"},
@@ -1149,7 +1166,9 @@ func testRPCDiff(
 					"nested.field":   {Kind: rpc.PropertyDiff_UPDATE, InputDiff: true},
 				},
 			}, nil
-		})(p.DiffRequest{})
+		})(p.DiffRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		require.NoError(t, err)
 		assert.Equal(t, p.DiffResponse{
@@ -1174,7 +1193,9 @@ func testRPCDiff(
 				Stables: []string{"f1", "f2"},
 				Changes: rpc.DiffResponse_DIFF_NONE,
 			}, nil
-		})(p.DiffRequest{})
+		})(p.DiffRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		require.NoError(t, err)
 		assert.Equal(t, p.DiffResponse{
@@ -1194,7 +1215,9 @@ func testRPCDiff(
 				Diffs:           []string{"r1", "r2", "f3"},
 				HasDetailedDiff: false,
 			}, nil
-		})(p.DiffRequest{})
+		})(p.DiffRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		require.NoError(t, err)
 		assert.Equal(t, p.DiffResponse{
@@ -1211,7 +1234,9 @@ func testRPCDiff(
 
 		_, err := setup(func(context.Context, *rpc.DiffRequest) (*rpc.DiffResponse, error) {
 			return nil, fmt.Errorf("the diff went wrong")
-		})(p.DiffRequest{})
+		})(p.DiffRequest{
+			Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
+		})
 
 		assert.ErrorContains(t, err, "the diff went wrong")
 	})
