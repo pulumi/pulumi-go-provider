@@ -73,7 +73,10 @@ func decode(
 ) (Encoder, mapper.MappingError) {
 	e := new(ende)
 	target := reflect.ValueOf(dst)
-	for target.Type().Kind() == reflect.Pointer && !target.IsNil() {
+	for target.Type().Kind() == reflect.Pointer {
+		if target.IsNil() {
+			target.Set(reflect.New(target.Type().Elem()))
+		}
 		target = target.Elem()
 	}
 	m = e.simplify(m, target.Type())

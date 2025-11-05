@@ -303,3 +303,62 @@ func TestInferCustomDiffConfigWithInternalKeys(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "Custom Diff Ran")
 }
+
+type configWithPointerDiff struct {
+	Field string `pulumi:"field"`
+
+	diffConfigCalled bool
+	configureCalled  bool
+}
+
+var _ infer.CustomDiff[*configWithPointerDiff, *configWithPointerDiff] = &configWithPointerDiff{}
+var _ infer.CustomConfigure = &configWithPointerDiff{}
+
+func (c *configWithPointerDiff) Diff(
+	ctx context.Context, req infer.DiffRequest[*configWithPointerDiff, *configWithPointerDiff],
+) (infer.DiffResponse, error) {
+	c.diffConfigCalled = true
+	return infer.DiffResponse{}, nil
+}
+
+func (c *configWithPointerDiff) Configure(ctx context.Context) error {
+	c.configureCalled = true
+	return nil
+}
+
+// Test that a Config implementing infer.CustomDiff[*Config, *Config] has its custom Diff
+// function called, and that Configure is called with the correct field values.
+func TestInferCustomDiffConfigPointer(t *testing.T) {
+	t.Parallel()
+
+	cfg := &configWithPointerDiff{}
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Config: infer.Config(cfg),
+		})),
+	)
+	require.NoError(t, err)
+
+	err = s.Configure(p.ConfigureRequest{
+		Args: property.NewMap(map[string]property.Value{
+			"field": property.New("test-value"),
+		}),
+	})
+	require.NoError(t, err)
+	assert.True(t, cfg.configureCalled)
+	assert.Equal(t, "test-value", cfg.Field)
+
+	_, err = s.DiffConfig(p.DiffRequest{
+		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+		State: property.NewMap(map[string]property.Value{
+			"field": property.New("old-value"),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"field": property.New("new-value"),
+		}),
+	})
+	require.NoError(t, err)
+	assert.True(t, cfg.diffConfigCalled)
+}
