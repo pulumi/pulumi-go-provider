@@ -30,6 +30,7 @@ import (
 	"pgregory.net/rapid"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
@@ -306,6 +307,7 @@ func TestDiff(t *testing.T) {
 			diffRequest,
 			&struct{}{},
 			func(string) bool { return false },
+			ende.Decode,
 		)
 		assert.NoError(t, err)
 		assert.Len(t, resp.DetailedDiff, len(test.diff))
@@ -361,6 +363,7 @@ func TestDiffWhereStateShadowsInputs(t *testing.T) {
 		diffRequest,
 		&struct{}{},
 		func(string) bool { return false },
+		ende.Decode,
 	)
 	require.NoError(t, err)
 	assert.Empty(t, resp.DetailedDiff)
@@ -404,7 +407,7 @@ func testHydrateFromState[O any](
 			Context: context.WithValue(context.Background(), migrationsKey, migrations),
 		}
 
-		enc, actual, err := hydrateFromState[CustomHydrateFromState[O], struct{}, O](ctx, oldState)
+		enc, actual, err := hydrateFromState[CustomHydrateFromState[O], struct{}, O](ctx, oldState, ende.Decode)
 		if expectedError != nil {
 			assert.ErrorIs(t, err, expectedError)
 			return

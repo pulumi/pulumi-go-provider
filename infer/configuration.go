@@ -23,6 +23,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
@@ -143,7 +144,12 @@ func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffRe
 	// We currently replace the provider on any changes
 	// (https://github.com/pulumi/pulumi-go-provider/issues/409) except for
 	// version.
-	return diff[T, T, T](ctx, req, c.receiver, func(field string) bool { return field != "version" })
+	return diff[T, T](ctx, req, c.receiver,
+		func(field string) bool { return field != "version" },
+		func(m property.Map) (ende.Encoder, T, mapper.MappingError) {
+			enc, err := ende.DecodeConfig(m, c.receiver)
+			return enc, *c.receiver, err
+		})
 }
 
 func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
