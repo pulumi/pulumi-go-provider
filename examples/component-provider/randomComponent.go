@@ -16,6 +16,7 @@ package main
 
 import (
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -27,8 +28,19 @@ type RandomComponent struct {
 	HardcodedOutput pulumi.StringOutput    `pulumi:"hardcodedOutput"`
 }
 
+// You can use [infer.Annotated] to add comments to resource properties. These comments
+// will be present in the generated SDKs.
+func (f *RandomComponent) Annotate(a infer.Annotator) {
+	a.Describe(&f.Password, "You can add comments to resource properties")
+}
+
 type RandomComponentArgs struct {
 	Length pulumi.IntInput `pulumi:"length"`
+}
+
+// You can use [infer.Annotated] for both input and output properties.
+func (f *RandomComponentArgs) Annotate(a infer.Annotator) {
+	a.Describe(&f.Length, "You can add comments to input fields")
 }
 
 func NewMyComponent(ctx *pulumi.Context, name string, compArgs RandomComponentArgs, opts ...pulumi.ResourceOption) (*RandomComponent, error) {

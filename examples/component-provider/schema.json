@@ -36,10 +36,12 @@
           "type": "string"
         },
         "length": {
-          "type": "integer"
+          "type": "integer",
+          "description": "You can add comments to input fields"
         },
         "password": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword"
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword",
+          "description": "You can add comments to resource properties"
         }
       },
       "type": "object",
@@ -50,7 +52,8 @@
       ],
       "inputProperties": {
         "length": {
-          "type": "integer"
+          "type": "integer",
+          "description": "You can add comments to input fields"
         }
       },
       "requiredInputs": [
