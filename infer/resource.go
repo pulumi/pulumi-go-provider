@@ -1148,12 +1148,13 @@ func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.Di
 		// No update => every change is a replace
 		forceReplace = func(string) bool { return true }
 	}
-	return diff[R, I, O](ctx, req, r, forceReplace)
+	return diff[R, I, O](ctx, req, r, forceReplace, ende.Decode)
 }
 
 // Compute a diff request.
 func diff[R, I, O any](
 	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
+	decode func(property.Map) (ende.Encoder, O, mapper.MappingError),
 ) (p.DiffResponse, error) {
 	for _, ignoredChange := range req.IgnoreChanges {
 		v, ok := req.State.GetOk(ignoredChange)
@@ -1162,7 +1163,7 @@ func diff[R, I, O any](
 		}
 	}
 
-	for k := range req.Inputs.AsMap() {
+	for k := range req.Inputs.All {
 		// We ignore version input from the engine and any underscore-prefixed
 		// properties as they're assumed to be internal.
 		if k == "version" || strings.HasPrefix(k, "__") {
@@ -1171,7 +1172,7 @@ func diff[R, I, O any](
 	}
 
 	if r, ok := ((interface{})(*r)).(CustomDiff[I, O]); ok {
-		_, olds, err := hydrateFromState[R, I, O](ctx, req.State) // TODO
+		_, olds, err := hydrateFromState[R, I, O](ctx, req.State, decode)
 		if err != nil {
 			return p.DiffResponse{}, err
 		}
@@ -1337,7 +1338,7 @@ func (rc *derivedResourceController[R, I, O]) Read(
 	var state O
 
 	// If (1), then we expect that the state is complete and may need to be upgraded.
-	if enc, s, err := hydrateFromState[R, I, O](ctx, req.Properties); err == nil {
+	if enc, s, err := hydrateFromState[R, I, O](ctx, req.Properties, ende.Decode); err == nil {
 		stateEncoder = enc
 		state = s
 	} else {
@@ -1422,7 +1423,7 @@ func (rc *derivedResourceController[R, I, O]) Update(
 		}
 	}
 
-	_, olds, err := hydrateFromState[R, I, O](ctx, req.State)
+	_, olds, err := hydrateFromState[R, I, O](ctx, req.State, ende.Decode)
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
@@ -1484,7 +1485,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.
 	r := rc.getInstance()
 	del, ok := ((interface{})(*r)).(CustomDelete[O])
 	if ok {
-		_, olds, err := hydrateFromState[R, I, O](ctx, req.Properties)
+		_, olds, err := hydrateFromState[R, I, O](ctx, req.Properties, ende.Decode)
 		if err != nil {
 			return err
 		}
@@ -1542,6 +1543,7 @@ func getDependenciesRaw(
 // migrations.
 func hydrateFromState[R, I, O any](
 	ctx context.Context, state property.Map,
+	decode func(property.Map) (ende.Encoder, O, mapper.MappingError),
 ) (ende.Encoder, O, error) {
 	var r R
 	if r, ok := ((interface{})(r)).(CustomStateMigrations[O]); ok {
@@ -1551,7 +1553,7 @@ func hydrateFromState[R, I, O any](
 		}
 	}
 
-	return ende.Decode[O](state)
+	return decode(state)
 }
 
 func migrateState[O any](

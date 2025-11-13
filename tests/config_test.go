@@ -16,6 +16,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -259,4 +260,46 @@ func TestInferCustomDiffConfig(t *testing.T) {
 
 	assert.False(t, resp.HasChanges)
 	assert.Empty(t, resp.DetailedDiff)
+}
+
+type configWithDiff struct {
+	Field string `pulumi:"field"`
+}
+
+var _ infer.CustomDiff[configWithDiff, configWithDiff] = (*configWithDiff)(nil)
+
+func (configWithDiff) Diff(
+	ctx context.Context, req infer.DiffRequest[configWithDiff, configWithDiff],
+) (infer.DiffResponse, error) {
+	return infer.DiffResponse{}, errors.New("Custom Diff Ran")
+}
+
+func TestInferCustomDiffConfigWithInternalKeys(t *testing.T) {
+	t.Parallel()
+
+	// Test that internal framework keys like __pulumi-go-provider-infer and
+	// __pulumi-go-provider-version don't cause deserialization errors when
+	// present in olds during diff.
+
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Config: infer.Config(configWithDiff{}),
+		})),
+	)
+	require.NoError(t, err)
+
+	_, err = s.DiffConfig(p.DiffRequest{
+		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+		State: property.NewMap(map[string]property.Value{
+			"field":                        property.New("value"),
+			"__pulumi-go-provider-infer":   property.New(true),
+			"__pulumi-go-provider-version": property.New("1.0.0"),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"field": property.New("value"),
+		}),
+	})
+	require.ErrorContains(t, err, "Custom Diff Ran")
 }
