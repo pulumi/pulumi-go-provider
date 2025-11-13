@@ -31,6 +31,7 @@ import (
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
+	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 	rRapid "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
 )
@@ -297,7 +298,11 @@ func TestDiff(t *testing.T) {
 			Inputs: test.news,
 		}
 		resp, err := diff[struct{}, I, any](
-			Context{context.Background()},
+			Context{context.WithValue(t.Context(), key.RuntimeInfo, p.RunInfo{
+				PackageName:       "test",
+				Version:           "0.0.0",
+				SupportsOldInputs: false,
+			})},
 			diffRequest,
 			&struct{}{},
 			func(string) bool { return false },
@@ -308,6 +313,57 @@ func TestDiff(t *testing.T) {
 			assert.Equal(t, test.diff[k], v.Kind)
 		}
 	}
+}
+
+// TestDiffWhereStateShadowsInputs checks that when state overlaps with new inputs, new
+// inputs is chosen.
+func TestDiffWhereStateShadowsInputs(t *testing.T) {
+	t.Parallel()
+
+	// Input type only has "input" field
+	type I struct {
+		Input string `pulumi:"input"`
+	}
+
+	// Output type has both "input" and "output" fields
+	type O struct {
+		Input  string `pulumi:"input"`
+		Output string `pulumi:"output"`
+	}
+
+	diffRequest := p.DiffRequest{
+		ID:  "test-id",
+		Urn: r.CreateURN("test-resource", "test:pkg:Resource", "", "test-proj", "test-stack"),
+		State: property.NewMap(map[string]property.Value{
+			"field": property.New([]property.Value{
+				property.New("given"),
+				property.New("added"),
+			}),
+		}),
+		OldInputs: property.NewMap(map[string]property.Value{
+			"field": property.New([]property.Value{
+				property.New("given"),
+			}),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"field": property.New([]property.Value{
+				property.New("given"),
+			}),
+		}),
+	}
+
+	resp, err := diff[struct{}, I, O](
+		Context{context.WithValue(t.Context(), key.RuntimeInfo, p.RunInfo{
+			PackageName:       "test",
+			Version:           "0.0.0",
+			SupportsOldInputs: true,
+		})},
+		diffRequest,
+		&struct{}{},
+		func(string) bool { return false },
+	)
+	require.NoError(t, err)
+	assert.Empty(t, resp.DetailedDiff)
 }
 
 type testContext struct {
