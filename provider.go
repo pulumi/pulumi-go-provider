@@ -173,34 +173,57 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 		delete(d.DetailedDiff, key.ForceNoDetailedDiff)
 	}
 
-	r := rpc.DiffResponse{
+	diffs := map[string]struct{}{}
+	replaces := map[string]struct{}{}
+	stables := map[string]struct{}{}
+
+	mapToSlice := func(m map[string]struct{}) []string {
+		if len(m) == 0 {
+			return nil
+		}
+		s := make([]string, 0, len(m))
+		for k := range m {
+			s = append(s, k)
+		}
+		return s
+	}
+
+	for k, v := range d.DetailedDiff {
+		if pp, err := presource.ParsePropertyPath(k); err == nil && len(pp) > 0 {
+			head, ok := pp[0].(string)
+			if ok {
+				k = head
+			}
+		}
+		switch v.Kind {
+		case Add:
+			diffs[k] = struct{}{}
+		case AddReplace:
+			replaces[k] = struct{}{}
+			diffs[k] = struct{}{}
+		case Delete:
+			diffs[k] = struct{}{}
+		case DeleteReplace:
+			replaces[k] = struct{}{}
+			diffs[k] = struct{}{}
+		case Update:
+			diffs[k] = struct{}{}
+		case UpdateReplace:
+			replaces[k] = struct{}{}
+			diffs[k] = struct{}{}
+		case Stable:
+			stables[k] = struct{}{}
+		}
+	}
+	return &rpc.DiffResponse{
 		DeleteBeforeReplace: d.DeleteBeforeReplace,
 		Changes:             diffChanges(d.HasChanges).rpc(),
 		DetailedDiff:        detailedDiff(d.DetailedDiff).rpc(),
 		HasDetailedDiff:     hasDetailedDiff,
+		Replaces:            mapToSlice(replaces),
+		Stables:             mapToSlice(stables),
+		Diffs:               mapToSlice(diffs),
 	}
-	for k, v := range d.DetailedDiff {
-		switch v.Kind {
-		case Add:
-			r.Diffs = append(r.Diffs, k)
-		case AddReplace:
-			r.Replaces = append(r.Replaces, k)
-			r.Diffs = append(r.Diffs, k)
-		case Delete:
-			r.Diffs = append(r.Diffs, k)
-		case DeleteReplace:
-			r.Replaces = append(r.Replaces, k)
-			r.Diffs = append(r.Diffs, k)
-		case Update:
-			r.Diffs = append(r.Diffs, k)
-		case UpdateReplace:
-			r.Replaces = append(r.Replaces, k)
-			r.Diffs = append(r.Diffs, k)
-		case Stable:
-			r.Stables = append(r.Stables, k)
-		}
-	}
-	return &r
 }
 
 type ConfigureRequest struct {
