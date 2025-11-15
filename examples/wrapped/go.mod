@@ -8,7 +8,7 @@ toolchain go1.24.0
 
 require (
 	github.com/golang/protobuf v1.5.4
-	github.com/pulumi/pulumi-go-provider v0.0.0-00010101000000-000000000000
+	github.com/pulumi/pulumi-go-provider v1.2.0
 	github.com/pulumi/pulumi/pkg/v3 v3.169.0
 	github.com/pulumi/pulumi/sdk/v3 v3.169.0
 	google.golang.org/grpc v1.67.1
