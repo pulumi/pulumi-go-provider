@@ -10,7 +10,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v1.2.0
 	github.com/pulumi/pulumi/sdk/v3 v3.207.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.5.2
 )
 
