@@ -58,7 +58,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
           stable: ${{ matrix.go-stable }}
       - name: Install Pulumi CLI
-        uses: pulumi/action-install-pulumi-cli@v2
+        uses: pulumi/action-install-pulumi-cli@b374ceb6168550de27c6eba92e01c1a774040e11 # v2
       - name: Test
         run: make test
       - name: Upload coverage reports to Codecov
