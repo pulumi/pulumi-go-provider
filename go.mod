@@ -108,4 +108,4 @@ require (
 	lukechampine.com/frand v1.4.2 // indirect
 )
 
-replace github.com/mitchellh/mapstructure => github.com/go-viper/mapstructure v1.6.0
+replace github.com/mitchellh/mapstructure => github.com/go-viper/mapstructure/v2 v2.4.0
