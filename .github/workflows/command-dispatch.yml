@@ -9,24 +9,24 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Run Build
-        uses: peter-evans/slash-command-dispatch@v2
+        uses: peter-evans/slash-command-dispatch@13bc09769d122a64f75aa5037256f6f2d78be8c4 # v4
         with:
           token: ${{ secrets.PULUMI_BOT_TOKEN }}
           reaction-token: ${{ secrets.GITHUB_TOKEN }}
           commands: run-acceptance-tests
           permission: write
           issue-type: pull-request
-          repository: iwahbe/pulumi-go-provider
+          repository: pulumi/pulumi-go-provider
   auto-rebase-command:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Run Build
-        uses: peter-evans/slash-command-dispatch@v2
+        uses: peter-evans/slash-command-dispatch@13bc09769d122a64f75aa5037256f6f2d78be8c4 # v4
         with:
           token: ${{ secrets.PULUMI_BOT_TOKEN }}
           reaction-token: ${{ secrets.GITHUB_TOKEN }}
           commands: auto-rebase
           permission: write
           issue-type: pull-request
-          repository: iwahbe/pulumi-go-provider
+          repository: pulumi/pulumi-go-provider
