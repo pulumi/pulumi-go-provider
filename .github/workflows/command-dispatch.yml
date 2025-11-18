@@ -16,7 +16,7 @@ jobs:
           commands: run-acceptance-tests
           permission: write
           issue-type: pull-request
-          repository: iwahbe/pulumi-go-provider
+          repository: pulumi/pulumi-go-provider
   auto-rebase-command:
     runs-on: ubuntu-latest
     steps:
@@ -29,4 +29,4 @@ jobs:
           commands: auto-rebase
           permission: write
           issue-type: pull-request
-          repository: iwahbe/pulumi-go-provider
+          repository: pulumi/pulumi-go-provider
