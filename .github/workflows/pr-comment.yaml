@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Comment PR
-        uses: thollander/actions-comment-pull-request@1.0.1
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           message: |
             PR is now waiting for a maintainer to take action.
@@ -17,4 +17,4 @@ jobs:
             **Note for the maintainer:**  Commands available:
 
             * `/run-acceptance-tests` - used to test run the acceptance tests for the project
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
