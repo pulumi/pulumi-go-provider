@@ -18,7 +18,6 @@ import (
 
 const schema = `{
 "name": "random-login",
-"displayName": "yourdisplayname",
 "version": "0.1.0",
 "namespace": "examples",
 "language": {
