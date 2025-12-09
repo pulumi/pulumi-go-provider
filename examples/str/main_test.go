@@ -15,7 +15,6 @@ import (
 const schema = `{
   "name": "str",
   "version": "0.1.0",
-  "namespace": "examples",
   "language": {
     "csharp": {
       "respectSchemaVersion": true

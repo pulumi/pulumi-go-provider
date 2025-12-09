@@ -11,7 +11,7 @@
     },
     "go": {
       "generateResourceContainerTypes": true,
-      "importBasePath": "local-package/sdk/go/assets",
+      "importBasePath": "github.com/examples/assets/sdk/go/assets",
       "respectSchemaVersion": true
     },
     "nodejs": {

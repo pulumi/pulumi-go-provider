@@ -11,7 +11,7 @@
     },
     "go": {
       "generateResourceContainerTypes": true,
-      "importBasePath": "local-package/sdk/go/configurable",
+      "importBasePath": "github.com/examples/configurable/sdk/go/configurable",
       "respectSchemaVersion": true
     },
     "nodejs": {

@@ -76,6 +76,9 @@ func NewProviderBuilder() *ProviderBuilder {
 		if meta.Repository != "" {
 			return fmt.Sprintf("%s/sdk/go/%s", meta.Repository, ri.PackageName)
 		}
+		if meta.Namespace != "" {
+			return fmt.Sprintf("github.com/%s/%s/sdk/go/%[2]s", meta.Namespace, ri.PackageName)
+		}
 
 		// We don't have a reasonable guess for what the package name will be, so
 		// let's assume it's local.

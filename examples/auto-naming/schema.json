@@ -11,7 +11,7 @@
     },
     "go": {
       "generateResourceContainerTypes": true,
-      "importBasePath": "local-package/sdk/go/auto-naming",
+      "importBasePath": "github.com/examples/auto-naming/sdk/go/auto-naming",
       "respectSchemaVersion": true
     },
     "nodejs": {

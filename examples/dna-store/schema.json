@@ -11,7 +11,7 @@
     },
     "go": {
       "generateResourceContainerTypes": true,
-      "importBasePath": "local-package/sdk/go/dna-store",
+      "importBasePath": "github.com/examples/dna-store/sdk/go/dna-store",
       "respectSchemaVersion": true
     },
     "nodejs": {
