@@ -15,6 +15,7 @@
 package infer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -70,6 +71,28 @@ type ProviderBuilder struct {
 //
 // - LanguageMap: A map of language-specific metadata that is used to generate the SDKs for the provider.
 func NewProviderBuilder() *ProviderBuilder {
+	defaultGoImportPath := func(ctx context.Context, meta *schema.Metadata) string {
+		ri := provider.GetRunInfo(ctx)
+		if meta.Repository != "" {
+			return fmt.Sprintf("%s/sdk/go/%s", meta.Repository, ri.PackageName)
+		}
+		if meta.Namespace != "" {
+			return fmt.Sprintf("github.com/%s/%s/sdk/go/%[2]s", meta.Namespace, ri.PackageName)
+		}
+
+		// We don't have a reasonable guess for what the package name will be, so
+		// let's assume it's local.
+		return fmt.Sprintf("local-package/sdk/go/%s", ri.PackageName)
+	}
+
+	fixupGoLanguageOptions := func(ctx context.Context, meta *schema.Metadata) error {
+		gpi := getGoPackageInfo(meta)
+		if _, ok := gpi["importBasePath"]; !ok {
+			gpi["importBasePath"] = defaultGoImportPath(ctx, meta)
+		}
+		return nil
+	}
+
 	defaultMetadata := schema.Metadata{
 		LanguageMap: map[string]any{
 			"nodejs": map[string]any{
@@ -91,6 +114,7 @@ func NewProviderBuilder() *ProviderBuilder {
 				"respectSchemaVersion": true,
 			},
 		},
+		Update: fixupGoLanguageOptions,
 	}
 
 	return &ProviderBuilder{
@@ -199,16 +223,16 @@ func (pb *ProviderBuilder) WithPluginDownloadURL(pluginDownloadURL string) *Prov
 
 // WithGoImportPath sets the base import path for the provider's generated SDK.
 func (pb *ProviderBuilder) WithGoImportPath(path string) *ProviderBuilder {
-	gpi := pb.getGoPackageInfo()
+	gpi := getGoPackageInfo(&pb.metadata)
 	gpi["importBasePath"] = path
 	return pb
 }
 
-func (pb *ProviderBuilder) getGoPackageInfo() map[string]any {
-	lm := pb.metadata.LanguageMap
+func getGoPackageInfo(metadata *schema.Metadata) map[string]any {
+	lm := metadata.LanguageMap
 	if lm == nil {
 		lm = map[string]any{}
-		pb.metadata.LanguageMap = lm
+		metadata.LanguageMap = lm
 	}
 
 	gpi, ok := lm["go"]
@@ -244,24 +268,6 @@ func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
 // BuildOptions builds an [Options] object from the provider builder configuration. This
 // is useful when a user wants to have more control over the provider creation process.
 func (pb *ProviderBuilder) BuildOptions() Options {
-	if pb.metadata.DisplayName == "" {
-		pb.metadata.DisplayName = "yourdisplayname"
-	}
-	if pb.metadata.Namespace == "" {
-		pb.metadata.Namespace = "yournamespace"
-	}
-
-	gpi := pb.getGoPackageInfo()
-	if _, ok := gpi["importBasePath"]; !ok {
-		path := fmt.Sprintf(
-			"github.com/%s/%s/sdk/go/%s",
-			pb.metadata.Namespace,
-			pb.metadata.DisplayName,
-			pb.metadata.DisplayName,
-		)
-		gpi["importBasePath"] = path
-	}
-
 	return Options{
 		Metadata:   pb.metadata,
 		Resources:  pb.resources,

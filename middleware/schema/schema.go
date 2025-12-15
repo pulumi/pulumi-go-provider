@@ -94,12 +94,15 @@ type state struct {
 	combinedSchema *cache
 	innerGetSchema func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error)
 
+	hasRunUpdateMetadata bool
+
 	m sync.Mutex
 }
 
 // Options sets the schema options used by [Wrap].
 type Options struct {
 	Metadata
+
 	// Resources from which to derive the schema
 	Resources []Resource
 	// Invokes from which to derive the schema
@@ -171,6 +174,12 @@ type Metadata struct {
 	PluginDownloadURL string
 	// Namespace sets the [schema.PackageSpec.Namespace] field.
 	Namespace string
+
+	// Update allows updating the metadata function when runtime information (such as
+	// package name and version) is available.
+	//
+	// The function will run exactly once.
+	Update func(context.Context, *Metadata) error
 }
 
 // Wrap a provider with the facilities to serve GetSchema.
@@ -186,6 +195,14 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 func (s *state) GetSchema(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 	s.m.Lock()
 	defer s.m.Unlock()
+
+	if !s.hasRunUpdateMetadata && s.Update != nil {
+		err := s.Update(ctx, &s.Metadata)
+		if err != nil {
+			return p.GetSchemaResponse{}, err
+		}
+		s.hasRunUpdateMetadata = true
+	}
 
 	if s.schema.isEmpty() {
 		spec, err := s.generateSchema(ctx)

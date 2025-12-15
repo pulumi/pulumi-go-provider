@@ -1,6 +1,5 @@
 {
   "name": "dna-store",
-  "displayName": "yourdisplayname",
   "version": "0.1.0",
   "namespace": "examples",
   "meta": {
@@ -12,7 +11,7 @@
     },
     "go": {
       "generateResourceContainerTypes": true,
-      "importBasePath": "github.com/examples/yourdisplayname/sdk/go/yourdisplayname",
+      "importBasePath": "github.com/examples/dna-store/sdk/go/dna-store",
       "respectSchemaVersion": true
     },
     "nodejs": {

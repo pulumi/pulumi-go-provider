@@ -30,7 +30,6 @@ func main() {
 
 func provider() (p.Provider, error) {
 	return infer.NewProviderBuilder().
-		WithNamespace("examples").
 		WithFunctions(
 			infer.Function(&Replace{}),
 			infer.Function(&Print{}),
