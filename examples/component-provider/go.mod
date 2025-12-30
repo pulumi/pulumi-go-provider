@@ -9,7 +9,7 @@ toolchain go1.24.10
 require (
 	github.com/pulumi/pulumi-go-provider v1.2.0
 	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4
-	github.com/pulumi/pulumi/sdk/v3 v3.213.0
+	github.com/pulumi/pulumi/sdk/v3 v3.214.0
 )
 
 require (
@@ -68,7 +68,7 @@ require (
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.21.0 // indirect
-	github.com/pulumi/pulumi/pkg/v3 v3.213.0 // indirect
+	github.com/pulumi/pulumi/pkg/v3 v3.214.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
