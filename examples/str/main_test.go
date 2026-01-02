@@ -14,16 +14,14 @@ import (
 
 const schema = `{
   "name": "str",
-  "displayName": "yourdisplayname",
   "version": "0.1.0",
-  "namespace": "examples",
   "language": {
     "csharp": {
       "respectSchemaVersion": true
     },
     "go": {
       "generateResourceContainerTypes": true,
-      "importBasePath": "github.com/examples/yourdisplayname/sdk/go/yourdisplayname",
+      "importBasePath": "local-package/sdk/go/str",
       "respectSchemaVersion": true
     },
     "nodejs": {
