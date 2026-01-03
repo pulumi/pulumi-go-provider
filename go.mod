@@ -4,8 +4,8 @@ go 1.24.7
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.214.0
-	github.com/pulumi/pulumi/sdk/v3 v3.214.0
+	github.com/pulumi/pulumi/pkg/v3 v3.214.1
+	github.com/pulumi/pulumi/sdk/v3 v3.214.1
 	go.uber.org/mock v0.6.0
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
 	google.golang.org/grpc v1.72.1
@@ -30,7 +30,6 @@ require (
 	github.com/go-git/go-git/v5 v5.13.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/iancoleman/strcase v0.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
@@ -43,9 +42,7 @@ require (
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.21.0 // indirect
-	github.com/pulumi/inflector v0.2.1 // indirect
 	github.com/skeema/knownhosts v1.3.0 // indirect
-	github.com/spf13/afero v1.9.5 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
