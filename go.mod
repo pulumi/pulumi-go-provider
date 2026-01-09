@@ -4,8 +4,8 @@ go 1.24.7
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.214.1
-	github.com/pulumi/pulumi/sdk/v3 v3.214.1
+	github.com/pulumi/pulumi/pkg/v3 v3.215.0
+	github.com/pulumi/pulumi/sdk/v3 v3.215.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
 	google.golang.org/grpc v1.72.1
