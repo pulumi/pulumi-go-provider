@@ -1306,6 +1306,27 @@ func toUrns(s []string) []presource.URN {
 	return r
 }
 
+func aliasesFromURNs(s []presource.URN) []*rpc.Alias {
+	r := make([]*rpc.Alias, len(s))
+	for i, a := range s {
+		r[i] = &rpc.Alias{
+			Alias: &rpc.Alias_Urn{Urn: string(a)},
+		}
+	}
+	return r
+}
+
+func aliasesToURNs(s []*rpc.Alias) []presource.URN {
+	r := make([]presource.URN, 0, len(s))
+	for _, a := range s {
+		urn := presource.URN(a.GetUrn())
+		if urn != "" {
+			r = append(r, urn)
+		}
+	}
+	return r
+}
+
 func newConstructRequest(req *rpc.ConstructRequest,
 	unmarshal func(s *structpb.Struct) (property.Map, error),
 ) (ConstructRequest, error) {
@@ -1386,7 +1407,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			}
 			return m
 		}(),
-		Aliases:      toUrns(req.GetAliases()),
+		Aliases:      aliasesToURNs(req.GetAliases()),
 		Dependencies: toUrns(req.GetDependencies()),
 		AdditionalSecretOutputs: func() []string {
 			r := make([]string, len(req.GetAdditionalSecretOutputs()))
@@ -1479,7 +1500,7 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 			}
 			return m
 		}(),
-		Aliases:                 fromUrns(c.Aliases),
+		Aliases:                 aliasesFromURNs(c.Aliases),
 		Dependencies:            fromUrns(c.Dependencies),
 		AdditionalSecretOutputs: c.AdditionalSecretOutputs,
 		DeletedWith:             string(c.DeletedWith),
