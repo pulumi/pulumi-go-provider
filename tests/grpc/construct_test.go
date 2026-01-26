@@ -64,7 +64,7 @@ func TestConstruct(t *testing.T) {
     "type": "test:index:Component",
     "name": "test-component",
     "parent": "urn:pulumi:test::test::test:index:Parent::parent",
-	"aliases": ["urn2"],
+	"aliases": [{"urn": "urn2"}],
     "inputs": {
       "k1": "s"
     },
