@@ -6,8 +6,8 @@ replace github.com/pulumi/pulumi-go-provider => ../..
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi-go-provider v1.2.0
-	github.com/pulumi/pulumi/sdk/v3 v3.222.0
+	github.com/pulumi/pulumi-go-provider v1.3.0
+	github.com/pulumi/pulumi/sdk/v3 v3.223.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -73,7 +73,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.22.0 // indirect
-	github.com/pulumi/pulumi/pkg/v3 v3.222.0 // indirect
+	github.com/pulumi/pulumi/pkg/v3 v3.223.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
