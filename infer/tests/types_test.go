@@ -201,6 +201,7 @@ func TestReceivers(t *testing.T) {
 			).Build()
 			require.NoError(t, err)
 
+			//nolint:gosec // just a Pulumi Type
 			_, err = prov.Invoke(t.Context(), pgp.InvokeRequest{Token: "foo:index:TestFunction"})
 			assert.NoError(t, err)
 		})
