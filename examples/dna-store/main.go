@@ -33,6 +33,21 @@ func (Molecule) Values() []infer.EnumValue[Molecule] {
 	}
 }
 
+func (m Molecule) String() string {
+	switch m {
+	case A:
+		return "A"
+	case C:
+		return "C"
+	case T:
+		return "T"
+	case G:
+		return "G"
+	default:
+		return fmt.Sprintf("invalid(%d)", m)
+	}
+}
+
 type SampleType string
 
 const (
