@@ -39,7 +39,7 @@ type debugServer struct {
 // newDebugServer creates a new debug wrapper around the given server.
 // The filePath specifies where to write the debug logs.
 func newDebugServer(server rpc.ResourceProviderServer, filePath string) (*debugServer, error) {
-	file, err := os.Create(filepath.Clean(filePath))
+	file, err := os.Create(filepath.Clean(filePath)) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("failed to open debug file %s: %w", filePath, err)
 	}

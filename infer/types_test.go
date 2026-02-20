@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//nolint:gosec
 package infer
 
 import (
@@ -72,7 +73,7 @@ func TestIsEnum(t *testing.T) {
 		values []EnumValue[any]
 	}{
 		{
-			typ:   reflect.TypeOf(MyFoo),
+			typ:   reflect.TypeFor[MyEnum](),
 			token: "pkg:infer:MyEnum",
 			values: []EnumValue[any]{
 				{
