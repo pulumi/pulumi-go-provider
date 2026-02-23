@@ -6,10 +6,10 @@ go 1.25.0
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi-go-provider v1.2.0
-	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4
-	github.com/pulumi/pulumi/pkg/v3 v3.222.0
-	github.com/pulumi/pulumi/sdk/v3 v3.222.0
+	github.com/pulumi/pulumi-go-provider v1.3.0
+	github.com/pulumi/pulumi-random/sdk/v4 v4.19.1
+	github.com/pulumi/pulumi/pkg/v3 v3.223.0
+	github.com/pulumi/pulumi/sdk/v3 v3.223.0
 	github.com/stretchr/testify v1.11.1
 )
 
