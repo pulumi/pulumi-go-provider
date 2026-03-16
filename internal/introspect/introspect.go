@@ -28,7 +28,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 )
 
-func StructToMap(i any) map[string]interface{} {
+func StructToMap(i any) map[string]any {
 	typ := reflect.TypeOf(i)
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -36,7 +36,7 @@ func StructToMap(i any) map[string]interface{} {
 
 	contract.Assertf(typ.Kind() == reflect.Struct, "Expected a struct. Instead got %s (%v)", typ.Kind(), i)
 
-	m := map[string]interface{}{}
+	m := map[string]any{}
 	value := reflect.ValueOf(i)
 	for value.Type().Kind() == reflect.Pointer {
 		value = value.Elem()
@@ -202,25 +202,54 @@ type FieldTag struct {
 	ReplaceOnChanges bool // If changes in the field should force a replacement.
 }
 
-func NewFieldMatcher(i any) FieldMatcher {
+type Matcher interface {
+	GetField(field any) (FieldTag, bool, error)
+	TargetStructFields(t any) ([]FieldTag, bool, error)
+	value() reflect.Value
+}
+
+func NewIdentityMatcher(i any) Matcher {
+	v := reflect.ValueOf(i)
+	for v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+
+	return identityMatcher{v}
+}
+
+type identityMatcher struct{ _value reflect.Value }
+
+func (identityMatcher) GetField(any) (FieldTag, bool, error) {
+	return FieldTag{}, false, nil
+}
+
+func (identityMatcher) TargetStructFields(any) ([]FieldTag, bool, error) {
+	return nil, false, nil
+}
+
+func (m identityMatcher) value() reflect.Value { return m._value }
+
+func NewFieldMatcher(i any) Matcher {
 	v := reflect.ValueOf(i)
 	for v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	contract.Assertf(v.Kind() == reflect.Struct, "FieldMatcher must contain a struct, found a %s.", v.Type())
-	return FieldMatcher{
-		value: v,
+	return &fieldMatcher{
+		_value: v,
 	}
 }
 
-type FieldMatcher struct {
-	value reflect.Value
+type fieldMatcher struct {
+	_value reflect.Value
 }
 
-func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
-	hostType := f.value.Type()
+func (f *fieldMatcher) value() reflect.Value { return f._value }
+
+func (f *fieldMatcher) GetField(field any) (FieldTag, bool, error) {
+	hostType := f._value.Type()
 	for _, i := range reflect.VisibleFields(hostType) {
-		f := f.value.FieldByIndex(i.Index)
+		f := f._value.FieldByIndex(i.Index)
 		fType := hostType.FieldByIndex(i.Index)
 		if !fType.IsExported() {
 			continue
@@ -237,16 +266,16 @@ func (f *FieldMatcher) GetField(field any) (FieldTag, bool, error) {
 //
 // If `t` is the struct that the field matcher is based on, return all visible fields on
 // the struct. Otherwise `nil, false, nil` is returned.
-func (f *FieldMatcher) TargetStructFields(t any) ([]FieldTag, bool, error) {
+func (f *fieldMatcher) TargetStructFields(t any) ([]FieldTag, bool, error) {
 	v := reflect.ValueOf(t)
 	for v.Kind() == reflect.Pointer && !v.IsNil() {
 		v = v.Elem()
 	}
-	if f.value != v {
+	if f._value != v {
 		return nil, false, nil
 	}
 
-	hostType := f.value.Type()
+	hostType := f._value.Type()
 	visableFields := reflect.VisibleFields(hostType)
 	fields := []FieldTag{}
 	var errs multierror.Error

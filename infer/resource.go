@@ -493,8 +493,8 @@ type InputField interface {
 
 type fieldGenerator struct {
 	args, state  any
-	argsMatcher  introspect.FieldMatcher
-	stateMatcher introspect.FieldMatcher
+	argsMatcher  introspect.Matcher
+	stateMatcher introspect.Matcher
 	err          multierror.Error
 
 	fields map[string]*field

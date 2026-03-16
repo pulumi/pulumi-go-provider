@@ -21,6 +21,16 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 )
 
+func NewEnumAnnotator(enum any) Annotator {
+	return Annotator{
+		Descriptions:        map[string]string{},
+		Defaults:            map[string]any{},
+		DefaultEnvs:         map[string][]string{},
+		DeprecationMessages: map[string]string{},
+		matcher:             NewIdentityMatcher(enum),
+	}
+}
+
 func NewAnnotator(resource any) Annotator {
 	return Annotator{
 		Descriptions:        map[string]string{},
@@ -40,7 +50,7 @@ type Annotator struct {
 	Aliases             []string
 	DeprecationMessages map[string]string
 
-	matcher FieldMatcher
+	matcher Matcher
 }
 
 func (a *Annotator) mustGetField(i any) FieldTag {
@@ -73,7 +83,7 @@ func (a *Annotator) Describe(i any, description string) {
 		if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Pointer {
 			i = reflect.ValueOf(i).Elem().Interface()
 		}
-		if a.matcher.value.Addr().Interface() == i {
+		if a.matcher.value().Addr().Interface() == i {
 			a.Descriptions[""] = description
 			return
 		}
@@ -117,7 +127,7 @@ func (a *Annotator) Deprecate(i any, message string) {
 		if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Pointer {
 			i = reflect.ValueOf(i).Elem().Interface()
 		}
-		if a.matcher.value.Addr().Interface() == i {
+		if a.matcher.value().Addr().Interface() == i {
 			a.DeprecationMessages[""] = message
 			return
 		}
