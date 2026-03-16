@@ -35,12 +35,12 @@ const (
 func (MyEnum) Values() []EnumValue[MyEnum] {
 	return []EnumValue[MyEnum]{
 		{
-			Name:        "foo",
+			Name:        "fooName",
 			Value:       MyFoo,
 			Description: "The foo value",
 		},
 		{
-			Name:        "bar",
+			Name:        "barName",
 			Value:       MyBar,
 			Description: "The bar value",
 		},
@@ -77,12 +77,12 @@ func TestIsEnum(t *testing.T) {
 			token: "pkg:infer:MyEnum",
 			values: []EnumValue[any]{
 				{
-					Name:        "foo",
+					Name:        "fooName",
 					Value:       string(MyFoo),
 					Description: "The foo value",
 				},
 				{
-					Name:        "bar",
+					Name:        "barName",
 					Value:       string(MyBar),
 					Description: "The bar value",
 				},
@@ -208,11 +208,15 @@ func TestCrawlTypes(t *testing.T) {
 					Type: "string"},
 				Enum: []pschema.EnumValueSpec{
 					{
+						Name:        "fooName",
 						Description: "The foo value",
 						Value:       "foo"},
 					{
+						Name:        "barName",
 						Description: "The bar value",
-						Value:       "bar"}}}},
+						Value:       "bar",
+					},
+				}}},
 		m)
 }
 
