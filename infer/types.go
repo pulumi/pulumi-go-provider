@@ -284,7 +284,7 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			tSpec := pschema.ComplexTypeSpec{}
 			for _, v := range enum.values {
 				tSpec.Enum = append(tSpec.Enum, pschema.EnumValueSpec{
-					Name:        "",
+					Name:        v.Name,
 					Description: v.Description,
 					Value:       v.Value,
 				})
