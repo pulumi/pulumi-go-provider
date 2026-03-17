@@ -5,7 +5,7 @@ replace github.com/pulumi/pulumi-go-provider => ../..
 go 1.25.6
 
 require (
-	github.com/pulumi/pulumi-go-provider v1.3.0
+	github.com/pulumi/pulumi-go-provider v1.3.1
 	github.com/pulumi/pulumi/sdk/v3 v3.226.0
 )
 
