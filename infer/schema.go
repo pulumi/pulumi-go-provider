@@ -16,6 +16,7 @@ package infer
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 
@@ -51,18 +52,10 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 	t = i.Type()
 
 	merge := func(dst *introspect.Annotator, src introspect.Annotator) {
-		for k, v := range src.Descriptions {
-			(*dst).Descriptions[k] = v
-		}
-		for k, v := range src.Defaults {
-			(*dst).Defaults[k] = v
-		}
-		for k, v := range src.DefaultEnvs {
-			(*dst).DefaultEnvs[k] = v
-		}
-		for k, v := range src.DeprecationMessages {
-			(*dst).DeprecationMessages[k] = v
-		}
+		maps.Copy((*dst).Descriptions, src.Descriptions)
+		maps.Copy((*dst).Defaults, src.Defaults)
+		maps.Copy((*dst).DefaultEnvs, src.DefaultEnvs)
+		maps.Copy((*dst).DeprecationMessages, src.DeprecationMessages)
 		dst.Token = src.Token
 		dst.Aliases = append(dst.Aliases, src.Aliases...)
 	}
@@ -83,7 +76,12 @@ func getAnnotated(t reflect.Type) introspect.Annotator {
 	}
 
 	if r, ok := i.Interface().(Annotated); ok {
-		a := introspect.NewAnnotator(r)
+		var a introspect.Annotator
+		if _, ok := isEnum(i.Type()); ok {
+			a = introspect.NewEnumAnnotator(r)
+		} else {
+			a = introspect.NewAnnotator(r)
+		}
 		r.Annotate(&a)
 		merge(&ret, a)
 	}
@@ -96,7 +94,7 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	var errs multierror.Error
 	annotations := getAnnotated(reflect.TypeOf(r))
 
-	properties, required, err := propertyListFromType(reflect.TypeOf(new(O)), isComponent, outputType)
+	properties, required, err := propertyListFromType(reflect.TypeFor[*O](), isComponent, outputType)
 	if err != nil {
 		var o O
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
@@ -160,7 +158,7 @@ func serializeTypeAsPropertyType(
 	}
 	if enum, ok := isEnum(t); ok {
 		return schema.TypeSpec{
-			Ref: "#/types/" + enum.token,
+			Ref: "#/types/" + enum().token,
 		}, nil
 	}
 	t, inputy, err := underlyingType(t)

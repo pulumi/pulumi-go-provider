@@ -62,6 +62,24 @@ func (*EnumByRef) Values() []EnumValue[EnumByRef] {
 	}
 }
 
+type AnnotatedEnum string
+
+const (
+	AnnotatedFoo AnnotatedEnum = "foo"
+)
+
+func (AnnotatedEnum) Values() []EnumValue[AnnotatedEnum] {
+	return []EnumValue[AnnotatedEnum]{
+		{Name: "foo", Value: AnnotatedFoo, Description: "the foo value"},
+	}
+}
+
+func (c *AnnotatedEnum) Annotate(a Annotator) {
+	a.SetToken("custom", "AnnotatedEnum")
+	a.Describe(c, "An annotated enum type")
+	a.Deprecate(c, "Use NewAnnotatedEnum instead")
+}
+
 type NotAnEnum bool
 
 func TestIsEnum(t *testing.T) {
@@ -85,6 +103,17 @@ func TestIsEnum(t *testing.T) {
 					Name:        "barName",
 					Value:       string(MyBar),
 					Description: "The bar value",
+				},
+			},
+		},
+		{
+			typ:   reflect.TypeFor[AnnotatedEnum](),
+			token: "pkg:custom:AnnotatedEnum",
+			values: []EnumValue[any]{
+				{
+					Name:        "foo",
+					Value:       string(AnnotatedFoo),
+					Description: "the foo value",
 				},
 			},
 		},
@@ -126,8 +155,9 @@ func TestIsEnum(t *testing.T) {
 					return
 				}
 				assert.True(t, ok)
-				assert.Equal(t, c.token, enum.token)
-				assert.Equal(t, c.values, enum.values)
+				resolvedEnum := enum()
+				assert.Equal(t, c.token, resolvedEnum.token)
+				assert.Equal(t, c.values, resolvedEnum.values)
 			})
 		}
 	}
@@ -322,4 +352,36 @@ func TestInvalidOptionalProperty(t *testing.T) {
 	t.Run("optional array", registerOk[struct {
 		Arr []testInner `pulumi:"arr,optional"`
 	}]())
+}
+
+func TestEnumAnnotations(t *testing.T) {
+	t.Parallel()
+
+	annotated := getAnnotated(reflect.TypeFor[AnnotatedEnum]())
+
+	assert.Equal(t, "pkg:custom:AnnotatedEnum", annotated.Token)
+	assert.Equal(t, "An annotated enum type", annotated.Descriptions[""])
+	assert.Equal(t, "Use NewAnnotatedEnum instead", annotated.DeprecationMessages[""])
+}
+
+type InvalidAnnotatedEnum string
+
+func (InvalidAnnotatedEnum) Values() []EnumValue[InvalidAnnotatedEnum] {
+	return []EnumValue[InvalidAnnotatedEnum]{
+		{Name: "a", Value: "a"},
+	}
+}
+
+func (c *InvalidAnnotatedEnum) Annotate(a Annotator) {
+	var unrelated string
+	a.Describe(&unrelated, "this should panic")
+}
+
+func TestEnumAnnotateNonExistentField(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t,
+		"Could not annotate field: could not find field",
+		func() { getAnnotated(reflect.TypeFor[InvalidAnnotatedEnum]()) },
+	)
 }

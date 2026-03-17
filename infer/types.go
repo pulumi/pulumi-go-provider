@@ -69,7 +69,7 @@ type enum struct {
 
 // isEnum detects if a type implements Enum[T] without naming T. There is no function to
 // do this in the `reflect` package, so we implement this manually.
-func isEnum(t reflect.Type) (enum, bool) {
+func isEnum(t reflect.Type) (func() enum, bool) {
 	// To Simplify, we ensure that `t` is not a pointer type.
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -85,50 +85,52 @@ func isEnum(t reflect.Type) (enum, bool) {
 	// The input is the receiver.
 	if !ok || m.Type.NumIn() != 1 ||
 		m.Type.NumOut() != 1 || m.Type.Out(0).Kind() != reflect.Slice {
-		return enum{}, false
+		return nil, false
 	}
 	// We have now found a method with the right name and basic signature. We check that
 	// it returns []EnumValue, by checking for implementation of a private method.
 	isCorrectMethod := m.Type.Out(0).Elem().
-		Implements(reflect.TypeOf(new(isEnumValue)).Elem())
+		Implements(reflect.TypeFor[isEnumValue]())
 	if !isCorrectMethod {
-		return enum{}, false
+		return nil, false
 	}
 
 	// We have found an enum.
 	// Now we construct the receiver, careful to distinguish between T and *T
 
-	// If we should call via a pointer, set `t` to *T
-	for target := m.Type.In(0); target.Kind() == reflect.Pointer; {
-		target = target.Elem()
-		t = reflect.PointerTo(t)
-	}
-	v := reflect.New(t).Elem()
-	// Re-hydrate the value, ensuring we don't have a nil pointer.
-	if v.Kind() == reflect.Pointer && v.IsNil() {
-		v = reflect.New(v.Type().Elem())
-	}
-
-	// Call the function on the receiver.
-	result := m.Func.Call([]reflect.Value{v})[0]
-
-	// Iterate through the returned values, constructing a EnumValue of a known type: any.
-	values := make([]EnumValue[any], result.Len())
-	for i := 0; i < result.Len(); i++ {
-		v := result.Index(i)
-		values[i] = EnumValue[any]{
-			Value:       coerceToBase(v.FieldByName("Value")),
-			Description: v.FieldByName("Description").String(),
-			Name:        v.FieldByName("Name").String(),
+	return func() enum {
+		// If we should call via a pointer, set `t` to *T
+		for target := m.Type.In(0); target.Kind() == reflect.Pointer; {
+			target = target.Elem()
+			t = reflect.PointerTo(t)
 		}
-	}
+		v := reflect.New(t).Elem()
+		// Re-hydrate the value, ensuring we don't have a nil pointer.
+		if v.Kind() == reflect.Pointer && v.IsNil() {
+			v = reflect.New(v.Type().Elem())
+		}
 
-	tk, err := getTokenOf(t, nil)
-	contract.AssertNoErrorf(err, "failed to get token for enum: %s", t)
+		// Call the function on the receiver.
+		result := m.Func.Call([]reflect.Value{v})[0]
 
-	return enum{
-		token:  tk.String(),
-		values: values,
+		// Iterate through the returned values, constructing a EnumValue of a known type: any.
+		values := make([]EnumValue[any], result.Len())
+		for i := 0; i < result.Len(); i++ {
+			v := result.Index(i)
+			values[i] = EnumValue[any]{
+				Value:       coerceToBase(v.FieldByName("Value")),
+				Description: v.FieldByName("Description").String(),
+				Name:        v.FieldByName("Name").String(),
+			}
+		}
+
+		tk, err := getTokenOf(t, nil)
+		contract.AssertNoErrorf(err, "failed to get token for enum: %s", t)
+
+		return enum{
+			token:  tk.String(),
+			values: values,
+		}
 	}, true
 }
 
@@ -273,6 +275,7 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			return false, nil
 		}
 		if enum, ok := isEnum(t); ok {
+			enum := enum()
 			if info != nil && info.Optional && !isReference {
 				return false, optionalNeedsPointerError{
 					ParentStruct: parent,
