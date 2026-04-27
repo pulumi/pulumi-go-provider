@@ -521,19 +521,17 @@ func TestHydrateFromState(t *testing.T) {
 	testAsset, err := asset.FromText("pulumi")
 	require.NoError(t, err)
 
-	// testHydrateFromState decodes and encodes, so the asset should come back out as a plain asset
-	// after having been decoded to an AssetOrArchive.
+	// testHydrateFromState decodes and encodes, so the asset should come back out as a typed asset
+	// (with a populated Sig) after having been decoded to an AssetOrArchive.
 	t.Run("assets", testHydrateFromState[hasAsset](
 		property.NewMap(map[string]property.Value{
 			"aa": property.New(testAsset),
 		}),
 		property.NewMap(map[string]property.Value{
-			"aa": property.New(map[string]property.Value{
-				sig.Key: property.New(sig.AssetSig),
-				"text":  property.New("pulumi"),
-				"hash":  property.New(testAsset.Hash),
-				"path":  property.New(""),
-				"uri":   property.New(""),
+			"aa": property.New(&asset.Asset{
+				Sig:  sig.AssetSig,
+				Hash: testAsset.Hash,
+				Text: "pulumi",
 			}),
 		}),
 		nil,

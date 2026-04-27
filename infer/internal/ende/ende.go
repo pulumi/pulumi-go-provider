@@ -16,6 +16,7 @@
 package ende
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/pulumi/pulumi-go-provider/infer/types"
@@ -23,6 +24,8 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	rarchive "github.com/pulumi/pulumi/sdk/v3/go/common/resource/archive"
+	rasset "github.com/pulumi/pulumi/sdk/v3/go/common/resource/asset"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/sig"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
@@ -212,16 +215,24 @@ func (e *ende) walk(
 			if typ == nil || typ.Kind() != reflect.Struct {
 				return e.walkMap(v, path, elemType, alignTypes)
 			}
-		case typ == reflect.TypeOf(types.AssetOrArchive{}):
+		case typ == reflect.TypeFor[types.AssetOrArchive]():
 			// Translate Pulumi's AssetOrArchive union type to types.AssetOrArchive.
 			// See #237 for more background.
-			var aa types.AssetOrArchive
+			//
+			// Wrap the typed asset/archive PropertyValue under the appropriate signature key
+			// so the mapper sees the field tags it expects, but keep the original typed
+			// pointer rather than reflecting it into a map. The engine's RPC unmarshal already
+			// recursively types inner Assets entries on a *archive.Archive; reflecting through
+			// resource.NewPropertyValue would flatten those into raw map[string]any values that
+			// the generic mapper.Decode can no longer recover into typed *asset.Asset /
+			// *archive.Archive pointers.
+			obj := resource.PropertyMap{}
 			if v.IsAsset() {
-				aa = types.AssetOrArchive{Asset: v.AssetValue()}
+				obj[AssetSignature] = v
 			} else if v.IsArchive() {
-				aa = types.AssetOrArchive{Archive: v.ArchiveValue()}
+				obj[ArchiveSignature] = v
 			}
-			return resource.NewPropertyValue(aa)
+			return resource.NewObjectProperty(obj)
 		// This is a scalar value, so we can return it as is.
 		default:
 			return v
@@ -409,11 +420,31 @@ should never happen. Please file an issue at https://github.com/pulumi/pulumi-go
 
 	if asset, ok := raw.(map[string]any); ok {
 		if kind, ok := asset[sig.Key]; ok {
-			if kind == sig.AssetSig || kind == sig.ArchiveSig {
-				return resource.NewObjectProperty(resource.NewPropertyMapFromMap(asset)), true
-			}
-			panic(`Encountered an unknown kind in an AssetOrArchive. This should never
+			switch kind {
+			case sig.AssetSig:
+				a, isAsset, err := rasset.Deserialize(asset)
+				if err != nil {
+					panic(fmt.Sprintf("failed to deserialize asset in AssetOrArchive: %v", err))
+				}
+				if !isAsset {
+					panic(`Encountered an AssetOrArchive value that did not deserialize as an asset. This should
+never happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+				}
+				return resource.NewProperty(a), true
+			case sig.ArchiveSig:
+				a, isArchive, err := rarchive.Deserialize(asset)
+				if err != nil {
+					panic(fmt.Sprintf("failed to deserialize archive in AssetOrArchive: %v", err))
+				}
+				if !isArchive {
+					panic(`Encountered an AssetOrArchive value that did not deserialize as an archive. This should
+never happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+				}
+				return resource.NewProperty(a), true
+			default:
+				panic(`Encountered an unknown kind in an AssetOrArchive. This should never
 happen. Please file an issue at https://github.com/pulumi/pulumi-go-provider/issues.`)
+			}
 		}
 	}
 
