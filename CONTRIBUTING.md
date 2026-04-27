@@ -4,7 +4,6 @@
 
 To cut and release a new version of this framework:
 
-1. Tag the commit with a [semantic version](https://semver.org/) (e.g., `git tag v1.2.3`).
-2. Push the tag to GitHub (`git push origin v1.2.3`).
-
-Once the tag is pushed, GitHub Actions CI will automatically handle the rest of the release process, which creates the GitHub release page. The framework reports its own version at runtime via Go's `runtime/debug.ReadBuildInfo`, so no in-repo file needs to be updated.
+1. From the [Releases page](https://github.com/pulumi/pulumi-go-provider/releases), click **Draft a new release**.
+2. Create a new tag with a [semantic version](https://semver.org/) (e.g., `v1.2.3`) targeting `main`.
+3. Generate release notes and publish.
