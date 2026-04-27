@@ -6,27 +6,6 @@ on:
       - v*.*.*
 
 jobs:
-  ensure-version:
-    runs-on: ubuntu-latest
-    name: Ensure .version file is up to date
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: Ensure version
-        run: |
-          if [ ! -f ".version" ]; then
-            echo "No .version file found"
-            exit 1
-          fi
-          if [[ "v$(cat .version)" != "${{ github.ref_name }}" ]]; then
-            echo The release has failed.
-            echo
-            echo The version in ".version" file "\(v$(cat .version)\)" does 
-            echo not match tag pushed \(${{ github.ref_name }}\). The releaser
-            echo needs to manually delete the release and any associated git
-            echo tag, update the .version file and try again.
-            exit 1
-          fi
   lint:
     uses: ./.github/workflows/stage-lint.yml
   test:
@@ -37,7 +16,7 @@ jobs:
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   publish:
-    needs: [ensure-version, lint, test]
+    needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
       - name: Create GH Release

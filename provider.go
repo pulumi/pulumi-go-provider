@@ -733,7 +733,7 @@ func (p *provider) CheckConfig(ctx context.Context, req *rpc.CheckRequest) (*rpc
 	}
 
 	// Inject the version of pulumi-go-provider into the news map to store in state.
-	r.Inputs = r.Inputs.Set(frameworkStateKeyName, property.New(frameworkVersion.String()))
+	r.Inputs = r.Inputs.Set(frameworkStateKeyName, property.New(Version()))
 
 	inputs, err := p.asStruct(r.Inputs)
 	if err != nil {
