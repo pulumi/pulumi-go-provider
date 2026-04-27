@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
+
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	rType "github.com/pulumi/pulumi-go-provider/internal/rapid/reflect"
 	rResource "github.com/pulumi/pulumi-go-provider/internal/rapid/resource"
@@ -198,28 +200,108 @@ func TestDecodeAssets(t *testing.T) {
 	})
 }
 
+func TestDecodeAssetArchiveInteriorTyping(t *testing.T) {
+	t.Parallel()
+
+	type input struct {
+		Source types.AssetOrArchive `pulumi:"source"`
+	}
+
+	innerAsset, err := asset.FromText("hello")
+	require.NoError(t, err)
+	innerArchive, err := archive.FromAssets(map[string]any{
+		"nested-asset": innerAsset,
+	})
+	require.NoError(t, err)
+	outer, err := archive.FromAssets(map[string]any{
+		"inner-asset":   innerAsset,
+		"inner-archive": innerArchive,
+	})
+	require.NoError(t, err)
+
+	pMap := property.NewMap(map[string]property.Value{
+		"source": property.New(outer),
+	})
+
+	enc, got, err := Decode[input](pMap)
+	require.NoError(t, err)
+
+	assert.Equal(t, types.AssetOrArchive{Archive: &archive.Archive{
+		Sig:  sig.ArchiveSig,
+		Hash: "f572f54b8f8252f419ff94d54b0b01783c256c5e57f29328f81f131c7ab4a717",
+		Assets: map[string]any{
+			"inner-archive": &archive.Archive{
+				Sig:  sig.ArchiveSig,
+				Hash: "82521fd7095bc6e6b97f424f21ab9b132b63f57b3c885ed0081ae187964c8bb8",
+				Assets: map[string]any{
+					"nested-asset": &asset.Asset{
+						Sig:  sig.AssetSig,
+						Hash: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+						Text: "hello",
+					},
+				},
+			},
+			"inner-asset": &asset.Asset{
+				Sig:  sig.AssetSig,
+				Hash: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+				Text: "hello",
+			},
+		},
+	}}, got.Source)
+
+	m, err := enc.Encode(got)
+	require.NoError(t, err)
+	assert.Equal(t, r.PropertyMap{
+		"source": r.NewProperty(&archive.Archive{
+			Sig:  sig.ArchiveSig,
+			Hash: "f572f54b8f8252f419ff94d54b0b01783c256c5e57f29328f81f131c7ab4a717",
+			Assets: map[string]any{
+				"inner-asset": &asset.Asset{
+					Sig:  sig.AssetSig,
+					Hash: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+					Text: "hello",
+				},
+				"inner-archive": &archive.Archive{
+					Sig:  sig.ArchiveSig,
+					Hash: "82521fd7095bc6e6b97f424f21ab9b132b63f57b3c885ed0081ae187964c8bb8",
+					Assets: map[string]any{
+						"nested-asset": &asset.Asset{
+							Sig:  sig.AssetSig,
+							Hash: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+							Text: "hello",
+						},
+					},
+				},
+			},
+		}),
+	}, m)
+}
+
 func TestEncodeAsset(t *testing.T) {
 	t.Parallel()
+
+	type wrap struct {
+		AA types.AssetOrArchive `pulumi:"aa"`
+	}
 
 	t.Run("standard asset", func(t *testing.T) {
 		t.Parallel()
 
 		a, err := asset.FromText("pulumi")
 		require.NoError(t, err)
-		aa := types.AssetOrArchive{Asset: a}
 
 		encoder := Encoder{new(ende)}
 
-		properties, err := encoder.Encode(aa)
+		properties, err := encoder.Encode(wrap{AA: types.AssetOrArchive{Asset: a}})
 		require.NoError(t, err)
 
 		assert.Equal(t,
 			r.PropertyMap{
-				sig.Key: r.NewStringProperty(sig.AssetSig),
-				"hash":  r.NewStringProperty(a.Hash),
-				"text":  r.NewStringProperty("pulumi"),
-				"path":  r.NewStringProperty(""),
-				"uri":   r.NewStringProperty(""),
+				"aa": r.NewProperty(&asset.Asset{
+					Sig:  sig.AssetSig,
+					Hash: a.Hash,
+					Text: "pulumi",
+				}),
 			},
 			properties)
 	})
@@ -229,19 +311,19 @@ func TestEncodeAsset(t *testing.T) {
 
 		a, err := archive.FromPath(t.TempDir())
 		require.NoError(t, err)
-		aa := types.AssetOrArchive{Archive: a}
 
 		encoder := Encoder{new(ende)}
 
-		properties, err := encoder.Encode(aa)
+		properties, err := encoder.Encode(wrap{AA: types.AssetOrArchive{Archive: a}})
 		require.NoError(t, err)
 
 		assert.Equal(t,
 			r.PropertyMap{
-				sig.Key: r.NewStringProperty(sig.ArchiveSig),
-				"hash":  r.NewStringProperty(a.Hash),
-				"path":  r.NewStringProperty(a.Path),
-				"uri":   r.NewStringProperty(""),
+				"aa": r.NewProperty(&archive.Archive{
+					Sig:  sig.ArchiveSig,
+					Hash: a.Hash,
+					Path: a.Path,
+				}),
 			},
 			properties)
 	})
