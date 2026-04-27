@@ -15,9 +15,6 @@
 package grpc
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,22 +26,10 @@ import (
 )
 
 // injectFrameworkVersion replaces the {{VERSION}} placeholder in the log with the
-// version of the provider obtained from the repository's root .version file.
+// framework version reported by the framework itself, so that the expected and
+// actual responses agree regardless of how the framework was built.
 func injectFrameworkVersion(logTemplate string) string {
-	// Get the absolute path to the .version file.
-	path, err := filepath.Abs("../../.version")
-	if err != nil {
-		panic(fmt.Errorf("unable to get absolute path: %w", err))
-	}
-
-	// Read the contents of the .version file.
-	version, err := os.ReadFile(path)
-	if err != nil {
-		panic(fmt.Errorf("unable to read .version file: %w", err))
-	}
-
-	// Replace the placeholder "{{VERSION}}" with the actual version.
-	return strings.ReplaceAll(logTemplate, "{{VERSION}}", string(version))
+	return strings.ReplaceAll(logTemplate, "{{VERSION}}", p.Version())
 }
 
 // These inputs were created by running `pulumi up` with PULUMI_DEBUG_GRPC=logs.json in
