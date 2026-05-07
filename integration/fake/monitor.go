@@ -85,7 +85,7 @@ type Registration struct {
 	Urn     string
 	ID      string
 	State   resource.PropertyMap
-	Request pulumirpc.RegisterResourceRequest
+	Request *pulumirpc.RegisterResourceRequest
 }
 
 type ResourceMonitorServer struct {
@@ -205,7 +205,7 @@ func (m *ResourceMonitorServer) RegisterResource(ctx context.Context, in *pulumi
 			Urn:     urn,
 			ID:      id,
 			State:   state,
-			Request: *in, //nolint:govet // copylocks
+			Request: in,
 		}
 	}()
 
