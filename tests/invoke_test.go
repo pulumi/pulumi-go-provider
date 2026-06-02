@@ -76,3 +76,58 @@ func TestInferInvokeSecrets(t *testing.T) {
 		"out": property.New("value-secret").WithSecret(true),
 	}), resp.Return)
 }
+
+type invWired struct{}
+
+type invWiredInput struct {
+	Field string `pulumi:"field" provider:"secret"`
+}
+
+type invWiredOutput struct {
+	invWiredInput
+}
+
+func (invWired) Invoke(
+	ctx context.Context, req infer.FunctionRequest[invWiredInput],
+) (infer.FunctionResponse[invWiredOutput], error) {
+	return infer.FunctionResponse[invWiredOutput]{
+		Output: invWiredOutput{req.Input},
+	}, nil
+}
+
+var _ infer.ExplicitDependencies[invWiredInput, invWiredOutput] = invWired{}
+
+func (invWired) WireDependencies(f infer.FieldSelector, _ *invWiredInput, results *invWiredOutput) {
+	f.OutputField(results).NeverSecret()
+}
+
+var _ infer.Annotated = invWired{}
+
+func (c invWired) Annotate(a infer.Annotator) { a.SetToken("index", "invWired") }
+
+func TestInferInvokeExplicitDependencies(t *testing.T) {
+	t.Parallel()
+
+	s, err := integration.NewServer(t.Context(),
+		"test",
+		semver.MustParse("0.0.0"),
+		integration.WithProvider(infer.Provider(infer.Options{
+			Functions: []infer.InferredFunction{
+				infer.Function(invWired{}),
+			},
+		})),
+	)
+	require.NoError(t, err)
+
+	resp, err := s.Invoke(p.InvokeRequest{
+		Token: "test:index:invWired",
+		Args: property.NewMap(map[string]property.Value{
+			"field": property.New("value"),
+		}),
+	})
+	require.NoError(t, err)
+	require.Empty(t, resp.Failures)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"field": property.New("value"),
+	}), resp.Return)
+}

@@ -21,7 +21,9 @@ import (
 	"unicode"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
@@ -175,7 +177,20 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
+
+	result := applySecrets[O](m)
+
+	if _, ok := any(r.receiver).(ExplicitDependencies[I, O]); ok {
+		setDeps, err := getDependencies(&r.receiver, &i, &o.Output, false /* isCreate */, false /* isPreview */)
+		if err != nil {
+			return p.InvokeResponse{}, err
+		}
+		out := resource.ToResourcePropertyValue(property.New(result)).ObjectValue()
+		setDeps(nil, resource.ToResourcePropertyValue(property.New(req.Args)).ObjectValue(), out)
+		result = resource.FromResourcePropertyValue(resource.NewProperty(out)).AsMap()
+	}
+
 	return p.InvokeResponse{
-		Return: applySecrets[O](m),
+		Return: result,
 	}, nil
 }
