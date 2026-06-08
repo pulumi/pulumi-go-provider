@@ -227,8 +227,37 @@ func (d DiffResponse) rpc() *rpc.DiffResponse {
 }
 
 type ConfigureRequest struct {
+	// A map of input properties for the provider. Compound values, such as
+	// nested objects, should be JSON encoded so that they too can be passed
+	// as strings. For instance, the following configuration:
+	//
+	// ```
+	//
+	//	{
+	//	  "a": 42,
+	//	  "b": {
+	//	    "c": "hello",
+	//	    "d": true
+	//	  }
+	//	}
+	//
+	// ```
+	//
+	// should be encoded as:
+	//
+	// ```
+	//
+	//	{
+	//	  "a": "42",
+	//	  "b": "{\"c\":\"hello\",\"d\":true}"
+	//	}
+	//
+	// ```
+	//
+	// Deprecated: Prefer to use Args.
 	Variables map[string]string
-	Args      property.Map
+	// A map of input properties for the provider.
+	Args property.Map
 }
 
 type InvokeRequest struct {
@@ -784,7 +813,7 @@ func (p *provider) Configure(ctx context.Context, req *rpc.ConfigureRequest) (*r
 		return nil, err
 	}
 	err = p.client.Configure(ctx, ConfigureRequest{
-		Variables: req.GetVariables(),
+		Variables: req.GetVariables(), //nolint:staticcheck // Passing on deprecated fields
 		Args:      argMap,
 	})
 
