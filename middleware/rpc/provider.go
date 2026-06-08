@@ -127,7 +127,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			}
 
 			runtime.configuration, err = server.Configure(ctx, &rpc.ConfigureRequest{
-				Variables:       req.Variables,
+				Variables:       req.Variables, //nolint:staticcheck // Passing through deprecated field
 				Args:            args,
 				AcceptSecrets:   true,
 				AcceptResources: true,
