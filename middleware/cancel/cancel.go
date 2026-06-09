@@ -72,6 +72,8 @@ func Wrap(provider p.Provider) p.Provider {
 
 	// Wrap each gRPC method to transform a cancel call into a cancel on
 	// context.Cancel.
+	wrapper.Handshake = setCancel2(cancel, provider.Handshake, nil)
+	wrapper.Parameterize = setCancel2(cancel, provider.Parameterize, nil)
 	wrapper.GetSchema = setCancel2(cancel, provider.GetSchema, nil)
 	wrapper.CheckConfig = setCancel2(cancel, provider.CheckConfig, nil)
 	wrapper.DiffConfig = setCancel2(cancel, provider.DiffConfig, nil)

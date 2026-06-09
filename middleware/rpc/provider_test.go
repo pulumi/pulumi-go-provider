@@ -96,6 +96,13 @@ func (m *mockResourceProviderServer) Create(
 	return m.cannedResp.(*pulumirpc.CreateResponse), nil
 }
 
+func (m *mockResourceProviderServer) Parameterize(
+	ctx context.Context, req *pulumirpc.ParameterizeRequest,
+) (*pulumirpc.ParameterizeResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.ParameterizeResponse), nil
+}
+
 // wrapProvider wraps a raw RPC provider in a p.Provider and converts it back to an RPC server
 func wrapProvider(t *testing.T, mock pulumirpc.ResourceProviderServer) pulumirpc.ResourceProviderServer {
 	wrapped := Provider(mock)
@@ -255,6 +262,52 @@ func TestDeletePassthrough(t *testing.T) {
 			context.Context, *pulumirpc.DeleteRequest,
 		) (*emptypb.Empty, error) {
 			return s.Delete
+		},
+	)
+}
+
+func TestParameterizeArgsPassthrough(t *testing.T) {
+	t.Parallel()
+	testPassthrough(t,
+		&pulumirpc.ParameterizeRequest{
+			Parameters: &pulumirpc.ParameterizeRequest_Args{
+				Args: &pulumirpc.ParameterizeRequest_ParametersArgs{
+					Args: []string{"arg1", "arg2"},
+				},
+			},
+		},
+		&pulumirpc.ParameterizeResponse{
+			Name:    "my-subpackage",
+			Version: "1.2.3",
+		},
+		func(s pulumirpc.ResourceProviderServer) func(
+			context.Context, *pulumirpc.ParameterizeRequest,
+		) (*pulumirpc.ParameterizeResponse, error) {
+			return s.Parameterize
+		},
+	)
+}
+
+func TestParameterizeValuePassthrough(t *testing.T) {
+	t.Parallel()
+	testPassthrough(t,
+		&pulumirpc.ParameterizeRequest{
+			Parameters: &pulumirpc.ParameterizeRequest_Value{
+				Value: &pulumirpc.ParameterizeRequest_ParametersValue{
+					Name:    "my-subpackage",
+					Version: "1.2.3",
+					Value:   []byte("opaque-value"),
+				},
+			},
+		},
+		&pulumirpc.ParameterizeResponse{
+			Name:    "my-subpackage",
+			Version: "1.2.3",
+		},
+		func(s pulumirpc.ResourceProviderServer) func(
+			context.Context, *pulumirpc.ParameterizeRequest,
+		) (*pulumirpc.ParameterizeResponse, error) {
+			return s.Parameterize
 		},
 	)
 }

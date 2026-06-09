@@ -101,6 +101,24 @@ func (d *debugServer) log(method string, req, resp proto.Message, err error) {
 	}
 }
 
+// Handshake wraps the Handshake call with debug logging.
+func (d *debugServer) Handshake(
+	ctx context.Context, req *rpc.ProviderHandshakeRequest,
+) (*rpc.ProviderHandshakeResponse, error) {
+	resp, err := d.ResourceProviderServer.Handshake(ctx, req)
+	d.log("/pulumirpc.ResourceProvider/Handshake", req, resp, err)
+	return resp, err
+}
+
+// Parameterize wraps the Parameterize call with debug logging.
+func (d *debugServer) Parameterize(
+	ctx context.Context, req *rpc.ParameterizeRequest,
+) (*rpc.ParameterizeResponse, error) {
+	resp, err := d.ResourceProviderServer.Parameterize(ctx, req)
+	d.log("/pulumirpc.ResourceProvider/Parameterize", req, resp, err)
+	return resp, err
+}
+
 // GetSchema wraps the GetSchema call with debug logging.
 func (d *debugServer) GetSchema(ctx context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {
 	resp, err := d.ResourceProviderServer.GetSchema(ctx, req)
