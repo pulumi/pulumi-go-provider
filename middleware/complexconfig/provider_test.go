@@ -106,7 +106,7 @@ func TestComplexConfigEncoding(t *testing.T) {
 				},
 			})
 
-			_, err := provider.CheckConfig(context.Background(), p.CheckRequest{
+			_, err := provider.CheckConfig(t.Context(), p.CheckRequest{
 				Inputs: generateJSONEncoding(t, resource.ToResourcePropertyValue(property.New(tt.input)).ObjectValue()),
 			})
 			require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestRapidComplexConfigEncoding(t *testing.T) {
 			},
 		})
 
-		_, err := provider.CheckConfig(context.Background(), p.CheckRequest{
+		_, err := provider.CheckConfig(t.Context(), p.CheckRequest{
 			Inputs: generateJSONEncoding(t, m.Copy()),
 		})
 		require.NoError(t, err)

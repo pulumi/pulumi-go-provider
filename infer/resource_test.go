@@ -404,7 +404,7 @@ func testHydrateFromState[O any](
 
 		ctx := testContext{
 			//nolint:revive
-			Context: context.WithValue(context.Background(), migrationsKey, migrations),
+			Context: context.WithValue(t.Context(), migrationsKey, migrations),
 		}
 
 		enc, actual, err := hydrateFromState[CustomHydrateFromState[O], struct{}, O](ctx, oldState, ende.Decode)
@@ -574,7 +574,7 @@ func TestCheck(t *testing.T) {
 		t.Run("Check "+tcName, func(t *testing.T) {
 			t.Parallel()
 			res := Resource(checkResource{})
-			checkResp, err := res.Check(context.Background(), p.CheckRequest{
+			checkResp, err := res.Check(t.Context(), p.CheckRequest{
 				Urn:    "a:b:c",
 				State:  property.Map{},
 				Inputs: tc.input,
@@ -588,7 +588,7 @@ func TestCheck(t *testing.T) {
 
 		t.Run("DefaultCheck "+tcName, func(t *testing.T) {
 			t.Parallel()
-			in, failures, err := DefaultCheck[checkResource](context.Background(), tc.input)
+			in, failures, err := DefaultCheck[checkResource](t.Context(), tc.input)
 			require.NoError(t, err)
 			assert.Empty(t, failures)
 			assert.Equal(t, tc.expected, in.P1)
