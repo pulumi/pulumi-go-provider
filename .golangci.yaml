@@ -10,9 +10,14 @@ linters:
     - revive
     - staticcheck
     - unconvert
+    - usetesting
   disable:
     - godot
   settings:
+    usetesting:
+      os-temp-dir: true
+      context-background: true
+      context-todo: true
     revive:
       rules:
         - name: package-comments

@@ -287,7 +287,7 @@ func TestWithWrapped(t *testing.T) {
 		WithWrapped(wrapped).Build()
 	require.NoError(t, err)
 
-	resp, err := p.Create(context.Background(), provider.CreateRequest{
+	resp, err := p.Create(t.Context(), provider.CreateRequest{
 		Urn: resource.URN("urn:pulumi:x::y::z:a:b::c"),
 	})
 	assert.NoError(t, err)
@@ -365,7 +365,7 @@ func TestBuildAndRun(t *testing.T) {
 		Build()
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	err = p.Run(ctx, "test-provider", "v0.0.1")
