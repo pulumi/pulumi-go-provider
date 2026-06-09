@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 
+	"github.com/blang/semver"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
@@ -53,6 +54,62 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 
 	var runtime runtime // the runtime configuration of the server
 	return p.Provider{
+		Handshake: func(ctx context.Context, req p.HandshakeRequest) (p.HandshakeResponse, error) {
+			resp, err := server.Handshake(ctx, &rpc.ProviderHandshakeRequest{
+				EngineAddress:               req.EngineAddress,
+				RootDirectory:               req.RootDirectory,
+				ProgramDirectory:            req.ProgramDirectory,
+				ConfigureWithUrn:            req.ConfigureWithUrn,
+				SupportsViews:               req.SupportsViews,
+				SupportsRefreshBeforeUpdate: req.SupportsRefreshBeforeUpdate,
+				InvokeWithPreview:           req.InvokeWithPreview,
+			})
+			if err != nil {
+				return p.HandshakeResponse{}, err
+			}
+			// Handshake negotiates the same protocol configuration as Configure, so it
+			// must update the runtime in the same way. A successful Handshake implies
+			// support for preview.
+			runtime.configuration = &rpc.ConfigureResponse{
+				AcceptSecrets:   resp.GetAcceptSecrets(),
+				AcceptResources: resp.GetAcceptResources(),
+				AcceptOutputs:   resp.GetAcceptOutputs(),
+				SupportsPreview: true,
+			}
+			return p.HandshakeResponse{
+				SupportsAutonamingConfiguration: resp.GetSupportsAutonamingConfiguration(),
+			}, nil
+		},
+		Parameterize: func(ctx context.Context, req p.ParameterizeRequest) (p.ParameterizeResponse, error) {
+			rpcReq := &rpc.ParameterizeRequest{}
+			switch {
+			case req.Args != nil:
+				rpcReq.Parameters = &rpc.ParameterizeRequest_Args{
+					Args: &rpc.ParameterizeRequest_ParametersArgs{Args: req.Args.Args},
+				}
+			case req.Value != nil:
+				rpcReq.Parameters = &rpc.ParameterizeRequest_Value{
+					Value: &rpc.ParameterizeRequest_ParametersValue{
+						Name:    req.Value.Name,
+						Version: req.Value.Version.String(),
+						Value:   req.Value.Value,
+					},
+				}
+			}
+
+			resp, err := server.Parameterize(ctx, rpcReq)
+			if err != nil {
+				return p.ParameterizeResponse{}, err
+			}
+			version, err := semver.Parse(resp.GetVersion())
+			if err != nil {
+				return p.ParameterizeResponse{}, fmt.Errorf("invalid version %q: %w", resp.GetVersion(), err)
+			}
+			return p.ParameterizeResponse{
+				Name:    resp.GetName(),
+				Version: version,
+			}, nil
+		},
 		GetSchema: func(ctx context.Context, req p.GetSchemaRequest) (p.GetSchemaResponse, error) {
 			if req.Version > math.MaxInt32 {
 				return p.GetSchemaResponse{}, fmt.Errorf("schema version overflow: %d", req.Version)

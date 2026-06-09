@@ -51,6 +51,39 @@ import (
 	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 )
 
+// HandshakeRequest is the request for the [Provider.Handshake] method.
+type HandshakeRequest struct {
+	// EngineAddress is the gRPC address of the engine handshaking with the provider. At a minimum, this address
+	// will expose an instance of the Engine service.
+	EngineAddress string
+	// RootDirectory is a directory where the provider's binary, PulumiPlugin.yaml, or other identifying source code
+	// is located. In the event that the provider is not being booted by the engine (e.g. when the engine has been
+	// asked to attach to an existing running provider instance via a host/port number), this field will be nil.
+	RootDirectory *string
+	// ProgramDirectory is the directory in which the provider should execute. This is generally a subdirectory of
+	// the root directory, though this is not required. In the event that the provider is not being booted by the
+	// engine (e.g. when the engine has been asked to attach to an existing running provider instance via a host/port
+	// number), this field will be nil.
+	ProgramDirectory *string
+	// ConfigureWithUrn is true if the engine will send URN, Name, Type and ID to the provider as part of the
+	// configuration.
+	ConfigureWithUrn bool
+	// SupportsViews is true if the engine supports views and can send an address of the resource status service that
+	// can be used to create or update view resources.
+	SupportsViews bool
+	// SupportsRefreshBeforeUpdate is true if the engine supports letting the provider mark resource states as
+	// requiring refresh before update.
+	SupportsRefreshBeforeUpdate bool
+	// InvokeWithPreview is true if the engine will send Preview to Invoke methods to let them know if the current
+	// operation is a preview or up.
+	InvokeWithPreview bool
+}
+
+// HandshakeResponse is the response for the [Provider.Handshake] method.
+type HandshakeResponse struct {
+	SupportsAutonamingConfiguration bool
+}
+
 type GetSchemaRequest struct {
 	Version int
 }
@@ -369,6 +402,11 @@ func ConfigMissingKeys(missing map[string]string) error {
 type Provider struct {
 	// Utility
 
+	// Handshake is the first call made by the engine to a provider. It is used to pass the engine's address to the
+	// provider so that it may establish its own connections back, and to establish protocol configuration that will
+	// be used to communicate between the two parties.
+	Handshake func(context.Context, HandshakeRequest) (HandshakeResponse, error)
+
 	// GetSchema fetches the schema for this resource provider.
 	GetSchema func(context.Context, GetSchemaRequest) (GetSchemaResponse, error)
 
@@ -439,6 +477,11 @@ type Provider struct {
 func (d Provider) WithDefaults() Provider {
 	nyi := func(fn string) error {
 		return status.Errorf(codes.Unimplemented, "%s is not implemented", fn)
+	}
+	if d.Handshake == nil {
+		d.Handshake = func(context.Context, HandshakeRequest) (HandshakeResponse, error) {
+			return HandshakeResponse{}, nyi("Handshake")
+		}
 	}
 	if d.GetSchema == nil {
 		d.GetSchema = func(context.Context, GetSchemaRequest) (GetSchemaResponse, error) {
@@ -695,6 +738,37 @@ func (p *provider) asStruct(m property.Map) (*structpb.Struct, error) {
 		KeepOutputValues: true,
 		KeepResources:    true,
 	})
+}
+
+func (p *provider) Handshake(
+	ctx context.Context, req *rpc.ProviderHandshakeRequest,
+) (*rpc.ProviderHandshakeResponse, error) {
+	if addr := req.GetEngineAddress(); addr != "" {
+		host, err := pprovider.NewHostClient(addr)
+		if err != nil {
+			return nil, err
+		}
+		p.host = host
+	}
+	ctx = p.ctx(ctx, "")
+	resp, err := p.client.Handshake(ctx, HandshakeRequest{
+		EngineAddress:               req.GetEngineAddress(),
+		RootDirectory:               req.RootDirectory,
+		ProgramDirectory:            req.ProgramDirectory,
+		ConfigureWithUrn:            req.GetConfigureWithUrn(),
+		SupportsViews:               req.GetSupportsViews(),
+		SupportsRefreshBeforeUpdate: req.GetSupportsRefreshBeforeUpdate(),
+		InvokeWithPreview:           req.GetInvokeWithPreview(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &rpc.ProviderHandshakeResponse{
+		AcceptSecrets:                   true,
+		AcceptResources:                 true,
+		AcceptOutputs:                   true,
+		SupportsAutonamingConfiguration: resp.SupportsAutonamingConfiguration,
+	}, nil
 }
 
 func (p *provider) GetSchema(ctx context.Context, req *rpc.GetSchemaRequest) (*rpc.GetSchemaResponse, error) {

@@ -29,20 +29,22 @@ type Wrapper = func(context.Context) context.Context
 // Wrap a Provider that calls `wrapper` on each [context.Context] passed into `provider`.
 func Wrap(provider p.Provider, wrapper Wrapper) p.Provider {
 	return p.Provider{
-		GetSchema:   delegateIO(wrapper, provider.GetSchema),
-		Cancel:      delegate(wrapper, provider.Cancel),
-		CheckConfig: delegateIO(wrapper, provider.CheckConfig),
-		DiffConfig:  delegateIO(wrapper, provider.DiffConfig),
-		Configure:   delegateI(wrapper, provider.Configure),
-		Invoke:      delegateIO(wrapper, provider.Invoke),
-		Check:       delegateIO(wrapper, provider.Check),
-		Diff:        delegateIO(wrapper, provider.Diff),
-		Create:      delegateIO(wrapper, provider.Create),
-		Read:        delegateIO(wrapper, provider.Read),
-		Update:      delegateIO(wrapper, provider.Update),
-		Delete:      delegateI(wrapper, provider.Delete),
-		Construct:   delegateIO(wrapper, provider.Construct),
-		Call:        delegateIO(wrapper, provider.Call),
+		Handshake:    delegateIO(wrapper, provider.Handshake),
+		GetSchema:    delegateIO(wrapper, provider.GetSchema),
+		Cancel:       delegate(wrapper, provider.Cancel),
+		CheckConfig:  delegateIO(wrapper, provider.CheckConfig),
+		DiffConfig:   delegateIO(wrapper, provider.DiffConfig),
+		Configure:    delegateI(wrapper, provider.Configure),
+		Invoke:       delegateIO(wrapper, provider.Invoke),
+		Check:        delegateIO(wrapper, provider.Check),
+		Diff:         delegateIO(wrapper, provider.Diff),
+		Create:       delegateIO(wrapper, provider.Create),
+		Read:         delegateIO(wrapper, provider.Read),
+		Update:       delegateIO(wrapper, provider.Update),
+		Delete:       delegateI(wrapper, provider.Delete),
+		Construct:    delegateIO(wrapper, provider.Construct),
+		Call:         delegateIO(wrapper, provider.Call),
+		Parameterize: delegateIO(wrapper, provider.Parameterize),
 	}
 }
 
