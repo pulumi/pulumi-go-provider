@@ -11,6 +11,7 @@ linters:
     - staticcheck
     - unconvert
     - usetesting
+    - modernize
   disable:
     - godot
   settings:

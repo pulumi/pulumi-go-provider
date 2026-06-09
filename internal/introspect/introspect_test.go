@@ -47,7 +47,7 @@ func (m *MyStruct) Annotate(a infer.Annotator) {
 
 func TestParseTag(t *testing.T) {
 	t.Parallel()
-	typ := reflect.TypeOf(MyStruct{})
+	typ := reflect.TypeFor[MyStruct]()
 
 	cases := []struct {
 		Field    string
@@ -91,7 +91,6 @@ func TestParseTag(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.Field, func(t *testing.T) {
 			t.Parallel()
 			field, ok := typ.FieldByName(c.Field)
@@ -142,7 +141,6 @@ func TestSetTokenValidation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		if tt.module == "" {
 			tt.module = "mod"
 		}

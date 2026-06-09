@@ -108,13 +108,13 @@ func fnToken(tk tokens.Type) tokens.Type {
 }
 
 func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivativeType) (pschema.FunctionSpec, error) {
-	descriptions := getAnnotated(reflect.TypeOf(new(F)))
+	descriptions := getAnnotated(reflect.TypeFor[*F]())
 
-	input, err := objectSchema(reflect.TypeOf(new(I)))
+	input, err := objectSchema(reflect.TypeFor[*I]())
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
-	output, err := objectSchema(reflect.TypeOf(new(O)))
+	output, err := objectSchema(reflect.TypeFor[*O]())
 	if err != nil {
 		return pschema.FunctionSpec{}, err
 	}
@@ -138,9 +138,6 @@ func objectSchema(t reflect.Type) (*pschema.ObjectTypeSpec, error) {
 	props, required, err := propertyListFromType(t, false, inputType)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize input type %s: %w", t, err)
-	}
-	for n, p := range props {
-		props[n] = p
 	}
 	return &pschema.ObjectTypeSpec{
 		Description: descriptions.Descriptions[""],

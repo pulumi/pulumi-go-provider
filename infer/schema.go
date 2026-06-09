@@ -100,7 +100,7 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize output type %T: %w", o, err))
 	}
 
-	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeOf(new(I)), isComponent, inputType)
+	inputProperties, requiredInputs, err := propertyListFromType(reflect.TypeFor[*I](), isComponent, inputType)
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
@@ -135,23 +135,23 @@ func serializeTypeAsPropertyType(
 	// Provider authors should not be using resource.Asset directly, but rather types.AssetOrArchive.
 	// We will returrn an error if resource.Asset is used directly for an input.
 	// pulumi/pulumi-go-provider#243
-	if propType == inputType && t == reflect.TypeOf(resource.Asset{}) {
+	if propType == inputType && t == reflect.TypeFor[resource.Asset]() {
 		return schema.TypeSpec{},
 			fmt.Errorf("resource.Asset is not a valid input type, please use types.AssetOrArchive instead")
 	}
 
-	if t == reflect.TypeOf(resource.Asset{}) {
+	if t == reflect.TypeFor[resource.Asset]() {
 		// We allow this for output types, but not inputs.
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Asset",
 		}, nil
 	}
-	if t == reflect.TypeOf(resource.Archive{}) {
+	if t == reflect.TypeFor[resource.Archive]() {
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Archive",
 		}, nil
 	}
-	if t == reflect.TypeOf(types.AssetOrArchive{}) {
+	if t == reflect.TypeFor[types.AssetOrArchive]() {
 		return schema.TypeSpec{
 			Ref: "pulumi.json#/Asset",
 		}, nil
@@ -228,8 +228,8 @@ func underlyingType(t reflect.Type) (reflect.Type, bool, error) {
 	for t != nil && t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	isInputType := t.Implements(reflect.TypeOf(new(pulumi.Input)).Elem())
-	isOutputType := t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem())
+	isInputType := t.Implements(reflect.TypeFor[pulumi.Input]())
+	isOutputType := t.Implements(reflect.TypeFor[pulumi.Output]())
 
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -325,12 +325,12 @@ func resourceReferenceToken(
 	}
 	switch {
 	// This handles both components and resources
-	case implements(reflect.TypeOf(new(sch.Resource)).Elem()):
+	case implements(reflect.TypeFor[sch.Resource]()):
 		tk, err := reflect.New(t).Elem().Interface().(sch.Resource).GetToken()
 		return schema.TypeSpec{
 			Ref: "#/resources/" + tk.String(),
 		}, true, err
-	case implements(reflect.TypeOf(new(pulumi.Resource)).Elem()):
+	case implements(reflect.TypeFor[pulumi.Resource]()):
 		// This is an external resource
 		if extTag == nil {
 			if allowMissingExtType {
@@ -362,7 +362,7 @@ func structReferenceToken(t reflect.Type, extTag *introspect.ExplicitType) (sche
 		}, true, nil
 	}
 	if t.Kind() != reflect.Struct ||
-		t.Implements(reflect.TypeOf(new(pulumi.Output)).Elem()) {
+		t.Implements(reflect.TypeFor[pulumi.Output]()) {
 		return schema.TypeSpec{}, false, nil
 	}
 

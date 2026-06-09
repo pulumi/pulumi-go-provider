@@ -154,7 +154,7 @@ func TestFieldGenerator(t *testing.T) {
 				fs.OutputField(&s.F1).DependsOn(allFields)
 			},
 			assert: func(t *testing.T, fg fieldGenerator) {
-				out := r.NewPropertyMapFromMap(map[string]interface{}{
+				out := r.NewPropertyMapFromMap(map[string]any{
 					"f1": 0,
 					"f2": "a string",
 				})
@@ -175,11 +175,11 @@ func TestFieldGenerator(t *testing.T) {
 				fs.OutputField(&s.F2).DependsOn(fs.InputField(&a.Bar))
 			},
 			assert: func(t *testing.T, fg fieldGenerator) {
-				out := r.NewPropertyMapFromMap(map[string]interface{}{
+				out := r.NewPropertyMapFromMap(map[string]any{
 					"f1": 0,
 					"f2": "a string",
 				})
-				in := r.NewPropertyMapFromMap(map[string]interface{}{
+				in := r.NewPropertyMapFromMap(map[string]any{
 					"a1": r.NewStringProperty(""),
 					"a2": r.NewNumberProperty(0),
 				})
@@ -206,7 +206,6 @@ func TestFieldGenerator(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			i, o := &args{}, &state{}
@@ -569,7 +568,6 @@ func TestCheck(t *testing.T) {
 		"no change when default is already set": {property.NewMap(m{"str": property.New(defaultValue)}), defaultValue},
 		"respects non-default value":            {property.NewMap(m{"str": property.New("different")}), "different"},
 	} {
-		tc := tc
 
 		t.Run("Check "+tcName, func(t *testing.T) {
 			t.Parallel()

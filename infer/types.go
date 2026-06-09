@@ -267,11 +267,11 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			t = nT
 		}
 		// The pulumi/pulumi core Asset types are defined there, don't repeat them here.
-		if t == reflect.TypeOf(resource.Asset{}) || t == reflect.TypeOf(resource.Archive{}) {
+		if t == reflect.TypeFor[resource.Asset]() || t == reflect.TypeFor[resource.Archive]() {
 			return false, nil
 		}
 		// AssetOrArchive is only for provider authors and shouldn't be in the provider schema.
-		if t == reflect.TypeOf(types.AssetOrArchive{}) {
+		if t == reflect.TypeFor[types.AssetOrArchive]() {
 			return false, nil
 		}
 		if enum, ok := isEnum(t); ok {

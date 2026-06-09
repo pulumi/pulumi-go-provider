@@ -118,10 +118,10 @@ func TestIsEnum(t *testing.T) {
 			},
 		},
 		{
-			typ: reflect.TypeOf(NotAnEnum(false)),
+			typ: reflect.TypeFor[NotAnEnum](),
 		},
 		{
-			typ:   reflect.TypeOf(PiRef),
+			typ:   reflect.TypeFor[EnumByRef](),
 			token: "pkg:infer:EnumByRef",
 			values: []EnumValue[any]{
 				{
@@ -131,7 +131,7 @@ func TestIsEnum(t *testing.T) {
 			},
 		},
 		{
-			typ:   reflect.TypeOf(new(**EnumByRef)),
+			typ:   reflect.TypeFor[***EnumByRef](),
 			token: "pkg:infer:EnumByRef",
 			values: []EnumValue[any]{
 				{
