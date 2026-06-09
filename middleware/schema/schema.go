@@ -435,12 +435,12 @@ func renamePackage[T any](typ T, pkg string, modMap map[tokens.ModuleName]tokens
 			}
 			rename(v.Elem())
 		case reflect.Struct:
-			if v.Type() == reflect.TypeOf(schema.TypeSpec{}) {
+			if v.Type() == reflect.TypeFor[schema.TypeSpec]() {
 				field := v.FieldByName("Ref")
 				rewritten := fixReference(field.String(), pkg, modMap)
 				field.SetString(rewritten)
 			}
-			if v.Type() == reflect.TypeOf(schema.AliasSpec{}) {
+			if v.Type() == reflect.TypeFor[schema.AliasSpec]() {
 				field := v.FieldByName("Type")
 				tk, err := tokens.ParseTypeToken(field.String())
 				if err != nil {

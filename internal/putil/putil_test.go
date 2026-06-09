@@ -52,7 +52,7 @@ func TestRapidDeepEqual(t *testing.T) {
 
 		v1 := r.NewProperty(r.Output{
 			Element: r.NewProperty(r.Output{
-				Element: r.PropertyValue{V: interface{}(nil)},
+				Element: r.PropertyValue{V: any(nil)},
 				Known:   false,
 				Secret:  false,
 				Dependencies: []urn.URN{
@@ -71,7 +71,7 @@ func TestRapidDeepEqual(t *testing.T) {
 			},
 		})
 		v2 := r.NewProperty(r.Output{
-			Element: r.PropertyValue{V: interface{}(nil)},
+			Element: r.PropertyValue{V: any(nil)},
 			Known:   false,
 			Secret:  true,
 			Dependencies: []urn.URN{

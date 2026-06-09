@@ -1131,7 +1131,7 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
 	r := rc.getInstance()
-	_, hasUpdate := ((interface{})(*r)).(CustomUpdate[I, O])
+	_, hasUpdate := ((any)(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
 	if hasUpdate {
 		schema, err := rc.GetSchema(func(tokens.Type, pschema.ComplexTypeSpec) bool { return false })
@@ -1171,7 +1171,7 @@ func diff[R, I, O any](
 		}
 	}
 
-	if r, ok := ((interface{})(*r)).(CustomDiff[I, O]); ok {
+	if r, ok := ((any)(*r)).(CustomDiff[I, O]); ok {
 		_, olds, err := hydrateFromState[R, I, O](ctx, req.State, decode)
 		if err != nil {
 			return p.DiffResponse{}, err
@@ -1350,7 +1350,7 @@ func (rc *derivedResourceController[R, I, O]) Read(
 		}
 	}
 
-	read, ok := ((interface{})(*r)).(CustomRead[I, O])
+	read, ok := ((any)(*r)).(CustomRead[I, O])
 	if !ok {
 		// Default read implementation:
 		//
@@ -1411,7 +1411,7 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	ctx context.Context, req p.UpdateRequest,
 ) (resp p.UpdateResponse, retError error) {
 	r := rc.getInstance()
-	update, ok := ((interface{})(*r)).(CustomUpdate[I, O])
+	update, ok := ((any)(*r)).(CustomUpdate[I, O])
 	if !ok {
 		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented,
 			"Update is not implemented for resource %s", req.Urn)
@@ -1483,7 +1483,7 @@ func (rc *derivedResourceController[R, I, O]) Update(
 
 func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.DeleteRequest) error {
 	r := rc.getInstance()
-	del, ok := ((interface{})(*r)).(CustomDelete[O])
+	del, ok := ((any)(*r)).(CustomDelete[O])
 	if ok {
 		_, olds, err := hydrateFromState[R, I, O](ctx, req.Properties, ende.Decode)
 		if err != nil {
@@ -1508,7 +1508,7 @@ func getDependencies[R, I, O any](
 ) (setDeps, error) {
 	var wire func(FieldSelector)
 
-	if r, ok := ((interface{})(*r)).(ExplicitDependencies[I, O]); ok {
+	if r, ok := ((any)(*r)).(ExplicitDependencies[I, O]); ok {
 		wire = func(fg FieldSelector) {
 			r.WireDependencies(fg, input, output)
 		}
@@ -1546,7 +1546,7 @@ func hydrateFromState[R, I, O any](
 	decode func(property.Map) (ende.Encoder, O, mapper.MappingError),
 ) (ende.Encoder, O, error) {
 	var r R
-	if r, ok := ((interface{})(r)).(CustomStateMigrations[O]); ok {
+	if r, ok := ((any)(r)).(CustomStateMigrations[O]); ok {
 		enc, newState, didMigrate, err := migrateState(ctx, r, state)
 		if err != nil || didMigrate {
 			return enc, newState, err
@@ -1569,7 +1569,7 @@ func migrateState[O any](
 
 		var results []reflect.Value
 		var enc ende.Encoder
-		if oldType == reflect.TypeOf(property.Map{}) {
+		if oldType == reflect.TypeFor[property.Map]() {
 			results = f.Call([]reflect.Value{
 				reflect.ValueOf(ctx), reflect.ValueOf(state),
 			})

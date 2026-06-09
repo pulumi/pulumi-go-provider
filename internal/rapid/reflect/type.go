@@ -29,16 +29,16 @@ var pulumiFieldName = rapid.StringMatching("[a-zA-Z]+")
 var structFieldName = rapid.StringMatching("[A-Z][a-zA-Z]*")
 
 // String returns a generator for a [reflect] string type.
-func String() GenerateType { return rapid.Just(reflect.TypeOf("")) }
+func String() GenerateType { return rapid.Just(reflect.TypeFor[string]()) }
 
 // Bool returns a generator for a [reflect] bool type.
-func Bool() GenerateType { return rapid.Just(reflect.TypeOf(false)) }
+func Bool() GenerateType { return rapid.Just(reflect.TypeFor[bool]()) }
 
 // Number returns a generator for a [reflect] number type.
-func Number() GenerateType { return rapid.Just(reflect.TypeOf(float64(0.0))) }
+func Number() GenerateType { return rapid.Just(reflect.TypeFor[float64]()) }
 
 // Null returns a generator for a [reflect] type with no value.
-func Null() GenerateType { return rapid.Just(reflect.TypeOf(nil)) }
+func Null() GenerateType { return rapid.Just[reflect.Type](nil) }
 
 // Struct returns a generator for some [reflect] struct type.
 func Struct(maxDepth int) GenerateType {
@@ -156,6 +156,6 @@ func ArrayOf(typ GenerateType) GenerateType {
 // MapOf yields a generator to map[string]T, where T is the type given by typ.
 func MapOf(typ GenerateType) GenerateType {
 	return rapid.Custom(func(t *rapid.T) reflect.Type {
-		return reflect.MapOf(reflect.TypeOf(""), typ.Draw(t, "elem"))
+		return reflect.MapOf(reflect.TypeFor[string](), typ.Draw(t, "elem"))
 	})
 }

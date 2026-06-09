@@ -104,7 +104,6 @@ func TestCheckDefaults(t *testing.T) {
 	))
 
 	for _, arrayName := range []string{"arrNested", "arrNestedPtr"} {
-		arrayName := arrayName
 		t.Run("behind-"+arrayName, against(property.NewMap(m{
 			arrayName: property.New([]property.Value{
 				property.New(m{"s": property.New("foo")}),
@@ -121,7 +120,6 @@ func TestCheckDefaults(t *testing.T) {
 	}
 
 	for _, mapName := range []string{"mapNested", "mapNestedPtr"} { //nolint:paralleltest
-		mapName := mapName
 		t.Run("behind-"+mapName, against(property.NewMap(m{
 			mapName: property.New(m{
 				"one":   property.New(m{"s": property.New("foo")}),

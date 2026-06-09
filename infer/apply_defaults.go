@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
@@ -45,12 +46,7 @@ func (d *defaultsWalker) visit(t reflect.Type) func() {
 }
 
 func (d *defaultsWalker) hydrate(t reflect.Type) bool {
-	for _, v := range d.seen {
-		if v == t {
-			return false
-		}
-	}
-	return true
+	return !slices.Contains(d.seen, t)
 }
 
 // apply default values to structs.
