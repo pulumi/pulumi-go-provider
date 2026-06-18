@@ -35,7 +35,6 @@ const schema = `{
     }
   },
   "config": {},
-  "provider": {},
   "functions": {
     "str:index:giveMeAString": {
       "description": "Return a string, withing any inputs",
