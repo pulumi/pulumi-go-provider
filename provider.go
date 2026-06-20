@@ -258,6 +258,12 @@ type CreateResponse struct {
 	// If PartialState is non-nil, then an error will be returned, annotated with
 	// [pulumirpc.ErrorResourceInitFailed].
 	PartialState *InitializationFailed
+
+	// Awaiting indicates the resource is not yet ready: the engine should suspend
+	// (leaving the resource uncreated) and resume on a later update. AwaitingReason is a
+	// human-readable explanation. This surfaces the engine's `awaiting` disposition.
+	Awaiting       bool
+	AwaitingReason string
 }
 
 type ReadRequest struct {
@@ -300,6 +306,11 @@ type UpdateResponse struct {
 	// If PartialState is non-nil, then an error will be returned, annotated with
 	// [pulumirpc.ErrorResourceInitFailed].
 	PartialState *InitializationFailed
+
+	// Awaiting indicates the resource is not yet ready: the engine should suspend
+	// (leaving the prior state) and resume on a later update. AwaitingReason is shown.
+	Awaiting       bool
+	AwaitingReason string
 }
 
 type DeleteRequest struct {
@@ -1102,8 +1113,10 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 	}
 
 	return &rpc.CreateResponse{
-		Id:         r.ID,
-		Properties: propStruct,
+		Id:             r.ID,
+		Properties:     propStruct,
+		Awaiting:       r.Awaiting,
+		AwaitingReason: r.AwaitingReason,
 	}, nil
 }
 
@@ -1195,7 +1208,9 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		return nil, err
 	}
 	return &rpc.UpdateResponse{
-		Properties: props,
+		Properties:     props,
+		Awaiting:       r.Awaiting,
+		AwaitingReason: r.AwaitingReason,
 	}, nil
 }
 

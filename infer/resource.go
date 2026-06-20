@@ -117,6 +117,12 @@ type CreateResponse[O any] struct {
 	ID string
 	// The output state of the resource to checkpoint.
 	Output O
+	// Awaiting indicates the resource is not yet ready: the create could not complete and
+	// the engine should suspend (leaving the resource uncreated) and resume on a later
+	// update. When set, ID and Output are ignored. AwaitingReason is shown to the user.
+	// This surfaces the engine's non-terminal `awaiting` disposition.
+	Awaiting       bool
+	AwaitingReason string
 }
 
 type CustomCreate[I, O any] interface {
@@ -197,6 +203,11 @@ type UpdateRequest[I, O any] struct {
 type UpdateResponse[O any] struct {
 	// The output state of the resource to checkpoint.
 	Output O
+	// Awaiting indicates the resource is not yet ready: the update could not complete and
+	// the engine should suspend (leaving the resource at its prior state) and resume on a
+	// later update. When set, Output is ignored. AwaitingReason is shown to the user.
+	Awaiting       bool
+	AwaitingReason string
 }
 
 // CustomUpdate descibes a resource that can adapt to new inputs with a delete and
@@ -1292,6 +1303,13 @@ func (rc *derivedResourceController[R, I, O]) Create(
 		return p.CreateResponse{}, err
 	}
 
+	// The resource signalled it is not yet ready. Return the awaiting disposition without
+	// an ID or encoded output -- the engine will suspend -- ahead of the empty-ID check a
+	// normal create must satisfy.
+	if inferResp.Awaiting {
+		return p.CreateResponse{Awaiting: true, AwaitingReason: inferResp.AwaitingReason}, nil
+	}
+
 	if inferResp.ID == "" && !req.DryRun {
 		return p.CreateResponse{}, ProviderErrorf("'%s' was created without an id", req.Urn)
 	}
@@ -1462,6 +1480,13 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	if err != nil {
 		return p.UpdateResponse{}, err
 	}
+
+	// The resource signalled it is not yet ready; the engine will suspend, leaving the
+	// prior state in place.
+	if inferResp.Awaiting {
+		return p.UpdateResponse{Awaiting: true, AwaitingReason: inferResp.AwaitingReason}, nil
+	}
+
 	m, err := encoder.AllowUnknown(req.DryRun).Encode(inferResp.Output)
 	if err != nil {
 		return p.UpdateResponse{}, err
