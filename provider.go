@@ -77,6 +77,16 @@ type HandshakeRequest struct {
 	// InvokeWithPreview is true if the engine will send Preview to Invoke methods to let them know if the current
 	// operation is a preview or up.
 	InvokeWithPreview bool
+	// MapperAddress is the gRPC address of a codegen.Mapper service the provider can use to retrieve mappings from
+	// other ecosystems to Pulumi. If the engine does not expose a mapper service, this field will be nil.
+	MapperAddress *string
+	// LoaderAddress is the gRPC address of a codegen.Loader service the provider can use to load the schemas of
+	// other Pulumi packages. If the engine does not expose a loader service, this field will be nil.
+	LoaderAddress *string
+	// ResolverAddress is the gRPC address of a pulumirpc.PackageResolver service the provider can use to resolve
+	// package specifications to concrete dependencies. If the engine does not expose a resolver service, this field
+	// will be nil.
+	ResolverAddress *string
 }
 
 // HandshakeResponse is the response for the [Provider.Handshake] method.
@@ -759,6 +769,9 @@ func (p *provider) Handshake(
 		SupportsViews:               req.GetSupportsViews(),
 		SupportsRefreshBeforeUpdate: req.GetSupportsRefreshBeforeUpdate(),
 		InvokeWithPreview:           req.GetInvokeWithPreview(),
+		MapperAddress:               req.MapperTarget,
+		LoaderAddress:               req.LoaderTarget,
+		ResolverAddress:             req.ResolverTarget,
 	})
 	if err != nil {
 		return nil, err
