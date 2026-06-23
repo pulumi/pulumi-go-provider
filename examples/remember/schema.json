@@ -1,0 +1,7 @@
+{
+  "name": "remember",
+  "version": "0.1.0",
+  "description": "A parameterized provider that remembers the contents of a file captured at parameterize time.",
+  "config": {},
+  "provider": {}
+}
