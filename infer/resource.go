@@ -447,10 +447,16 @@ type FieldSelector interface {
 
 func (*fieldGenerator) isFieldSelector() {}
 
-// ExplicitDependencies describes a custom resource with the dataflow between its
-// arguments (`I`) and outputs (`O`) specified. If a CustomResource implements
-// ExplicitDependencies then WireDependencies will be called for each Create and Update
-// call with `args` and `state` holding the values they will have for that call.
+// ExplicitDependencies describes the dataflow between the arguments (`I`) and outputs
+// (`O`) of a resource or function.
+//
+// If a [CustomResource] implements ExplicitDependencies then WireDependencies will be
+// called for each Create and Update call with `args` and `state` holding the values they
+// will have for that call.
+//
+// If a function (see [Function]) implements ExplicitDependencies then WireDependencies
+// will be called for each Invoke call with `args` and `state` holding the values they
+// will have for that call.
 //
 // If ExplicitDependencies is not implemented, it is assumed that all outputs depend on
 // all inputs.
