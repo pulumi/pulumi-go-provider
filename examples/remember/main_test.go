@@ -57,7 +57,6 @@ const expectedSchema = `{
   "version": "0.1.0",
   "description": "A parameterized provider that remembers the contents of a file captured at parameterize time.",
   "config": {},
-  "provider": {},
   "functions": {
     "memory:index:remember": {
       "description": "Return the contents of memory as captured when the provider was parameterized.",
