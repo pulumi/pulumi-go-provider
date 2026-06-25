@@ -348,7 +348,7 @@ func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) 
 		if err != nil {
 			errs.Errors = append(errs.Errors, err)
 		}
-		pkg.Provider = prov
+		pkg.Provider = &prov
 		pkg.Config = schema.ConfigSpec{
 			Variables: prov.InputProperties,
 			Required:  prov.RequiredInputs,

@@ -123,7 +123,6 @@ const componentSchema = `{
             ]
         }
     },
-    "provider": {},
     "resources": {
         "foo:tests:Foo": {
             "properties": {

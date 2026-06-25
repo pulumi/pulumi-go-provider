@@ -117,7 +117,6 @@ func TestTokens(t *testing.T) {
       ]
     }
   },
-  "provider": {},
   "resources": {
     "test:cmp:tK": {
       "inputProperties": {

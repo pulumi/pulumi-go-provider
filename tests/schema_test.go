@@ -87,7 +87,6 @@ func TestMergeSchema(t *testing.T) {
     "homepage": "buzz",
     "namespace": "testns",
     "config": {},
-    "provider": {},
     "resources": {
         "pkg:index:bar": {
             "description": "from s1"
