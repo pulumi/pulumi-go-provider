@@ -31,6 +31,9 @@ func TestHandshake(t *testing.T) {
 
 	rootDir := "/root"
 	programDir := "/root/program"
+	mapperAddr := "127.0.0.1:12346"
+	loaderAddr := "127.0.0.1:12347"
+	resolverAddr := "127.0.0.1:12348"
 
 	var gotRequest p.HandshakeRequest
 	server, err := p.RawServer("test", "0.0.0-dev", p.Provider{
@@ -51,6 +54,9 @@ func TestHandshake(t *testing.T) {
 		SupportsViews:               true,
 		SupportsRefreshBeforeUpdate: true,
 		InvokeWithPreview:           true,
+		MapperTarget:                &mapperAddr,
+		LoaderTarget:                &loaderAddr,
+		ResolverTarget:              &resolverAddr,
 	})
 	require.NoError(t, err)
 
@@ -62,6 +68,9 @@ func TestHandshake(t *testing.T) {
 		SupportsViews:               true,
 		SupportsRefreshBeforeUpdate: true,
 		InvokeWithPreview:           true,
+		MapperAddress:               &mapperAddr,
+		LoaderAddress:               &loaderAddr,
+		ResolverAddress:             &resolverAddr,
 	}, gotRequest)
 
 	assert.Equal(t, &pulumirpc.ProviderHandshakeResponse{

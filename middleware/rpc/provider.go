@@ -63,6 +63,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				SupportsViews:               req.SupportsViews,
 				SupportsRefreshBeforeUpdate: req.SupportsRefreshBeforeUpdate,
 				InvokeWithPreview:           req.InvokeWithPreview,
+				MapperTarget:                req.MapperAddress,
+				LoaderTarget:                req.LoaderAddress,
+				ResolverTarget:              req.ResolverAddress,
 			})
 			if err != nil {
 				return p.HandshakeResponse{}, err
