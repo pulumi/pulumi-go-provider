@@ -220,6 +220,11 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			return p.CreateResponse{
 				ID:         resp.GetId(),
 				Properties: properties,
+				// Carry the awaiting disposition through: without it, a resource that
+				// suspends (e.g. an unmet gate) created via this adapter would surface
+				// as an empty-ID error instead of suspending the run.
+				Awaiting:       resp.GetAwaiting(),
+				AwaitingReason: resp.GetAwaitingReason(),
 			}, err
 		},
 		Read: func(ctx context.Context, req p.ReadRequest) (p.ReadResponse, error) {
@@ -285,6 +290,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			properties, err := rpcToProperty(resp.GetProperties(), err)
 			return p.UpdateResponse{
 				Properties: properties,
+				// Carry the awaiting disposition through, as in Create above.
+				Awaiting:       resp.GetAwaiting(),
+				AwaitingReason: resp.GetAwaitingReason(),
 			}, err
 		},
 		Delete: func(ctx context.Context, req p.DeleteRequest) error {
