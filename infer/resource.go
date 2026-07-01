@@ -105,6 +105,10 @@ type CustomResource[I, O any] interface {
 type CreateRequest[I any] struct {
 	// The resource name.
 	Name string
+	// The URN of the resource being created. It carries the stack, project, type, and name,
+	// so a resource can read the stack it is running in (Urn.Stack()) -- e.g. to default a
+	// target stack to the current one.
+	Urn resource.URN
 	// The resource inputs.
 	Inputs I
 	// Whether this is a preview operation.
@@ -191,6 +195,9 @@ type CustomDiff[I, O any] interface {
 type UpdateRequest[I, O any] struct {
 	// The resource ID.
 	ID string
+	// The URN of the resource being updated. It carries the stack, project, type, and name,
+	// so a resource can read the stack it is running in (Urn.Stack()).
+	Urn resource.URN
 	// The old resource state.
 	State O
 	// The new resource inputs.
@@ -1276,6 +1283,7 @@ func (rc *derivedResourceController[R, I, O]) Create(
 
 	inferResp, err := (*r).Create(ctx, CreateRequest[I]{
 		Name:   req.Urn.Name(),
+		Urn:    req.Urn,
 		Inputs: input,
 		DryRun: req.DryRun,
 	})
@@ -1451,6 +1459,7 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	}
 	inferResp, err := update.Update(ctx, UpdateRequest[I, O]{
 		ID:     req.ID,
+		Urn:    req.Urn,
 		State:  olds,
 		Inputs: news,
 		DryRun: req.DryRun,
