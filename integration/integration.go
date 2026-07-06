@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
@@ -73,7 +72,7 @@ func WithProvider(p p.Provider) ServerOption {
 }
 
 // WithProviderF backs the server with a lazily initialized provider.
-func WithProviderF(p func(*pprovider.HostClient) p.Provider) ServerOption {
+func WithProviderF(p func(*comProvider.HostClient) p.Provider) ServerOption {
 	return providerFOption{providerF: p}
 }
 
@@ -82,7 +81,7 @@ func WithProviderF(p func(*pprovider.HostClient) p.Provider) ServerOption {
 type serverOptions struct {
 	mocks     pulumi.MockResourceMonitor
 	provider  *p.Provider
-	providerF func(*pprovider.HostClient) p.Provider
+	providerF func(*comProvider.HostClient) p.Provider
 }
 
 type mocksOption struct {
@@ -102,7 +101,7 @@ func (po providerOption) applyServerOption(opts *serverOptions) {
 }
 
 type providerFOption struct {
-	providerF func(*pprovider.HostClient) p.Provider
+	providerF func(*comProvider.HostClient) p.Provider
 }
 
 func (po providerFOption) applyServerOption(opts *serverOptions) {
@@ -158,7 +157,7 @@ type host struct {
 
 	engine      *fake.EngineServer
 	engineAddr  string
-	client      *pprovider.HostClient
+	client      *comProvider.HostClient
 	monitor     *fake.ResourceMonitorServer
 	monitorAddr string
 }
@@ -178,7 +177,7 @@ func newHost(ctx context.Context, m pulumi.MockResourceMonitor) *host {
 		}
 		h.engineAddr = engineAddr
 
-		hc, err := pprovider.NewHostClient(h.engineAddr)
+		hc, err := comProvider.NewHostClient(h.engineAddr)
 		if err != nil {
 			panic(err)
 		}

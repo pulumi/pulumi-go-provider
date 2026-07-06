@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 )

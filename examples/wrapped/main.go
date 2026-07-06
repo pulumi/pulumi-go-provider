@@ -25,7 +25,7 @@ import (
 	wrapcancel "github.com/pulumi/pulumi-go-provider/middleware/cancel"
 	wraprpc "github.com/pulumi/pulumi-go-provider/middleware/rpc"
 
-	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
+	pprovider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 )
 
 //go:embed schema-legacy.json
