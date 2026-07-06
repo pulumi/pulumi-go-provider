@@ -28,7 +28,6 @@ import (
 	"github.com/blang/semver"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
-	pprovider "github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/diag"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
@@ -580,7 +579,7 @@ func (d Provider) Run(ctx context.Context, name string, version string) error {
 
 // RunProvider runs a provider with the given name and version.
 func RunProvider(ctx context.Context, name, version string, provider Provider) error {
-	return RunProviderF(ctx, name, version, func(_ *pprovider.HostClient) (Provider, error) {
+	return RunProviderF(ctx, name, version, func(_ *comProvider.HostClient) (Provider, error) {
 		return provider, nil
 	})
 }
@@ -590,9 +589,9 @@ func RunProviderF(
 	ctx context.Context,
 	name string,
 	version string,
-	providerF func(*pprovider.HostClient) (Provider, error),
+	providerF func(*comProvider.HostClient) (Provider, error),
 ) error {
-	return pprovider.MainContext(ctx, name, func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
+	return comProvider.MainContext(ctx, name, func(host *comProvider.HostClient) (rpc.ResourceProviderServer, error) {
 		provider, err := providerF(host)
 		if err != nil {
 			return nil, err
@@ -607,7 +606,7 @@ func RunProviderF(
 func RawServer(
 	name, version string,
 	provider Provider,
-) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
+) func(*comProvider.HostClient) (rpc.ResourceProviderServer, error) {
 	return newProvider(name, version, provider.WithDefaults())
 }
 
@@ -670,8 +669,8 @@ func GetSchema(ctx context.Context, name, version string, provider Provider) (sc
 	return spec, err
 }
 
-func newProvider(name, version string, p Provider) func(*pprovider.HostClient) (rpc.ResourceProviderServer, error) {
-	return func(host *pprovider.HostClient) (rpc.ResourceProviderServer, error) {
+func newProvider(name, version string, p Provider) func(*comProvider.HostClient) (rpc.ResourceProviderServer, error) {
+	return func(host *comProvider.HostClient) (rpc.ResourceProviderServer, error) {
 		return &provider{
 			info: RunInfo{
 				PackageName: name,
@@ -688,7 +687,7 @@ type provider struct {
 	rpc.UnimplementedResourceProviderServer
 
 	info   RunInfo
-	host   *pprovider.HostClient
+	host   *comProvider.HostClient
 	client Provider
 }
 
@@ -696,7 +695,7 @@ var _ rpc.ResourceProviderServer = (*provider)(nil)
 
 type host struct {
 	p    *provider
-	host *pprovider.HostClient
+	host *comProvider.HostClient
 }
 
 var _ Host = (*host)(nil)
@@ -754,7 +753,7 @@ func (p *provider) Handshake(
 	ctx context.Context, req *rpc.ProviderHandshakeRequest,
 ) (*rpc.ProviderHandshakeResponse, error) {
 	if addr := req.GetEngineAddress(); addr != "" {
-		host, err := pprovider.NewHostClient(addr)
+		host, err := comProvider.NewHostClient(addr)
 		if err != nil {
 			return nil, err
 		}
@@ -1786,7 +1785,7 @@ func (p *provider) GetPluginInfo(context.Context, *emptypb.Empty) (*rpc.PluginIn
 }
 
 func (p *provider) Attach(_ context.Context, req *rpc.PluginAttach) (*emptypb.Empty, error) {
-	host, err := pprovider.NewHostClient(req.GetAddress())
+	host, err := comProvider.NewHostClient(req.GetAddress())
 	if err != nil {
 		return nil, err
 	}

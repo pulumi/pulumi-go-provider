@@ -24,9 +24,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/logging"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/pulumi/pulumi/pkg/v3/resource/provider"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
