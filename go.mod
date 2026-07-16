@@ -4,8 +4,8 @@ go 1.25.11
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.252.0
-	github.com/pulumi/pulumi/sdk/v3 v3.252.0
+	github.com/pulumi/pulumi/pkg/v3 v3.253.0
+	github.com/pulumi/pulumi/sdk/v3 v3.253.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 	google.golang.org/grpc v1.82.0
@@ -76,8 +76,8 @@ require (
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260713224248-f5fc221cf8c4 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260713224248-f5fc221cf8c4 // indirect
 )
 
 require (
