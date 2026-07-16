@@ -10,7 +10,7 @@ require (
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
-	pgregory.net/rapid v1.2.0
+	pgregory.net/rapid v1.3.0
 )
 
 require (
