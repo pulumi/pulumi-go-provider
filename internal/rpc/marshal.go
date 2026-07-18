@@ -26,7 +26,6 @@ import (
 // This implementation is guaranteed to be lossless.
 func UnmarshalProperties(s *structpb.Struct) (property.Map, error) {
 	rm, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
-		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepResources:    true,
 		KeepSecrets:      true,
@@ -40,7 +39,6 @@ func UnmarshalProperties(s *structpb.Struct) (property.Map, error) {
 func MarshalProperties(m property.Map) (*structpb.Struct, error) {
 	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
 	return plugin.MarshalProperties(rm, plugin.MarshalOptions{
-		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,

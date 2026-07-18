@@ -132,7 +132,6 @@ func (m *ResourceMonitorServer) RegisterResourceOutputs(context.Context, *pulumi
 func (m *ResourceMonitorServer) Invoke(ctx context.Context, req *pulumirpc.ResourceInvokeRequest,
 ) (*pulumirpc.InvokeResponse, error) {
 	args, err := plugin.UnmarshalProperties(req.GetArgs(), plugin.MarshalOptions{
-		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,
@@ -173,7 +172,6 @@ func (m *ResourceMonitorServer) RegisterResource(ctx context.Context, in *pulumi
 	}
 
 	inputs, err := plugin.UnmarshalProperties(in.GetObject(), plugin.MarshalOptions{
-		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,
