@@ -730,7 +730,6 @@ func (p *provider) ctx(ctx context.Context, urn presource.URN) context.Context {
 func (p *provider) getMap(s *structpb.Struct) (property.Map, error) {
 	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
 		KeepUnknowns:     true,
-		SkipNulls:        true,
 		KeepResources:    true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,
@@ -742,7 +741,6 @@ func (p *provider) asStruct(m property.Map) (*structpb.Struct, error) {
 	rm := presource.ToResourcePropertyMap(m)
 	return plugin.MarshalProperties(rm, plugin.MarshalOptions{
 		KeepUnknowns:     true,
-		SkipNulls:        true,
 		KeepSecrets:      true,
 		KeepOutputValues: true,
 		KeepResources:    true,

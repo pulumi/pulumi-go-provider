@@ -158,7 +158,6 @@ func generateJSONEncoding(t require.TestingT, m resource.PropertyMap) property.M
 			continue
 		}
 		enc, err := plugin.MarshalPropertyValue(k, v, plugin.MarshalOptions{
-			SkipNulls:        false,
 			KeepUnknowns:     true,
 			KeepSecrets:      true,
 			KeepResources:    true,
@@ -176,7 +175,6 @@ func generateJSONEncoding(t require.TestingT, m resource.PropertyMap) property.M
 // foldViaPluginMarshal removes any information from m that is not preserved on the wire.
 func foldViaPluginMarshal(t require.TestingT, m resource.PropertyMap) resource.PropertyMap {
 	opts := plugin.MarshalOptions{
-		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepSecrets:      true,
 		KeepResources:    true,

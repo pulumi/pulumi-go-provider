@@ -18,9 +18,26 @@ import (
 	"context"
 	"testing"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMarshalPreservesNulls(t *testing.T) {
+	t.Parallel()
+	p := &provider{}
+	m := property.NewMap(map[string]property.Value{
+		"null":  {},
+		"value": property.New("foo"),
+	})
+
+	s, err := p.asStruct(m)
+	require.NoError(t, err)
+
+	round, err := p.getMap(s)
+	require.NoError(t, err)
+	assert.Equal(t, m, round)
+}
 
 func TestDiffResponseRPC(t *testing.T) {
 	t.Parallel()

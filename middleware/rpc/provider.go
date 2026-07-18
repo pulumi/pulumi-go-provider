@@ -542,7 +542,6 @@ func rpcToProperty(s *structpb.Struct, previousError error) (property.Map, error
 		return property.Map{}, previousError
 	}
 	m, err := plugin.UnmarshalProperties(s, plugin.MarshalOptions{
-		SkipNulls:        false,
 		KeepUnknowns:     true,
 		KeepSecrets:      true,
 		KeepResources:    true,

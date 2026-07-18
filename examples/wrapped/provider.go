@@ -119,12 +119,12 @@ func (p *xyzProvider) Diff(ctx context.Context, req *pulumirpc.DiffRequest) (*pu
 	label := fmt.Sprintf("%s.Diff(%s)", p.name, urn)
 	logging.V(9).Infof("%s executing", label)
 
-	olds, err := plugin.UnmarshalProperties(req.GetOlds(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	olds, err := plugin.UnmarshalProperties(req.GetOlds(), plugin.MarshalOptions{KeepUnknowns: true})
 	if err != nil {
 		return nil, err
 	}
 
-	news, err := plugin.UnmarshalProperties(req.GetNews(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	news, err := plugin.UnmarshalProperties(req.GetNews(), plugin.MarshalOptions{KeepUnknowns: true})
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (p *xyzProvider) Create(ctx context.Context, req *pulumirpc.CreateRequest) 
 	label := fmt.Sprintf("%s.Create(%s)", p.name, urn)
 	logging.V(9).Infof("%s executing", label)
 
-	inputs, err := plugin.UnmarshalProperties(req.GetProperties(), plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true})
+	inputs, err := plugin.UnmarshalProperties(req.GetProperties(), plugin.MarshalOptions{KeepUnknowns: true})
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (p *xyzProvider) Create(ctx context.Context, req *pulumirpc.CreateRequest) 
 
 	outputProperties, err := plugin.MarshalProperties(
 		resource.NewPropertyMapFromMap(outputs),
-		plugin.MarshalOptions{KeepUnknowns: true, SkipNulls: true},
+		plugin.MarshalOptions{KeepUnknowns: true},
 	)
 	if err != nil {
 		return nil, err
