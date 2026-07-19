@@ -6,7 +6,7 @@ replace github.com/pulumi/pulumi-go-provider => ../..
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi-go-provider v1.4.0
+	github.com/pulumi/pulumi-go-provider v1.4.1
 	github.com/pulumi/pulumi/sdk/v3 v3.253.0
 	github.com/stretchr/testify v1.11.1
 )

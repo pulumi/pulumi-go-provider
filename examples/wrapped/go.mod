@@ -6,7 +6,7 @@ go 1.25.11
 
 require (
 	github.com/golang/protobuf v1.5.4
-	github.com/pulumi/pulumi-go-provider v1.4.0
+	github.com/pulumi/pulumi-go-provider v1.4.1
 	github.com/pulumi/pulumi/sdk/v3 v3.253.0
 	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
