@@ -234,6 +234,9 @@ func TestRPCConfigure(t *testing.T) {
 							assert.Equal(t, resource.PropertyMap{
 								"output": resource.NewOutputProperty(resource.Output{
 									Secret: true,
+									Dependencies: []resource.URN{
+										"had-dep",
+									},
 								}),
 								"known": resource.NewOutputProperty(resource.Output{
 									Known:   true,
@@ -266,7 +269,8 @@ func TestRPCConfigure(t *testing.T) {
 				resp, err := s.Create(p.CreateRequest{
 					Urn: "urn:pulumi:stack::project::pkg:type:Resource::my-resource",
 					Properties: property.NewMap(map[string]property.Value{
-						"output": property.New(property.Computed).WithSecret(true),
+						"output": property.New(property.Computed).WithSecret(true).
+							WithDependencies([]resource.URN{"had-dep"}),
 						"known": property.New("v1").WithDependencies([]resource.URN{
 							"had-dep",
 						}),
