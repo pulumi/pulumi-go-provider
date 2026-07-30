@@ -151,8 +151,9 @@ func (m *ResourceMonitorServer) Invoke(ctx context.Context, req *pulumirpc.Resou
 	}
 
 	resultOut, err := plugin.MarshalProperties(result, plugin.MarshalOptions{
-		KeepSecrets:   true,
-		KeepResources: true,
+		KeepSecrets:    true,
+		KeepResources:  true,
+		KeepByteString: true,
 	})
 	if err != nil {
 		return nil, err
@@ -208,8 +209,9 @@ func (m *ResourceMonitorServer) RegisterResource(ctx context.Context, in *pulumi
 	}()
 
 	stateOut, err := plugin.MarshalProperties(state, plugin.MarshalOptions{
-		KeepSecrets:   true,
-		KeepResources: true,
+		KeepSecrets:    true,
+		KeepResources:  true,
+		KeepByteString: true,
 	})
 	if err != nil {
 		return nil, err

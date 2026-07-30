@@ -86,11 +86,17 @@ type HandshakeRequest struct {
 	// package specifications to concrete dependencies. If the engine does not expose a resolver service, this field
 	// will be nil.
 	ResolverAddress *string
+	// AcceptsByteString is true if the engine accepts strings that contain bytes that are not valid UTF-8. If
+	// false, the provider must not return such strings to the engine.
+	AcceptsByteString bool
 }
 
 // HandshakeResponse is the response for the [Provider.Handshake] method.
 type HandshakeResponse struct {
 	SupportsAutonamingConfiguration bool
+	// RejectNonUTF8 is true if the provider cannot handle strings that contain bytes that are not valid
+	// UTF-8
+	RejectNonUTF8 bool
 }
 
 type GetSchemaRequest struct {
@@ -487,9 +493,12 @@ func (d Provider) WithDefaults() Provider {
 	nyi := func(fn string) error {
 		return status.Errorf(codes.Unimplemented, "%s is not implemented", fn)
 	}
+	// Handshake defaults to success rather than Unimplemented: the RPC layer answers the
+	// engine's handshake on behalf of every provider so that protocol capabilities are
+	// negotiated even when the provider has nothing to add.
 	if d.Handshake == nil {
 		d.Handshake = func(context.Context, HandshakeRequest) (HandshakeResponse, error) {
-			return HandshakeResponse{}, nyi("Handshake")
+			return HandshakeResponse{}, nil
 		}
 	}
 	if d.GetSchema == nil {
@@ -689,6 +698,11 @@ type provider struct {
 	info   RunInfo
 	host   *comProvider.HostClient
 	client Provider
+
+	// True if the engine accepts strings containing bytes that are not valid UTF-8. Unlike the other
+	// capabilities this defaults to false: it is only enabled when the engine advertises it via Handshake,
+	// since older engines cannot decode the encoding.
+	sendByteString bool
 }
 
 var _ rpc.ResourceProviderServer = (*provider)(nil)
@@ -744,6 +758,7 @@ func (p *provider) asStruct(m property.Map) (*structpb.Struct, error) {
 		KeepSecrets:      true,
 		KeepOutputValues: true,
 		KeepResources:    true,
+		KeepByteString:   p.sendByteString,
 	})
 }
 
@@ -757,6 +772,7 @@ func (p *provider) Handshake(
 		}
 		p.host = host
 	}
+	p.sendByteString = req.GetAcceptsByteString()
 	ctx = p.ctx(ctx, "")
 	resp, err := p.client.Handshake(ctx, HandshakeRequest{
 		EngineAddress:               req.GetEngineAddress(),
@@ -769,6 +785,7 @@ func (p *provider) Handshake(
 		MapperAddress:               req.MapperTarget,
 		LoaderAddress:               req.LoaderTarget,
 		ResolverAddress:             req.ResolverTarget,
+		AcceptsByteString:           req.GetAcceptsByteString(),
 	})
 	if err != nil {
 		return nil, err
@@ -777,6 +794,7 @@ func (p *provider) Handshake(
 		AcceptSecrets:                   true,
 		AcceptResources:                 true,
 		AcceptOutputs:                   true,
+		AcceptsByteString:               !resp.RejectNonUTF8,
 		SupportsAutonamingConfiguration: resp.SupportsAutonamingConfiguration,
 	}, nil
 }
