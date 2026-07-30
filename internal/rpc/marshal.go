@@ -43,5 +43,6 @@ func MarshalProperties(m property.Map) (*structpb.Struct, error) {
 		KeepSecrets:      true,
 		KeepOutputValues: true,
 		KeepResources:    true,
+		KeepByteString:   true,
 	})
 }

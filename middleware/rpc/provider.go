@@ -66,6 +66,9 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				MapperTarget:                req.MapperAddress,
 				LoaderTarget:                req.LoaderAddress,
 				ResolverTarget:              req.ResolverAddress,
+				// Only advertise byte-string support to the wrapped server if the engine accepts byte
+				// strings, since the wrapped server's outputs are returned to the engine.
+				AcceptsByteString: req.AcceptsByteString,
 			})
 			if err != nil {
 				return p.HandshakeResponse{}, err
@@ -79,8 +82,10 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				AcceptOutputs:   resp.GetAcceptOutputs(),
 				SupportsPreview: true,
 			}
+			runtime.acceptsByteString = resp.GetAcceptsByteString()
 			return p.HandshakeResponse{
 				SupportsAutonamingConfiguration: resp.GetSupportsAutonamingConfiguration(),
+				RejectNonUTF8:                   !resp.GetAcceptsByteString(),
 			}, nil
 		},
 		Parameterize: func(ctx context.Context, req p.ParameterizeRequest) (p.ParameterizeResponse, error) {
@@ -521,6 +526,11 @@ func checkFailures(resp []*rpc.CheckFailure) []p.CheckFailure {
 
 type runtime struct {
 	configuration *rpc.ConfigureResponse
+
+	// True if the wrapped server accepts strings containing bytes that are not valid UTF-8. Byte-string
+	// support is negotiated at Handshake only, so unlike the other capabilities it is not part of
+	// [rpc.ConfigureResponse].
+	acceptsByteString bool
 }
 
 func (r runtime) propertyToRPC(m property.Map) (*structpb.Struct, error) {
@@ -533,6 +543,7 @@ func (r runtime) propertyToRPC(m property.Map) (*structpb.Struct, error) {
 		KeepSecrets:      r.configuration.AcceptSecrets,
 		KeepResources:    r.configuration.AcceptResources,
 		KeepOutputValues: r.configuration.AcceptOutputs,
+		KeepByteString:   r.acceptsByteString,
 	})
 	return s, err
 }
