@@ -96,6 +96,13 @@ func (m *mockResourceProviderServer) Create(
 	return m.cannedResp.(*pulumirpc.CreateResponse), nil
 }
 
+func (m *mockResourceProviderServer) Construct(
+	ctx context.Context, req *pulumirpc.ConstructRequest,
+) (*pulumirpc.ConstructResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.ConstructResponse), nil
+}
+
 func (m *mockResourceProviderServer) Parameterize(
 	ctx context.Context, req *pulumirpc.ParameterizeRequest,
 ) (*pulumirpc.ParameterizeResponse, error) {
@@ -310,6 +317,73 @@ func TestParameterizeValuePassthrough(t *testing.T) {
 			return s.Parameterize
 		},
 	)
+}
+
+// TestConstructPassthrough verifies a ConstructRequest — including the
+// execution-context and resource-option fields the engine sends — passes
+// through the wrapper to the underlying provider unchanged.
+func TestConstructPassthrough(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockResourceProviderServer{cannedResp: &pulumirpc.ConfigureResponse{
+		SupportsPreview: true,
+		AcceptSecrets:   true,
+		AcceptResources: true,
+		AcceptOutputs:   true,
+	}}
+	server := wrapProvider(t, mock)
+
+	_, err := server.Configure(t.Context(), &pulumirpc.ConfigureRequest{})
+	require.NoError(t, err)
+
+	cannedResp := &pulumirpc.ConstructResponse{
+		Urn: "urn:pulumi:stack::proj::pkg:index:Comp::comp",
+		State: &structpb.Struct{Fields: map[string]*structpb.Value{
+			"out": {Kind: &structpb.Value_StringValue{StringValue: "value"}},
+		}},
+	}
+	mock.cannedResp = cannedResp
+
+	req := &pulumirpc.ConstructRequest{
+		Project:          "proj",
+		Stack:            "stack",
+		Type:             "pkg:index:Comp",
+		Name:             "comp",
+		Config:           map[string]string{"proj:apiKey": "secret"},
+		ConfigSecretKeys: []string{"proj:apiKey"},
+		Parallel:         4,
+		MonitorEndpoint:  "127.0.0.1:1234",
+		Inputs: &structpb.Struct{Fields: map[string]*structpb.Value{
+			"foo": {Kind: &structpb.Value_StringValue{StringValue: "bar"}},
+		}},
+		InputDependencies:       map[string]*pulumirpc.ConstructRequest_PropertyDependencies{},
+		Providers:               map[string]string{},
+		Aliases:                 []*pulumirpc.Alias{},
+		Dependencies:            []string{},
+		AdditionalSecretOutputs: []string{},
+		Organization:            "acme",
+		StackTraceHandle:        "handle",
+		ReplaceWith:             []string{"urn:pulumi:stack::proj::pkg:index:Other::sibling"},
+		ResourceHooks: &pulumirpc.ConstructRequest_ResourceHooksBinding{
+			BeforeCreate: []string{"bc"},
+			AfterCreate:  []string{"ac"},
+			BeforeUpdate: []string{"bu"},
+			AfterUpdate:  []string{"au"},
+			BeforeDelete: []string{"bd"},
+			AfterDelete:  []string{"ad"},
+			OnError:      []string{"oe"},
+		},
+		ReplacementTrigger:  &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "trigger"}},
+		AcceptsOutputValues: true,
+	}
+
+	resp, err := server.Construct(t.Context(), req)
+	require.NoError(t, err)
+
+	assert.Equal(t, req, mock.capturedReq,
+		"Request should be passed through to underlying provider unchanged")
+	assert.Equal(t, cannedResp, resp,
+		"Response should be passed through from underlying provider unchanged")
 }
 
 func TestCreatePreviewWithoutSupport(t *testing.T) {
