@@ -1421,6 +1421,38 @@ type ConstructRequest struct {
 	// RetainOnDelete is true if deletion of the resource should not
 	// delete the resource in the provider.
 	RetainOnDelete *bool
+
+	// Organization is the organization of the stack being deployed into.
+	Organization string
+
+	// ResourceHooks binds resource hook names to the lifecycle events of the
+	// component (and by extension, its nested resources).
+	ResourceHooks *ResourceHooksBinding
+
+	// StackTraceHandle supports stitching stack traces together across
+	// plugins.
+	StackTraceHandle string
+
+	// ReplaceWith is the set of URNs of resources whose replacement should
+	// also trigger a replacement of this resource.
+	ReplaceWith []presource.URN
+
+	// ReplacementTrigger is an arbitrary value the engine diffs against its
+	// last recorded value, triggering a replacement when they are not equal.
+	// The null value means no trigger is set.
+	ReplacementTrigger property.Value
+}
+
+// ResourceHooksBinding binds resource hook names to a resource's lifecycle
+// events.
+type ResourceHooksBinding struct {
+	BeforeCreate []string
+	AfterCreate  []string
+	BeforeUpdate []string
+	AfterUpdate  []string
+	BeforeDelete []string
+	AfterDelete  []string
+	OnError      []string
 }
 
 // ProviderReference is a (URN, ID) tuple that refers to a particular provider instance.
@@ -1552,6 +1584,31 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		IgnoreChanges:       req.IgnoreChanges,
 		ReplaceOnChanges:    req.ReplaceOnChanges,
 		RetainOnDelete:      req.RetainOnDelete,
+		Organization:        req.GetOrganization(),
+		StackTraceHandle:    req.GetStackTraceHandle(),
+		ReplaceWith:         toUrns(req.GetReplaceWith()),
+		ReplacementTrigger: func() property.Value {
+			v, err := internalrpc.UnmarshalPropertyValue(req.GetReplacementTrigger())
+			if err != nil {
+				errs.Errors = append(errs.Errors, fmt.Errorf("invalid replacement trigger: %w", err))
+			}
+			return v
+		}(),
+		ResourceHooks: func() *ResourceHooksBinding {
+			h := req.GetResourceHooks()
+			if h == nil {
+				return nil
+			}
+			return &ResourceHooksBinding{
+				BeforeCreate: h.GetBeforeCreate(),
+				AfterCreate:  h.GetAfterCreate(),
+				BeforeUpdate: h.GetBeforeUpdate(),
+				AfterUpdate:  h.GetAfterUpdate(),
+				BeforeDelete: h.GetBeforeDelete(),
+				AfterDelete:  h.GetAfterDelete(),
+				OnError:      h.GetOnError(),
+			}
+		}(),
 		CustomTimeouts: func() *presource.CustomTimeouts {
 			t := req.GetCustomTimeouts()
 			if t == nil {
@@ -1599,6 +1656,11 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		return nil
 	}
 
+	trigger, err := internalrpc.MarshalPropertyValue(c.ReplacementTrigger)
+	if err != nil {
+		return nil
+	}
+
 	req := &rpc.ConstructRequest{
 		Project: string(c.Urn.Project()),
 		Stack:   string(c.Urn.Stack()),
@@ -1639,7 +1701,23 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 		IgnoreChanges:           c.IgnoreChanges,
 		ReplaceOnChanges:        c.ReplaceOnChanges,
 		RetainOnDelete:          c.RetainOnDelete,
+		Organization:            c.Organization,
+		StackTraceHandle:        c.StackTraceHandle,
+		ReplaceWith:             fromUrns(c.ReplaceWith),
+		ReplacementTrigger:      trigger,
 		AcceptsOutputValues:     true,
+	}
+
+	if h := c.ResourceHooks; h != nil {
+		req.ResourceHooks = &rpc.ConstructRequest_ResourceHooksBinding{
+			BeforeCreate: h.BeforeCreate,
+			AfterCreate:  h.AfterCreate,
+			BeforeUpdate: h.BeforeUpdate,
+			AfterUpdate:  h.AfterUpdate,
+			BeforeDelete: h.BeforeDelete,
+			AfterDelete:  h.AfterDelete,
+			OnError:      h.OnError,
+		}
 	}
 
 	if ct := c.CustomTimeouts; ct != nil {

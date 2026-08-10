@@ -18,9 +18,16 @@ import (
 	"context"
 	"testing"
 
+	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
+
+	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 )
 
 func TestMarshalPreservesNulls(t *testing.T) {
@@ -226,4 +233,68 @@ func TestGetSchema(t *testing.T) {
 		assert.Equal(t, "mypackage", spec.Name)
 		assert.Equal(t, "1.0.0", spec.Version)
 	})
+}
+
+// TestConstructRequestRPC verifies the proto ConstructRequest translates into
+// the public ConstructRequest — including the execution-context and
+// resource-option fields the engine sends — and that the reverse translation
+// loses none of it: a request round-tripped through rpc() reads back equal.
+func TestConstructRequestRPC(t *testing.T) {
+	t.Parallel()
+
+	req := &rpc.ConstructRequest{
+		Project:          "proj",
+		Stack:            "stack",
+		Type:             "pkg:index:Comp",
+		Name:             "comp",
+		Organization:     "acme",
+		StackTraceHandle: "handle",
+		ReplaceWith:      []string{"urn:pulumi:stack::proj::pkg:index:Other::sibling"},
+		ResourceHooks: &rpc.ConstructRequest_ResourceHooksBinding{
+			BeforeCreate: []string{"bc"},
+			AfterCreate:  []string{"ac"},
+			BeforeUpdate: []string{"bu"},
+			AfterUpdate:  []string{"au"},
+			BeforeDelete: []string{"bd"},
+			AfterDelete:  []string{"ad"},
+			OnError:      []string{"oe"},
+		},
+		ReplacementTrigger:  structpb.NewStringValue("trigger"),
+		AcceptsOutputValues: true,
+	}
+
+	got, err := newConstructRequest(req, internalrpc.UnmarshalProperties)
+	require.NoError(t, err)
+
+	assert.Equal(t, ConstructRequest{
+		Urn:                     presource.NewURN("stack", "proj", "", "pkg:index:Comp", "comp"),
+		Config:                  map[pconfig.Key]string{},
+		ConfigSecretKeys:        []pconfig.Key{},
+		MonitorEndpoint:         "",
+		Inputs:                  property.Map{},
+		Providers:               map[tokens.Package]ProviderReference{},
+		Aliases:                 []presource.URN{},
+		Dependencies:            []presource.URN{},
+		AdditionalSecretOutputs: []string{},
+		Organization:            "acme",
+		StackTraceHandle:        "handle",
+		ReplaceWith:             []presource.URN{"urn:pulumi:stack::proj::pkg:index:Other::sibling"},
+		ResourceHooks: &ResourceHooksBinding{
+			BeforeCreate: []string{"bc"},
+			AfterCreate:  []string{"ac"},
+			BeforeUpdate: []string{"bu"},
+			AfterUpdate:  []string{"au"},
+			BeforeDelete: []string{"bd"},
+			AfterDelete:  []string{"ad"},
+			OnError:      []string{"oe"},
+		},
+		ReplacementTrigger: property.New("trigger"),
+	}, got)
+
+	// The reverse translation must preserve everything the forward translation
+	// reads: converting back to a proto request and re-parsing it yields the
+	// same request.
+	again, err := newConstructRequest(got.rpc(internalrpc.MarshalProperties), internalrpc.UnmarshalProperties)
+	require.NoError(t, err)
+	assert.Equal(t, got, again)
 }
