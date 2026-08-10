@@ -34,6 +34,41 @@ func UnmarshalProperties(s *structpb.Struct) (property.Map, error) {
 	return resource.FromResourcePropertyValue(resource.NewProperty(rm)).AsMap(), err
 }
 
+// UnmarshalPropertyValue unmarshals a single structpb.Value into a
+// property.Value; a nil input unmarshals to the null value. This implementation
+// is guaranteed to be lossless.
+func UnmarshalPropertyValue(v *structpb.Value) (property.Value, error) {
+	if v == nil {
+		return property.Value{}, nil
+	}
+	rv, err := plugin.UnmarshalPropertyValue("", v, plugin.MarshalOptions{
+		KeepUnknowns:     true,
+		KeepResources:    true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+	})
+	if err != nil || rv == nil {
+		return property.Value{}, err
+	}
+	return resource.FromResourcePropertyValue(*rv), nil
+}
+
+// MarshalPropertyValue marshals a single property.Value into a structpb.Value;
+// the null value marshals to nil, mirroring UnmarshalPropertyValue. This
+// implementation is guaranteed to be lossless.
+func MarshalPropertyValue(v property.Value) (*structpb.Value, error) {
+	if v.IsNull() {
+		return nil, nil
+	}
+	return plugin.MarshalPropertyValue("", resource.ToResourcePropertyValue(v), plugin.MarshalOptions{
+		KeepUnknowns:     true,
+		KeepSecrets:      true,
+		KeepOutputValues: true,
+		KeepResources:    true,
+		KeepByteString:   true,
+	})
+}
+
 // MarshalProperties marshals a PropertyMap into a structpb.Struct.
 // This implementation is guaranteed to be lossless.
 func MarshalProperties(m property.Map) (*structpb.Struct, error) {
