@@ -64,7 +64,7 @@ func TestConstruct(t *testing.T) {
     "type": "test:index:Component",
     "name": "test-component",
     "parent": "urn:pulumi:test::test::test:index:Parent::parent",
-	"aliases": [{"urn": "urn2"}],
+	"aliases": [{"urn": "urn2"}, {"spec": {"type": "test:index:Component", "name": "old-name", "noParent": true}}],
     "inputs": {
       "k1": "s"
     },
@@ -116,7 +116,10 @@ func TestConstruct(t *testing.T) {
 			config.MustParseKey("test:c2"): "3.14",
 		}, req.Config)
 		assert.Equal(t, []config.Key{config.MustParseKey("test:c1")}, req.ConfigSecretKeys)
-		assert.Equal(t, []resource.URN{"urn2"}, req.Aliases)
+		assert.Equal(t, []resource.Alias{
+			{URN: "urn2"},
+			{Type: "test:index:Component", Name: "old-name", NoParent: true},
+		}, req.Aliases)
 		assert.Equal(t, []resource.URN{"urn3"}, req.Dependencies)
 		assert.Equal(t, &_true, req.Protect)
 		assert.Equal(t, map[tokens.Package]p.ProviderReference{
