@@ -250,6 +250,18 @@ func TestConstructRequestRPC(t *testing.T) {
 		Organization:     "acme",
 		StackTraceHandle: "handle",
 		ReplaceWith:      []string{"urn:pulumi:stack::proj::pkg:index:Other::sibling"},
+		Aliases: []*rpc.Alias{
+			{Alias: &rpc.Alias_Urn{Urn: "urn:pulumi:stack::proj::pkg:index:Comp::old"}},
+			{Alias: &rpc.Alias_Spec_{Spec: &rpc.Alias_Spec{
+				Type:   "pkg:index:Old",
+				Name:   "old",
+				Parent: &rpc.Alias_Spec_NoParent{NoParent: true},
+			}}},
+			{Alias: &rpc.Alias_Spec_{Spec: &rpc.Alias_Spec{
+				Type:   "pkg:index:Old",
+				Parent: &rpc.Alias_Spec_ParentUrn{ParentUrn: "urn:pulumi:stack::proj::pkg:index:Parent::p"},
+			}}},
+		},
 		ResourceHooks: &rpc.ConstructRequest_ResourceHooksBinding{
 			BeforeCreate: []string{"bc"},
 			AfterCreate:  []string{"ac"},
@@ -267,13 +279,17 @@ func TestConstructRequestRPC(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, ConstructRequest{
-		Urn:                     presource.NewURN("stack", "proj", "", "pkg:index:Comp", "comp"),
-		Config:                  map[pconfig.Key]string{},
-		ConfigSecretKeys:        []pconfig.Key{},
-		MonitorEndpoint:         "",
-		Inputs:                  property.Map{},
-		Providers:               map[tokens.Package]ProviderReference{},
-		Aliases:                 []presource.URN{},
+		Urn:              presource.NewURN("stack", "proj", "", "pkg:index:Comp", "comp"),
+		Config:           map[pconfig.Key]string{},
+		ConfigSecretKeys: []pconfig.Key{},
+		MonitorEndpoint:  "",
+		Inputs:           property.Map{},
+		Providers:        map[tokens.Package]ProviderReference{},
+		Aliases: []presource.Alias{
+			{URN: "urn:pulumi:stack::proj::pkg:index:Comp::old"},
+			{Type: "pkg:index:Old", Name: "old", NoParent: true},
+			{Type: "pkg:index:Old", Parent: "urn:pulumi:stack::proj::pkg:index:Parent::p"},
+		},
 		Dependencies:            []presource.URN{},
 		AdditionalSecretOutputs: []string{},
 		Organization:            "acme",

@@ -1384,7 +1384,7 @@ type ConstructRequest struct {
 	Inputs property.Map
 
 	// Aliases is the set of aliases for the component.
-	Aliases []presource.URN
+	Aliases []presource.Alias
 
 	// Dependencies is the list of resources this component depends on, i.e. the DependsOn resource option.
 	Dependencies []presource.URN
@@ -1469,22 +1469,48 @@ func toUrns(s []string) []presource.URN {
 	return r
 }
 
-func aliasesFromURNs(s []presource.URN) []*rpc.Alias {
+func aliasesToRPC(s []presource.Alias) []*rpc.Alias {
 	r := make([]*rpc.Alias, len(s))
-	for i, a := range s {
-		r[i] = &rpc.Alias{
-			Alias: &rpc.Alias_Urn{Urn: string(a)},
+	for i, alias := range s {
+		if alias.URN != "" {
+			r[i] = &rpc.Alias{Alias: &rpc.Alias_Urn{Urn: string(alias.URN)}}
+			continue
 		}
+		spec := &rpc.Alias_Spec{
+			Type:    alias.Type,
+			Name:    alias.Name,
+			Stack:   alias.Stack,
+			Project: alias.Project,
+		}
+		if alias.NoParent {
+			spec.Parent = &rpc.Alias_Spec_NoParent{NoParent: true}
+		} else if alias.Parent != "" {
+			spec.Parent = &rpc.Alias_Spec_ParentUrn{ParentUrn: string(alias.Parent)}
+		}
+		r[i] = &rpc.Alias{Alias: &rpc.Alias_Spec_{Spec: spec}}
 	}
 	return r
 }
 
-func aliasesToURNs(s []*rpc.Alias) []presource.URN {
-	r := make([]presource.URN, 0, len(s))
-	for _, a := range s {
-		urn := presource.URN(a.GetUrn())
-		if urn != "" {
-			r = append(r, urn)
+func aliasesFromRPC(s []*rpc.Alias) []presource.Alias {
+	r := make([]presource.Alias, len(s))
+	for i, alias := range s {
+		switch a := alias.GetAlias().(type) {
+		case *rpc.Alias_Spec_:
+			r[i] = presource.Alias{
+				Name:    a.Spec.GetName(),
+				Type:    a.Spec.GetType(),
+				Project: a.Spec.GetProject(),
+				Stack:   a.Spec.GetStack(),
+			}
+			switch p := a.Spec.GetParent().(type) {
+			case *rpc.Alias_Spec_ParentUrn:
+				r[i].Parent = presource.URN(p.ParentUrn)
+			case *rpc.Alias_Spec_NoParent:
+				r[i].NoParent = p.NoParent
+			}
+		case *rpc.Alias_Urn:
+			r[i] = presource.Alias{URN: presource.URN(a.Urn)}
 		}
 	}
 	return r
@@ -1570,7 +1596,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 			}
 			return m
 		}(),
-		Aliases:      aliasesToURNs(req.GetAliases()),
+		Aliases:      aliasesFromRPC(req.GetAliases()),
 		Dependencies: toUrns(req.GetDependencies()),
 		AdditionalSecretOutputs: func() []string {
 			r := make([]string, len(req.GetAdditionalSecretOutputs()))
@@ -1693,7 +1719,7 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 			}
 			return m
 		}(),
-		Aliases:                 aliasesFromURNs(c.Aliases),
+		Aliases:                 aliasesToRPC(c.Aliases),
 		Dependencies:            fromUrns(c.Dependencies),
 		AdditionalSecretOutputs: c.AdditionalSecretOutputs,
 		DeletedWith:             string(c.DeletedWith),
