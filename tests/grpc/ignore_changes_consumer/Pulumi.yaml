@@ -1,0 +1,16 @@
+name: test
+runtime: yaml
+
+plugins:
+  providers:
+    - name: test
+      path: .
+
+resources:
+  team:
+    type: test:index:Team
+    properties:
+      slug: a
+    options:
+      ignoreChanges:
+        - members

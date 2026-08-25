@@ -1162,13 +1162,11 @@ func diff[R, I, O any](
 	ctx context.Context, req p.DiffRequest, r *R, forceReplace func(string) bool,
 	decode func(property.Map) (ende.Encoder, O, mapper.MappingError),
 ) (p.DiffResponse, error) {
-	for _, ignoredChange := range req.IgnoreChanges {
-		v, ok := req.State.GetOk(ignoredChange)
-		if ok {
-			req.Inputs = req.Inputs.Set(ignoredChange, v)
-		}
-	}
-
+	// req.IgnoreChanges is deliberately not applied here: the engine resets ignored
+	// input paths back to their old *input* values before calling Check, Diff or
+	// Update (processIgnoreChanges in pulumi/pulumi's step generator). Re-applying
+	// them here from req.State would substitute old *output* values and manufacture
+	// phantom diffs (https://github.com/pulumi/pulumi-go-provider/issues/565).
 	for k := range req.Inputs.All {
 		// We ignore version input from the engine and any underscore-prefixed
 		// properties as they're assumed to be internal.
@@ -1422,13 +1420,6 @@ func (rc *derivedResourceController[R, I, O]) Update(
 		return p.UpdateResponse{}, status.Errorf(codes.Unimplemented,
 			"Update is not implemented for resource %s", req.Urn)
 	}
-	for _, ignoredChange := range req.IgnoreChanges {
-		v, ok := req.State.GetOk(ignoredChange)
-		if ok {
-			req.Inputs = req.Inputs.Set(ignoredChange, v)
-		}
-	}
-
 	_, olds, err := hydrateFromState[R, I, O](ctx, req.State, ende.Decode)
 	if err != nil {
 		return p.UpdateResponse{}, err
