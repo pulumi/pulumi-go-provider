@@ -226,12 +226,18 @@ func TestInferCustomCheckConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Empty(t, resp.Failures)
-			assert.Equal(t, property.NewMap(map[string]property.Value{
+			expected := map[string]property.Value{
 				"__pulumi-go-provider-infer": property.New(true),
 				"field":                      property.New("value").WithSecret(true),
 				"not":                        property.New("not-secret"),
-				"applyDefaults":              property.New(applyDefaults),
-			}), resp.Inputs)
+			}
+			if applyDefaults {
+				// A zero-valued value-typed optional field is treated as
+				// unset and omitted from the checked inputs (#577), so
+				// applyDefaults only round-trips when true.
+				expected["applyDefaults"] = property.New(true)
+			}
+			assert.Equal(t, property.NewMap(expected), resp.Inputs)
 		})
 	}
 }
