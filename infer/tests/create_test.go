@@ -141,9 +141,10 @@ func TestCreate(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, "id-3", resp.ID)
+		// "other" is a value-typed optional field, so its zero value is treated as
+		// unset and omitted from the output (#577).
 		assert.Equal(t, property.NewMap(map[string]property.Value{
-			"int":   property.New(4.0),
-			"other": property.New(0.0).WithSecret(true),
+			"int": property.New(4.0),
 		}), resp.Properties)
 	})
 

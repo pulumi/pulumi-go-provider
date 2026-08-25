@@ -354,30 +354,112 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 		"NewPropertyMapFromMap cannot produce unknown values")
 	contract.Assertf(!m.ContainsSecrets(),
 		"NewPropertyMapFromMap cannot produce secrets")
-	if e == nil {
-		return m.ObjectValue(), nil
-	}
-	for _, s := range e.changes {
-		v, ok := s.path.Get(m)
-		if !ok && s.emptyAction == isNil {
-			continue
-		}
-
-		if s.emptyAction != isNil && v.IsNull() {
-			switch s.emptyAction {
-			case isEmptyMap:
-				v = resource.NewObjectProperty(resource.PropertyMap{})
-			case isEmptyArr:
-				v = resource.NewArrayProperty([]resource.PropertyValue{})
-			default:
-				panic(s.emptyAction)
+	if e != nil {
+		for _, s := range e.changes {
+			v, ok := s.path.Get(m)
+			if !ok && s.emptyAction == isNil {
+				continue
 			}
-		}
 
-		s.path.Set(m, s.apply(v))
+			if s.emptyAction != isNil && v.IsNull() {
+				switch s.emptyAction {
+				case isEmptyMap:
+					v = resource.NewObjectProperty(resource.PropertyMap{})
+				case isEmptyArr:
+					v = resource.NewArrayProperty([]resource.PropertyValue{})
+				default:
+					panic(s.emptyAction)
+				}
+			}
+
+			s.path.Set(m, s.apply(v))
+		}
 	}
+
+	// A non-pointer optional field cannot distinguish "unset" from the zero
+	// value, so the zero value is treated as unset and omitted.
+	dropZeroOptionalPrimitives(m, reflect.TypeOf(src))
 
 	return m.ObjectValue(), nil
+}
+
+// dropZeroOptionalPrimitives removes optional value-typed primitive fields that hold
+// their type's zero value.
+func dropZeroOptionalPrimitives(v resource.PropertyValue, typ reflect.Type) {
+	if typ == nil {
+		return
+	}
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	switch typ.Kind() {
+	case reflect.Struct:
+		if !v.IsObject() {
+			return
+		}
+		obj := v.ObjectValue()
+		for _, field := range reflect.VisibleFields(typ) {
+			tag, err := introspect.ParseTag(field)
+			if err != nil || tag.Internal {
+				continue
+			}
+			key := resource.PropertyKey(tag.Name)
+			fv, ok := obj[key]
+			if !ok {
+				continue
+			}
+			if tag.Optional && isZeroPrimitive(fv, field.Type) {
+				delete(obj, key)
+				continue
+			}
+			dropZeroOptionalPrimitives(fv, field.Type)
+		}
+	case reflect.Slice, reflect.Array:
+		if !v.IsArray() {
+			return
+		}
+		for _, el := range v.ArrayValue() {
+			dropZeroOptionalPrimitives(el, typ.Elem())
+		}
+	case reflect.Map:
+		if !v.IsObject() {
+			return
+		}
+		for _, el := range v.ObjectValue() {
+			dropZeroOptionalPrimitives(el, typ.Elem())
+		}
+	}
+}
+
+// isZeroPrimitive reports whether v holds the zero value for the primitive (non-pointer)
+// type typ. Unknown values are never zero: they may resolve to anything. A pointer field
+// distinguishes unset (nil) from zero on its own, so pointer kinds always report false.
+func isZeroPrimitive(v resource.PropertyValue, typ reflect.Type) bool {
+	for v.IsSecret() || v.IsOutput() {
+		if v.IsSecret() {
+			v = v.SecretValue().Element
+		} else {
+			output := v.OutputValue()
+			if !output.Known {
+				return false
+			}
+			v = output.Element
+		}
+	}
+	if v.IsComputed() {
+		return false
+	}
+	switch typ.Kind() {
+	case reflect.String:
+		return v.IsString() && v.StringValue() == ""
+	case reflect.Bool:
+		return v.IsBool() && !v.BoolValue()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return v.IsNumber() && v.NumberValue() == 0
+	}
+	return false
 }
 
 const (
