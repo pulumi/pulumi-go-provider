@@ -51,7 +51,7 @@ func TestCheckConfig(t *testing.T) {
 // CheckConfig materializes the field, which then diffs against stored provider inputs
 // and cascades into a provider replacement.
 type ConfigValueOptional struct {
-	ApiKey string `pulumi:"apiKey,optional" provider:"secret"`
+	ApiKey string `pulumi:"apiKey,optional" provider:"secret"` //nolint:gosec // not a credential
 }
 
 func TestCheckConfigValueTypedOptional(t *testing.T) {
