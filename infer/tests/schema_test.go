@@ -192,6 +192,7 @@ func TestGetSchema(t *testing.T) {
         "other": { "$ref": "#/types/test:index:RecursiveArgs" },
         "value": { "type": "string", "default": "default-value" }
       },
+      "required": ["value"],
       "inputProperties": {
         "other": { "$ref": "#/types/test:index:RecursiveArgs" },
         "value": { "type": "string", "default": "default-value" }
@@ -254,7 +255,7 @@ func TestGetSchema(t *testing.T) {
         "pi": { "type": "integer", "default": 2 },
         "s": { "type": "string", "default": "one" }
       },
-      "required": ["nestedPtr"],
+      "required": ["s", "pi", "nestedPtr"],
       "inputProperties": {
         "arrNested": {
           "type": "array",

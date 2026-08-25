@@ -295,7 +295,10 @@ func propertyListFromType(typ reflect.Type, indicatePlain bool, propType propert
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid type '%s' on '%s.%s': %w", fieldType, typ, field.Name, err)
 		}
-		if !tags.Optional {
+		// A field with an in-memory default is always populated on outputs, so it
+		// is required there even when optional on inputs. Env-only defaults don't
+		// guarantee population (the variable may be unset), so they stay optional.
+		if !tags.Optional || (propType == outputType && annotations.Defaults[tags.Name] != nil) {
 			required = append(required, tags.Name)
 		}
 		spec := &schema.PropertySpec{

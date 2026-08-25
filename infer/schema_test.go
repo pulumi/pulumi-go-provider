@@ -72,4 +72,9 @@ func TestResourceAnnotations(t *testing.T) {
 	assert.Equal(t, "This is an embedded property.", p2.Description)
 	assert.Equal(t, "default2", p2.Default)
 	assert.Equal(t, "This field is also deprecated.", p2.DeprecationMessage)
+
+	// Optional fields with a default value are always populated, so they are
+	// required on outputs while staying optional on inputs.
+	assert.Equal(t, []string{"p2", "p1"}, spec.Required)
+	assert.Equal(t, []string(nil), spec.RequiredInputs)
 }
