@@ -378,14 +378,14 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 
 	// A non-pointer optional field cannot distinguish "unset" from the zero
 	// value, so the zero value is treated as unset and omitted.
-	dropZeroOptionalPrimitives(m, reflect.TypeOf(src))
+	DropZeroOptionalPrimitives(m, reflect.TypeOf(src))
 
 	return m.ObjectValue(), nil
 }
 
-// dropZeroOptionalPrimitives removes optional value-typed primitive fields that hold
+// DropZeroOptionalPrimitives removes optional value-typed primitive fields that hold
 // their type's zero value.
-func dropZeroOptionalPrimitives(v resource.PropertyValue, typ reflect.Type) {
+func DropZeroOptionalPrimitives(v resource.PropertyValue, typ reflect.Type) {
 	if typ == nil {
 		return
 	}
@@ -412,21 +412,21 @@ func dropZeroOptionalPrimitives(v resource.PropertyValue, typ reflect.Type) {
 				delete(obj, key)
 				continue
 			}
-			dropZeroOptionalPrimitives(fv, field.Type)
+			DropZeroOptionalPrimitives(fv, field.Type)
 		}
 	case reflect.Slice, reflect.Array:
 		if !v.IsArray() {
 			return
 		}
 		for _, el := range v.ArrayValue() {
-			dropZeroOptionalPrimitives(el, typ.Elem())
+			DropZeroOptionalPrimitives(el, typ.Elem())
 		}
 	case reflect.Map:
 		if !v.IsObject() {
 			return
 		}
 		for _, el := range v.ObjectValue() {
-			dropZeroOptionalPrimitives(el, typ.Elem())
+			DropZeroOptionalPrimitives(el, typ.Elem())
 		}
 	}
 }

@@ -1216,9 +1216,14 @@ func diff[R, I, O any](
 		oldInputs = property.NewMap(oldInputMap)
 	}
 
-	objDiff := resource.ToResourcePropertyValue(property.New(oldInputs)).ObjectValue().Diff(
-		resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue(),
-	)
+	olds := resource.ToResourcePropertyValue(property.New(oldInputs)).ObjectValue()
+	news := resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue()
+	// A zero-valued value-typed optional field is equivalent to an unset one. States
+	// written before Check omitted zero values (#577) may still contain them, so strip
+	// both sides to keep the legacy zero from manufacturing a diff.
+	ende.DropZeroOptionalPrimitives(resource.NewObjectProperty(olds), reflect.TypeFor[I]())
+	ende.DropZeroOptionalPrimitives(resource.NewObjectProperty(news), reflect.TypeFor[I]())
+	objDiff := olds.Diff(news)
 	pluginDiff := plugin.NewDetailedDiffFromObjectDiff(objDiff, false)
 	diff := map[string]p.PropertyDiff{}
 
