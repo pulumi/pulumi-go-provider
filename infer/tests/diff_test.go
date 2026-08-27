@@ -51,8 +51,10 @@ func TestDiffConfigLegacyZeroValueDoesNotReplace(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, p.DiffResponse{
-		HasChanges:   false,
-		DetailedDiff: map[string]p.PropertyDiff{},
+		HasChanges: true,
+		DetailedDiff: map[string]p.PropertyDiff{
+			"version": {Kind: p.Update, InputDiff: true},
+		},
 	}, resp)
 }
 
@@ -111,6 +113,17 @@ func TestDiffLegacyZeroValue(t *testing.T) {
 		test(t,
 			property.NewMap(map[string]property.Value{"value": property.New("")}),
 			property.Map{},
+			p.DiffResponse{
+				HasChanges:   false,
+				DetailedDiff: map[string]p.PropertyDiff{},
+			},
+		)
+	})
+	t.Run("value-zero-added-is-unset", func(t *testing.T) {
+		t.Parallel()
+		test(t,
+			property.Map{},
+			property.NewMap(map[string]property.Value{"value": property.New("")}),
 			p.DiffResponse{
 				HasChanges:   false,
 				DetailedDiff: map[string]p.PropertyDiff{},

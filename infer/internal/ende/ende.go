@@ -118,6 +118,10 @@ type ende struct {
 	// secretDepth counts the secret wrappers enclosing the value currently being
 	// walked.
 	secretDepth int
+	// present holds the paths of optional value-typed primitive fields that were
+	// explicitly present in the decoded input, so Encode can distinguish a zero the
+	// user supplied (kept) from a zero the decode materialized (dropped).
+	present map[string]bool
 }
 
 type change struct {
@@ -295,6 +299,9 @@ func (e *ende) walk(
 			pName := resource.PropertyKey(tag.Name)
 			path := append(path, tag.Name)
 			if vInner, ok := result[pName]; ok {
+				if tag.Optional && isValuePrimitive(field.Type) && !isNullish(vInner) {
+					e.markPresent(path)
+				}
 				result[pName] = e.walk(vInner, path, field.Type, alignTypes)
 			} else {
 				if tag.Optional || !alignTypes {
@@ -411,15 +418,31 @@ func (e *ende) Encode(src any) (resource.PropertyMap, mapper.MappingError) {
 	}
 
 	// A non-pointer optional field cannot distinguish "unset" from the zero
-	// value, so the zero value is treated as unset and omitted.
-	DropZeroOptionalPrimitives(m, reflect.TypeOf(src))
+	// value, so a zero value the encoder materialized is omitted. A zero the
+	// input explicitly carried (recorded in e.present) is kept.
+	var keep func(resource.PropertyPath) bool
+	if e != nil && len(e.present) > 0 {
+		keep = func(p resource.PropertyPath) bool { return e.present[p.String()] }
+	}
+	dropZeroOptionals(m, reflect.TypeOf(src), nil, keep)
 
 	return m.ObjectValue(), nil
 }
 
 // DropZeroOptionalPrimitives removes optional value-typed primitive fields that hold
-// their type's zero value.
+// their type's zero value, unconditionally. Use this to normalize both sides of a diff:
+// zeros and absence are indistinguishable in diff exactly when the type can't
+// distinguish them in Go.
 func DropZeroOptionalPrimitives(v resource.PropertyValue, typ reflect.Type) {
+	dropZeroOptionals(v, typ, nil, nil)
+}
+
+// dropZeroOptionals removes optional value-typed primitive fields that hold their
+// type's zero value, except fields whose path keep reports as explicitly present.
+func dropZeroOptionals(
+	v resource.PropertyValue, typ reflect.Type,
+	path resource.PropertyPath, keep func(resource.PropertyPath) bool,
+) {
 	if typ == nil {
 		return
 	}
@@ -442,27 +465,64 @@ func DropZeroOptionalPrimitives(v resource.PropertyValue, typ reflect.Type) {
 			if !ok {
 				continue
 			}
-			if tag.Optional && isZeroPrimitive(fv, field.Type) {
+			fieldPath := append(path, tag.Name)
+			if tag.Optional && isZeroPrimitive(fv, field.Type) &&
+				(keep == nil || !keep(fieldPath)) {
 				delete(obj, key)
 				continue
 			}
-			DropZeroOptionalPrimitives(fv, field.Type)
+			dropZeroOptionals(fv, field.Type, fieldPath, keep)
 		}
 	case reflect.Slice, reflect.Array:
 		if !v.IsArray() {
 			return
 		}
-		for _, el := range v.ArrayValue() {
-			DropZeroOptionalPrimitives(el, typ.Elem())
+		for i, el := range v.ArrayValue() {
+			dropZeroOptionals(el, typ.Elem(), append(path, i), keep)
 		}
 	case reflect.Map:
 		if !v.IsObject() {
 			return
 		}
-		for _, el := range v.ObjectValue() {
-			DropZeroOptionalPrimitives(el, typ.Elem())
+		for k, el := range v.ObjectValue() {
+			dropZeroOptionals(el, typ.Elem(), append(path, string(k)), keep)
 		}
 	}
+}
+
+// isValuePrimitive reports whether typ is a non-pointer primitive kind: the kinds whose
+// optional fields cannot distinguish "unset" from their zero value.
+func isValuePrimitive(typ reflect.Type) bool {
+	switch typ.Kind() {
+	case reflect.String, reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
+}
+
+// isNullish reports whether v is null under any secret or output wrappers. A null input
+// is "unset", not an explicitly supplied value.
+func isNullish(v resource.PropertyValue) bool {
+	for {
+		switch {
+		case v.IsSecret():
+			v = v.SecretValue().Element
+		case v.IsOutput():
+			v = v.OutputValue().Element
+		default:
+			return v.IsNull()
+		}
+	}
+}
+
+func (e *ende) markPresent(path resource.PropertyPath) {
+	if e.present == nil {
+		e.present = map[string]bool{}
+	}
+	e.present[path.String()] = true
 }
 
 // isZeroPrimitive reports whether v holds the zero value for the primitive (non-pointer)
@@ -585,5 +645,5 @@ func (e *ende) AllowUnknown(allowUnknowns bool) Encoder {
 		changes = append(changes, v)
 	}
 
-	return Encoder{&ende{changes: changes}}
+	return Encoder{&ende{changes: changes, present: e.present}}
 }
