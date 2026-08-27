@@ -37,7 +37,7 @@ type (
 
 type AlwaysSecretState struct {
 	AlwaysSecretArgs
-	Secret string `pulumi:"secret"`
+	Secret string `pulumi:"secret"` //nolint:gosec // exercises AlwaysSecret, not a credential
 }
 
 func (*AlwaysSecretRes) WireDependencies(
