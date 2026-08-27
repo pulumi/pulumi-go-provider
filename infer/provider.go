@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/internal/key"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
 	"github.com/pulumi/pulumi-go-provider/middleware/cancel"
 	"github.com/pulumi/pulumi-go-provider/middleware/complexconfig" //nolint:staticcheck
@@ -170,6 +171,16 @@ func Wrap(provider p.Provider, opts Options) p.Provider {
 		provider.CheckConfig = config.checkConfig
 		provider = mContext.Wrap(provider, func(ctx context.Context) context.Context {
 			return context.WithValue(ctx, configKey, opts.Config)
+		})
+	}
+
+	// Publish the provider's own plugin download URL on the context, so a component
+	// registering a resource of this package from inside Construct can stamp it onto
+	// that resource. The Construct gRPC request carries no such field, and the version
+	// alongside it already rides on [p.RunInfo]. See [p.GetPluginIdentity].
+	if url := opts.PluginDownloadURL; url != "" {
+		provider = mContext.Wrap(provider, func(ctx context.Context) context.Context {
+			return context.WithValue(ctx, key.PluginDownloadURL, url)
 		})
 	}
 

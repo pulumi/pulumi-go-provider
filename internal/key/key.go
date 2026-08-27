@@ -19,10 +19,11 @@
 package key
 
 type (
-	runtimeInfoType  struct{}
-	logType          struct{}
-	urnType          struct{}
-	providerHostType struct{}
+	runtimeInfoType       struct{}
+	logType               struct{}
+	urnType               struct{}
+	providerHostType      struct{}
+	pluginDownloadURLType struct{}
 )
 
 var (
@@ -34,6 +35,9 @@ var (
 	URN = urnType{}
 	// ProviderHost is used to retrieve a [provider.ProviderHost] from ctx.
 	ProviderHost = providerHostType{}
+	// PluginDownloadURL is used to retrieve the running provider's own plugin
+	// download URL from ctx.
+	PluginDownloadURL = pluginDownloadURLType{}
 )
 
 // ForceNoDetailedDiff acts as a side-channel in
