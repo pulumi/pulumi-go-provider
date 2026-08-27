@@ -1404,6 +1404,13 @@ func (rc *derivedResourceController[R, I, O]) Read(
 		return p.ReadResponse{}, err
 	}
 
+	setDeps, err := getDependencies(r, &inferResp.Inputs, &inferResp.State,
+		false /* isCreate */, false /* isPreview */)
+	if err != nil {
+		return p.ReadResponse{}, err
+	}
+	setDeps(nil, i, s)
+
 	return p.ReadResponse{
 		ID:         inferResp.ID,
 		Properties: resource.FromResourcePropertyValue(resource.NewProperty(s)).AsMap(),
