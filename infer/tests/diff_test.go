@@ -117,6 +117,17 @@ func TestDiffLegacyZeroValue(t *testing.T) {
 			},
 		)
 	})
+	t.Run("value-zero-added-is-unset", func(t *testing.T) {
+		t.Parallel()
+		test(t,
+			property.Map{},
+			property.NewMap(map[string]property.Value{"value": property.New("")}),
+			p.DiffResponse{
+				HasChanges:   false,
+				DetailedDiff: map[string]p.PropertyDiff{},
+			},
+		)
+	})
 	t.Run("pointer-zero-is-a-value", func(t *testing.T) {
 		t.Parallel()
 		test(t,

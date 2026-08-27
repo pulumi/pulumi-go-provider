@@ -46,10 +46,9 @@ func TestCheckConfig(t *testing.T) {
 }
 
 // ConfigValueOptional mirrors https://github.com/pulumi/pulumi-go-provider/issues/577:
-// a value-typed optional field cannot distinguish "unset" from the zero value, so the
-// zero value must be treated as unset and omitted from the checked inputs. Otherwise
-// CheckConfig materializes the field, which then diffs against stored provider inputs
-// and cascades into a provider replacement.
+// CheckConfig must be the identity on present keys and must not materialize unset
+// value-typed optional fields into the checked inputs. Otherwise the materialized zero
+// diffs against stored provider inputs and cascades into a provider replacement.
 type ConfigValueOptional struct {
 	ApiKey string `pulumi:"apiKey,optional" provider:"secret"` //nolint:gosec // not a credential
 }
@@ -73,13 +72,16 @@ func TestCheckConfigValueTypedOptional(t *testing.T) {
 			}),
 		)
 	})
-	t.Run("zero-value", func(t *testing.T) {
+	t.Run("explicit-zero-value", func(t *testing.T) {
 		t.Parallel()
+		// An explicitly supplied zero is kept: Check is the identity on present
+		// keys. Only zeros the encoder would otherwise materialize are omitted.
 		test(t,
 			property.NewMap(map[string]property.Value{
 				"apiKey": property.New("").WithSecret(true),
 			}),
 			property.NewMap(map[string]property.Value{
+				"apiKey":                     property.New("").WithSecret(true),
 				"__pulumi-go-provider-infer": property.New(true),
 			}),
 		)
