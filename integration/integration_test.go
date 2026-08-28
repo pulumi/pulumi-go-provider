@@ -32,7 +32,7 @@ func TestLifeCycleTest(t *testing.T) {
 			Inputs: property.NewMap(map[string]property.Value{
 				"k1": property.New("v1"),
 			}),
-			ExpectedOutput: ref(property.NewMap(map[string]property.Value{
+			ExpectedOutput: new(property.NewMap(map[string]property.Value{
 				"k1": property.New("v1"),
 				"k2": property.New("v2"),
 			})),
@@ -41,7 +41,7 @@ func TestLifeCycleTest(t *testing.T) {
 			Inputs: property.NewMap(map[string]property.Value{
 				"k1": property.New("v3"),
 			}),
-			ExpectedOutput: ref(property.NewMap(map[string]property.Value{
+			ExpectedOutput: new(property.NewMap(map[string]property.Value{
 				"k1": property.New("v3"),
 				"k2": property.New("v2"),
 			})),
@@ -78,8 +78,6 @@ func TestLifeCycleTest(t *testing.T) {
 		DeleteF: func(p.DeleteRequest) error { return nil },
 	})
 }
-
-func ref[T any](v T) *T { return &v }
 
 type server struct {
 	GetSchemaF   func(p.GetSchemaRequest) (p.GetSchemaResponse, error)
