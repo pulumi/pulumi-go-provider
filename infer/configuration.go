@@ -121,6 +121,7 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
+	failures = append(failures, validateEnums[T](req.Inputs)...)
 
 	err = applyDefaults(c.receiver)
 	if err != nil {

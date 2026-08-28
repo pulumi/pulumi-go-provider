@@ -1103,12 +1103,12 @@ func defaultCheck[I any](i I) (I, error) {
 
 func decodeCheckingMapErrors[I any](inputs property.Map) (ende.Encoder, I, []p.CheckFailure, error) {
 	encoder, i, err := ende.Decode[I](inputs)
-	if err != nil {
-		failures, e := checkFailureFromMapError(err)
+	failures, e := checkFailureFromMapError(err)
+	if e != nil {
 		return encoder, i, failures, e
 	}
 
-	return encoder, i, nil, nil
+	return encoder, i, append(failures, validateEnums[I](inputs)...), nil
 }
 
 // checkFailureFromMapError converts from a [mapper.MappingError] to a [p.CheckFailure]:

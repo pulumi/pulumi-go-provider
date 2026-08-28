@@ -16,6 +16,7 @@ package infer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -119,6 +120,15 @@ func (rc *derivedComponentController[R, T, I, O]) GetToken() (tokens.Type, error
 // Construct implements InferredComponent.
 func (rc *derivedComponentController[R, T, I, O]) Construct(ctx context.Context, req p.ConstructRequest,
 ) (p.ConstructResponse, error) {
+	// Construct has no CheckFailure channel, so enum violations are reported as an
+	// error.
+	if failures := validateEnums[I](req.Inputs); len(failures) > 0 {
+		errs := make([]error, len(failures))
+		for i, f := range failures {
+			errs[i] = fmt.Errorf("%s: %s", f.Property, f.Reason)
+		}
+		return p.ConstructResponse{}, errors.Join(errs...)
+	}
 	return p.ProgramConstruct(ctx, req, func(
 		ctx *pulumi.Context, typ, name string, inputs comProvider.ConstructInputs, opts pulumi.ResourceOption,
 	) (*comProvider.ConstructResult, error) {
