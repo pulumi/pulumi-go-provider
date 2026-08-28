@@ -10,7 +10,7 @@ resources:
   you:
     type: dna-store:DNAStore
     properties:
-      data: [1, 2, 3, 4]
+      data: [0, 1, 2, 3]
       filedir: ${pulumi.cwd}/data
       metadata:
         sampleType: human
