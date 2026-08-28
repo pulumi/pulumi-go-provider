@@ -27,6 +27,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -144,75 +145,41 @@ func isEnum(t reflect.Type) (func() enum, bool) {
 // whose shape doesn't match I are skipped, since the decoder already reports them.
 func validateEnums[I any](inputs property.Map) []p.CheckFailure {
 	var failures []p.CheckFailure
-	var walk func(t reflect.Type, v property.Value, path string)
-	walk = func(t reflect.Type, v property.Value, path string) {
-		if v.IsComputed() || v.IsNull() {
+	ende.Visit[I](inputs, func(
+		typ reflect.Type, v resource.PropertyValue, path resource.PropertyPath, secret bool,
+	) {
+		if typ == nil {
 			return
 		}
-		for t.Kind() == reflect.Pointer {
-			t = t.Elem()
+		if nT, inputty, err := underlyingType(typ); err == nil && inputty {
+			typ = nT
 		}
-		if nT, inputty, err := underlyingType(t); err == nil && inputty {
-			t = nT
-		}
-		if enumFn, ok := isEnum(t); ok {
-			if f := checkEnumValue(t, v, path, enumFn().values); f != nil {
-				failures = append(failures, *f)
-			}
+		enumFn, ok := isEnum(typ)
+		if !ok {
 			return
 		}
-		switch t.Kind() {
-		case reflect.Struct:
-			if !v.IsMap() {
-				return
-			}
-			m := v.AsMap()
-			for _, field := range reflect.VisibleFields(t) {
-				info, err := introspect.ParseTag(field)
-				if err != nil || info.Internal {
-					continue
-				}
-				fieldPath := info.Name
-				if path != "" {
-					fieldPath = path + "." + info.Name
-				}
-				if fv, ok := m.GetOk(info.Name); ok {
-					walk(field.Type, fv, fieldPath)
-				}
-			}
-		case reflect.Slice, reflect.Array:
-			if !v.IsArray() {
-				return
-			}
-			for i, el := range v.AsArray().All {
-				walk(t.Elem(), el, fmt.Sprintf("%s[%d]", path, i))
-			}
-		case reflect.Map:
-			if !v.IsMap() {
-				return
-			}
-			for k, el := range v.AsMap().All {
-				walk(t.Elem(), el, fmt.Sprintf("%s[%q]", path, k))
-			}
+		if f := checkEnumValue(typ, v, path.String(), enumFn().values, secret); f != nil {
+			failures = append(failures, *f)
 		}
-	}
-	walk(reflect.TypeFor[I](), property.New(inputs), "")
+	})
 	return failures
 }
 
 // checkEnumValue returns a failure if v is a valid value for t's kind but not one of
 // t's declared enum values.
-func checkEnumValue(t reflect.Type, v property.Value, path string, values []EnumValue[any]) *p.CheckFailure {
+func checkEnumValue(
+	t reflect.Type, v resource.PropertyValue, path string, values []EnumValue[any], secret bool,
+) *p.CheckFailure {
 	var got any
 	switch {
 	case t.Kind() == reflect.String && v.IsString():
-		got = v.AsString()
+		got = v.StringValue()
 	case t.Kind() == reflect.Bool && v.IsBool():
-		got = v.AsBool()
+		got = v.BoolValue()
 	case t.Kind() == reflect.Int && v.IsNumber():
-		got = int(v.AsNumber())
+		got = int(v.NumberValue())
 	case t.Kind() == reflect.Float64 && v.IsNumber():
-		got = v.AsNumber()
+		got = v.NumberValue()
 	default:
 		return nil
 	}
@@ -224,7 +191,7 @@ func checkEnumValue(t reflect.Type, v property.Value, path string, values []Enum
 		valid[i] = fmt.Sprintf("%#v", ev.Value)
 	}
 	display := fmt.Sprintf("%#v", got)
-	if v.Secret() {
+	if secret {
 		display = "[secret]"
 	}
 	return &p.CheckFailure{

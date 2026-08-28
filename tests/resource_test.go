@@ -105,6 +105,12 @@ func TestInferCheckRejectsInvalidEnumValues(t *testing.T) {
 
 	// Unknown values can't be validated until they resolve.
 	assert.Empty(t, check(property.New(property.Computed)).Failures)
+
+	// Secret values are validated, but redacted in the failure message.
+	assert.Equal(t, []p.CheckFailure{{
+		Property: "region",
+		Reason:   `[secret] is not a valid value for the enum "region"; valid values are "us-east-1", "eu-west-1"`,
+	}}, check(property.New("mars-1").WithSecret(true)).Failures)
 }
 
 type enumFn struct{}
