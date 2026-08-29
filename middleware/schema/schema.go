@@ -174,6 +174,8 @@ type Metadata struct {
 	PluginDownloadURL string
 	// Namespace sets the [schema.PackageSpec.Namespace] field.
 	Namespace string
+	// SupportPack sets the [schema.PackageSpec.Meta] SupportPack field.
+	SupportPack bool
 
 	// Update allows updating the metadata function when runtime information (such as
 	// package name and version) is available.
@@ -321,6 +323,9 @@ func (s *state) generateSchema(ctx context.Context) (schema.PackageSpec, error) 
 		Functions:         map[string]schema.FunctionSpec{},
 		Types:             map[string]schema.ComplexTypeSpec{},
 		Language:          map[string]schema.RawMessage{},
+	}
+	if s.SupportPack {
+		pkg.Meta = &schema.MetadataSpec{SupportPack: true}
 	}
 	for k, v := range s.LanguageMap {
 		bytes, err := json.Marshal(v)
