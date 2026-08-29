@@ -97,3 +97,27 @@ func TestMergeSchema(t *testing.T) {
     }
 }`, bytes.String())
 }
+
+func TestSupportPack(t *testing.T) {
+	s := schema.Wrap(p.Provider{}, schema.Options{
+		Metadata: schema.Metadata{
+			SupportPack: true,
+		},
+		Resources: []schema.Resource{
+			&givenResource{"foo:index:foo", "foo"},
+		},
+	})
+	server, err := integration.NewServer(t.Context(),
+		"pkg",
+		semver.Version{Major: 1},
+		integration.WithProvider(s),
+	)
+	require.NoError(t, err)
+
+	res, err := server.GetSchema(p.GetSchemaRequest{})
+	require.NoError(t, err)
+
+	var spec pschema.PackageSpec
+	require.NoError(t, json.Unmarshal([]byte(res.Schema), &spec))
+	assert.Equal(t, &pschema.MetadataSpec{SupportPack: true}, spec.Meta)
+}

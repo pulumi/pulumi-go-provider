@@ -265,6 +265,12 @@ func (pb *ProviderBuilder) WithNamespace(namespace string) *ProviderBuilder {
 	return pb
 }
 
+// WithSupportPack sets SupportPack on the provider's schema
+func (pb *ProviderBuilder) WithSupportPack(supportPack bool) *ProviderBuilder {
+	pb.metadata.SupportPack = supportPack
+	return pb
+}
+
 // BuildOptions builds an [Options] object from the provider builder configuration. This
 // is useful when a user wants to have more control over the provider creation process.
 func (pb *ProviderBuilder) BuildOptions() Options {
