@@ -252,6 +252,9 @@ func TestInferCustomDiffConfig(t *testing.T) {
 
 	resp, err := s.DiffConfig(p.DiffRequest{
 		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+		State: property.NewMap(map[string]property.Value{
+			"version": property.New("1.2.3"),
+		}),
 		Inputs: property.NewMap(map[string]property.Value{
 			"version": property.New("1.2.3"),
 		}),
@@ -260,6 +263,50 @@ func TestInferCustomDiffConfig(t *testing.T) {
 
 	assert.False(t, resp.HasChanges)
 	assert.Empty(t, resp.DetailedDiff)
+}
+
+// Test that a provider version change is an update, not a replace
+// (https://github.com/pulumi/pulumi-go-provider/issues/592).
+func TestInferDiffConfigVersionChange(t *testing.T) {
+	t.Parallel()
+
+	req := p.DiffRequest{
+		Urn: resource.CreateURN("p", "pulumi:providers:test", "", "test", "dev"),
+		State: property.NewMap(map[string]property.Value{
+			"field":   property.New("value"),
+			"version": property.New("1.2.3"),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"field":   property.New("value"),
+			"version": property.New("1.2.4"),
+		}),
+	}
+	want := p.DiffResponse{
+		HasChanges: true,
+		DetailedDiff: map[string]p.PropertyDiff{
+			"version": {Kind: p.Update, InputDiff: true},
+		},
+	}
+
+	for name, cfg := range map[string]infer.InferredConfig{
+		"default-diff": infer.Config(&config{}),
+		"custom-diff":  infer.Config(&configWithPointerDiff{}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			s, err := integration.NewServer(t.Context(),
+				"test",
+				semver.MustParse("0.0.0"),
+				integration.WithProvider(infer.Provider(infer.Options{Config: cfg})),
+			)
+			require.NoError(t, err)
+
+			resp, err := s.DiffConfig(req)
+			require.NoError(t, err)
+			assert.Equal(t, want, resp)
+		})
+	}
 }
 
 type configWithDiff struct {

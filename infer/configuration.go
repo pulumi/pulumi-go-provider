@@ -141,15 +141,46 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 }
 
 func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
-	// We currently replace the provider on any changes
-	// (https://github.com/pulumi/pulumi-go-provider/issues/409) except for
-	// version.
-	return diff[T, T](ctx, req, c.receiver,
-		func(field string) bool { return field != "version" },
+	// We currently replace the provider on any changes to T
+	// (https://github.com/pulumi/pulumi-go-provider/issues/409). The engine-managed
+	// "version" input is not part of T and is diffed separately: a version change
+	// updates the provider in place.
+	resp, err := diff[T, T](ctx, req, c.receiver,
+		func(string) bool { return true },
 		func(m property.Map) (ende.Encoder, T, mapper.MappingError) {
 			enc, err := ende.DecodeConfig(m, c.receiver)
 			return enc, *c.receiver, err
 		})
+	if err != nil {
+		return p.DiffResponse{}, err
+	}
+	return diffProviderVersion(req, resp), nil
+}
+
+// diffProviderVersion merges a diff of the "version" input into resp.
+//
+// A provider's state is its checked inputs, so the old version is read from req.State.
+// This runs after [CustomDiff] too: a custom Diff only sees T and so cannot observe
+// version.
+func diffProviderVersion(req p.DiffRequest, resp p.DiffResponse) p.DiffResponse {
+	const key = "version"
+	old, new := req.State.Get(key), req.Inputs.Get(key)
+	if old.Equals(new) {
+		return resp
+	}
+	kind := p.Update
+	switch {
+	case old.IsNull():
+		kind = p.Add
+	case new.IsNull():
+		kind = p.Delete
+	}
+	if resp.DetailedDiff == nil {
+		resp.DetailedDiff = map[string]p.PropertyDiff{}
+	}
+	resp.DetailedDiff[key] = p.PropertyDiff{Kind: kind, InputDiff: true}
+	resp.HasChanges = true
+	return resp
 }
 
 func (c *config[T]) configure(ctx context.Context, req p.ConfigureRequest) error {
