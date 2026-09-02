@@ -49,8 +49,8 @@ func childUrn(typ, name, parent string) resource.URN {
 type (
 	Increment     struct{}
 	IncrementArgs struct {
-		Number int `pulumi:"int"`
-		Other  int `pulumi:"other,optional"`
+		Number int  `pulumi:"int"`
+		Other  *int `pulumi:"other,optional"`
 	}
 )
 
@@ -59,7 +59,10 @@ type IncrementOutput struct{ IncrementArgs }
 func (*Increment) Create(_ context.Context,
 	req infer.CreateRequest[IncrementArgs],
 ) (infer.CreateResponse[IncrementOutput], error) {
-	output := IncrementOutput{IncrementArgs: IncrementArgs{Number: req.Inputs.Number + 1}}
+	output := IncrementOutput{IncrementArgs: IncrementArgs{
+		Number: req.Inputs.Number + 1,
+		Other:  req.Inputs.Other,
+	}}
 	return infer.CreateResponse[IncrementOutput]{
 		ID:     fmt.Sprintf("id-%d", req.Inputs.Number),
 		Output: output,
