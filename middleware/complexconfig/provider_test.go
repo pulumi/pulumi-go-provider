@@ -78,6 +78,25 @@ func TestComplexConfigEncoding(t *testing.T) {
 				"$": property.New("42"),
 			}),
 		},
+		{
+			name: "json-string-looking-string-args",
+			input: property.NewMap(map[string]property.Value{
+				"$": property.New(`"hi"`),
+			}),
+			schema: func() (schema.PackageSpec, error) {
+				var p schema.PackageSpec
+				p.Config.Variables = map[string]schema.PropertySpec{
+					"$": {TypeSpec: schema.TypeSpec{
+						Type: "string",
+					}},
+				}
+
+				return p, nil
+			},
+			expected: property.NewMap(map[string]property.Value{
+				"$": property.New(`"hi"`),
+			}),
+		},
 	}
 
 	for _, tt := range tests {

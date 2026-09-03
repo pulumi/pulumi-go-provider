@@ -205,11 +205,12 @@ func fixEncoding(v resource.PropertyValue, spec schema.PropertySpec) resource.Pr
 
 	out := resource.NewPropertyValueRepl(target, nil, replv)
 
-	// If the expected type is a string and the raw underlying type is not a string,
-	// then don't use the JSON encoded value (since it might be a valid JSON value of
-	// a type other then string, for example: 42, a JSON number but a valid string
-	// value).
-	if spec.Type == "string" && !unwrap(out).IsString() {
+	// The engine sends plain strings as-is; only secret, computed and output
+	// strings arrive JSON encoded. So for a string typed variable, a decoded
+	// value is only trusted when it is wrapped in one of those markers and its
+	// element is a string. Otherwise the raw value is a literal that happens to
+	// parse as JSON (for example: 42, or "hi" with the quotes included).
+	if spec.Type == "string" && (out.IsString() || !unwrap(out).IsString()) {
 		return v
 	}
 	return out
