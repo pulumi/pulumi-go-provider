@@ -117,7 +117,7 @@ func (*DNAStore) Create(ctx context.Context, req infer.CreateRequest[DNAStoreArg
 		case T:
 			bytes[i] = 'T'
 		default:
-			retErr("'%s' is not a valid DNA molecule", b)
+			return retErr("'%s' is not a valid DNA molecule", b)
 		}
 	}
 	err = os.WriteFile(path, bytes, 0644)

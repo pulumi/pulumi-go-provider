@@ -94,8 +94,31 @@ func DecodeAny(m property.Map, dst any) (Encoder, mapper.MappingError) {
 	return decode(rm, dst, false, false)
 }
 
+// A Visitor is called by [Visit] for each known leaf value in a property map, with the
+// static type the value will decode into. typ is nil when the value has no corresponding
+// type information. secret is true if the value or any of its ancestors is secret. path
+// is only valid for the duration of the call.
+type Visitor func(typ reflect.Type, v resource.PropertyValue, path resource.PropertyPath, secret bool)
+
+// Visit walks m as it would be decoded into T, calling visit on each known leaf value.
+//
+// Unknown values are not visited, since they don't have a value yet.
+func Visit[T any](m property.Map, visit Visitor) {
+	rm := resource.ToResourcePropertyValue(property.New(m)).ObjectValue()
+	e := &ende{visitor: visit}
+	e.simplify(rm, reflect.TypeFor[T]())
+}
+
 // An ENcoder DEcoder.
-type ende struct{ changes []change }
+type ende struct {
+	changes []change
+
+	// visitor, if set, is called on each known leaf value found during walk.
+	visitor Visitor
+	// secretDepth counts the secret wrappers enclosing the value currently being
+	// walked.
+	secretDepth int
+}
 
 type change struct {
 	path        resource.PropertyPath
@@ -177,7 +200,9 @@ func (e *ende) walk(
 		// To allow full fidelity reconstructing maps, we extract nested secrets
 		// first. We then extract the top level secret. We need this ordering to
 		// re-embed nested secrets.
+		e.secretDepth++
 		el := e.walk(v.SecretValue().Element, path, typ, alignTypes)
+		e.secretDepth--
 		e.mark(change{path: path, secret: true})
 		return el
 	case v.IsComputed():
@@ -186,7 +211,13 @@ func (e *ende) walk(
 		return el
 	case v.IsOutput():
 		output := v.OutputValue()
+		if output.Secret {
+			e.secretDepth++
+		}
 		el := e.walk(output.Element, path, typ, !output.Known)
+		if output.Secret {
+			e.secretDepth--
+		}
 		e.mark(change{
 			path:        path,
 			computed:    !output.Known,
@@ -235,6 +266,9 @@ func (e *ende) walk(
 			return resource.NewObjectProperty(obj)
 		// This is a scalar value, so we can return it as is.
 		default:
+			if e.visitor != nil {
+				e.visitor(typ, v, path, e.secretDepth > 0)
+			}
 			return v
 		}
 	}
@@ -469,5 +503,5 @@ func (e *ende) AllowUnknown(allowUnknowns bool) Encoder {
 		changes = append(changes, v)
 	}
 
-	return Encoder{&ende{changes}}
+	return Encoder{&ende{changes: changes}}
 }

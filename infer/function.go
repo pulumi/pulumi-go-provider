@@ -155,6 +155,7 @@ func (r *derivedInvokeController[F, I, O]) Invoke(ctx context.Context, req p.Inv
 	if err != nil {
 		return p.InvokeResponse{}, err
 	}
+	mapFailures = append(mapFailures, validateEnums[I](req.Args)...)
 	if len(mapFailures) > 0 {
 		return p.InvokeResponse{
 			Failures: mapFailures,

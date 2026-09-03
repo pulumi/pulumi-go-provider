@@ -18,12 +18,16 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 
+	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer/internal/ende"
 	"github.com/pulumi/pulumi-go-provider/infer/types"
 	"github.com/pulumi/pulumi-go-provider/internal/introspect"
 	"github.com/pulumi/pulumi-go-provider/middleware/schema"
@@ -132,6 +136,69 @@ func isEnum(t reflect.Type) (func() enum, bool) {
 			values: values,
 		}
 	}, true
+}
+
+// validateEnums checks that each enum-typed property in I holds one of its declared
+// values, returning a [p.CheckFailure] for each property that doesn't.
+//
+// Unknown values are skipped, since they can't be validated until they resolve. Values
+// whose shape doesn't match I are skipped, since the decoder already reports them.
+func validateEnums[I any](inputs property.Map) []p.CheckFailure {
+	var failures []p.CheckFailure
+	ende.Visit[I](inputs, func(
+		typ reflect.Type, v resource.PropertyValue, path resource.PropertyPath, secret bool,
+	) {
+		if typ == nil {
+			return
+		}
+		if nT, inputty, err := underlyingType(typ); err == nil && inputty {
+			typ = nT
+		}
+		enumFn, ok := isEnum(typ)
+		if !ok {
+			return
+		}
+		if f := checkEnumValue(typ, v, path.String(), enumFn().values, secret); f != nil {
+			failures = append(failures, *f)
+		}
+	})
+	return failures
+}
+
+// checkEnumValue returns a failure if v is a valid value for t's kind but not one of
+// t's declared enum values.
+func checkEnumValue(
+	t reflect.Type, v resource.PropertyValue, path string, values []EnumValue[any], secret bool,
+) *p.CheckFailure {
+	var got any
+	switch {
+	case t.Kind() == reflect.String && v.IsString():
+		got = v.StringValue()
+	case t.Kind() == reflect.Bool && v.IsBool():
+		got = v.BoolValue()
+	case t.Kind() == reflect.Int && v.IsNumber():
+		got = int(v.NumberValue())
+	case t.Kind() == reflect.Float64 && v.IsNumber():
+		got = v.NumberValue()
+	default:
+		return nil
+	}
+	valid := make([]string, len(values))
+	for i, ev := range values {
+		if ev.Value == got {
+			return nil
+		}
+		valid[i] = fmt.Sprintf("%#v", ev.Value)
+	}
+	display := fmt.Sprintf("%#v", got)
+	if secret {
+		display = "[secret]"
+	}
+	return &p.CheckFailure{
+		Property: path,
+		Reason: fmt.Sprintf("%s is not a valid value for the enum %q; valid values are %s",
+			display, t.Name(), strings.Join(valid, ", ")),
+	}
 }
 
 // Take a enum type and return it's base type.
