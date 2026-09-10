@@ -45,6 +45,61 @@ func TestCheckConfig(t *testing.T) {
 	}), resp.Inputs)
 }
 
+// ConfigValueOptional mirrors https://github.com/pulumi/pulumi-go-provider/issues/577:
+// CheckConfig must be the identity on present keys and must not materialize unset
+// value-typed optional fields into the checked inputs. Otherwise the materialized zero
+// diffs against stored provider inputs and cascades into a provider replacement.
+type ConfigValueOptional struct {
+	ApiKey string `pulumi:"apiKey,optional" provider:"secret"` //nolint:gosec // not a credential
+}
+
+func TestCheckConfigValueTypedOptional(t *testing.T) {
+	t.Parallel()
+
+	test := func(t *testing.T, inputs, expected property.Map) {
+		prov := providerWithConfig(t, ConfigValueOptional{})
+		resp, err := prov.CheckConfig(p.CheckRequest{Inputs: inputs})
+		require.NoError(t, err)
+		require.Len(t, resp.Failures, 0)
+		assert.Equal(t, expected, resp.Inputs)
+	}
+
+	t.Run("unset", func(t *testing.T) {
+		t.Parallel()
+		test(t, property.Map{},
+			property.NewMap(map[string]property.Value{
+				"__pulumi-go-provider-infer": property.New(true),
+			}),
+		)
+	})
+	t.Run("explicit-zero-value", func(t *testing.T) {
+		t.Parallel()
+		// An explicitly supplied zero is kept: Check is the identity on present
+		// keys. Only zeros the encoder would otherwise materialize are omitted.
+		test(t,
+			property.NewMap(map[string]property.Value{
+				"apiKey": property.New("").WithSecret(true),
+			}),
+			property.NewMap(map[string]property.Value{
+				"apiKey":                     property.New("").WithSecret(true),
+				"__pulumi-go-provider-infer": property.New(true),
+			}),
+		)
+	})
+	t.Run("set", func(t *testing.T) {
+		t.Parallel()
+		test(t,
+			property.NewMap(map[string]property.Value{
+				"apiKey": property.New("a-key"),
+			}),
+			property.NewMap(map[string]property.Value{
+				"apiKey":                     property.New("a-key").WithSecret(true),
+				"__pulumi-go-provider-infer": property.New(true),
+			}),
+		)
+	})
+}
+
 func TestCheckConfigCustom(t *testing.T) {
 	t.Parallel()
 
