@@ -198,6 +198,98 @@ func TestApplySecrets(t *testing.T) {
 				"f3": resource.NewProperty("v3"),
 			},
 		},
+		// A struct-typed value that is both secret and unknown must stay both secret and
+		// unknown. Previously, whichever of the two deferred wrappers ran last rebuilt the
+		// result from the unwrapped value, discarding whatever the other wrapper had applied:
+		// an unknown secret object came back as a known secret object of zero-valued fields.
+		//
+		// Both representations of "secret and unknown" that the engine can produce are covered:
+		// a single Output value, and a secret wrapping a computed value.
+		{
+			name: "secret-and-unknown-struct-output-value",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.NewProperty(resource.Output{
+					Element: resource.NewProperty(resource.PropertyMap{
+						"f1": resource.NewProperty(""),
+					}),
+					Known:  false,
+					Secret: true,
+				}),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.NewProperty(resource.Output{
+					Element: resource.NewProperty(resource.PropertyMap{
+						"f1": resource.NewProperty(""),
+					}),
+					Known:  false,
+					Secret: true,
+				}),
+			},
+		},
+		{
+			name: "secret-and-unknown-struct-secret-of-computed",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.MakeSecret(resource.MakeComputed(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty(""),
+				}))),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.NewProperty(resource.Output{
+					Element: resource.NewProperty(resource.PropertyMap{
+						"f1": resource.NewProperty(""),
+					}),
+					Known:  false,
+					Secret: true,
+				}),
+			},
+		},
+		// Controls: a value that is only secret, or only unknown, keeps its existing behavior.
+		{
+			name: "secret-only-struct",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.MakeSecret(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty("v1"),
+				})),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.MakeSecret(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty("v1"),
+				})),
+			},
+		},
+		{
+			name: "unknown-only-struct",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.MakeComputed(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty(""),
+				})),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.MakeComputed(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty(""),
+				})),
+			},
+		},
 	}
 
 	for _, tt := range tests {
