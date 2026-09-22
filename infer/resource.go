@@ -288,7 +288,7 @@ type StateMigrationFunc[New any] interface {
 // StateMigration creates a mapping from an old state shape (type Old) to a new state
 // shape (type New).
 //
-// If Old = [resource.PropertyMap], then the migration is always run.
+// If Old = [property.Map], then the migration is always run.
 //
 // Example:
 //
@@ -1254,7 +1254,7 @@ func diff[R, I, O any](
 		}
 	}
 	return p.DiffResponse{
-		// TODO: how shoould we set this?
+		// TODO: how should we set this?
 		// DeleteBeforeReplace: ???,
 		HasChanges:   objDiff.AnyChanges(),
 		DetailedDiff: diff,
@@ -1573,7 +1573,7 @@ func migrateState[O any](
 		oldType := upgrader.oldShape()
 		f := upgrader.migrateFunc()
 
-		// If the old type is a resource.PropertyMap, we always run the migration
+		// If the old type is a property.Map, we always run the migration
 		// func.
 
 		var results []reflect.Value
@@ -1608,6 +1608,16 @@ func migrateState[O any](
 			return ende.Encoder{}, o, true, err
 		}
 		result, ok := results[0].Interface().(MigrationResult[O])
+		if !ok {
+			r2, ok2 := results[0].Interface().(MigrationResult[property.Map])
+			if ok2 {
+				if r2.Result == nil {
+					continue
+				}
+				enc, o, err := ende.Decode[O](*r2.Result)
+				return enc, o, true, err
+			}
+		}
 		contract.Assertf(ok,
 			"The signature guarantees of f mandate the second argument is an %T, found %T",
 			result, results[0].Interface())
@@ -1626,9 +1636,6 @@ func migrateState[O any](
 		// Without a richer value representation
 		// (https://github.com/pulumi/pulumi-go-provider/issues/212), this is inevitable for any
 		// strongly typed design.
-		//
-		// We could allow an escape hatch by allowing MigrationResult[O] to be a union of O and
-		// resource.PropertyMap where resource.PropertyMap guarantees that it encodes into O safely.
 		return enc, *result.Result, true, nil
 	}
 
