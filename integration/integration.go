@@ -29,14 +29,15 @@ import (
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	"github.com/pulumi/pulumi/sdk/v3/go/propertyrpc"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/integration/fake"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
-	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 )
 
 type Server interface {
@@ -282,7 +283,7 @@ func (h *host) Construct(ctx context.Context, req p.ConstructRequest, construct 
 	h.lazyInit()
 	req.MonitorEndpoint = h.monitorAddr
 
-	comReq := linkedConstructRequestToRPC(&req, internalrpc.MarshalProperties)
+	comReq := linkedConstructRequestToRPC(&req, marshalPropertiesWithNilError)
 	comResp, err := comProvider.Construct(ctx, comReq, h.client.EngineConn(), construct)
 	if err != nil {
 		return p.ConstructResponse{}, err
@@ -309,7 +310,7 @@ func (h *host) Call(ctx context.Context, req p.CallRequest, call comProvider.Cal
 	h.lazyInit()
 	req.MonitorEndpoint = h.monitorAddr
 
-	comReq := linkedCallRequestToRPC(&req, internalrpc.MarshalProperties)
+	comReq := linkedCallRequestToRPC(&req, marshalPropertiesWithNilError)
 	comResp, err := comProvider.Call(ctx, comReq, h.client.EngineConn(), call)
 	if err != nil {
 		return p.CallResponse{}, err
@@ -518,4 +519,8 @@ func (l LifeCycleTest) Run(t *testing.T, server Server) {
 		Properties: olds,
 	})
 	assert.NoError(t, err, "failed to delete the resource")
+}
+
+func marshalPropertiesWithNilError(m property.Map) (*structpb.Struct, error) {
+	return propertyrpc.Marshal(m), nil
 }

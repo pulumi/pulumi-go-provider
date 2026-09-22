@@ -37,6 +37,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil/rpcerror"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	"github.com/pulumi/pulumi/sdk/v3/go/propertyrpc"
 	comProvider "github.com/pulumi/pulumi/sdk/v3/go/pulumi/provider"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"google.golang.org/grpc/codes"
@@ -47,7 +48,6 @@ import (
 	"github.com/pulumi/pulumi-go-provider/internal"
 	"github.com/pulumi/pulumi-go-provider/internal/key"
 	"github.com/pulumi/pulumi-go-provider/internal/putil"
-	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 )
 
 // HandshakeRequest is the request for the [Provider.Handshake] method.
@@ -981,7 +981,7 @@ func (p *provider) Call(ctx context.Context, req *rpc.CallRequest) (*rpc.CallRes
 
 func (h *host) Call(ctx context.Context, req CallRequest, call comProvider.CallFunc,
 ) (CallResponse, error) {
-	r, err := comProvider.Call(ctx, req.rpc(internalrpc.MarshalProperties), h.host.EngineConn(), call)
+	r, err := comProvider.Call(ctx, req.rpc(propertyrpc.Marshal), h.host.EngineConn(), call)
 	if err != nil {
 		return CallResponse{}, err
 	}
@@ -1074,11 +1074,7 @@ func newCallRequest(req *rpc.CallRequest,
 
 func (c CallRequest) rpc(marshal propertyToRPC) *rpc.CallRequest {
 	// Marshal the args.
-	args, err := marshal(c.Args)
-	if err != nil {
-		return nil
-	}
-
+	args := marshal(c.Args)
 	req := &rpc.CallRequest{
 		Tok:     c.Tok.String(),
 		Args:    args,
@@ -1120,7 +1116,7 @@ type CallResponse struct {
 
 func newCallResponse(req *rpc.CallResponse) (CallResponse, error) {
 	// Umarshal the return properties.
-	ret, err := internalrpc.UnmarshalProperties(req.Return)
+	ret, err := propertyrpc.Unmarshal(req.Return)
 	if err != nil {
 		return CallResponse{}, err
 	}
@@ -1614,7 +1610,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 		StackTraceHandle:    req.GetStackTraceHandle(),
 		ReplaceWith:         toUrns(req.GetReplaceWith()),
 		ReplacementTrigger: func() property.Value {
-			v, err := internalrpc.UnmarshalPropertyValue(req.GetReplacementTrigger())
+			v, err := propertyrpc.UnmarshalValue(req.GetReplacementTrigger())
 			if err != nil {
 				errs.Errors = append(errs.Errors, fmt.Errorf("invalid replacement trigger: %w", err))
 			}
@@ -1663,7 +1659,7 @@ func newConstructRequest(req *rpc.ConstructRequest,
 	return r, errs.ErrorOrNil()
 }
 
-type propertyToRPC func(m property.Map) (*structpb.Struct, error)
+type propertyToRPC func(m property.Map) *structpb.Struct
 
 func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 	// https://github.com/pulumi/pulumi/blob/v3.162.0/sdk/go/common/resource/plugin/provider_plugin.go#L1735-L1812
@@ -1677,15 +1673,8 @@ func (c ConstructRequest) rpc(marshal propertyToRPC) *rpc.ConstructRequest {
 	}
 
 	// Marshal the input properties.
-	minputs, err := marshal(c.Inputs)
-	if err != nil {
-		return nil
-	}
-
-	trigger, err := internalrpc.MarshalPropertyValue(c.ReplacementTrigger)
-	if err != nil {
-		return nil
-	}
+	minputs := marshal(c.Inputs)
+	trigger := propertyrpc.MarshalValue(c.ReplacementTrigger)
 
 	req := &rpc.ConstructRequest{
 		Project: string(c.Urn.Project()),
@@ -1766,7 +1755,7 @@ type ConstructResponse struct {
 
 func newConstructResponse(req *rpc.ConstructResponse) (ConstructResponse, error) {
 	// Umarshal the state properties.
-	state, err := internalrpc.UnmarshalProperties(req.State)
+	state, err := propertyrpc.Unmarshal(req.State)
 	if err != nil {
 		return ConstructResponse{}, err
 	}
@@ -1805,7 +1794,7 @@ func (p *provider) Construct(ctx context.Context, req *rpc.ConstructRequest) (*r
 
 func (h *host) Construct(ctx context.Context, req ConstructRequest, construct comProvider.ConstructFunc,
 ) (ConstructResponse, error) {
-	r, err := comProvider.Construct(ctx, req.rpc(internalrpc.MarshalProperties), h.host.EngineConn(), construct)
+	r, err := comProvider.Construct(ctx, req.rpc(propertyrpc.Marshal), h.host.EngineConn(), construct)
 	if err != nil {
 		return ConstructResponse{}, err
 	}

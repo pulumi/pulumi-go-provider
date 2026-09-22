@@ -22,12 +22,11 @@ import (
 	pconfig "github.com/pulumi/pulumi/sdk/v3/go/common/resource/config"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	"github.com/pulumi/pulumi/sdk/v3/go/propertyrpc"
 	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
-
-	internalrpc "github.com/pulumi/pulumi-go-provider/internal/rpc"
 )
 
 func TestMarshalPreservesNulls(t *testing.T) {
@@ -275,7 +274,7 @@ func TestConstructRequestRPC(t *testing.T) {
 		AcceptsOutputValues: true,
 	}
 
-	got, err := newConstructRequest(req, internalrpc.UnmarshalProperties)
+	got, err := newConstructRequest(req, propertyrpc.Unmarshal)
 	require.NoError(t, err)
 
 	assert.Equal(t, ConstructRequest{
@@ -310,7 +309,7 @@ func TestConstructRequestRPC(t *testing.T) {
 	// The reverse translation must preserve everything the forward translation
 	// reads: converting back to a proto request and re-parsing it yields the
 	// same request.
-	again, err := newConstructRequest(got.rpc(internalrpc.MarshalProperties), internalrpc.UnmarshalProperties)
+	again, err := newConstructRequest(got.rpc(propertyrpc.Marshal), propertyrpc.Unmarshal)
 	require.NoError(t, err)
 	assert.Equal(t, got, again)
 }
