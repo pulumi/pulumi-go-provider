@@ -47,9 +47,6 @@ func (w *secretsWalker) walk(t reflect.Type, p resource.PropertyValue) (out reso
 
 	// Ensure we are working in raw value types for p
 
-	// Both wrappers must compose on the value being returned: a value that is secret *and*
-	// unknown otherwise has whichever deferred wrapper runs last discard the other, turning an
-	// unknown secret object into a known secret object of zero-valued fields.
 	if putil.IsSecret(p) {
 		p = putil.MakePublic(p)
 		defer func() { out = putil.MakeSecret(out) }()
