@@ -25,6 +25,7 @@ import (
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
@@ -103,10 +104,15 @@ type CustomResource[I, O any] interface {
 
 // CreateRequest contains all the parameters for a Create operation
 type CreateRequest[I any] struct {
+	URN string
 	// The resource name.
 	Name string
 	// The resource inputs.
 	Inputs I
+	// RawInputs preserves Pulumi metadata such as secrets and property dependencies.
+	RawInputs            property.Map
+	Dependencies         []urn.URN
+	PropertyDependencies map[string][]urn.URN
 	// Whether this is a preview operation.
 	DryRun bool
 }
@@ -116,7 +122,9 @@ type CreateResponse[O any] struct {
 	// The provider assigned unique ID of the created resource.
 	ID string
 	// The output state of the resource to checkpoint.
-	Output O
+	Output         O
+	Awaiting       bool
+	AwaitingReason string
 }
 
 type CustomCreate[I, O any] interface {
@@ -183,12 +191,17 @@ type CustomDiff[I, O any] interface {
 
 // UpdateRequest contains all the parameters for an Update operation
 type UpdateRequest[I, O any] struct {
+	URN string
 	// The resource ID.
 	ID string
 	// The old resource state.
 	State O
 	// The new resource inputs.
 	Inputs I
+	// RawInputs preserves Pulumi metadata such as secrets and property dependencies.
+	RawInputs            property.Map
+	Dependencies         []urn.URN
+	PropertyDependencies map[string][]urn.URN
 	// Whether this is a preview operation.
 	DryRun bool
 }
@@ -196,7 +209,9 @@ type UpdateRequest[I, O any] struct {
 // UpdateResponse contains all the results from an Update operation
 type UpdateResponse[O any] struct {
 	// The output state of the resource to checkpoint.
-	Output O
+	Output         O
+	Awaiting       bool
+	AwaitingReason string
 }
 
 // CustomUpdate descibes a resource that can adapt to new inputs with a delete and
@@ -252,6 +267,8 @@ type CustomRead[I, O any] interface {
 
 // DeleteRequest contains all the parameters for a Delete operation
 type DeleteRequest[O any] struct {
+	// The Pulumi URN for this resource.
+	URN string
 	// The resource ID.
 	ID string
 	// The current resource state.
@@ -1270,9 +1287,13 @@ func (rc *derivedResourceController[R, I, O]) Create(
 	}
 
 	inferResp, err := (*r).Create(ctx, CreateRequest[I]{
-		Name:   req.Urn.Name(),
-		Inputs: input,
-		DryRun: req.DryRun,
+		URN:                  string(req.Urn),
+		Name:                 req.Urn.Name(),
+		Inputs:               input,
+		RawInputs:            req.Properties,
+		Dependencies:         req.Dependencies,
+		PropertyDependencies: req.PropertyDependencies,
+		DryRun:               req.DryRun,
 	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(createErr error) {
@@ -1314,8 +1335,10 @@ func (rc *derivedResourceController[R, I, O]) Create(
 	setDeps(nil, resource.ToResourcePropertyValue(property.New(req.Properties)).ObjectValue(), m)
 
 	return p.CreateResponse{
-		ID:         inferResp.ID,
-		Properties: resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(),
+		ID:             inferResp.ID,
+		Properties:     resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(),
+		Awaiting:       inferResp.Awaiting,
+		AwaitingReason: inferResp.AwaitingReason,
 	}, err
 }
 
@@ -1438,10 +1461,14 @@ func (rc *derivedResourceController[R, I, O]) Update(
 		return p.UpdateResponse{}, err
 	}
 	inferResp, err := update.Update(ctx, UpdateRequest[I, O]{
-		ID:     req.ID,
-		State:  olds,
-		Inputs: news,
-		DryRun: req.DryRun,
+		URN:                  string(req.Urn),
+		ID:                   req.ID,
+		State:                olds,
+		Inputs:               news,
+		RawInputs:            req.Inputs,
+		Dependencies:         req.Dependencies,
+		PropertyDependencies: req.PropertyDependencies,
+		DryRun:               req.DryRun,
 	})
 	if initFailed := (ResourceInitFailedError{}); errors.As(err, &initFailed) {
 		defer func(updateErr error) {
@@ -1483,7 +1510,9 @@ func (rc *derivedResourceController[R, I, O]) Update(
 	)
 
 	return p.UpdateResponse{
-		Properties: resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(),
+		Properties:     resource.FromResourcePropertyValue(resource.NewProperty(m)).AsMap(),
+		Awaiting:       inferResp.Awaiting,
+		AwaitingReason: inferResp.AwaitingReason,
 	}, nil
 }
 
@@ -1496,6 +1525,7 @@ func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.
 			return err
 		}
 		_, err = del.Delete(ctx, DeleteRequest[O]{
+			URN:   string(req.Urn),
 			ID:    req.ID,
 			State: olds,
 		})

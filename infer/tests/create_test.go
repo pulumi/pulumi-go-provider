@@ -17,6 +17,7 @@ package tests
 import (
 	"testing"
 
+	urnpkg "github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/stretchr/testify/assert"
 
@@ -90,6 +91,36 @@ func TestCreate(t *testing.T) {
 				"foo":  property.New("bar"),
 			}),
 		}), resp.Properties)
+	})
+
+	t.Run("awaiting", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := provider(t).Create(p.CreateRequest{
+			Urn: urn("Echo", "awaiting"),
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New("value"),
+				"int":    property.New(1.0),
+			}),
+		})
+		assert.NoError(t, err)
+		assert.True(t, resp.Awaiting)
+		assert.Equal(t, "member still running", resp.AwaitingReason)
+	})
+
+	t.Run("metadata", func(t *testing.T) {
+		t.Parallel()
+		dependency := urnpkg.URN("urn:pulumi:test::project::test:index:Echo::dependency")
+		_, err := provider(t).Create(p.CreateRequest{
+			Urn: urn("Echo", "metadata"),
+			Properties: property.NewMap(map[string]property.Value{
+				"string": property.New("value").WithSecret(true),
+				"int":    property.New(1.0),
+			}),
+			Dependencies:         []urnpkg.URN{dependency},
+			PropertyDependencies: map[string][]urnpkg.URN{"string": {dependency}},
+		})
+		assert.NoError(t, err)
 	})
 
 	t.Run("unwired-secrets", func(t *testing.T) {

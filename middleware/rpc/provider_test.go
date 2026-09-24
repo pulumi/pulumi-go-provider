@@ -233,6 +233,10 @@ func TestUpdatePassthrough(t *testing.T) {
 			Preview:       false,
 			Name:          "myres",
 			Type:          "pkg:type:Resource",
+			Dependencies:  []string{"urn:pulumi:stack::project::pkg:type:Resource::dependency"},
+			PropertyDependencies: map[string]*pulumirpc.UpdateRequest_PropertyDependencies{
+				"version": {Urns: []string{"urn:pulumi:stack::project::pkg:type:Resource::producer"}},
+			},
 		},
 		&pulumirpc.UpdateResponse{
 			Properties: &structpb.Struct{Fields: map[string]*structpb.Value{

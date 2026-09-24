@@ -319,10 +319,12 @@ type InvokeResponse struct {
 }
 
 type CreateRequest struct {
-	Urn        presource.URN // the Pulumi URN for this resource.
-	Properties property.Map  // the provider inputs to set during creation.
-	Timeout    float64       // the create request timeout represented in seconds.
-	DryRun     bool          // true if this is a preview and the provider should not actually create the resource.
+	Urn                  presource.URN // the Pulumi URN for this resource.
+	Properties           property.Map  // the provider inputs to set during creation.
+	Dependencies         []presource.URN
+	PropertyDependencies map[string][]presource.URN
+	Timeout              float64 // the create request timeout represented in seconds.
+	DryRun               bool    // true if this is a preview and the provider should not actually create the resource.
 }
 
 type CreateResponse struct {
@@ -334,7 +336,9 @@ type CreateResponse struct {
 	//
 	// If PartialState is non-nil, then an error will be returned, annotated with
 	// [pulumirpc.ErrorResourceInitFailed].
-	PartialState *InitializationFailed
+	PartialState   *InitializationFailed
+	Awaiting       bool
+	AwaitingReason string
 }
 
 type ReadRequest struct {
@@ -358,14 +362,16 @@ type ReadResponse struct {
 }
 
 type UpdateRequest struct {
-	ID            string        // the ID of the resource to update.
-	Urn           presource.URN // the Pulumi URN for this resource.
-	State         property.Map  // the old state of the resource to update.
-	Inputs        property.Map  // the new values of provider inputs for the resource to update.
-	OldInputs     property.Map  // the old values of provider inputs for the resource to update.
-	Timeout       float64       // the update request timeout represented in seconds.
-	IgnoreChanges []string      // a set of property paths that should be treated as unchanged.
-	DryRun        bool          // true if the provider should not actually create the resource.
+	ID                   string        // the ID of the resource to update.
+	Urn                  presource.URN // the Pulumi URN for this resource.
+	State                property.Map  // the old state of the resource to update.
+	Inputs               property.Map  // the new values of provider inputs for the resource to update.
+	Dependencies         []presource.URN
+	PropertyDependencies map[string][]presource.URN
+	OldInputs            property.Map // the old values of provider inputs for the resource to update.
+	Timeout              float64      // the update request timeout represented in seconds.
+	IgnoreChanges        []string     // a set of property paths that should be treated as unchanged.
+	DryRun               bool         // true if the provider should not actually create the resource.
 }
 
 type UpdateResponse struct {
@@ -376,7 +382,9 @@ type UpdateResponse struct {
 	//
 	// If PartialState is non-nil, then an error will be returned, annotated with
 	// [pulumirpc.ErrorResourceInitFailed].
-	PartialState *InitializationFailed
+	PartialState   *InitializationFailed
+	Awaiting       bool
+	AwaitingReason string
 }
 
 type DeleteRequest struct {
@@ -1207,11 +1215,18 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 	if err != nil {
 		return nil, err
 	}
+	propertyDependencies := make(map[string][]presource.URN, len(req.GetPropertyDependencies()))
+	for name, dependencies := range req.GetPropertyDependencies() {
+		propertyDependencies[name] = toUrns(dependencies.GetUrns())
+	}
+	props = putil.MergePropertyDependencies(props, propertyDependencies)
 	r, err := p.client.Create(ctx, CreateRequest{
-		Urn:        presource.URN(req.GetUrn()),
-		Properties: props,
-		Timeout:    req.GetTimeout(),
-		DryRun:     req.GetPreview(),
+		Urn:                  presource.URN(req.GetUrn()),
+		Properties:           props,
+		Dependencies:         toUrns(req.GetDependencies()),
+		PropertyDependencies: propertyDependencies,
+		Timeout:              req.GetTimeout(),
+		DryRun:               req.GetPreview(),
 	})
 	if initFailed := r.PartialState; initFailed != nil {
 		prop, propErr := p.asStruct(r.Properties)
@@ -1233,8 +1248,10 @@ func (p *provider) Create(ctx context.Context, req *rpc.CreateRequest) (*rpc.Cre
 	}
 
 	return &rpc.CreateResponse{
-		Id:         r.ID,
-		Properties: propStruct,
+		Id:             r.ID,
+		Properties:     propStruct,
+		Awaiting:       r.Awaiting,
+		AwaitingReason: r.AwaitingReason,
 	}, nil
 }
 
@@ -1294,19 +1311,26 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 	if err != nil {
 		return nil, err
 	}
+	propertyDependencies := make(map[string][]presource.URN, len(req.GetPropertyDependencies()))
+	for name, dependencies := range req.GetPropertyDependencies() {
+		propertyDependencies[name] = toUrns(dependencies.GetUrns())
+	}
+	newsMap = putil.MergePropertyDependencies(newsMap, propertyDependencies)
 	oldInputs, err := p.getMap(req.GetOldInputs())
 	if err != nil {
 		return nil, err
 	}
 	r, err := p.client.Update(ctx, UpdateRequest{
-		ID:            req.GetId(),
-		Urn:           presource.URN(req.GetUrn()),
-		State:         oldsMap,
-		Inputs:        newsMap,
-		OldInputs:     oldInputs,
-		Timeout:       req.GetTimeout(),
-		IgnoreChanges: req.GetIgnoreChanges(),
-		DryRun:        req.GetPreview(),
+		ID:                   req.GetId(),
+		Urn:                  presource.URN(req.GetUrn()),
+		State:                oldsMap,
+		Inputs:               newsMap,
+		Dependencies:         toUrns(req.GetDependencies()),
+		PropertyDependencies: propertyDependencies,
+		OldInputs:            oldInputs,
+		Timeout:              req.GetTimeout(),
+		IgnoreChanges:        req.GetIgnoreChanges(),
+		DryRun:               req.GetPreview(),
 	})
 	if initFailed := r.PartialState; initFailed != nil {
 		prop, propErr := p.asStruct(r.Properties)
@@ -1326,7 +1350,9 @@ func (p *provider) Update(ctx context.Context, req *rpc.UpdateRequest) (*rpc.Upd
 		return nil, err
 	}
 	return &rpc.UpdateResponse{
-		Properties: props,
+		Properties:     props,
+		Awaiting:       r.Awaiting,
+		AwaitingReason: r.AwaitingReason,
 	}, nil
 }
 

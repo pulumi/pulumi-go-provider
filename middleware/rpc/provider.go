@@ -38,6 +38,17 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 )
 
+func urnStrings(values []urn.URN) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, len(values))
+	for i, value := range values {
+		out[i] = string(value)
+	}
+	return out
+}
+
 // Provider projects a [rpc.ResourceProviderServer] into a [p.Provider].
 //
 // It is intended that Provider is used to wrap legacy native provider implementations
@@ -273,18 +284,29 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.CreateResponse{}, err
 			}
 
+			var propertyDependencies map[string]*rpc.CreateRequest_PropertyDependencies
+			if len(req.PropertyDependencies) > 0 {
+				propertyDependencies = make(map[string]*rpc.CreateRequest_PropertyDependencies, len(req.PropertyDependencies))
+			}
+			for name, dependencies := range req.PropertyDependencies {
+				propertyDependencies[name] = &rpc.CreateRequest_PropertyDependencies{Urns: urnStrings(dependencies)}
+			}
 			resp, err := server.Create(ctx, &rpc.CreateRequest{
-				Urn:        string(req.Urn),
-				Properties: inProperties,
-				Timeout:    req.Timeout,
-				Preview:    req.DryRun,
-				Name:       req.Urn.Name(),
-				Type:       req.Urn.Type().String(),
+				Urn:                  string(req.Urn),
+				Properties:           inProperties,
+				Timeout:              req.Timeout,
+				Preview:              req.DryRun,
+				Name:                 req.Urn.Name(),
+				Type:                 req.Urn.Type().String(),
+				Dependencies:         urnStrings(req.Dependencies),
+				PropertyDependencies: propertyDependencies,
 			})
 			properties, err := rpcToProperty(resp.GetProperties(), err)
 			return p.CreateResponse{
-				ID:         resp.GetId(),
-				Properties: properties,
+				ID:             resp.GetId(),
+				Properties:     properties,
+				Awaiting:       resp.GetAwaiting(),
+				AwaitingReason: resp.GetAwaitingReason(),
 			}, err
 		},
 		Read: func(ctx context.Context, req p.ReadRequest) (p.ReadResponse, error) {
@@ -334,22 +356,33 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				return p.UpdateResponse{}, err
 			}
 
+			var propertyDependencies map[string]*rpc.UpdateRequest_PropertyDependencies
+			if len(req.PropertyDependencies) > 0 {
+				propertyDependencies = make(map[string]*rpc.UpdateRequest_PropertyDependencies, len(req.PropertyDependencies))
+			}
+			for name, dependencies := range req.PropertyDependencies {
+				propertyDependencies[name] = &rpc.UpdateRequest_PropertyDependencies{Urns: urnStrings(dependencies)}
+			}
 			resp, err := server.Update(ctx, &rpc.UpdateRequest{
-				Id:            req.ID,
-				Urn:           string(req.Urn),
-				Olds:          inOlds,
-				News:          inNews,
-				Timeout:       req.Timeout,
-				IgnoreChanges: req.IgnoreChanges,
-				Preview:       req.DryRun,
-				Name:          req.Urn.Name(),
-				Type:          req.Urn.Type().String(),
-				OldInputs:     oldInputs,
+				Id:                   req.ID,
+				Urn:                  string(req.Urn),
+				Olds:                 inOlds,
+				News:                 inNews,
+				Timeout:              req.Timeout,
+				IgnoreChanges:        req.IgnoreChanges,
+				Preview:              req.DryRun,
+				Name:                 req.Urn.Name(),
+				Type:                 req.Urn.Type().String(),
+				OldInputs:            oldInputs,
+				Dependencies:         urnStrings(req.Dependencies),
+				PropertyDependencies: propertyDependencies,
 			})
 
 			properties, err := rpcToProperty(resp.GetProperties(), err)
 			return p.UpdateResponse{
-				Properties: properties,
+				Properties:     properties,
+				Awaiting:       resp.GetAwaiting(),
+				AwaitingReason: resp.GetAwaitingReason(),
 			}, err
 		},
 		Delete: func(ctx context.Context, req p.DeleteRequest) error {

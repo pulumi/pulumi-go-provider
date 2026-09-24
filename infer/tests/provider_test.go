@@ -88,6 +88,19 @@ func (*Echo) Create(ctx context.Context,
 ) (infer.CreateResponse[EchoOutputs], error) {
 	id := req.Name + "-id"
 	state := EchoOutputs{EchoInputs: req.Inputs}
+	if req.Name == "metadata" {
+		if len(req.Dependencies) != 1 || len(req.PropertyDependencies["string"]) != 1 || !req.RawInputs.Get("string").Secret() {
+			return infer.CreateResponse[EchoOutputs]{}, fmt.Errorf("create metadata was not preserved")
+		}
+	}
+	if req.Name == "awaiting" {
+		return infer.CreateResponse[EchoOutputs]{
+			ID:             id,
+			Output:         state,
+			Awaiting:       true,
+			AwaitingReason: "member still running",
+		}, nil
+	}
 
 	if req.DryRun {
 		return infer.CreateResponse[EchoOutputs]{
