@@ -198,6 +198,72 @@ func TestApplySecrets(t *testing.T) {
 				"f3": resource.NewProperty("v3"),
 			},
 		},
+		{
+			name: "secret-and-unknown-struct-output-value",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.NewProperty(resource.Output{
+					Element: resource.NewProperty(resource.PropertyMap{
+						"f1": resource.NewProperty(""),
+					}),
+					Known:  false,
+					Secret: true,
+				}),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.NewProperty(resource.Output{
+					Element: resource.NewProperty(resource.PropertyMap{
+						"f1": resource.NewProperty(""),
+					}),
+					Known:  false,
+					Secret: true,
+				}),
+			},
+		},
+		{
+			name: "secret-and-unknown-struct-secret-of-computed",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.MakeSecret(resource.MakeComputed(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty(""),
+				}))),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.NewProperty(resource.Output{
+					Element: resource.NewProperty(resource.PropertyMap{
+						"f1": resource.NewProperty(""),
+					}),
+					Known:  false,
+					Secret: true,
+				}),
+			},
+		},
+		{
+			name: "unknown-only-struct",
+			typ: reflect.TypeFor[struct {
+				F1 struct {
+					F1 string `pulumi:"f1"`
+				} `pulumi:"f1"`
+			}](),
+			input: resource.PropertyMap{
+				"f1": resource.MakeComputed(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty(""),
+				})),
+			},
+			expected: resource.PropertyMap{
+				"f1": resource.MakeComputed(resource.NewProperty(resource.PropertyMap{
+					"f1": resource.NewProperty(""),
+				})),
+			},
+		},
 	}
 
 	for _, tt := range tests {
