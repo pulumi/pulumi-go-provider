@@ -33,6 +33,13 @@ tidy:
 		go mod tidy || exit 1;\
 		cd - > /dev/null; done
 
+# The pulumi-renovate bot runs this target after it updates a Go dependency.
+.PHONY: renovate
+renovate:
+	@command -v mise >/dev/null 2>&1 || curl -fsSL https://mise.run | sh
+	@export PATH="$$HOME/.local/bin:$$PATH" MISE_ENABLE_TOOLS=go; \
+		mise trust && mise install && mise exec -- $(MAKE) tidy
+
 HELPMAKEGO_VERSION := v0.1.0
 HELPMAKEGO := bin/${HELPMAKEGO_VERSION}/helpmakego
 

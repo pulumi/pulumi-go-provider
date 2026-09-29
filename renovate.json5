@@ -1,0 +1,15 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'github>pulumi/renovate-config//default.json5',
+  ],
+  packageRules: [
+    {
+      matchManagers: ['gomod'],
+      postUpgradeTasks: {
+        commands: ['make renovate'],
+        executionMode: 'branch',
+      },
+    },
+  ],
+}
