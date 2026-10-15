@@ -8,7 +8,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/providertest v0.7.0
 	github.com/pulumi/pulumi-go-provider v1.7.0
-	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2
+	github.com/pulumi/pulumi-random/sdk/v4 v4.21.3
 	github.com/pulumi/pulumi/pkg/v3 v3.268.0
 	github.com/pulumi/pulumi/sdk/v3 v3.268.0
 	github.com/stretchr/testify v1.12.1
