@@ -15,10 +15,13 @@
 package infer
 
 import (
+	"context"
 	"testing"
 
+	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFnTokens(t *testing.T) {
@@ -37,4 +40,35 @@ func TestFnTokens(t *testing.T) {
 		})
 	}
 
+}
+
+type deprecatedFn struct{}
+
+type deprecatedFnArgs struct{}
+
+func (deprecatedFn) Invoke(
+	context.Context, FunctionRequest[deprecatedFnArgs],
+) (FunctionResponse[deprecatedFnArgs], error) {
+	return FunctionResponse[deprecatedFnArgs]{}, nil
+}
+
+func (f *deprecatedFn) Annotate(a Annotator) {
+	a.Describe(&f, "Does a thing.")
+	a.Deprecate(&f, "Use otherFunction instead.")
+}
+
+func TestFunctionSchemaDeprecation(t *testing.T) {
+	t.Parallel()
+
+	spec, err := Function(deprecatedFn{}).GetSchema(
+		func(tokens.Type, pschema.ComplexTypeSpec) bool { return false },
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, pschema.FunctionSpec{
+		Description:        "Does a thing.",
+		DeprecationMessage: "Use otherFunction instead.",
+		Inputs:             &pschema.ObjectTypeSpec{Properties: map[string]pschema.PropertySpec{}, Type: "object"},
+		Outputs:            &pschema.ObjectTypeSpec{Properties: map[string]pschema.PropertySpec{}, Type: "object"},
+	}, spec)
 }

@@ -129,9 +129,10 @@ func (r *derivedInvokeController[F, I, O]) GetSchema(reg schema.RegisterDerivati
 	}
 
 	return pschema.FunctionSpec{
-		Description: descriptions.Descriptions[""],
-		Inputs:      input,
-		Outputs:     output,
+		Description:        descriptions.Descriptions[""],
+		DeprecationMessage: descriptions.DeprecationMessages[""],
+		Inputs:             input,
+		Outputs:            output,
 	}, nil
 }
 
