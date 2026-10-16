@@ -4,8 +4,8 @@ go 1.26.6
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi/pkg/v3 v3.269.0
-	github.com/pulumi/pulumi/sdk/v3 v3.269.0
+	github.com/pulumi/pulumi/pkg/v3 v3.270.0
+	github.com/pulumi/pulumi/sdk/v3 v3.270.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	google.golang.org/grpc v1.84.0
@@ -59,7 +59,7 @@ require (
 	github.com/pgavlin/fx v0.1.6 // indirect
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-cloud-sdk/go v1.20261015.0 // indirect
+	github.com/pulumi/pulumi-cloud-sdk/go v1.20261016.0 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
 	github.com/zalando/go-keyring v0.2.8 // indirect
 	go.mongodb.org/mongo-driver v1.17.10 // indirect
