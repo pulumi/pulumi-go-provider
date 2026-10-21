@@ -998,6 +998,7 @@ func (rc *derivedResourceController[R, I, O]) getInstance() *R {
 }
 
 func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.CheckRequest) (p.CheckResponse, error) {
+	ctx = withRawRequest(ctx, req)
 	if r, ok := any(*rc.receiver).(CustomCheck[I]); ok {
 		// The user implemented check manually, so call that.
 		//
@@ -1136,6 +1137,7 @@ func checkFailureFromMapError(err mapper.MappingError) ([]p.CheckFailure, error)
 }
 
 func (rc *derivedResourceController[R, I, O]) Diff(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	ctx = withRawRequest(ctx, req)
 	r := rc.getInstance()
 	_, hasUpdate := ((any)(*r)).(CustomUpdate[I, O])
 	var forceReplace func(string) bool
@@ -1264,6 +1266,7 @@ func diff[R, I, O any](
 func (rc *derivedResourceController[R, I, O]) Create(
 	ctx context.Context, req p.CreateRequest,
 ) (resp p.CreateResponse, retError error) {
+	ctx = withRawRequest(ctx, req)
 	r := rc.getInstance()
 
 	var err error
@@ -1325,6 +1328,7 @@ func (rc *derivedResourceController[R, I, O]) Create(
 func (rc *derivedResourceController[R, I, O]) Read(
 	ctx context.Context, req p.ReadRequest,
 ) (resp p.ReadResponse, retError error) {
+	ctx = withRawRequest(ctx, req)
 	r := rc.getInstance()
 	var inputs I
 	var err error
@@ -1426,6 +1430,7 @@ func (rc *derivedResourceController[R, I, O]) Read(
 func (rc *derivedResourceController[R, I, O]) Update(
 	ctx context.Context, req p.UpdateRequest,
 ) (resp p.UpdateResponse, retError error) {
+	ctx = withRawRequest(ctx, req)
 	r := rc.getInstance()
 	update, ok := ((any)(*r)).(CustomUpdate[I, O])
 	if !ok {
@@ -1491,6 +1496,7 @@ func (rc *derivedResourceController[R, I, O]) Update(
 }
 
 func (rc *derivedResourceController[R, I, O]) Delete(ctx context.Context, req p.DeleteRequest) error {
+	ctx = withRawRequest(ctx, req)
 	r := rc.getInstance()
 	del, ok := ((any)(*r)).(CustomDelete[O])
 	if ok {
