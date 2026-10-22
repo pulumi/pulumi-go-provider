@@ -44,7 +44,6 @@ func withRawRequest[T RawResourceRequest](ctx context.Context, req T) context.Co
 //		// ...
 //	}
 //
-// See https://github.com/pulumi/pulumi-go-provider/issues/289.
 func GetRawRequest[T RawResourceRequest](ctx context.Context) (T, bool) {
 	req, ok := ctx.Value(rawRequestKey[T]{}).(T)
 	return req, ok
