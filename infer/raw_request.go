@@ -36,9 +36,6 @@ func withRawRequest[T RawResourceRequest](ctx context.Context, req T) context.Co
 // [p.CreateRequest] inside a [CustomCreate]. The second result is false when ctx doesn't
 // come from a request of type T.
 //
-// The raw request keeps what the typed values can't express, such as which input values
-// are secret or computed, and the old inputs in a Diff:
-//
 //	func (*MyResource) Create(ctx context.Context, req infer.CreateRequest[Args]) (infer.CreateResponse[State], error) {
 //		raw, ok := infer.GetRawRequest[p.CreateRequest](ctx)
 //		if ok && raw.Properties.Get("token").Secret() {
