@@ -43,6 +43,7 @@ type MigrateR struct{}
 func (*MigrateR) StateMigrations(context.Context) []infer.StateMigrationFunc[MigrateStateV2] {
 	return []infer.StateMigrationFunc[MigrateStateV2]{
 		infer.StateMigration(migrateFromRaw),
+		infer.StateMigration(migrateFromLegacy),
 		infer.StateMigration(migrateFromV0),
 		infer.StateMigration(migrateFromV1),
 	}
@@ -61,6 +62,27 @@ func migrateFromRaw(_ context.Context, m property.Map) (infer.MigrationResult[Mi
 			AInt:    int(m.Get("aInt").AsNumber()),
 		},
 	}, nil
+}
+
+// migrateFromLegacy targets a [property.Map] instead of [MigrateStateV2].
+func migrateFromLegacy(_ context.Context, l MigrateStateLegacy) (infer.MigrationResult[property.Map], error) {
+	if l.LegacyString == nil {
+		return infer.MigrationResult[property.Map]{}, nil
+	}
+	aInt := -7
+	if l.LegacyInt != nil {
+		aInt = *l.LegacyInt
+	}
+	m := property.NewMap(map[string]property.Value{
+		"aString": property.New(*l.LegacyString),
+		"aInt":    property.New(float64(aInt)),
+	})
+	return infer.MigrationResult[property.Map]{Result: &m}, nil
+}
+
+type MigrateStateLegacy struct {
+	LegacyString *string `pulumi:"legacyString,optional"`
+	LegacyInt    *int    `pulumi:"legacyInt,optional"`
 }
 
 func migrateFromV0(ctx context.Context, v0 MigrateStateV0) (infer.MigrationResult[MigrateStateV2], error) {
@@ -138,6 +160,12 @@ func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2S
 			}), v2)
 		})
 
+		t.Run("legacy", func(t *testing.T) {
+			f(t, property.NewMap(map[string]property.Value{
+				"legacyString": property.New("default-string"),
+			}), v2)
+		})
+
 		t.Run("v0", func(t *testing.T) {
 			f(t, property.Map{}, v2)
 		})
@@ -170,6 +198,13 @@ func testMigrationEquivalentStates(t *testing.T, f func(t *testing.T, state, v2S
 					"aString": property.New(aString),
 					"aInt":    property.New(aInt),
 				}),
+			}), v2)
+		})
+
+		t.Run("legacy", func(t *testing.T) {
+			f(t, property.NewMap(map[string]property.Value{
+				"legacyString": property.New(aString),
+				"legacyInt":    property.New(aInt),
 			}), v2)
 		})
 
