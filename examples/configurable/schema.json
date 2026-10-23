@@ -2,9 +2,6 @@
   "name": "configurable",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "csharp": {
       "respectSchemaVersion": true
@@ -53,7 +50,6 @@
         "secret": true
       }
     },
-    "type": "object",
     "required": [
       "clientKey",
       "clientSecret"
@@ -81,7 +77,6 @@
           "type": "string"
         }
       },
-      "type": "object",
       "required": [
         "color"
       ]

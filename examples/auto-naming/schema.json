@@ -2,9 +2,6 @@
   "name": "auto-naming",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "csharp": {
       "respectSchemaVersion": true
@@ -25,9 +22,6 @@
     }
   },
   "config": {},
-  "provider": {
-    "type": "object"
-  },
   "resources": {
     "auto-naming:index:User": {
       "properties": {
@@ -35,7 +29,6 @@
           "type": "string"
         }
       },
-      "type": "object",
       "inputProperties": {
         "name": {
           "type": "string"
