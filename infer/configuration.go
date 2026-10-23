@@ -73,6 +73,10 @@ func (*config[T]) underlyingType() reflect.Type {
 
 func (*config[T]) GetToken() (tokens.Type, error) { return "pulumi:providers:pkg", nil }
 func (c *config[T]) GetSchema(reg schema.RegisterDerivativeType) (pschema.ResourceSpec, error) {
+	// The provider is a custom resource.
+	if err := checkReservedFields[T]("id", "urn"); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
 	if err := registerTypes[T](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}

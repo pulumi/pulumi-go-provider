@@ -16,6 +16,7 @@
 package infer
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -257,17 +258,51 @@ type inner struct {
 	ID string `pulumi:"id"`
 }
 
+type withURN struct {
+	URN string `pulumi:"urn"`
+}
+
+type reservedFieldsFn struct{}
+
+func (reservedFieldsFn) Invoke(
+	context.Context, FunctionRequest[inner],
+) (FunctionResponse[withURN], error) {
+	return FunctionResponse[withURN]{}, nil
+}
+
+type reservedFieldsRes struct{}
+
+func (reservedFieldsRes) Create(
+	context.Context, CreateRequest[inner],
+) (CreateResponse[outer], error) {
+	return CreateResponse[outer]{}, nil
+}
+
 func TestReservedFields(t *testing.T) {
 	t.Parallel()
 
-	reg := func(tokens.Type, pschema.ComplexTypeSpec) bool {
-		return true
-	}
-	err := registerTypes[outer](reg)
-	assert.NoError(t, err, "id isn't reserved on nested fields")
+	t.Run("nested fields are not reserved", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, checkReservedFields[outer]("id", "urn"))
+	})
 
-	err = registerTypes[inner](reg)
-	assert.ErrorContains(t, err, `"id" is a reserved field name`)
+	t.Run("top-level fields are reserved", func(t *testing.T) {
+		t.Parallel()
+		assert.EqualError(t, checkReservedFields[inner]("id", "urn"), `"id" is a reserved field name`)
+		assert.EqualError(t, checkReservedFields[withURN]("id", "urn"), `"urn" is a reserved field name`)
+	})
+
+	t.Run("functions allow id and urn", func(t *testing.T) {
+		t.Parallel()
+		_, err := Function(reservedFieldsFn{}).GetSchema(noOpRegister())
+		assert.NoError(t, err)
+	})
+
+	t.Run("custom resources reserve id", func(t *testing.T) {
+		t.Parallel()
+		_, err := Resource(reservedFieldsRes{}).GetSchema(noOpRegister())
+		assert.EqualError(t, err, `"id" is a reserved field name`)
+	})
 }
 
 func noOpRegister() schema.RegisterDerivativeType {

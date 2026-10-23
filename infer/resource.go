@@ -962,6 +962,12 @@ func (*derivedResourceController[R, I, O]) isAutoNamed() bool {
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error,
 ) {
+	if err := checkReservedFields[I]("id", "urn"); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := checkReservedFields[O]("id", "urn"); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
 	if err := registerTypes[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}

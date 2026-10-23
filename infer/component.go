@@ -97,6 +97,12 @@ func (rc *derivedComponentController[R, T, I, O]) GetSchema(reg schema.RegisterD
 	if err := err.ErrorOrNil(); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
+	if err := checkReservedFields[I]("urn"); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
+	if err := checkReservedFields[O]("urn"); err != nil {
+		return pschema.ResourceSpec{}, err
+	}
 	if err := registerTypes[I](reg); err != nil {
 		return pschema.ResourceSpec{}, err
 	}
