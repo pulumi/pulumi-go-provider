@@ -233,6 +233,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 				RandomSeed: req.RandomSeed,
 				Name:       req.Urn.Name(),
 				Type:       req.Urn.Type().String(),
+				Autonaming: autonamingOptions(req.Autonaming),
 			}))
 		},
 		Diff: func(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
@@ -508,6 +509,27 @@ func diffResponse(resp *rpc.DiffResponse, err error) (p.DiffResponse, error) {
 		HasChanges:          resp.GetChanges() == rpc.DiffResponse_DIFF_SOME,
 		DetailedDiff:        detailedDiff,
 	}, err
+}
+
+func autonamingOptions(o *p.AutonamingOptions) *rpc.CheckRequest_AutonamingOptions {
+	if o == nil {
+		return nil
+	}
+	var mode rpc.CheckRequest_AutonamingOptions_Mode
+	switch o.Mode {
+	case p.AutonamingPropose:
+		mode = rpc.CheckRequest_AutonamingOptions_PROPOSE
+	case p.AutonamingEnforce:
+		mode = rpc.CheckRequest_AutonamingOptions_ENFORCE
+	case p.AutonamingDisable:
+		mode = rpc.CheckRequest_AutonamingOptions_DISABLE
+	default:
+		panic(fmt.Sprintf("unexpected autonaming mode: %d", o.Mode))
+	}
+	return &rpc.CheckRequest_AutonamingOptions{
+		ProposedName: o.ProposedName,
+		Mode:         mode,
+	}
 }
 
 func checkFailures(resp []*rpc.CheckFailure) []p.CheckFailure {

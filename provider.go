@@ -112,6 +112,55 @@ type CheckRequest struct {
 	State      property.Map
 	Inputs     property.Map
 	RandomSeed []byte
+	// Autonaming is the user's autonaming configuration for this resource. It is nil when the user has not
+	// configured autonaming, and the provider should apply its own naming scheme.
+	//
+	// The engine only sends Autonaming if the provider returns
+	// [HandshakeResponse.SupportsAutonamingConfiguration].
+	Autonaming *AutonamingOptions
+}
+
+// AutonamingOptions is the user's autonaming configuration for a resource.
+type AutonamingOptions struct {
+	// ProposedName is the name that the engine generated from the user's configuration. It is empty when Mode
+	// is [AutonamingDisable].
+	ProposedName string
+	Mode         AutonamingMode
+}
+
+// AutonamingMode controls how the provider uses [AutonamingOptions.ProposedName].
+type AutonamingMode int
+
+const (
+	// AutonamingPropose means that the provider may change the proposed name, for example to satisfy length or
+	// character constraints.
+	AutonamingPropose AutonamingMode = iota
+	// AutonamingEnforce means that the provider must use the proposed name exactly, or fail.
+	AutonamingEnforce
+	// AutonamingDisable means that the provider must not generate a name. If the user does not supply a name,
+	// the provider must fail.
+	AutonamingDisable
+)
+
+func autonamingOptionsFromRPC(o *rpc.CheckRequest_AutonamingOptions) (*AutonamingOptions, error) {
+	if o == nil {
+		return nil, nil
+	}
+	var mode AutonamingMode
+	switch o.GetMode() {
+	case rpc.CheckRequest_AutonamingOptions_PROPOSE:
+		mode = AutonamingPropose
+	case rpc.CheckRequest_AutonamingOptions_ENFORCE:
+		mode = AutonamingEnforce
+	case rpc.CheckRequest_AutonamingOptions_DISABLE:
+		mode = AutonamingDisable
+	default:
+		return nil, fmt.Errorf("unknown autonaming mode: %s", o.GetMode())
+	}
+	return &AutonamingOptions{
+		ProposedName: o.GetProposedName(),
+		Mode:         mode,
+	}, nil
 }
 
 type CheckFailure struct {
@@ -1149,10 +1198,17 @@ func (p *provider) Check(ctx context.Context, req *rpc.CheckRequest) (*rpc.Check
 		return nil, err
 	}
 
+	autonaming, err := autonamingOptionsFromRPC(req.GetAutonaming())
+	if err != nil {
+		return nil, err
+	}
+
 	r, err := p.client.Check(ctx, CheckRequest{
-		Urn:    presource.URN(req.GetUrn()),
-		State:  olds,
-		Inputs: news,
+		Urn:        presource.URN(req.GetUrn()),
+		State:      olds,
+		Inputs:     news,
+		RandomSeed: req.GetRandomSeed(),
+		Autonaming: autonaming,
 	})
 	if err != nil {
 		return nil, err

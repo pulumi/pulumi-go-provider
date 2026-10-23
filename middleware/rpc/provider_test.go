@@ -47,6 +47,13 @@ func (m *mockResourceProviderServer) CheckConfig(
 	return m.cannedResp.(*pulumirpc.CheckResponse), nil
 }
 
+func (m *mockResourceProviderServer) Check(
+	ctx context.Context, req *pulumirpc.CheckRequest,
+) (*pulumirpc.CheckResponse, error) {
+	m.capturedReq = req
+	return m.cannedResp.(*pulumirpc.CheckResponse), nil
+}
+
 func (m *mockResourceProviderServer) Configure(
 	ctx context.Context, req *pulumirpc.ConfigureRequest,
 ) (*pulumirpc.ConfigureResponse, error) {
@@ -174,6 +181,46 @@ func TestDiffPassthrough(t *testing.T) {
 			return s.Diff
 		},
 	)
+}
+
+func TestCheckPassthrough(t *testing.T) {
+	t.Parallel()
+	for _, autonaming := range []*pulumirpc.CheckRequest_AutonamingOptions{
+		nil,
+		{ProposedName: "proposed", Mode: pulumirpc.CheckRequest_AutonamingOptions_PROPOSE},
+		{ProposedName: "enforced", Mode: pulumirpc.CheckRequest_AutonamingOptions_ENFORCE},
+		{Mode: pulumirpc.CheckRequest_AutonamingOptions_DISABLE},
+	} {
+		t.Run(autonaming.GetMode().String(), func(t *testing.T) {
+			t.Parallel()
+			testPassthrough(t,
+				&pulumirpc.CheckRequest{
+					Urn: "urn:pulumi:stack::project::pkg:type:Resource::myres",
+					Olds: &structpb.Struct{Fields: map[string]*structpb.Value{
+						"name": {Kind: &structpb.Value_StringValue{StringValue: "old"}},
+					}},
+					News: &structpb.Struct{Fields: map[string]*structpb.Value{
+						"name": {Kind: &structpb.Value_StringValue{StringValue: "new"}},
+					}},
+					RandomSeed: []byte("seed"),
+					Name:       "myres",
+					Type:       "pkg:type:Resource",
+					Autonaming: autonaming,
+				},
+				&pulumirpc.CheckResponse{
+					Inputs: &structpb.Struct{Fields: map[string]*structpb.Value{
+						"name": {Kind: &structpb.Value_StringValue{StringValue: "new"}},
+					}},
+					Failures: []*pulumirpc.CheckFailure{},
+				},
+				func(s pulumirpc.ResourceProviderServer) func(
+					context.Context, *pulumirpc.CheckRequest,
+				) (*pulumirpc.CheckResponse, error) {
+					return s.Check
+				},
+			)
+		})
+	}
 }
 
 func TestDiffConfigPassthrough(t *testing.T) {
