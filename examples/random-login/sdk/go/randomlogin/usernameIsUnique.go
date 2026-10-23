@@ -31,12 +31,8 @@ type UsernameIsUniqueResult struct {
 }
 
 func UsernameIsUniqueOutput(ctx *pulumi.Context, args UsernameIsUniqueOutputArgs, opts ...pulumi.InvokeOption) UsernameIsUniqueResultOutput {
-	return pulumi.ToOutputWithContext(ctx.Context(), args).
-		ApplyT(func(v interface{}) (UsernameIsUniqueResultOutput, error) {
-			args := v.(UsernameIsUniqueArgs)
-			options := pulumi.InvokeOutputOptions{InvokeOptions: internal.PkgInvokeDefaultOpts(opts)}
-			return ctx.InvokeOutput("random-login:index:usernameIsUnique", args, UsernameIsUniqueResultOutput{}, options).(UsernameIsUniqueResultOutput), nil
-		}).(UsernameIsUniqueResultOutput)
+	options := pulumi.InvokeOutputOptions{InvokeOptions: internal.PkgInvokeDefaultOpts(opts)}
+	return ctx.InvokeOutput("random-login:index:usernameIsUnique", args, UsernameIsUniqueResultOutput{}, options).(UsernameIsUniqueResultOutput)
 }
 
 type UsernameIsUniqueOutputArgs struct {

@@ -2,9 +2,6 @@
   "name": "dna-store",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "csharp": {
       "respectSchemaVersion": true
@@ -49,18 +46,22 @@
       "type": "integer",
       "enum": [
         {
+          "name": "A",
           "description": "adenine",
           "value": 0
         },
         {
+          "name": "C",
           "description": "cytosine",
           "value": 1
         },
         {
+          "name": "T",
           "description": "thymine",
           "value": 2
         },
         {
+          "name": "G",
           "description": "guanine",
           "value": 3
         }
@@ -70,22 +71,23 @@
       "type": "string",
       "enum": [
         {
+          "name": "human",
           "value": "human"
         },
         {
+          "name": "dog",
           "value": "dog"
         },
         {
+          "name": "cat",
           "value": "cat"
         },
         {
+          "name": "other",
           "value": "other"
         }
       ]
     }
-  },
-  "provider": {
-    "type": "object"
   },
   "resources": {
     "dna-store:index:DNAStore": {
@@ -105,7 +107,6 @@
           "description": "stores information related to a particular dna"
         }
       },
-      "type": "object",
       "required": [
         "data",
         "filedir",

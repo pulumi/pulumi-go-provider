@@ -2,9 +2,6 @@
   "name": "assets",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "csharp": {
       "respectSchemaVersion": true
@@ -25,9 +22,6 @@
     }
   },
   "config": {},
-  "provider": {
-    "type": "object"
-  },
   "resources": {
     "assets:index:HasAssets": {
       "properties": {
@@ -38,7 +32,6 @@
           "$ref": "pulumi.json#/Asset"
         }
       },
-      "type": "object",
       "required": [
         "a1",
         "a2"

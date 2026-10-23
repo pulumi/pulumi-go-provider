@@ -2,9 +2,6 @@
   "name": "random-login",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "go": {
       "importBasePath": "github.com/pulumi/pulumi-go-provider/examples/random-login/sdk/go/randomlogin"
@@ -18,7 +15,11 @@
     }
   },
   "provider": {
-    "type": "object",
+    "properties": {
+      "scream": {
+        "type": "boolean"
+      }
+    },
     "inputProperties": {
       "scream": {
         "type": "boolean"
@@ -36,7 +37,6 @@
           "type": "string"
         }
       },
-      "type": "object",
       "required": [
         "length",
         "password"
@@ -69,11 +69,10 @@
           "description": "The generated username."
         }
       },
-      "type": "object",
       "required": [
-        "password",
         "petName",
-        "username"
+        "username",
+        "password"
       ],
       "inputProperties": {
         "petName": {
@@ -107,11 +106,10 @@
           "type": "string"
         }
       },
-      "type": "object",
       "required": [
-        "password",
         "salt",
-        "saltedPassword"
+        "saltedPassword",
+        "password"
       ],
       "inputProperties": {
         "password": {

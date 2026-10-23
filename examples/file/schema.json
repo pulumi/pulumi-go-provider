@@ -2,9 +2,6 @@
   "name": "file",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "csharp": {
       "respectSchemaVersion": true
@@ -25,9 +22,6 @@
     }
   },
   "config": {},
-  "provider": {
-    "type": "object"
-  },
   "resources": {
     "file:index:File": {
       "description": "A file projected into a pulumi resource",
@@ -45,11 +39,10 @@
           "description": "The path of the file."
         }
       },
-      "type": "object",
       "required": [
-        "content",
+        "path",
         "force",
-        "path"
+        "content"
       ],
       "inputProperties": {
         "content": {

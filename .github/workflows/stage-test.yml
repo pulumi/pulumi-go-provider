@@ -63,10 +63,21 @@ jobs:
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
           go-version: ${{ matrix.go-version }}
+      - name: Read the Pulumi version from go.mod
+        id: pulumi-version
+        run: echo "version=$(go list -m -f '{{.Version}}' github.com/pulumi/pulumi/pkg/v3)" >> "$GITHUB_OUTPUT"
       - name: Install Pulumi CLI
-        uses: pulumi/action-install-pulumi-cli@b374ceb6168550de27c6eba92e01c1a774040e11 # v2
+        uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7.0.0
+        with:
+          pulumi-version: ${{ steps.pulumi-version.outputs.version }}
       - name: Test
-        run: make test
+        # -B regenerates every example schema. Without it, make can skip a schema when the
+        # provider binary is missing, and the check below would pass against a stale schema.
+        run: make -B test
+      - name: Check generated files are up to date
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         env:

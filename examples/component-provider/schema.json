@@ -2,9 +2,6 @@
   "name": "go-components",
   "version": "0.1.0",
   "namespace": "examples",
-  "meta": {
-    "moduleFormat": "(.*)"
-  },
   "language": {
     "csharp": {
       "respectSchemaVersion": true
@@ -25,9 +22,6 @@
     }
   },
   "config": {},
-  "provider": {
-    "type": "object"
-  },
   "resources": {
     "go-components:index:RandomComponent": {
       "properties": {
@@ -39,15 +33,14 @@
           "description": "You can add comments to input fields"
         },
         "password": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword",
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomPassword:RandomPassword",
           "description": "You can add comments to resource properties"
         }
       },
-      "type": "object",
       "required": [
-        "hardcodedOutput",
         "length",
-        "password"
+        "password",
+        "hardcodedOutput"
       ],
       "inputProperties": {
         "length": {
@@ -69,14 +62,13 @@
           "type": "integer"
         },
         "password": {
-          "$ref": "/random/v4.8.1/schema.json#/resources/random:index%2FrandomPassword:RandomPassword"
+          "$ref": "/random/v4.8.1/schema.json#/resources/random:index/randomPassword:RandomPassword"
         }
       },
-      "type": "object",
       "required": [
-        "hardcodedOutput",
         "length",
-        "password"
+        "password",
+        "hardcodedOutput"
       ],
       "inputProperties": {
         "length": {
