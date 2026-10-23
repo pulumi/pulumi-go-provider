@@ -1673,7 +1673,7 @@ func migrateState[O any](
 	return ende.Encoder{}, o, false, nil
 }
 
-// Mark a field as auto-named.
+// AutoNamed marks fields of a resource's inputs as auto-named.
 //
 // If any resource opts into auto-naming, then the provider will advertise that it supports auto-naming to the engine.
 //
@@ -1685,7 +1685,8 @@ func migrateState[O any](
 // implements [CustomCheck] must call [DefaultCheck] to be auto-named.
 //
 // An auto-named field keeps the value that it had in the old inputs. The engine calls Check without old inputs before
-// it replaces a resource, so a replacement is given a new name.
+// it replaces a resource, so a replacement is given a new name. Old inputs do not record whether a name was generated,
+// so a name that the user removes from the program is also kept.
 type AutoNamed interface {
 	// Set field to be auto-named. Field should be a non-optional string, and must be directly accessible on inputs.
 	// Fields of embedded structs are accessible, but fields of nested objects are not.
@@ -1703,11 +1704,12 @@ type AutoNamed interface {
 	AutoName(autoname SetAutoName)
 }
 
+// SetAutoName marks field as auto-named. It is passed to [AutoNamed.AutoName].
 type SetAutoName = func(field *string, config AutoNameConfig)
 
 // AutoNameConfig configures how an auto-named field is named.
 //
-// When the Pulumi program has not configured auto-naming, the name is Adopt(Generate(...)). When Pulumi program's
+// When the Pulumi program has not configured auto-naming, the name is Adopt(Generate(...)). When the Pulumi program's
 // configuration proposes a name, the name is Adopt(proposed). When the user's configuration enforces a name, the name
 // is used exactly, and neither function is called.
 //
@@ -1723,19 +1725,22 @@ type AutoNameConfig struct {
 	Adopt func(ctx context.Context, args AutoNameAdoptArgs) (string, error)
 }
 
+// AutoNameGenerateArgs are the arguments to [AutoNameConfig.Generate].
 type AutoNameGenerateArgs struct {
 	URN urn.URN
-	// Seed is deterministic for a given engine operation. It is shared by all auto-named fields of a resource.
-	Seed *rand.Rand
+	// Rand is deterministic for a given engine operation. It is shared by all auto-named fields of a resource, in
+	// the order that [AutoNamed.AutoName] declares them.
+	Rand *rand.Rand
 }
 
+// AutoNameAdoptArgs are the arguments to [AutoNameConfig.Adopt].
 type AutoNameAdoptArgs struct {
 	Proposed string
 }
 
 func (c AutoNameConfig) generate(ctx context.Context, args AutoNameGenerateArgs) (string, error) {
 	if c.Generate == nil {
-		return fmt.Sprintf("%s-%08x", args.URN.Name(), args.Seed.Uint32()), nil
+		return fmt.Sprintf("%s-%08x", args.URN.Name(), args.Rand.Uint32()), nil
 	}
 	return c.Generate(ctx, args)
 }
@@ -1828,7 +1833,7 @@ func applyAutoNames[I any](ctx context.Context, inputs property.Map) (property.M
 		var err error
 		switch {
 		case req.Autonaming == nil:
-			name, err = f.config.generate(ctx, AutoNameGenerateArgs{URN: req.Urn, Seed: rng})
+			name, err = f.config.generate(ctx, AutoNameGenerateArgs{URN: req.Urn, Rand: rng})
 			if err == nil {
 				name, err = f.config.adopt(ctx, AutoNameAdoptArgs{Proposed: name})
 			}
