@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -235,19 +236,6 @@ func crawlTypes[T any](crawler Crawler) error {
 	var i T
 	t := reflect.TypeOf(i)
 
-	// Prohibit top-level "id" or "urn" fields.
-	if t.Kind() == reflect.Struct {
-		for _, f := range reflect.VisibleFields(t) {
-			info, err := introspect.ParseTag(f)
-			if err != nil {
-				continue
-			}
-			if info.Name == "id" || info.Name == "urn" {
-				return fmt.Errorf("%q is a reserved field name", info.Name)
-			}
-		}
-	}
-
 	// Drill will walk the types, calling crawl on types it finds.
 	var drill func(reflect.Type, bool, *introspect.FieldTag) error
 	drill = func(t reflect.Type, isReference bool, fieldInfo *introspect.FieldTag) error {
@@ -320,6 +308,24 @@ func crawlTypes[T any](crawler Crawler) error {
 		}
 	}
 	return drill(t, false, nil)
+}
+
+// checkReservedFields returns an error if T has a top-level field named any of reserved.
+func checkReservedFields[T any](reserved ...string) error {
+	t := reflect.TypeFor[T]()
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+	for _, f := range reflect.VisibleFields(t) {
+		info, err := introspect.ParseTag(f)
+		if err != nil {
+			continue
+		}
+		if slices.Contains(reserved, info.Name) {
+			return fmt.Errorf("%q is a reserved field name", info.Name)
+		}
+	}
+	return nil
 }
 
 // registerTypes recursively examines fields of T, calling reg on the schematized type when appropriate.
