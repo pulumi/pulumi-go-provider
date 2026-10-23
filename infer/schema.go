@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -104,6 +105,17 @@ func getResourceSchema[R, I, O any](isComponent bool) (schema.ResourceSpec, mult
 	if err != nil {
 		var i I
 		errs.Errors = append(errs.Errors, fmt.Errorf("could not serialize input type %T: %w", i, err))
+	}
+
+	// Check fills in auto-named fields, so the user does not need to supply them.
+	if !isComponent {
+		autoNames, err := getAutoNames(reflect.TypeFor[I]())
+		if err != nil {
+			errs.Errors = append(errs.Errors, err)
+		}
+		requiredInputs = slices.DeleteFunc(requiredInputs, func(name string) bool {
+			return slices.ContainsFunc(autoNames, func(f autoNameField) bool { return f.name == name })
+		})
 	}
 
 	var aliases []schema.AliasSpec

@@ -369,6 +369,9 @@ func registerTypes[T any](reg schema.RegisterDerivativeType) error {
 			return false, err
 		}
 		if t.Kind() == reflect.Struct {
+			if isAutoNamed(t) {
+				return false, fmt.Errorf("%s.%s: nested type %s cannot implement AutoNamed", parent, field, t)
+			}
 			spec, err := objectSchema(t)
 			if err != nil {
 				return false, err

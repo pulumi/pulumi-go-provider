@@ -17,6 +17,7 @@ package infer
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	t "github.com/pulumi/pulumi-go-provider/middleware"
@@ -148,6 +149,25 @@ func Provider(opts Options) p.Provider {
 func Wrap(provider p.Provider, opts Options) p.Provider {
 	provider = dispatch.Wrap(provider, opts.dispatch())
 	provider = schema.Wrap(provider, opts.schema())
+
+	// The engine only sends autonaming options to providers that support them. Support is
+	// advertised for the whole provider, so resources that are not auto-named ignore the
+	// options.
+	if slices.ContainsFunc(opts.Resources, InferredResource.isAutoNamed) {
+		prev := provider.Handshake
+		provider.Handshake = func(ctx context.Context, req p.HandshakeRequest) (p.HandshakeResponse, error) {
+			var resp p.HandshakeResponse
+			if prev != nil {
+				var err error
+				resp, err = prev(ctx, req)
+				if err != nil && status.Code(err) != codes.Unimplemented {
+					return resp, err
+				}
+			}
+			resp.SupportsAutonamingConfiguration = true
+			return resp, nil
+		}
+	}
 
 	config := opts.Config
 	if config != nil {

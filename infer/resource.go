@@ -16,15 +16,20 @@ package infer
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	pschema "github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/urn"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/mapper"
@@ -60,6 +65,7 @@ import (
 // - [CustomDelete]
 // - [CustomStateMigrations]
 // - [Annotated]
+// - [AutoNamed]
 //
 // Example:
 //
@@ -933,6 +939,8 @@ type InferredResource interface {
 	schema.Resource
 
 	isInferredResource()
+	// isAutoNamed is true if the resource's inputs implement [AutoNamed].
+	isAutoNamed() bool
 }
 
 // Resource creates a new InferredResource, where `R` is the resource controller, `I` is
@@ -946,6 +954,10 @@ type derivedResourceController[R CustomResource[I, O], I, O any] struct {
 }
 
 func (*derivedResourceController[R, I, O]) isInferredResource() {}
+
+func (*derivedResourceController[R, I, O]) isAutoNamed() bool {
+	return isAutoNamed(reflect.TypeFor[I]())
+}
 
 func (rc *derivedResourceController[R, I, O]) GetSchema(reg schema.RegisterDerivativeType) (
 	pschema.ResourceSpec, error,
@@ -1031,7 +1043,7 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 		}, err
 	}
 
-	encoder, i, failures, err := decodeCheckingMapErrors[I](req.Inputs)
+	encoder, i, failures, err := defaultCheck[I](ctx, req.Inputs)
 	if err != nil {
 		return p.CheckResponse{}, err
 	}
@@ -1042,10 +1054,6 @@ func (rc *derivedResourceController[R, I, O]) Check(ctx context.Context, req p.C
 			Inputs:   applySecrets[I](resource.ToResourcePropertyValue(property.New(req.Inputs)).ObjectValue()),
 			Failures: failures,
 		}, nil
-	}
-
-	if i, err = defaultCheck(i); err != nil {
-		return p.CheckResponse{}, fmt.Errorf("unable to apply defaults: %w", err)
 	}
 
 	inputs, err := encoder.Encode(i)
@@ -1079,27 +1087,43 @@ func callCustomCheck[T any](
 // DefaultCheck verifies that inputs can deserialize cleanly into I. This is the default
 // validation that is performed when leaving Check unimplemented.
 //
-// It also adds defaults to inputs as necessary, as defined by [Annotator.SetDefault].
+// It also adds defaults to inputs as necessary, as defined by [Annotator.SetDefault], and
+// names auto-named fields, as defined by [AutoNamed].
 func DefaultCheck[I any](ctx context.Context, inputs property.Map) (I, []p.CheckFailure, error) {
-	enc, i, failures, err := decodeCheckingMapErrors[I](inputs)
+	enc, i, failures, err := defaultCheck[I](ctx, inputs)
 
 	if v, ok := ctx.Value(defaultCheckEncoderKey{}).(*defaultCheckEncoderValue); ok {
 		v.enc = &enc
 	}
 
-	if err != nil || len(failures) > 0 {
-		return i, failures, err
-	}
-
-	i, err = defaultCheck(i)
-	return i, nil, err
+	return i, failures, err
 }
 
-func defaultCheck[I any](i I) (I, error) {
-	if err := applyDefaults(&i); err != nil {
-		return i, fmt.Errorf("unable to apply defaults: %w", err)
+func defaultCheck[I any](ctx context.Context, inputs property.Map) (ende.Encoder, I, []p.CheckFailure, error) {
+	// Auto-naming must run before decoding, since auto-named fields are required in I.
+	inputs, nameFailures, err := applyAutoNames[I](ctx, inputs)
+	if err != nil {
+		enc, i, _, _ := decodeCheckingMapErrors[I](inputs)
+		return enc, i, nil, err
 	}
-	return i, nil
+
+	enc, i, failures, err := decodeCheckingMapErrors[I](inputs)
+	if err != nil {
+		return enc, i, failures, err
+	}
+
+	// A field that could not be named is also missing, so only report why it could not be named.
+	failures = slices.DeleteFunc(failures, func(f p.CheckFailure) bool {
+		return slices.ContainsFunc(nameFailures, func(n p.CheckFailure) bool { return n.Property == f.Property })
+	})
+	if failures = append(nameFailures, failures...); len(failures) > 0 {
+		return enc, i, failures, nil
+	}
+
+	if err := applyDefaults(&i); err != nil {
+		return enc, i, nil, fmt.Errorf("unable to apply defaults: %w", err)
+	}
+	return enc, i, nil, nil
 }
 
 func decodeCheckingMapErrors[I any](inputs property.Map) (ende.Encoder, I, []p.CheckFailure, error) {
@@ -1647,4 +1671,181 @@ func migrateState[O any](
 
 	// No migration was run
 	return ende.Encoder{}, o, false, nil
+}
+
+// Mark a field as auto-named.
+//
+// If any resource opts into auto-naming, then the provider will advertise that it supports auto-naming to the engine.
+//
+// See https://www.pulumi.com/docs/iac/concepts/resources/names/#autonaming for documentation on auto-naming for Pulumi
+// in general.
+//
+// AutoNamed must be implemented by the inputs of a custom resource. Auto-named fields are optional in the schema's
+// inputs, even if they are not tagged as optional. Auto-naming is applied by [DefaultCheck], so a resource that
+// implements [CustomCheck] must call [DefaultCheck] to be auto-named.
+//
+// An auto-named field keeps the value that it had in the old inputs. The engine calls Check without old inputs before
+// it replaces a resource, so a replacement is given a new name.
+type AutoNamed interface {
+	// Set field to be auto-named. Field should be a non-optional string, and must be directly accessible on inputs.
+	// Fields of embedded structs are accessible, but fields of nested objects are not.
+	//
+	// For example, to mark the Name field as auto-named:
+	//
+	//	type Args struct {
+	//		Name string
+	//		Value int
+	//	}
+	//
+	//	func (a *Args) AutoName(autoname infer.SetAutoName) {
+	//		autoname(&a.Name, infer.AutoNameConfig{})
+	//	}
+	AutoName(autoname SetAutoName)
+}
+
+type SetAutoName = func(field *string, config AutoNameConfig)
+
+// AutoNameConfig configures how an auto-named field is named.
+//
+// When the Pulumi program has not configured auto-naming, the name is Adopt(Generate(...)). When Pulumi program's
+// configuration proposes a name, the name is Adopt(proposed). When the user's configuration enforces a name, the name
+// is used exactly, and neither function is called.
+//
+// An error returned by Generate or Adopt is reported as a check failure on the field.
+type AutoNameConfig struct {
+	// Sets the name generator for this field.
+	//
+	// If Generate is left nil, the default generator is ${args.URN.Name()}-${8 hex chars}.
+	Generate func(ctx context.Context, args AutoNameGenerateArgs) (string, error)
+	// Adopt a proposed or generated name into something appropriate for the provider.
+	//
+	// If Adopt is left nil, the identity transformation is implied.
+	Adopt func(ctx context.Context, args AutoNameAdoptArgs) (string, error)
+}
+
+type AutoNameGenerateArgs struct {
+	URN urn.URN
+	// Seed is deterministic for a given engine operation. It is shared by all auto-named fields of a resource.
+	Seed *rand.Rand
+}
+
+type AutoNameAdoptArgs struct {
+	Proposed string
+}
+
+func (c AutoNameConfig) generate(ctx context.Context, args AutoNameGenerateArgs) (string, error) {
+	if c.Generate == nil {
+		return fmt.Sprintf("%s-%08x", args.URN.Name(), args.Seed.Uint32()), nil
+	}
+	return c.Generate(ctx, args)
+}
+
+func (c AutoNameConfig) adopt(ctx context.Context, args AutoNameAdoptArgs) (string, error) {
+	if c.Adopt == nil {
+		return args.Proposed, nil
+	}
+	return c.Adopt(ctx, args)
+}
+
+type autoNameField struct {
+	name   string
+	config AutoNameConfig
+}
+
+func isAutoNamed(t reflect.Type) bool {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return reflect.PointerTo(t).Implements(reflect.TypeFor[AutoNamed]())
+}
+
+// getAutoNames returns the auto-named fields of t, in the order that [AutoNamed.AutoName] declares them.
+func getAutoNames(t reflect.Type) ([]autoNameField, error) {
+	if !isAutoNamed(t) {
+		return nil, nil
+	}
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	r := reflect.New(t).Interface().(AutoNamed)
+	matcher := introspect.NewFieldMatcher(r)
+
+	var fields []autoNameField
+	var errs []error
+	r.AutoName(func(field *string, config AutoNameConfig) {
+		tag, ok, err := matcher.GetField(field)
+		switch {
+		case err != nil:
+			errs = append(errs, err)
+		case !ok:
+			errs = append(errs, fmt.Errorf("%s: AutoName must be called with a pointer to a field of its receiver", t))
+		case tag.Internal:
+			errs = append(errs, fmt.Errorf("%s: auto-named fields must have a pulumi tag", t))
+		case slices.ContainsFunc(fields, func(f autoNameField) bool { return f.name == tag.Name }):
+			errs = append(errs, fmt.Errorf("%s: field %q is auto-named more than once", t, tag.Name))
+		default:
+			fields = append(fields, autoNameField{name: tag.Name, config: config})
+		}
+	})
+	return fields, errors.Join(errs...)
+}
+
+// autoNameRNG returns the random source for auto-naming, derived from the engine's seed.
+func autoNameRNG(seed []byte) *rand.Rand {
+	key := sha256.Sum256(seed)
+	if len(seed) == 0 {
+		// Without a seed from the engine, names cannot be deterministic.
+		_, _ = cryptorand.Read(key[:])
+	}
+	return rand.New(rand.NewChaCha8(key)) //nolint:gosec // Names must be deterministic for a given seed.
+}
+
+// applyAutoNames sets each auto-named field of I that is missing from inputs.
+//
+// applyAutoNames does nothing if ctx does not come from [derivedResourceController.Check].
+func applyAutoNames[I any](ctx context.Context, inputs property.Map) (property.Map, []p.CheckFailure, error) {
+	req, ok := GetRawRequest[p.CheckRequest](ctx)
+	if !ok {
+		return inputs, nil, nil
+	}
+	fields, err := getAutoNames(reflect.TypeFor[I]())
+	if err != nil || len(fields) == 0 {
+		return inputs, nil, err
+	}
+
+	rng := autoNameRNG(req.RandomSeed)
+	var failures []p.CheckFailure
+	for _, f := range fields {
+		if v, ok := inputs.GetOk(f.name); ok && !v.IsNull() {
+			continue
+		}
+		if v, ok := req.State.GetOk(f.name); ok && !v.IsNull() {
+			inputs = inputs.Set(f.name, v)
+			continue
+		}
+
+		var name string
+		var err error
+		switch {
+		case req.Autonaming == nil:
+			name, err = f.config.generate(ctx, AutoNameGenerateArgs{URN: req.Urn, Seed: rng})
+			if err == nil {
+				name, err = f.config.adopt(ctx, AutoNameAdoptArgs{Proposed: name})
+			}
+		case req.Autonaming.Mode == p.AutonamingPropose:
+			name, err = f.config.adopt(ctx, AutoNameAdoptArgs{Proposed: req.Autonaming.ProposedName})
+		case req.Autonaming.Mode == p.AutonamingEnforce:
+			name = req.Autonaming.ProposedName
+		case req.Autonaming.Mode == p.AutonamingDisable:
+			err = errors.New("auto-naming is disabled, so a value is required")
+		default:
+			return inputs, nil, fmt.Errorf("unknown autonaming mode: %d", req.Autonaming.Mode)
+		}
+		if err != nil {
+			failures = append(failures, p.CheckFailure{Property: f.name, Reason: err.Error()})
+			continue
+		}
+		inputs = inputs.Set(f.name, property.New(name))
+	}
+	return inputs, failures, nil
 }
