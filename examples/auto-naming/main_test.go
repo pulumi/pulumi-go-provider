@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/blang/semver"
@@ -25,119 +24,100 @@ func TestAutoName(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	named := func(name string) property.Map {
+		return property.NewMap(map[string]property.Value{"name": property.New(name)})
+	}
+
 	tests := []struct {
-		name     string
-		state    property.Map
-		inputs   property.Map
-		validate func(*testing.T, property.Map)
+		name       string
+		state      property.Map
+		inputs     property.Map
+		autonaming *p.AutonamingOptions
+		expected   p.CheckResponse
 	}{
 		{
-			name:   "create new auto-named resource",
-			inputs: property.Map{},
-			validate: func(t *testing.T, result property.Map) {
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-				assert.True(t, strings.HasPrefix(name.AsString(), "name-"))
-				assert.Len(t, name.AsString(), 11)
-				assert.Equal(t, 1, result.Len())
+			name:     "create new auto-named resource",
+			expected: p.CheckResponse{Inputs: named("name-9f3d0b0a")},
+		},
+		{
+			name:     "create new manually named resource",
+			inputs:   named("custom-name"),
+			expected: p.CheckResponse{Inputs: named("custom-name")},
+		},
+		{
+			name:     "update an auto-named resource (same name)",
+			state:    named("name-123456"),
+			expected: p.CheckResponse{Inputs: named("name-123456")},
+		},
+		{
+			name:     "update an auto-named resource (new name)",
+			inputs:   named("custom-name"),
+			state:    named("name-123456"),
+			expected: p.CheckResponse{Inputs: named("custom-name")},
+		},
+		{
+			name:     "update a manually named resource (different name)",
+			inputs:   named("custom-name1"),
+			state:    named("custom-name2"),
+			expected: p.CheckResponse{Inputs: named("custom-name1")},
+		},
+		{
+			// Old inputs do not record whether a name was generated, so a name that the
+			// user removes is kept.
+			name:     "remove a manual name",
+			state:    named("custom-name"),
+			expected: p.CheckResponse{Inputs: named("custom-name")},
+		},
+		{
+			name:       "propose a name",
+			autonaming: &p.AutonamingOptions{ProposedName: "proposed-name", Mode: p.AutonamingPropose},
+			expected:   p.CheckResponse{Inputs: named("proposed-name")},
+		},
+		{
+			name: "propose a name that is too long",
+			autonaming: &p.AutonamingOptions{
+				ProposedName: "proposed-name-that-is-too-long", Mode: p.AutonamingPropose,
+			},
+			expected: p.CheckResponse{
+				Inputs: property.Map{},
+				Failures: []p.CheckFailure{{
+					Property: "name",
+					Reason:   `"proposed-name-that-is-too-long" is longer than 20 characters`,
+				}},
 			},
 		},
 		{
-			name: "create new manually named resource",
-			inputs: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name"),
-			}),
-			validate: func(t *testing.T, result property.Map) {
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-				assert.Equal(t, "custom-name", name.AsString())
+			name: "enforce a name that is too long",
+			autonaming: &p.AutonamingOptions{
+				ProposedName: "enforced-name-that-is-too-long", Mode: p.AutonamingEnforce,
 			},
+			expected: p.CheckResponse{Inputs: named("enforced-name-that-is-too-long")},
 		},
 		{
-			name:   "update an auto-named resource (same name)",
-			inputs: property.Map{},
-			state: property.NewMap(map[string]property.Value{
-				"name": property.New("name-123456"),
-			}),
-			validate: func(t *testing.T, result property.Map) {
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-				assert.Equal(t, "name-123456", name.AsString())
-			},
-		},
-		{
-			name: "update an auto-named resource (new name)",
-			inputs: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name"),
-			}),
-			state: property.NewMap(map[string]property.Value{
-				"name": property.New("name-123456"),
-			}),
-			validate: func(t *testing.T, result property.Map) {
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-				assert.Equal(t, "custom-name", name.AsString())
-			},
-		},
-		{
-			name: "update a manually named resource (same name)",
-			inputs: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name"),
-			}),
-			state: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name"),
-			}),
-			validate: func(t *testing.T, result property.Map) {
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-				assert.Equal(t, "custom-name", name.AsString())
-			},
-		},
-		{
-			name: "update a manually named resource (different name)",
-			inputs: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name1"),
-			}),
-			state: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name2"),
-			}),
-			validate: func(t *testing.T, result property.Map) {
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-				assert.Equal(t, "custom-name1", name.AsString())
-			},
-		},
-		{
-			name:   "convert from a named to an auto-named resource",
-			inputs: property.Map{},
-			state: property.NewMap(map[string]property.Value{
-				"name": property.New("custom-name"),
-			}),
-			validate: func(t *testing.T, result property.Map) {
-				t.Skipf("It's not possible to drop custom-named resources without a side channel")
-				name, ok := result.GetOk("name")
-				require.True(t, ok, "could not find name in %q", result)
-
-				assert.True(t, strings.HasPrefix(name.AsString(), "name-"))
-				assert.Len(t, name.AsString(), 11)
-				assert.Len(t, result, 1)
+			name:       "disable auto-naming",
+			autonaming: &p.AutonamingOptions{Mode: p.AutonamingDisable},
+			expected: p.CheckResponse{
+				Inputs: property.Map{},
+				Failures: []p.CheckFailure{{
+					Property: "name",
+					Reason:   "auto-naming is disabled, so a value is required",
+				}},
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			t.Helper()
 			resp, err := s.Check(p.CheckRequest{
-				Urn:    resource.NewURN("dev", "test", "", "autoname:index:User", "name"),
-				Inputs: tt.inputs,
-				State:  tt.state,
+				Urn:        resource.NewURN("dev", "test", "", "autoname:index:User", "name"),
+				Inputs:     tt.inputs,
+				State:      tt.state,
+				RandomSeed: []byte("seed"),
+				Autonaming: tt.autonaming,
 			})
 			require.NoError(t, err)
-			require.Empty(t, resp.Failures)
-			tt.validate(t, resp.Inputs)
+			assert.Equal(t, tt.expected, resp)
 		})
 	}
 }
