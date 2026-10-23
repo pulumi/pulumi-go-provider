@@ -63,10 +63,13 @@ jobs:
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
           go-version: ${{ matrix.go-version }}
+      - name: Read the Pulumi version from go.mod
+        id: pulumi-version
+        run: echo "version=$(go list -m -f '{{.Version}}' github.com/pulumi/pulumi/pkg/v3)" >> "$GITHUB_OUTPUT"
       - name: Install Pulumi CLI
         uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7.0.0
         with:
-          pulumi-version-file: .pulumi.version
+          pulumi-version: ${{ steps.pulumi-version.outputs.version }}
       - name: Test
         # -B regenerates every example schema. Without it, make can skip a schema when the
         # provider binary is missing, and the check below would pass against a stale schema.
