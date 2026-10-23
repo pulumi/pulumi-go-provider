@@ -43,7 +43,6 @@ func withRawRequest[T RawResourceRequest](ctx context.Context, req T) context.Co
 //		}
 //		// ...
 //	}
-//
 func GetRawRequest[T RawResourceRequest](ctx context.Context) (T, bool) {
 	req, ok := ctx.Value(rawRequestKey[T]{}).(T)
 	return req, ok
