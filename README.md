@@ -1,7 +1,5 @@
 # pulumi-go-provider
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/pulumi/pulumi-go-provider)](https://goreportcard.com/report/github.com/pulumi/pulumi-go-provider)
-
 A framework for building Providers for Pulumi in Go.
 
 **Library documentation can be found at** [![Go Reference](https://pkg.go.dev/badge/github.com/pulumi/pulumi-go-provider.svg)](https://pkg.go.dev/github.com/pulumi/pulumi-go-provider)
