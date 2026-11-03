@@ -73,7 +73,7 @@ jobs:
         id: pulumi-version
         run: echo "version=$(go list -m -f '{{.Version}}' github.com/pulumi/pulumi/pkg/v3)" >> "$GITHUB_OUTPUT"
       - name: Install Pulumi CLI
-        uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7.0.0
+        uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
         with:
           pulumi-version: ${{ steps.pulumi-version.outputs.version }}
       - name: Test
