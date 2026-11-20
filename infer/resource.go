@@ -233,7 +233,7 @@ type ReadRequest[I, O any] struct {
 
 // ReadResponse contains all the results from a Read operation
 type ReadResponse[I, O any] struct {
-	// The canonical ID of the resource.
+	// The canonical ID of the resource, or empty if the resource doesn't exist.
 	ID string
 	// The normalized inputs.
 	Inputs I
@@ -241,11 +241,18 @@ type ReadResponse[I, O any] struct {
 	State O
 }
 
+// ErrNotFound is returned from [CustomRead] to report that the resource doesn't exist.
+var ErrNotFound = p.ErrNotFound
+
 // CustomRead describes resource that can recover its state from the provider.
 //
 // If CustomRead is not implemented, it will default to checking that the inputs and state
 // fit into I and O respectively. If they do, then the values will be returned as is.
 // Otherwise an error will be returned.
+//
+// To report that the resource doesn't exist, return [ErrNotFound], which may be wrapped.
+// `refresh` then removes the resource from state, and `get` and `import` fail with
+// "resource does not exist". Returning an empty ID and a nil error has the same effect.
 //
 // Example:
 // TODO - Probably something to do with the file system.
@@ -1432,6 +1439,11 @@ func (rc *derivedResourceController[R, I, O]) Read(
 		}(err)
 	} else if err != nil {
 		return p.ReadResponse{}, err
+	}
+
+	// An empty ID is how a CustomRead reports that the resource doesn't exist.
+	if err == nil && inferResp.ID == "" {
+		return p.ReadResponse{}, nil
 	}
 
 	i, err := inputEncoder.Encode(inferResp.Inputs)

@@ -393,6 +393,10 @@ type ReadRequest struct {
 	Inputs     property.Map  // the current inputs, if any (only populated during refresh).
 }
 
+// ErrNotFound is returned from Read to report that the resource doesn't exist. It may be
+// wrapped. The engine then sees the resource as missing, and the ReadResponse is ignored.
+var ErrNotFound = errors.New("resource not found")
+
 type ReadResponse struct {
 	ID         string       // the ID of the resource read back (or empty if missing).
 	Properties property.Map // the state of the resource read from the live environment.
@@ -1306,6 +1310,9 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 		Properties: propMap,
 		Inputs:     inputMap,
 	})
+	if errors.Is(err, ErrNotFound) {
+		return &rpc.ReadResponse{}, nil
+	}
 	if initFailed := r.PartialState; initFailed != nil {
 		props, propErr := p.asStruct(r.Properties)
 		inputs, inputsErr := p.asStruct(r.Inputs)
@@ -1320,6 +1327,11 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 	}
 	if err != nil {
 		return nil, err
+	}
+	// An empty ID means the resource is missing. The engine only reports a missing resource
+	// during `get` and `import` when the properties are nil, and asStruct never returns nil.
+	if r.ID == "" {
+		return &rpc.ReadResponse{}, nil
 	}
 	inputStruct, err := p.asStruct(r.Inputs)
 	if err != nil {
