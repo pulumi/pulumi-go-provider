@@ -247,6 +247,10 @@ type ReadResponse[I, O any] struct {
 // fit into I and O respectively. If they do, then the values will be returned as is.
 // Otherwise an error will be returned.
 //
+// To report that the resource doesn't exist, return a zero [ReadResponse] and a nil error.
+// `refresh` then removes the resource from state, and `get` and `import` fail with
+// "resource does not exist".
+//
 // Example:
 // TODO - Probably something to do with the file system.
 type CustomRead[I, O any] interface {
