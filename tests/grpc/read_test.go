@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
@@ -32,6 +33,7 @@ func TestReadEmptyResponse(t *testing.T) {
 	tests := []struct {
 		name           string
 		resp           p.ReadResponse
+		err            error
 		wantProperties bool
 	}{
 		{
@@ -40,11 +42,24 @@ func TestReadEmptyResponse(t *testing.T) {
 			wantProperties: false,
 		},
 		{
-			name: "empty ID with properties still sends properties",
+			name: "empty ID with properties sends nil properties",
 			resp: p.ReadResponse{
 				Properties: property.NewMap(map[string]property.Value{"k": property.New("v")}),
+				Inputs:     property.NewMap(map[string]property.Value{"k": property.New("v")}),
 			},
-			wantProperties: true,
+			wantProperties: false,
+		},
+		{
+			name:           "ErrNotFound sends an empty response",
+			resp:           p.ReadResponse{ID: "id"},
+			err:            p.ErrNotFound,
+			wantProperties: false,
+		},
+		{
+			name:           "wrapped ErrNotFound sends an empty response",
+			resp:           p.ReadResponse{ID: "id"},
+			err:            fmt.Errorf("get id: %w", p.ErrNotFound),
+			wantProperties: false,
 		},
 		{
 			name:           "non-empty ID with no properties still sends properties",
@@ -58,7 +73,7 @@ func TestReadEmptyResponse(t *testing.T) {
 			t.Parallel()
 			s, err := p.RawServer("test", "1.0.0", p.Provider{
 				Read: func(context.Context, p.ReadRequest) (p.ReadResponse, error) {
-					return tt.resp, nil
+					return tt.resp, tt.err
 				},
 			})(nil)
 			require.NoError(t, err)
@@ -68,7 +83,11 @@ func TestReadEmptyResponse(t *testing.T) {
 				Urn: "urn:pulumi:dev::dev::test:index:Res::r",
 			})
 			require.NoError(t, err)
-			assert.Equal(t, tt.resp.ID, resp.GetId())
+			wantID := tt.resp.ID
+			if tt.err != nil {
+				wantID = ""
+			}
+			assert.Equal(t, wantID, resp.GetId())
 			assert.Equal(t, tt.wantProperties, resp.GetProperties() != nil, "properties presence")
 			assert.Equal(t, tt.wantProperties, resp.GetInputs() != nil, "inputs presence")
 		})

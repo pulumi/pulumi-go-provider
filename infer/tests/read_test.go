@@ -16,6 +16,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/blang/semver"
@@ -140,6 +141,10 @@ func (*MaybeMissingRes) Read(
 		return resp{}, nil
 	case "missing-echo-inputs":
 		return resp{Inputs: req.Inputs}, nil
+	case "err-not-found":
+		return resp{Inputs: req.Inputs, State: req.State}, infer.ErrNotFound
+	case "wrapped-err-not-found":
+		return resp{}, fmt.Errorf("get %s: %w", req.ID, infer.ErrNotFound)
 	case "no-id-with-state":
 		return resp{
 			Inputs: MaybeMissingArgs{Name: "read"},
@@ -179,7 +184,9 @@ func TestReadMissingResource(t *testing.T) {
 		return resp
 	}
 
-	for _, id := range []string{"missing", "missing-echo-inputs"} {
+	for _, id := range []string{
+		"missing", "missing-echo-inputs", "no-id-with-state", "err-not-found", "wrapped-err-not-found",
+	} {
 		t.Run(id+"/get-or-import", func(t *testing.T) {
 			t.Parallel()
 			resp := read(t, id, false)
@@ -195,15 +202,6 @@ func TestReadMissingResource(t *testing.T) {
 			assert.Nil(t, resp.GetProperties())
 		})
 	}
-
-	t.Run("no-id-with-state/get-or-import", func(t *testing.T) {
-		t.Parallel()
-		resp := read(t, "no-id-with-state", false)
-		assert.Empty(t, resp.GetId(), "the engine falls back to the requested ID")
-		assert.Equal(t, map[string]any{"name": "read", "out": "read-out"}, resp.GetProperties().AsMap(),
-			"a populated State is still returned when the ID is empty")
-		assert.Equal(t, map[string]any{"name": "read"}, resp.GetInputs().AsMap())
-	})
 
 	t.Run("found/get-or-import", func(t *testing.T) {
 		t.Parallel()
