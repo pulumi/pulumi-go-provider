@@ -21,7 +21,10 @@ import (
 	"github.com/blang/semver"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/property"
+	rpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
@@ -109,4 +112,103 @@ func TestReadAlwaysSecret(t *testing.T) {
 	require.Equal(t, property.New("read-secret").WithSecret(true),
 		imported.Properties.Get("secret"),
 		"import-like Read with no prior state marks AlwaysSecret outputs secret")
+}
+
+type (
+	MaybeMissingRes  struct{}
+	MaybeMissingArgs struct {
+		Name string `pulumi:"name"`
+	}
+	MaybeMissingState struct {
+		MaybeMissingArgs
+		Out string `pulumi:"out"`
+	}
+)
+
+func (*MaybeMissingRes) Create(
+	context.Context, infer.CreateRequest[MaybeMissingArgs],
+) (infer.CreateResponse[MaybeMissingState], error) {
+	return infer.CreateResponse[MaybeMissingState]{ID: "found"}, nil
+}
+
+func (*MaybeMissingRes) Read(
+	_ context.Context, req infer.ReadRequest[MaybeMissingArgs, MaybeMissingState],
+) (infer.ReadResponse[MaybeMissingArgs, MaybeMissingState], error) {
+	type resp = infer.ReadResponse[MaybeMissingArgs, MaybeMissingState]
+	switch req.ID {
+	case "missing":
+		return resp{}, nil
+	case "missing-echo-inputs":
+		return resp{Inputs: req.Inputs}, nil
+	case "no-id-with-state":
+		return resp{
+			Inputs: MaybeMissingArgs{Name: "read"},
+			State:  MaybeMissingState{MaybeMissingArgs{Name: "read"}, "read-out"},
+		}, nil
+	default:
+		return resp{
+			ID:     req.ID,
+			Inputs: MaybeMissingArgs{Name: "read"},
+			State:  MaybeMissingState{MaybeMissingArgs{Name: "read"}, "read-out"},
+		}, nil
+	}
+}
+
+func TestReadMissingResource(t *testing.T) {
+	t.Parallel()
+
+	server, err := p.RawServer("test", "1.0.0", infer.Provider(infer.Options{
+		Resources: []infer.InferredResource{infer.Resource(&MaybeMissingRes{})},
+		ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
+	}))(nil)
+	require.NoError(t, err)
+
+	priorState, err := structpb.NewStruct(map[string]any{"name": "old", "out": "old-out"})
+	require.NoError(t, err)
+	priorInputs, err := structpb.NewStruct(map[string]any{"name": "old"})
+	require.NoError(t, err)
+
+	read := func(t *testing.T, id string, withPriorState bool) *rpc.ReadResponse {
+		req := &rpc.ReadRequest{Id: id, Urn: string(urn("MaybeMissingRes", "r"))}
+		if withPriorState {
+			req.Properties = priorState
+			req.Inputs = priorInputs
+		}
+		resp, err := server.Read(t.Context(), req)
+		require.NoError(t, err)
+		return resp
+	}
+
+	for _, id := range []string{"missing", "missing-echo-inputs"} {
+		t.Run(id+"/get-or-import", func(t *testing.T) {
+			t.Parallel()
+			resp := read(t, id, false)
+			assert.Empty(t, resp.GetId())
+			assert.Nil(t, resp.GetProperties(),
+				"nil properties make the engine report that the resource does not exist")
+			assert.Nil(t, resp.GetInputs())
+		})
+		t.Run(id+"/refresh", func(t *testing.T) {
+			t.Parallel()
+			resp := read(t, id, true)
+			assert.Empty(t, resp.GetId(), "an empty ID makes refresh delete the resource from state")
+			assert.Nil(t, resp.GetProperties())
+		})
+	}
+
+	t.Run("no-id-with-state/get-or-import", func(t *testing.T) {
+		t.Parallel()
+		resp := read(t, "no-id-with-state", false)
+		assert.Empty(t, resp.GetId(), "the engine falls back to the requested ID")
+		assert.Equal(t, map[string]any{"name": "read", "out": "read-out"}, resp.GetProperties().AsMap(),
+			"a populated State is still returned when the ID is empty")
+		assert.Equal(t, map[string]any{"name": "read"}, resp.GetInputs().AsMap())
+	})
+
+	t.Run("found/get-or-import", func(t *testing.T) {
+		t.Parallel()
+		resp := read(t, "found", false)
+		assert.Equal(t, "found", resp.GetId())
+		assert.Equal(t, map[string]any{"name": "read", "out": "read-out"}, resp.GetProperties().AsMap())
+	})
 }

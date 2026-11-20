@@ -1434,6 +1434,13 @@ func (rc *derivedResourceController[R, I, O]) Read(
 		return p.ReadResponse{}, err
 	}
 
+	// An empty ID with a zero-value State is how a CustomRead reports that the resource
+	// doesn't exist. Encoding the zero State would send non-empty properties, which the
+	// engine accepts as a found resource for `get` and `import`.
+	if err == nil && inferResp.ID == "" && reflect.ValueOf(&inferResp.State).Elem().IsZero() {
+		return p.ReadResponse{}, nil
+	}
+
 	i, err := inputEncoder.Encode(inferResp.Inputs)
 	if err != nil {
 		return p.ReadResponse{}, err

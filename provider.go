@@ -1321,6 +1321,11 @@ func (p *provider) Read(ctx context.Context, req *rpc.ReadRequest) (*rpc.ReadRes
 	if err != nil {
 		return nil, err
 	}
+	// The engine only treats a missing resource as missing during `get` and `import` when
+	// the properties are nil, and asStruct never returns nil.
+	if r.ID == "" && r.Properties.Len() == 0 && r.Inputs.Len() == 0 {
+		return &rpc.ReadResponse{}, nil
+	}
 	inputStruct, err := p.asStruct(r.Inputs)
 	if err != nil {
 		return nil, err
