@@ -1207,6 +1207,13 @@ func diff[R, I, O any](
 		}
 	}
 
+	// Same for old inputs, except "version": diffConfig removes the engine's.
+	for k := range req.OldInputs.All {
+		if strings.HasPrefix(k, "__") {
+			req.OldInputs = req.OldInputs.Delete(k)
+		}
+	}
+
 	if r, ok := ((any)(*r)).(CustomDiff[I, O]); ok {
 		_, olds, err := hydrateFromState[R, I, O](ctx, req.State, decode)
 		if err != nil {
