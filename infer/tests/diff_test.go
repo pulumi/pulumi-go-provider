@@ -156,3 +156,104 @@ func TestDiffLegacyZeroValue(t *testing.T) {
 		)
 	})
 }
+
+// The engine reserves the "version" input on provider resources, so diff drops it there.
+// A resource that declares its own version input keeps it (#704).
+type (
+	Versioned     struct{}
+	VersionedArgs struct {
+		Name    string  `pulumi:"name"`
+		Version *string `pulumi:"version,optional"`
+	}
+	VersionedState struct{ VersionedArgs }
+)
+
+func (*Versioned) Create(
+	_ context.Context, req infer.CreateRequest[VersionedArgs],
+) (infer.CreateResponse[VersionedState], error) {
+	return infer.CreateResponse[VersionedState]{
+		ID:     "id",
+		Output: VersionedState{req.Inputs},
+	}, nil
+}
+
+type VersionedCustomDiff struct{ Versioned }
+
+func (*VersionedCustomDiff) Diff(
+	_ context.Context, req infer.DiffRequest[VersionedArgs, VersionedState],
+) (infer.DiffResponse, error) {
+	var old, new string
+	if req.State.Version != nil {
+		old = *req.State.Version
+	}
+	if req.Inputs.Version != nil {
+		new = *req.Inputs.Version
+	}
+	if old == new {
+		return infer.DiffResponse{DetailedDiff: map[string]p.PropertyDiff{}}, nil
+	}
+	return infer.DiffResponse{
+		HasChanges:   true,
+		DetailedDiff: map[string]p.PropertyDiff{"version": {Kind: p.UpdateReplace}},
+	}, nil
+}
+
+func TestDiffDeclaredVersion(t *testing.T) {
+	t.Parallel()
+
+	withVersion := func(version string) property.Map {
+		return property.NewMap(map[string]property.Value{
+			"name":    property.New("w"),
+			"version": property.New(version),
+		})
+	}
+	noChanges := p.DiffResponse{DetailedDiff: map[string]p.PropertyDiff{}}
+	replaced := p.DiffResponse{
+		HasChanges:   true,
+		DetailedDiff: map[string]p.PropertyDiff{"version": {Kind: p.UpdateReplace}},
+	}
+
+	test := func(t *testing.T, typ string, state, inputs property.Map, expected p.DiffResponse) {
+		s, err := integration.NewServer(t.Context(),
+			"test",
+			semver.MustParse("1.0.0"),
+			integration.WithProvider(infer.Provider(infer.Options{
+				Resources: []infer.InferredResource{
+					infer.Resource(&Versioned{}),
+					infer.Resource(&VersionedCustomDiff{}),
+					infer.Resource(&ZeroOptional{}),
+				},
+				ModuleMap: map[tokens.ModuleName]tokens.ModuleName{"tests": "index"},
+			})),
+		)
+		require.NoError(t, err)
+
+		resp, err := s.Diff(p.DiffRequest{
+			ID:     "id",
+			Urn:    urn(typ, "test"),
+			State:  state,
+			Inputs: inputs,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, expected, resp)
+	}
+
+	for _, typ := range []string{"Versioned", "VersionedCustomDiff"} {
+		t.Run(typ+"-equal", func(t *testing.T) {
+			t.Parallel()
+			test(t, typ, withVersion("v1"), withVersion("v1"), noChanges)
+		})
+		t.Run(typ+"-changed", func(t *testing.T) {
+			t.Parallel()
+			test(t, typ, withVersion("v1"), withVersion("v2"), replaced)
+		})
+	}
+	t.Run("undeclared-is-ignored", func(t *testing.T) {
+		t.Parallel()
+		test(t, "ZeroOptional",
+			property.Map{},
+			property.NewMap(map[string]property.Value{"version": property.New("1.0.0")}),
+			noChanges,
+		)
+	})
+}

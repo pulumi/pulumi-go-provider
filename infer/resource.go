@@ -1199,10 +1199,16 @@ func diff[R, I, O any](
 	// Update (processIgnoreChanges in pulumi/pulumi's step generator). Re-applying
 	// them here from req.State would substitute old *output* values and manufacture
 	// phantom diffs (https://github.com/pulumi/pulumi-go-provider/issues/565).
+	inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
+	if err != nil {
+		return p.DiffResponse{}, err
+	}
+	_, hasVersion := inputProps["version"]
 	for k := range req.Inputs.All {
-		// We ignore version input from the engine and any underscore-prefixed
+		// The engine sets a version input on provider resources. We ignore it
+		// unless I declares its own, along with any underscore-prefixed
 		// properties as they're assumed to be internal.
-		if k == "version" || strings.HasPrefix(k, "__") {
+		if (k == "version" && !hasVersion) || strings.HasPrefix(k, "__") {
 			req.Inputs = req.Inputs.Delete(k)
 		}
 	}
@@ -1235,10 +1241,6 @@ func diff[R, I, O any](
 		// Otherwise we need to fabricate them from state. This will fail when a
 		// resource has an input and output with the same path but a different
 		// value.
-		inputProps, err := introspect.FindProperties(reflect.TypeFor[I]())
-		if err != nil {
-			return p.DiffResponse{}, err
-		}
 		// Olds is an Output, but news is an Input. Output should be a superset of Input,
 		// so we need to filter out fields that are in Output but not Input.
 		oldInputMap := map[string]property.Value{}
