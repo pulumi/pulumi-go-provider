@@ -63,6 +63,12 @@ func (RandomSaltState) ElementType() reflect.Type {
 	return reflect.TypeOf((*randomSaltState)(nil)).Elem()
 }
 
+// RandomSaltExists checks whether an existing RandomSalt resource with the given ID exists.
+func RandomSaltExists(ctx *pulumi.Context,
+	id pulumi.StringInput, state *RandomSaltState, opts ...pulumi.ResourceOption) pulumi.BoolOutput {
+	return ctx.ExistsResource("random-login:index:RandomSalt", id, state, "", opts...)
+}
+
 type randomSaltArgs struct {
 	Password     string `pulumi:"password"`
 	SaltedLength *int   `pulumi:"saltedLength"`

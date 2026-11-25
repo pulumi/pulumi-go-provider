@@ -38,7 +38,7 @@ func withRawRequest[T RawResourceRequest](ctx context.Context, req T) context.Co
 //
 //	func (*MyResource) Create(ctx context.Context, req infer.CreateRequest[Args]) (infer.CreateResponse[State], error) {
 //		raw, ok := infer.GetRawRequest[p.CreateRequest](ctx)
-//		if ok && raw.Properties.Get("token").Secret() {
+//		if ok && raw.Properties.Get("token").IsSecret() {
 //			// ...
 //		}
 //		// ...
