@@ -1199,7 +1199,7 @@ func diff[R, I, O any](
 	// Update (processIgnoreChanges in pulumi/pulumi's step generator). Re-applying
 	// them here from req.State would substitute old *output* values and manufacture
 	// phantom diffs (https://github.com/pulumi/pulumi-go-provider/issues/565).
-	for k := range req.Inputs.All {
+	for k := range req.Inputs.All() {
 		// We ignore version input from the engine and any underscore-prefixed
 		// properties as they're assumed to be internal.
 		if k == "version" || strings.HasPrefix(k, "__") {

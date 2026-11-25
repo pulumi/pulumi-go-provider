@@ -132,7 +132,7 @@ func TestGetRawRequest(t *testing.T) {
 
 	_, err = s.Create(p.CreateRequest{Urn: resourceURN, Properties: news})
 	require.NoError(t, err)
-	assert.True(t, seen.create.Properties.Get("value").Secret())
+	assert.True(t, seen.create.Properties.Get("value").IsSecret())
 
 	_, err = s.Read(p.ReadRequest{Urn: resourceURN, ID: "id", Properties: news, Inputs: news})
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestGetRawRequest(t *testing.T) {
 	_, err = s.Update(p.UpdateRequest{Urn: resourceURN, ID: "id", State: olds, OldInputs: olds, Inputs: news})
 	require.NoError(t, err)
 	assert.Equal(t, olds, seen.update.OldInputs)
-	assert.True(t, seen.update.Inputs.Get("value").Secret())
+	assert.True(t, seen.update.Inputs.Get("value").IsSecret())
 
 	err = s.Delete(p.DeleteRequest{Urn: resourceURN, ID: "id", Properties: news})
 	require.NoError(t, err)

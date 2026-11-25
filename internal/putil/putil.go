@@ -260,13 +260,13 @@ func Walk(v property.Value, f func(property.Value) (continueWalking bool)) bool 
 	}
 	switch {
 	case v.IsArray():
-		for _, v := range v.AsArray().All {
+		for _, v := range v.AsArray().All() {
 			if !Walk(v, f) {
 				return false
 			}
 		}
 	case v.IsMap():
-		for _, v := range v.AsMap().All {
+		for _, v := range v.AsMap().All() {
 			if !Walk(v, f) {
 				return false
 			}

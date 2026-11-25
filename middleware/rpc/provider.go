@@ -385,7 +385,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
 			inputDependencies := map[string]*rpc.ConstructRequest_PropertyDependencies{}
 			if !runtime.configuration.AcceptOutputs {
-				for name, v := range req.Inputs.All {
+				for name, v := range req.Inputs.All() {
 					urns := putil.GetPropertyDependencies(v)
 					if len(urns) != 0 {
 						inputDependencies[name] = &rpc.ConstructRequest_PropertyDependencies{Urns: putil.FromUrns(urns)}
@@ -425,7 +425,7 @@ func Provider(server rpc.ResourceProviderServer) p.Provider {
 			// in which case the [runtime.propertyToRPC] function discarded the dependency information.
 			argDependencies := map[string]*rpc.CallRequest_ArgumentDependencies{}
 			if !runtime.configuration.AcceptOutputs {
-				for name, v := range req.Args.All {
+				for name, v := range req.Args.All() {
 					urns := putil.GetPropertyDependencies(v)
 					if len(urns) != 0 {
 						argDependencies[name] = &rpc.CallRequest_ArgumentDependencies{Urns: putil.FromUrns(urns)}
