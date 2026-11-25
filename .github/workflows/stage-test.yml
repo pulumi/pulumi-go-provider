@@ -51,7 +51,7 @@ jobs:
     steps:
       - name: Authenticate with Pulumi Cloud
         id: pulumi-auth
-        uses: pulumi/auth-actions@159c3e431aab767d4519b96f3f784d7d3d725622 # v2
+        uses: pulumi/auth-actions@273044cc19e63ea565285da8edd4e059126a0bdb # v2
         with:
           organization: pulumi
           requested-token-type: urn:pulumi:token-type:access_token:organization
@@ -73,7 +73,7 @@ jobs:
         id: pulumi-version
         run: echo "version=$(go list -m -f '{{.Version}}' github.com/pulumi/pulumi/pkg/v3)" >> "$GITHUB_OUTPUT"
       - name: Install Pulumi CLI
-        uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
+        uses: pulumi/actions@0ce33695f880624d4f27bd6db25e680c7df4d551 # v7.2.0
         with:
           pulumi-version: ${{ steps.pulumi-version.outputs.version }}
       - name: Test
