@@ -146,6 +146,8 @@ func (c *config[T]) checkConfig(ctx context.Context, req p.CheckRequest) (p.Chec
 }
 
 func (c *config[T]) diffConfig(ctx context.Context, req p.DiffRequest) (p.DiffResponse, error) {
+	// Old inputs carry the engine's "version" too.
+	req.OldInputs = req.OldInputs.Delete("version")
 	// We currently replace the provider on any changes to T
 	// (https://github.com/pulumi/pulumi-go-provider/issues/409). The engine-managed
 	// "version" input is not part of T and is diffed separately: a version change

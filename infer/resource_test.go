@@ -368,6 +368,77 @@ func TestDiffWhereStateShadowsInputs(t *testing.T) {
 	assert.Empty(t, resp.DetailedDiff)
 }
 
+// TestDiffConfigOldInputsInternalKeys checks that diffConfig ignores "version" and internal keys in old inputs.
+func TestDiffConfigOldInputsInternalKeys(t *testing.T) {
+	t.Parallel()
+
+	type C struct {
+		Host string `pulumi:"host,optional"`
+	}
+
+	inputs := func(host, version, inferVersion string) property.Map {
+		return property.NewMap(map[string]property.Value{
+			"__pulumi-go-provider-infer":   property.New(true),
+			"__pulumi-go-provider-version": property.New(inferVersion),
+			"host":                         property.New(host),
+			"version":                      property.New(version),
+		})
+	}
+
+	tests := map[string]struct {
+		olds, news property.Map
+		want       p.DiffResponse
+	}{
+		"unchanged": {
+			olds: inputs("tcp://a", "1.1.0", "v1.8.0"),
+			news: inputs("tcp://a", "1.1.0", "v1.8.0"),
+			want: p.DiffResponse{DetailedDiff: map[string]p.PropertyDiff{}},
+		},
+		"upgrade": {
+			olds: inputs("tcp://a", "1.0.0", "v1.7.0"),
+			news: inputs("tcp://a", "1.1.0", "v1.8.0"),
+			want: p.DiffResponse{
+				HasChanges: true,
+				DetailedDiff: map[string]p.PropertyDiff{
+					"version": {Kind: p.Update, InputDiff: true},
+				},
+			},
+		},
+		"config-change": {
+			olds: inputs("tcp://a", "1.1.0", "v1.8.0"),
+			news: inputs("tcp://b", "1.1.0", "v1.8.0"),
+			want: p.DiffResponse{
+				HasChanges: true,
+				DetailedDiff: map[string]p.PropertyDiff{
+					"host": {Kind: p.UpdateReplace},
+				},
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			resp, err := (&config[C]{receiver: &C{}}).diffConfig(
+				Context{context.WithValue(t.Context(), key.RuntimeInfo, p.RunInfo{
+					PackageName:       "test",
+					Version:           "1.1.0",
+					SupportsOldInputs: true,
+				})},
+				p.DiffRequest{
+					Urn:       r.CreateURN("default_1_1_0", "pulumi:providers:test", "", "proj", "stack"),
+					State:     tt.olds,
+					OldInputs: tt.olds,
+					Inputs:    tt.news,
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, resp)
+		})
+	}
+}
+
 type testContext struct {
 	context.Context
 
